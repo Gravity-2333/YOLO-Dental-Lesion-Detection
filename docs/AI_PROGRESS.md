@@ -2,6 +2,12 @@
 
 ## 2026-05-11
 
+### UI Localization
+
+- Updated `app.py` so the Gradio page is displayed in Chinese.
+- Localized the page title, upload panel, inference controls, run button, output labels, detection table headers, JSON summary keys, and empty-image error message.
+- Verified UTF-8 file reading with `Get-Content -Encoding UTF8` after a PowerShell display-encoding warning.
+
 ### Completed
 
 - Checked `models/dental_detect_12/weights/best.pt`.
