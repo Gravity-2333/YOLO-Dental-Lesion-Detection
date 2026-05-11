@@ -9,6 +9,7 @@ env/
 
 data/dental_lesion/images/
 data/dental_lesion/labels/
+yolov8_dental/
 /runs/
 outputs/
 *.log

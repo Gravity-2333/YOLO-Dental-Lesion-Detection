@@ -13,6 +13,13 @@
 - Fixed a Gradio output error caused by integer keys in the JSON summary.
 - Converted class mapping keys from integers to strings before returning them to `gr.JSON`.
 
+### Dataset Handling
+
+- Inspected local `yolov8_dental/` training dataset.
+- Dataset contains 664 `.png` images, 664 `.txt` YOLO labels, and is about 2.59 GB.
+- Added `yolov8_dental/` to `.gitignore` because the raw dental image dataset is too large for normal Git history and may require privacy/licensing review before sharing.
+- Keep dataset metadata/templates in the repository, but store raw images and labels locally or with a dataset-specific storage solution such as Git LFS, DVC, release assets, or controlled cloud storage.
+
 ### Completed
 
 - Checked `models/dental_detect_12/weights/best.pt`.
