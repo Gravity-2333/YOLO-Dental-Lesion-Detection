@@ -24,10 +24,6 @@ def run_detection(image, conf: float, iou: float, imgsz: int, use_gpu: bool):
         device=device,
     )
     rows = [det.as_row() for det in detections]
-    table = pd.DataFrame(
-        rows,
-        columns=["类别ID", "类别", "置信度", "左上角X", "左上角Y", "右下角X", "右下角Y"],
-    )
     if rows:
         table = pd.DataFrame(
             [
@@ -44,9 +40,13 @@ def run_detection(image, conf: float, iou: float, imgsz: int, use_gpu: bool):
             ],
             columns=["类别ID", "类别", "置信度", "左上角X", "左上角Y", "右下角X", "右下角Y"],
         )
+    else:
+        table = pd.DataFrame(
+            columns=["类别ID", "类别", "置信度", "左上角X", "左上角Y", "右下角X", "右下角Y"],
+        )
     summary = {
         "模型路径": str(DEFAULT_MODEL_PATH),
-        "类别映射": detector.names,
+        "类别映射": {str(key): value for key, value in detector.names.items()},
         "检测数量": len(rows),
         "运行设备": "cuda:0" if use_gpu else "cpu",
     }

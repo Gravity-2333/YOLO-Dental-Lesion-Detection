@@ -8,6 +8,11 @@
 - Localized the page title, upload panel, inference controls, run button, output labels, detection table headers, JSON summary keys, and empty-image error message.
 - Verified UTF-8 file reading with `Get-Content -Encoding UTF8` after a PowerShell display-encoding warning.
 
+### Gradio JSON Fix
+
+- Fixed a Gradio output error caused by integer keys in the JSON summary.
+- Converted class mapping keys from integers to strings before returning them to `gr.JSON`.
+
 ### Completed
 
 - Checked `models/dental_detect_12/weights/best.pt`.
