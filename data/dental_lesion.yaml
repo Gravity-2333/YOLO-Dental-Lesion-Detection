@@ -1,0 +1,9 @@
+path: data/dental_lesion
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: Caries
+  1: Periapical Lesion
+  2: Impacted

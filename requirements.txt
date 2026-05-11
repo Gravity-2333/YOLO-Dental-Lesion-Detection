@@ -1,0 +1,8 @@
+gradio>=6.14.0
+ultralytics>=8.4.41
+torch>=2.5.1
+torchvision>=0.20.1
+numpy>=2.2.0
+pillow>=12.0.0
+pandas>=2.3.0
+pyyaml>=6.0.0
