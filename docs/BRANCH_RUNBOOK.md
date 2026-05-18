@@ -6,6 +6,22 @@
 
 本分支用于训练原始 YOLOv8 基线模型，不加入 P2、EMA、DySample。建议分别训练 `n/s/m` 三个模型，用于和后续改进分支做对比。
 
+## 数据集
+
+数据集已复制到：
+
+```text
+data/dental_lesion
+```
+
+当前配置文件：
+
+```text
+data/dental_lesion.yaml
+```
+
+包含 532 张训练图、132 张验证图，并使用 3 个类别：`Caries`、`Periapical Lesion`、`Impacted`。
+
 ## 环境准备
 
 ```powershell
@@ -35,7 +51,7 @@ models/dental_detect_12/weights/best.pt
 mamba run -n yolo yolo detect train model=models/pretrained/yolov8n.pt data=data/dental_lesion.yaml epochs=1 imgsz=320 batch=1 device=0 workers=0 project=runs/detect name=dental_yolov8n_baseline_smoke
 ```
 
-如果本地没有 `data/dental_lesion/images/train` 和 `data/dental_lesion/images/val`，训练会在数据集检查阶段失败。
+如果重新打包到服务器，确认 `data/dental_lesion/images/train` 和 `data/dental_lesion/images/val` 一起上传。
 
 ## 云服务器正式训练：YOLOv8n
 
