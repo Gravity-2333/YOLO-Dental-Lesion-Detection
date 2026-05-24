@@ -3,10 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+import sys
 from typing import Any
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+
+from .config import CUSTOM_ULTRALYTICS_PATH
+
+if CUSTOM_ULTRALYTICS_PATH.exists():
+    sys.path.insert(0, str(CUSTOM_ULTRALYTICS_PATH))
+
 from ultralytics import YOLO
 
 
