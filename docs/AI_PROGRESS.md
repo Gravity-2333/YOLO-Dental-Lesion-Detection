@@ -89,3 +89,23 @@ PR body:
 - 模型类别为 `Caries`、`Periapical Lesion`、`Impacted`。
 - 本机未安装 GitHub CLI `gh`，因此 PR 需要通过 GitHub 页面手动创建。
 ```
+
+## 2026-05-25
+
+### Gradio Dental Workbench Upgrade
+
+- Upgraded the Gradio frontend into a dental analysis workbench with single-image replacement, batch image analysis, grouped settings, detection summaries, and advice/chat panels.
+- Added stable image preprocessing: EXIF transpose, RGB conversion, `numpy.uint8`, and optional CLAHE inference for low-contrast dental images. Default inference still uses the original image after only basic normalization.
+- Updated YOLO inference to send the prepared image directly to Ultralytics with `imgsz=1280`, `conf`, and `iou`, without manual stretching or aspect-ratio changes.
+- Added OpenAI-compatible Chat Completions support for AI suggestions and follow-up Q&A. The first version uses only `model`, `messages`, `temperature`, and `max_tokens`, and does not send dental images to AI.
+- Added local user-directory settings and conversation storage under `Path.home() / "YOLO-Dental-Lesion-Detection"`, with safe API Key persistence rules.
+- Added built-in fallback advice when AI is disabled or unavailable. Both AI and built-in advice state that results are only auxiliary and cannot replace professional dental diagnosis.
+
+### Verification
+
+- `mamba run -n yolo python -m compileall app.py src\dental_detection`
+- Built the Gradio app in the `yolo` environment.
+- Verified preprocessing with and without CLAHE keeps RGB `uint8` shape.
+- Ran CPU single-image inference on `assets/examples/bus.jpg`; outputs included original image, model input image, result image, table, and safety advice.
+- Ran CPU batch inference on `assets/examples/bus.jpg`; output selection and built-in advice returned successfully.
+- Verified direct API Key mode does not save the real key unless explicitly enabled, and public HTTPS API calls are blocked when the key is empty.

@@ -372,18 +372,13 @@ def toggle_summary(show_summary: bool):
 def build_app() -> gr.Blocks:
     saved = load_settings()
     ensure_app_dirs(saved.storage_dir)
-    css = """
-    .main-title { margin-bottom: 0; }
-    .subtle { color: #51606f; font-size: 0.95rem; }
-    .panel-note { color: #5b6673; font-size: 0.9rem; }
-    """
-    with gr.Blocks(title="牙齿病变区域识别", css=css) as demo:
+    with gr.Blocks(title="牙齿病变区域识别") as demo:
         batch_state = gr.State([])
         chat_state = gr.State([])
         gr.Markdown(
             "医院与个人辅助筛查工作台\n"
             "# 牙齿病变区域识别\n"
-            "<span class='subtle'>上传牙科影像，查看模型输入、检测框和辅助建议。结果仅供参考，不能替代专业牙科医生诊断。</span>"
+            "上传牙科影像，查看模型输入、检测框和辅助建议。结果仅供参考，不能替代专业牙科医生诊断。"
         )
 
         with gr.Row():
@@ -469,7 +464,7 @@ def build_app() -> gr.Blocks:
                 )
 
         with gr.Accordion("基于建议继续问答", open=True):
-            chatbot = gr.Chatbot(label="问答记录", type="messages", height=280)
+            chatbot = gr.Chatbot(label="问答记录", height=280)
             with gr.Row():
                 chat_input = gr.Textbox(label="继续提问", scale=6)
                 chat_btn = gr.Button("发送", variant="primary", scale=1)
