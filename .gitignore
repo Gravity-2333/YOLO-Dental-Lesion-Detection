@@ -13,3 +13,6 @@ yolov8_dental/
 /runs/
 outputs/
 *.log
+local_samples/
+private_samples/
+*.dcm
