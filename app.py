@@ -275,6 +275,8 @@ def clear_outputs():
         gr.update(choices=[], value=None),
         [],
         [],
+        None,
+        gr.update(interactive=False),
     )
 
 
@@ -374,6 +376,8 @@ def run_single_detection(
         gr.update(choices=["当前单图"], value="当前单图"),
         chat_history,
         chat_history,
+        None,
+        gr.update(interactive=False),
     )
 
 
@@ -455,6 +459,8 @@ def run_batch_detection(
         gr.update(choices=choices, value=choices[0]),
         chat_history,
         chat_history,
+        None,
+        gr.update(interactive=True),
     )
 
 
@@ -573,6 +579,21 @@ def build_app() -> gr.Blocks:
     with gr.Blocks(title="牙齿病变区域识别") as demo:
         batch_state = gr.State([])
         chat_state = gr.State([])
+        gr.HTML(
+            """
+            <style>
+              body, .gradio-container { background: #f6f8fb !important; color: #142033; }
+              .gradio-container { max-width: 1340px !important; margin: 0 auto !important; }
+              button.primary, button.primary:hover { background: #2563eb !important; border-color: #2563eb !important; }
+              button.secondary { border-radius: 6px !important; }
+              .tabs button[role="tab"][aria-selected="true"] { color: #2563eb !important; border-color: #2563eb !important; }
+              .form, .block, .panel { border-radius: 8px !important; }
+              textarea, input, select { border-radius: 6px !important; }
+              .wrap, .contain { border-radius: 8px !important; }
+              table { font-size: 0.92rem !important; }
+            </style>
+            """
+        )
         gr.Markdown(
             "医院与个人辅助筛查工作台\n"
             "# 牙齿病变区域识别\n"
@@ -598,7 +619,7 @@ def build_app() -> gr.Blocks:
                         )
                         batch_btn = gr.Button("批量分析", variant="primary")
                         batch_select = gr.Dropdown(label="查看某张图片", choices=[])
-                        export_batch_btn = gr.Button("一键导出批量结果")
+                        export_batch_btn = gr.Button("一键导出批量结果", interactive=False)
                         batch_export_file = gr.File(label="批量结果 ZIP")
 
                 with gr.Row():
@@ -703,6 +724,8 @@ def build_app() -> gr.Blocks:
             batch_select,
             chatbot,
             chat_state,
+            batch_export_file,
+            export_batch_btn,
         ]
 
         image.change(fn=clear_outputs, outputs=common_outputs)
