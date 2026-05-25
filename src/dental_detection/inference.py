@@ -6,8 +6,9 @@ from pathlib import Path
 import sys
 from typing import Any
 
+import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from .config import CUSTOM_ULTRALYTICS_PATH
 
@@ -29,14 +30,34 @@ class Detection:
 
     def as_row(self) -> dict[str, Any]:
         return {
-            "class_id": self.cls_id,
-            "label": self.label,
+            "class": self.label,
             "confidence": round(self.confidence, 4),
             "x1": round(self.x1, 2),
             "y1": round(self.y1, 2),
             "x2": round(self.x2, 2),
             "y2": round(self.y2, 2),
         }
+
+
+def preprocess_image(image: Image.Image | np.ndarray | str | Path, use_clahe: bool = False) -> np.ndarray:
+    """Normalize user input for YOLO without changing aspect ratio."""
+    if isinstance(image, Image.Image):
+        pil_image = ImageOps.exif_transpose(image).convert("RGB")
+    elif isinstance(image, (str, Path)):
+        with Image.open(image) as img:
+            pil_image = ImageOps.exif_transpose(img).convert("RGB")
+    else:
+        pil_image = ImageOps.exif_transpose(Image.fromarray(np.asarray(image))).convert("RGB")
+
+    rgb = np.asarray(pil_image, dtype=np.uint8)
+    if not use_clahe:
+        return rgb
+
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(blurred)
+    return cv2.cvtColor(enhanced, cv2.COLOR_GRAY2RGB)
 
 
 class DentalDetector:
@@ -47,15 +68,17 @@ class DentalDetector:
 
     def predict(
         self,
-        image: Image.Image | np.ndarray,
+        image: Image.Image | np.ndarray | str | Path,
+        use_clahe: bool = False,
         conf: float = 0.25,
         iou: float = 0.7,
-        imgsz: int = 1024,
+        imgsz: int = 1280,
         device: str | int | None = None,
-    ) -> tuple[Image.Image, list[Detection]]:
-        pil_image = self._to_rgb_image(image)
+    ) -> tuple[Image.Image, Image.Image, Image.Image, list[Detection]]:
+        original_array = preprocess_image(image, use_clahe=False)
+        model_array = preprocess_image(image, use_clahe=use_clahe)
         results = self.model.predict(
-            source=np.array(pil_image),
+            source=model_array,
             conf=conf,
             iou=iou,
             imgsz=imgsz,
@@ -63,8 +86,9 @@ class DentalDetector:
             verbose=False,
         )
         detections = self._parse_result(results[0])
-        annotated = self._draw_detections(pil_image, detections)
-        return annotated, detections
+        model_image = Image.fromarray(model_array)
+        annotated = self._draw_detections(model_image, detections)
+        return Image.fromarray(original_array), model_image, annotated, detections
 
     def _parse_result(self, result: Any) -> list[Detection]:
         detections: list[Detection] = []
@@ -90,7 +114,10 @@ class DentalDetector:
     @staticmethod
     def _to_rgb_image(image: Image.Image | np.ndarray) -> Image.Image:
         if isinstance(image, Image.Image):
-            return image.convert("RGB")
+            return ImageOps.exif_transpose(image).convert("RGB")
+        if isinstance(image, (str, Path)):
+            with Image.open(image) as img:
+                return ImageOps.exif_transpose(img).convert("RGB")
         return Image.fromarray(np.asarray(image)).convert("RGB")
 
     @staticmethod
@@ -126,3 +153,24 @@ class DentalDetector:
 @lru_cache(maxsize=2)
 def get_detector(model_path: str) -> DentalDetector:
     return DentalDetector(model_path)
+
+
+def run_inference(
+    image: Image.Image | np.ndarray | str | Path,
+    model_path: str | Path,
+    use_clahe: bool = False,
+    conf: float = 0.25,
+    iou: float = 0.7,
+    imgsz: int = 1280,
+    device: str | int | None = None,
+) -> tuple[Image.Image, Image.Image, Image.Image, list[Detection], dict[int, str]]:
+    detector = get_detector(str(model_path))
+    original, model_input, annotated, detections = detector.predict(
+        image=image,
+        use_clahe=use_clahe,
+        conf=conf,
+        iou=iou,
+        imgsz=imgsz,
+        device=device,
+    )
+    return original, model_input, annotated, detections, detector.names

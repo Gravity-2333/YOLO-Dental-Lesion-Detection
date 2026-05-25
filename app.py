@@ -2,163 +2,568 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Iterable
+from typing import Any
 
 import gradio as gr
 import pandas as pd
 import torch
 
+from src.dental_detection.assistant import (
+    AiSettings,
+    default_advice,
+    detection_prompt,
+    ensure_app_dirs,
+    load_settings,
+    save_conversation,
+    save_settings,
+    test_chat_completion,
+    chat_completion,
+)
 from src.dental_detection.config import DEFAULT_MODEL_NAME, MODEL_REGISTRY
-from src.dental_detection.inference import Detection, get_detector
+from src.dental_detection.inference import Detection, run_inference
 
 MODEL_SOURCE = "YOLOv8m 原始结构"
 MODEL_OPTIMIZED = "YOLOv8m C2f-Faster-lite"
 MODEL_COMPARE = "双模型对比"
+TABLE_COLUMNS = ["class", "confidence", "x1", "y1", "x2", "y2"]
 
 
 def _empty_table() -> pd.DataFrame:
-    return pd.DataFrame(
-        columns=["类别ID", "类别", "置信度", "左上角X", "左上角Y", "右下角X", "右下角Y"]
-    )
+    return pd.DataFrame(columns=TABLE_COLUMNS)
 
 
-def _table_from_detections(detections: Iterable[Detection]) -> pd.DataFrame:
+def _table_from_detections(detections: list[Detection]) -> pd.DataFrame:
     rows = [det.as_row() for det in detections]
-    if not rows:
-        return _empty_table()
-    return pd.DataFrame(
-        [
-            {
-                "类别ID": row["class_id"],
-                "类别": row["label"],
-                "置信度": row["confidence"],
-                "左上角X": row["x1"],
-                "左上角Y": row["y1"],
-                "右下角X": row["x2"],
-                "右下角Y": row["y2"],
-            }
-            for row in rows
-        ],
-        columns=["类别ID", "类别", "置信度", "左上角X", "左上角Y", "右下角X", "右下角Y"],
-    )
+    return pd.DataFrame(rows, columns=TABLE_COLUMNS) if rows else _empty_table()
 
 
-def _detect_one(model_name: str, image, conf: float, iou: float, imgsz: int, device):
-    model_info = MODEL_REGISTRY[model_name]
-    detector = get_detector(str(model_info["path"]))
-    annotated, detections = detector.predict(
-        image=image,
-        conf=conf,
-        iou=iou,
-        imgsz=int(imgsz),
-        device=device,
-    )
-    return annotated, detections, detector.names
+def _records_from_detections(detections: list[Detection]) -> list[dict[str, Any]]:
+    return [det.as_row() for det in detections]
 
 
-def run_detection(image, model_choice: str, conf: float, iou: float, imgsz: int, use_gpu: bool):
-    if image is None:
-        return None, _empty_table(), None, _empty_table(), {"错误": "请先上传一张图片。"}
-
+def _device(use_gpu: bool) -> tuple[str | int, bool]:
     cuda_available = torch.cuda.is_available()
     if use_gpu and not cuda_available:
         raise gr.Error("当前 Python 环境没有可用 CUDA。请使用 mamba 的 yolo 环境启动应用。")
-    device = 0 if use_gpu and cuda_available else "cpu"
-    selected_models = (
-        [MODEL_SOURCE, MODEL_OPTIMIZED] if model_choice == MODEL_COMPARE else [model_choice]
-    )
-    outputs = {
-        MODEL_SOURCE: (None, _empty_table(), []),
-        MODEL_OPTIMIZED: (None, _empty_table(), []),
-    }
-    class_names = {}
+    return (0 if use_gpu and cuda_available else "cpu"), cuda_available
 
+
+def _detect_model(model_name: str, image, use_clahe: bool, conf: float, iou: float, device):
+    model_info = MODEL_REGISTRY[model_name]
+    original, model_input, annotated, detections, names = run_inference(
+        image=image,
+        model_path=model_info["path"],
+        use_clahe=use_clahe,
+        conf=conf,
+        iou=iou,
+        imgsz=1280,
+        device=device,
+    )
+    return {
+        "model": model_name,
+        "original": original,
+        "model_input": model_input,
+        "annotated": annotated,
+        "detections": _records_from_detections(detections),
+        "table": _table_from_detections(detections),
+        "class_names": {str(key): value for key, value in names.items()},
+    }
+
+
+def _ai_settings(
+    ai_enabled: bool,
+    base_url: str,
+    ai_model: str,
+    key_mode: str,
+    api_key: str,
+    save_key: bool,
+    auto_save: bool,
+    storage_dir: str,
+) -> AiSettings:
+    return AiSettings(
+        enabled=ai_enabled,
+        base_url=(base_url or "").strip() or "https://api.openai.com/v1",
+        model=(ai_model or "").strip() or "gpt-4o-mini",
+        key_mode=key_mode,
+        api_key=(api_key or "").strip(),
+        save_api_key=save_key,
+        auto_save=auto_save,
+        storage_dir=(storage_dir or "").strip() or str(ensure_app_dirs()),
+    )
+
+
+def _build_advice(settings: AiSettings, detections: list[dict[str, Any]]) -> str:
+    if not settings.enabled:
+        return default_advice(detections)
+    try:
+        return chat_completion(settings, detection_prompt(detections), temperature=0.2, max_tokens=500)
+    except Exception as exc:
+        return f"{default_advice(detections)}\n\nAI 建议生成失败：{exc}"
+
+
+def _conversation_from_advice(advice: str) -> list[dict[str, str]]:
+    return [{"role": "assistant", "content": advice}]
+
+
+def clear_outputs():
+    return (
+        None,
+        None,
+        None,
+        _empty_table(),
+        "",
+        {},
+        [],
+        gr.update(choices=[], value=None),
+        [],
+        [],
+    )
+
+
+def run_single_detection(
+    image,
+    model_choice: str,
+    conf: float,
+    iou: float,
+    use_gpu: bool,
+    use_clahe: bool,
+    enable_compare: bool,
+    show_summary: bool,
+    ai_enabled: bool,
+    base_url: str,
+    ai_model: str,
+    key_mode: str,
+    api_key: str,
+    save_key: bool,
+    auto_save: bool,
+    storage_dir: str,
+):
+    if image is None:
+        raise gr.Error("请先上传一张牙科影像。")
+
+    device, cuda_available = _device(use_gpu)
+    selected_models = [model_choice]
+    if enable_compare and model_choice == MODEL_COMPARE:
+        selected_models = [MODEL_SOURCE, MODEL_OPTIMIZED]
+    elif model_choice == MODEL_COMPARE:
+        selected_models = [MODEL_OPTIMIZED]
+
+    primary = None
+    all_results = []
     for model_name in selected_models:
-        annotated, detections, names = _detect_one(model_name, image, conf, iou, imgsz, device)
-        outputs[model_name] = (annotated, _table_from_detections(detections), detections)
-        class_names = {str(key): value for key, value in names.items()}
+        result = _detect_model(model_name, image, use_clahe, conf, iou, device)
+        all_results.append(result)
+        if primary is None:
+            primary = result
+
+    assert primary is not None
+    settings = _ai_settings(
+        ai_enabled, base_url, ai_model, key_mode, api_key, save_key, auto_save, storage_dir
+    )
+    save_settings(settings)
+    advice = _build_advice(settings, primary["detections"])
+    chat_history = _conversation_from_advice(advice)
+    if settings.auto_save:
+        save_conversation(chat_history, settings.storage_dir)
 
     summary = {
         "运行设备": "cuda:0" if device != "cpu" else "cpu",
         "GPU请求": bool(use_gpu),
         "CUDA可用": bool(cuda_available),
-        "推理尺寸": int(imgsz),
+        "推理尺寸": 1280,
+        "CLAHE增强": bool(use_clahe),
         "置信度阈值": conf,
         "IoU阈值": iou,
-        "类别映射": class_names,
-        "模型": {
-            name: {
-                "路径": str(MODEL_REGISTRY[name]["path"]),
-                "结构": MODEL_REGISTRY[name]["architecture"],
-                "定位": MODEL_REGISTRY[name]["role"],
-                "检测数量": len(outputs[name][2]),
-                "test_mAP50": MODEL_REGISTRY[name]["metrics"]["test_mAP50"],
-                "test_mAP50-95": MODEL_REGISTRY[name]["metrics"]["test_mAP50_95"],
-                "Params": MODEL_REGISTRY[name]["metrics"]["params"],
-                "GFLOPs": MODEL_REGISTRY[name]["metrics"]["gflops"],
+        "模型结果": [
+            {
+                "模型": item["model"],
+                "检测数量": len(item["detections"]),
+                "类别映射": item["class_names"],
+                "路径": str(MODEL_REGISTRY[item["model"]]["path"]),
             }
-            for name in selected_models
-        },
+            for item in all_results
+        ],
     }
 
+    batch_state = [
+        {
+            "name": "当前单图",
+            "result": primary,
+            "all_results": all_results,
+            "advice": advice,
+            "summary": summary,
+        }
+    ]
+    summary_output = summary if show_summary else {}
     return (
-        outputs[MODEL_SOURCE][0],
-        outputs[MODEL_SOURCE][1],
-        outputs[MODEL_OPTIMIZED][0],
-        outputs[MODEL_OPTIMIZED][1],
-        summary,
+        primary["original"],
+        primary["model_input"],
+        primary["annotated"],
+        primary["table"],
+        advice,
+        summary_output,
+        batch_state,
+        gr.update(choices=["当前单图"], value="当前单图"),
+        chat_history,
+        chat_history,
     )
 
 
+def _file_name(file_obj) -> str:
+    path = getattr(file_obj, "name", None) or str(file_obj)
+    return Path(path).name
+
+
+def run_batch_detection(
+    files,
+    model_choice: str,
+    conf: float,
+    iou: float,
+    use_gpu: bool,
+    use_clahe: bool,
+    ai_enabled: bool,
+    base_url: str,
+    ai_model: str,
+    key_mode: str,
+    api_key: str,
+    save_key: bool,
+    auto_save: bool,
+    storage_dir: str,
+):
+    if not files:
+        raise gr.Error("请先批量上传牙科影像。")
+
+    device, _ = _device(use_gpu)
+    settings = _ai_settings(
+        ai_enabled, base_url, ai_model, key_mode, api_key, save_key, auto_save, storage_dir
+    )
+    save_settings(settings)
+    selected_model = MODEL_OPTIMIZED if model_choice == MODEL_COMPARE else model_choice
+    batch_state = []
+    for file_obj in files:
+        path = getattr(file_obj, "name", None) or file_obj
+        result = _detect_model(selected_model, path, use_clahe, conf, iou, device)
+        advice = _build_advice(settings, result["detections"])
+        batch_state.append(
+            {
+                "name": _file_name(file_obj),
+                "result": result,
+                "all_results": [result],
+                "advice": advice,
+                "summary": {
+                    "文件": _file_name(file_obj),
+                    "模型": selected_model,
+                    "检测数量": len(result["detections"]),
+                    "CLAHE增强": bool(use_clahe),
+                },
+            }
+        )
+
+    first = batch_state[0]
+    chat_history = _conversation_from_advice(first["advice"])
+    if settings.auto_save:
+        save_conversation(chat_history, settings.storage_dir)
+    choices = [item["name"] for item in batch_state]
+    return (
+        first["result"]["original"],
+        first["result"]["model_input"],
+        first["result"]["annotated"],
+        first["result"]["table"],
+        first["advice"],
+        first["summary"],
+        batch_state,
+        gr.update(choices=choices, value=choices[0]),
+        chat_history,
+        chat_history,
+    )
+
+
+def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
+    if not name or not batch_state:
+        return None, None, None, _empty_table(), "", {}, [], []
+    item = next((row for row in batch_state if row["name"] == name), batch_state[0])
+    chat_history = _conversation_from_advice(item["advice"])
+    return (
+        item["result"]["original"],
+        item["result"]["model_input"],
+        item["result"]["annotated"],
+        item["result"]["table"],
+        item["advice"],
+        item["summary"],
+        chat_history,
+        chat_history,
+    )
+
+
+def test_ai_settings(
+    ai_enabled: bool,
+    base_url: str,
+    ai_model: str,
+    key_mode: str,
+    api_key: str,
+    save_key: bool,
+    auto_save: bool,
+    storage_dir: str,
+):
+    settings = _ai_settings(
+        ai_enabled, base_url, ai_model, key_mode, api_key, save_key, auto_save, storage_dir
+    )
+    save_settings(settings)
+    if not settings.enabled:
+        return "AI 功能未开启。开启后可测试接口。"
+    try:
+        return test_chat_completion(settings)
+    except Exception as exc:
+        return f"测试失败：{exc}"
+
+
+def continue_chat(
+    message: str,
+    history: list[dict[str, str]],
+    ai_enabled: bool,
+    base_url: str,
+    ai_model: str,
+    key_mode: str,
+    api_key: str,
+    save_key: bool,
+    auto_save: bool,
+    storage_dir: str,
+):
+    if not message:
+        return history, history, ""
+    settings = _ai_settings(
+        ai_enabled, base_url, ai_model, key_mode, api_key, save_key, auto_save, storage_dir
+    )
+    history = list(history or [])
+    history.append({"role": "user", "content": message})
+    if not settings.enabled:
+        history.append(
+            {
+                "role": "assistant",
+                "content": "AI 功能未开启。当前只能查看检测后的内置建议。",
+            }
+        )
+    else:
+        try:
+            answer = chat_completion(settings, history, temperature=0.2, max_tokens=500)
+        except Exception as exc:
+            answer = f"AI 回复失败：{exc}"
+        history.append({"role": "assistant", "content": answer})
+    if settings.auto_save:
+        save_conversation(history, settings.storage_dir)
+    return history, history, ""
+
+
+def export_chat(history: list[dict[str, str]], storage_dir: str):
+    if not history:
+        raise gr.Error("当前没有可导出的对话记录。")
+    path = save_conversation(history, storage_dir)
+    return str(path)
+
+
+def toggle_ai_settings(enabled: bool):
+    return gr.update(visible=enabled)
+
+
+def toggle_summary(show_summary: bool):
+    return gr.update(visible=show_summary)
+
+
 def build_app() -> gr.Blocks:
-    with gr.Blocks(title="牙齿病变区域识别") as demo:
-        gr.Markdown("# 牙齿病变区域识别")
+    saved = load_settings()
+    ensure_app_dirs(saved.storage_dir)
+    css = """
+    .main-title { margin-bottom: 0; }
+    .subtle { color: #51606f; font-size: 0.95rem; }
+    .panel-note { color: #5b6673; font-size: 0.9rem; }
+    """
+    with gr.Blocks(title="牙齿病变区域识别", css=css) as demo:
+        batch_state = gr.State([])
+        chat_state = gr.State([])
+        gr.Markdown(
+            "医院与个人辅助筛查工作台\n"
+            "# 牙齿病变区域识别\n"
+            "<span class='subtle'>上传牙科影像，查看模型输入、检测框和辅助建议。结果仅供参考，不能替代专业牙科医生诊断。</span>"
+        )
 
         with gr.Row():
-            with gr.Column(scale=1):
-                image = gr.Image(type="pil", label="输入影像", height=420)
-                model_choice = gr.Radio(
-                    choices=[MODEL_OPTIMIZED, MODEL_SOURCE, MODEL_COMPARE],
-                    value=DEFAULT_MODEL_NAME,
-                    label="模型",
-                )
+            with gr.Column(scale=4):
+                with gr.Tabs():
+                    with gr.Tab("单张分析"):
+                        image = gr.Image(
+                            type="pil",
+                            label="拖拽或点击上传牙科影像",
+                            height=390,
+                            sources=["upload", "clipboard"],
+                        )
+                        run_btn = gr.Button("开始分析", variant="primary")
+                    with gr.Tab("批量分析"):
+                        batch_files = gr.File(
+                            label="批量上传图片",
+                            file_count="multiple",
+                            file_types=["image"],
+                        )
+                        batch_btn = gr.Button("批量分析", variant="primary")
+                        batch_select = gr.Dropdown(label="查看某张图片", choices=[])
+
+                with gr.Row():
+                    model_choice = gr.Radio(
+                        choices=[MODEL_OPTIMIZED, MODEL_SOURCE, MODEL_COMPARE],
+                        value=DEFAULT_MODEL_NAME,
+                        label="模型",
+                    )
+                    use_gpu = gr.Checkbox(value=torch.cuda.is_available(), label="GPU")
                 with gr.Row():
                     conf = gr.Slider(0.05, 0.95, value=0.25, step=0.05, label="置信度")
                     iou = gr.Slider(0.1, 0.9, value=0.7, step=0.05, label="IoU")
+                use_clahe = gr.Checkbox(
+                    value=False,
+                    label="使用 CLAHE 增强后推理（适合低对比度牙片）",
+                )
+
+            with gr.Column(scale=7):
                 with gr.Row():
-                    imgsz = gr.Dropdown(
-                        choices=[640, 768, 1024, 1280],
-                        value=1280,
-                        label="尺寸",
+                    original_output = gr.Image(type="pil", label="原始上传图", height=260)
+                    model_input_output = gr.Image(type="pil", label="实际送入模型的图", height=260)
+                    result_output = gr.Image(type="pil", label="检测结果图", height=260)
+                det_table = gr.Dataframe(
+                    headers=TABLE_COLUMNS,
+                    label="检测框表格",
+                    wrap=True,
+                    interactive=False,
+                )
+                advice_box = gr.Textbox(label="牙齿辅助建议", lines=7, interactive=False)
+                summary = gr.JSON(label="参数与检测摘要", visible=True)
+
+        with gr.Accordion("设置", open=False):
+            with gr.Tab("检测显示"):
+                enable_compare = gr.Checkbox(value=True, label="启用双模型对比选项")
+                show_summary = gr.Checkbox(value=True, label="显示参数分析和摘要")
+            with gr.Tab("AI 建议"):
+                ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
+                with gr.Group(visible=saved.enabled) as ai_group:
+                    ai_model = gr.Textbox(value=saved.model, label="模型")
+                    base_url = gr.Textbox(value=saved.base_url, label="接口 API / base_url")
+                    key_mode = gr.Radio(
+                        choices=["环境变量", "直接 Key 值"],
+                        value=saved.key_mode,
+                        label="API Key 类型",
                     )
-                    use_gpu = gr.Checkbox(value=torch.cuda.is_available(), label="GPU")
-                run_btn = gr.Button("检测", variant="primary")
+                    api_key = gr.Textbox(
+                        value=saved.api_key if saved.save_api_key or saved.key_mode == "环境变量" else "",
+                        label="API Key 或环境变量名",
+                        type="password",
+                    )
+                    save_key = gr.Checkbox(value=saved.save_api_key, label="保存 API Key 到本地配置")
+                    test_btn = gr.Button("测试接口")
+                    test_result = gr.Textbox(label="测试反馈", interactive=False)
+            with gr.Tab("对话记录"):
+                auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
+                storage_dir = gr.Textbox(value=saved.storage_dir, label="存储位置")
+                export_btn = gr.Button("导出当前对话")
+                export_file = gr.File(label="导出的对话文件")
+            with gr.Tab("高级接口"):
+                gr.Markdown(
+                    "第一版固定使用 OpenAI-compatible Chat Completions `/v1/chat/completions`。"
+                    "请求字段只使用 `model`、`messages`、`temperature`、`max_tokens`。"
+                )
 
-            with gr.Column(scale=2):
-                with gr.Row():
-                    with gr.Column():
-                        source_output = gr.Image(type="pil", label="YOLOv8m 原始结构", height=360)
-                        source_table = gr.Dataframe(
-                            headers=["类别ID", "类别", "置信度", "左上角X", "左上角Y", "右下角X", "右下角Y"],
-                            label="原始结构检测框",
-                            wrap=True,
-                        )
-                    with gr.Column():
-                        optimized_output = gr.Image(
-                            type="pil", label="YOLOv8m C2f-Faster-lite", height=360
-                        )
-                        optimized_table = gr.Dataframe(
-                            headers=["类别ID", "类别", "置信度", "左上角X", "左上角Y", "右下角X", "右下角Y"],
-                            label="优化结构检测框",
-                            wrap=True,
-                        )
-                summary = gr.JSON(label="摘要")
+        with gr.Accordion("基于建议继续问答", open=True):
+            chatbot = gr.Chatbot(label="问答记录", type="messages", height=280)
+            with gr.Row():
+                chat_input = gr.Textbox(label="继续提问", scale=6)
+                chat_btn = gr.Button("发送", variant="primary", scale=1)
 
-        run_btn.click(
-            fn=run_detection,
-            inputs=[image, model_choice, conf, iou, imgsz, use_gpu],
-            outputs=[source_output, source_table, optimized_output, optimized_table, summary],
+        common_inputs = [
+            model_choice,
+            conf,
+            iou,
+            use_gpu,
+            use_clahe,
+            enable_compare,
+            show_summary,
+            ai_enabled,
+            base_url,
+            ai_model,
+            key_mode,
+            api_key,
+            save_key,
+            auto_save,
+            storage_dir,
+        ]
+        common_outputs = [
+            original_output,
+            model_input_output,
+            result_output,
+            det_table,
+            advice_box,
+            summary,
+            batch_state,
+            batch_select,
+            chatbot,
+            chat_state,
+        ]
+
+        image.change(fn=clear_outputs, outputs=common_outputs)
+        run_btn.click(fn=run_single_detection, inputs=[image, *common_inputs], outputs=common_outputs)
+        batch_btn.click(
+            fn=run_batch_detection,
+            inputs=[
+                batch_files,
+                model_choice,
+                conf,
+                iou,
+                use_gpu,
+                use_clahe,
+                ai_enabled,
+                base_url,
+                ai_model,
+                key_mode,
+                api_key,
+                save_key,
+                auto_save,
+                storage_dir,
+            ],
+            outputs=common_outputs,
         )
+        batch_select.change(
+            fn=select_batch_item,
+            inputs=[batch_select, batch_state],
+            outputs=[
+                original_output,
+                model_input_output,
+                result_output,
+                det_table,
+                advice_box,
+                summary,
+                chatbot,
+                chat_state,
+            ],
+        )
+        ai_enabled.change(fn=toggle_ai_settings, inputs=ai_enabled, outputs=ai_group)
+        show_summary.change(fn=toggle_summary, inputs=show_summary, outputs=summary)
+        test_btn.click(
+            fn=test_ai_settings,
+            inputs=[ai_enabled, base_url, ai_model, key_mode, api_key, save_key, auto_save, storage_dir],
+            outputs=test_result,
+        )
+        chat_btn.click(
+            fn=continue_chat,
+            inputs=[
+                chat_input,
+                chat_state,
+                ai_enabled,
+                base_url,
+                ai_model,
+                key_mode,
+                api_key,
+                save_key,
+                auto_save,
+                storage_dir,
+            ],
+            outputs=[chatbot, chat_state, chat_input],
+        )
+        export_btn.click(fn=export_chat, inputs=[chat_state, storage_dir], outputs=export_file)
 
     return demo
 
