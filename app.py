@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
+import csv
+from datetime import datetime
+import json
 from pathlib import Path
+import re
 from typing import Any
+import zipfile
 
 import gradio as gr
 import pandas as pd
 import torch
 
 from src.dental_detection.assistant import (
+    APP_HOME,
     AiSettings,
     default_advice,
     detection_prompt,
@@ -105,6 +112,149 @@ def _conversation_from_advice(advice: str) -> list[dict[str, str]]:
     return [{"role": "assistant", "content": advice}]
 
 
+def _suggestion_type(ai_enabled: bool) -> str:
+    return "ai" if ai_enabled else "default"
+
+
+def _safe_stem(name: str) -> str:
+    stem = Path(name).stem or "image"
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", stem).strip("._") or "image"
+
+
+def _summary_lines(batch_state: list[dict[str, Any]], export_info: dict[str, Any]) -> list[str]:
+    class_counts: Counter[str] = Counter()
+    total_boxes = 0
+    for item in batch_state:
+        detections = item["result"]["detections"]
+        total_boxes += len(detections)
+        class_counts.update(str(det.get("class", "unknown")) for det in detections)
+
+    lines = [
+        "YOLO Dental Lesion Detection Batch Export",
+        f"导出时间: {export_info['exported_at']}",
+        f"图片数量: {len(batch_state)}",
+        f"检测到的总框数: {total_boxes}",
+        f"是否使用 CLAHE: {export_info['use_clahe']}",
+        f"conf: {export_info['conf']}",
+        f"iou: {export_info['iou']}",
+        f"model: {export_info['model']}",
+        "",
+        "各类别数量:",
+    ]
+    if class_counts:
+        lines.extend(f"- {name}: {count}" for name, count in sorted(class_counts.items()))
+    else:
+        lines.append("- 无检测框")
+    return lines
+
+
+def export_batch_results(batch_state: list[dict[str, Any]]):
+    if not batch_state:
+        raise gr.Error("请先完成批量检测，再导出结果。")
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ensure_app_dirs()
+    export_root = APP_HOME / "exports" / f"batch_result_{stamp}"
+    export_root.mkdir(parents=True, exist_ok=True)
+    zip_path = export_root / f"batch_result_{stamp}.zip"
+    work_dir = export_root / "payload"
+    images_dir = work_dir / "images"
+    suggestions_dir = work_dir / "suggestions"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    suggestions_dir.mkdir(parents=True, exist_ok=True)
+
+    first_summary = batch_state[0].get("summary", {})
+    export_info = {
+        "exported_at": datetime.now().isoformat(timespec="seconds"),
+        "image_count": len(batch_state),
+        "use_clahe": bool(first_summary.get("CLAHE增强", False)),
+        "conf": first_summary.get("conf", "unknown"),
+        "iou": first_summary.get("iou", "unknown"),
+        "model": first_summary.get("模型", "unknown"),
+    }
+    csv_rows: list[dict[str, Any]] = []
+    json_items = []
+
+    for index, item in enumerate(batch_state, start=1):
+        name = item["name"]
+        stem = f"{index:03d}_{_safe_stem(name)}"
+        result = item["result"]
+        suggestion_type = item.get("suggestion_type", "default")
+
+        result["original"].save(images_dir / f"{stem}_original.png")
+        result["model_input"].save(images_dir / f"{stem}_input.png")
+        result["annotated"].save(images_dir / f"{stem}_result.png")
+        (suggestions_dir / f"{stem}.txt").write_text(item["advice"], encoding="utf-8")
+
+        detections = result["detections"]
+        if detections:
+            for det in detections:
+                csv_rows.append(
+                    {
+                        "image_name": name,
+                        "class": det.get("class", ""),
+                        "confidence": det.get("confidence", ""),
+                        "x1": det.get("x1", ""),
+                        "y1": det.get("y1", ""),
+                        "x2": det.get("x2", ""),
+                        "y2": det.get("y2", ""),
+                        "suggestion_type": suggestion_type,
+                    }
+                )
+        else:
+            csv_rows.append(
+                {
+                    "image_name": name,
+                    "class": "",
+                    "confidence": "",
+                    "x1": "",
+                    "y1": "",
+                    "x2": "",
+                    "y2": "",
+                    "suggestion_type": suggestion_type,
+                }
+            )
+
+        json_items.append(
+            {
+                "image_name": name,
+                "model": result["model"],
+                "suggestion_type": suggestion_type,
+                "suggestion": item["advice"],
+                "detections": detections,
+                "image_files": {
+                    "original": f"images/{stem}_original.png",
+                    "input": f"images/{stem}_input.png",
+                    "result": f"images/{stem}_result.png",
+                },
+            }
+        )
+
+    csv_path = work_dir / "detections.csv"
+    with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["image_name", "class", "confidence", "x1", "y1", "x2", "y2", "suggestion_type"],
+        )
+        writer.writeheader()
+        writer.writerows(csv_rows)
+
+    (work_dir / "detections.json").write_text(
+        json.dumps({"export": export_info, "items": json_items}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (work_dir / "summary.txt").write_text(
+        "\n".join(_summary_lines(batch_state, export_info)) + "\n",
+        encoding="utf-8",
+    )
+
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for path in work_dir.rglob("*"):
+            if path.is_file():
+                archive.write(path, path.relative_to(work_dir).as_posix())
+    return str(zip_path)
+
+
 def clear_outputs():
     return (
         None,
@@ -191,6 +341,7 @@ def run_single_detection(
             "result": primary,
             "all_results": all_results,
             "advice": advice,
+            "suggestion_type": _suggestion_type(settings.enabled),
             "summary": summary,
         }
     ]
@@ -250,11 +401,14 @@ def run_batch_detection(
                 "result": result,
                 "all_results": [result],
                 "advice": advice,
+                "suggestion_type": _suggestion_type(settings.enabled),
                 "summary": {
                     "文件": _file_name(file_obj),
                     "模型": selected_model,
                     "检测数量": len(result["detections"]),
                     "CLAHE增强": bool(use_clahe),
+                    "conf": conf,
+                    "iou": iou,
                 },
             }
         )
@@ -400,6 +554,8 @@ def build_app() -> gr.Blocks:
                         )
                         batch_btn = gr.Button("批量分析", variant="primary")
                         batch_select = gr.Dropdown(label="查看某张图片", choices=[])
+                        export_batch_btn = gr.Button("一键导出批量结果")
+                        batch_export_file = gr.File(label="批量结果 ZIP")
 
                 with gr.Row():
                     model_choice = gr.Radio(
@@ -559,6 +715,7 @@ def build_app() -> gr.Blocks:
             outputs=[chatbot, chat_state, chat_input],
         )
         export_btn.click(fn=export_chat, inputs=[chat_state, storage_dir], outputs=export_file)
+        export_batch_btn.click(fn=export_batch_results, inputs=batch_state, outputs=batch_export_file)
 
     return demo
 

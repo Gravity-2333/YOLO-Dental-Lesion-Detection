@@ -9,7 +9,26 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-APP_HOME = Path.home() / "YOLO-Dental-Lesion-Detection"
+from .config import PROJECT_ROOT
+
+APP_DIR_NAME = "YOLO-Dental-Lesion-Detection"
+
+
+def _resolve_app_home() -> Path:
+    primary = Path.home() / APP_DIR_NAME
+    try:
+        primary.mkdir(parents=True, exist_ok=True)
+        probe = primary / ".write_test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return primary
+    except OSError:
+        fallback = PROJECT_ROOT.parent / f"{APP_DIR_NAME}-user-data"
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+
+APP_HOME = _resolve_app_home()
 CONFIG_PATH = APP_HOME / "settings.json"
 CONVERSATION_DIR = APP_HOME / "conversations"
 SAFETY_NOTICE = "结果仅供辅助参考，不能替代专业牙科医生诊断。"
