@@ -7,6 +7,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 import re
+import shutil
 from typing import Any
 import zipfile
 
@@ -260,6 +261,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
         for path in work_dir.rglob("*"):
             if path.is_file():
                 archive.write(path, path.relative_to(work_dir).as_posix())
+    shutil.rmtree(work_dir)
     return str(zip_path)
 
 
