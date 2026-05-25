@@ -31,7 +31,12 @@ def _resolve_app_home() -> Path:
 APP_HOME = _resolve_app_home()
 CONFIG_PATH = APP_HOME / "settings.json"
 CONVERSATION_DIR = APP_HOME / "conversations"
-SAFETY_NOTICE = "结果仅供辅助参考，不能替代专业牙科医生诊断。"
+SAFETY_NOTICE = "本结果仅供辅助参考，不能替代专业牙科医生诊断。"
+CLASS_ADVICE = {
+    "Caries": "疑似龋坏相关区域。建议关注该区域是否有冷热刺激痛、食物嵌塞或颜色改变，并预约牙科检查确认。",
+    "Periapical_Lesion": "疑似根尖周相关异常区域。建议结合疼痛、咬合不适、牙龈肿胀等症状，由牙科医生复查根尖区域。",
+    "Impacted": "疑似阻生牙相关区域。建议关注局部清洁难度、反复发炎或邻牙受影响风险，并咨询牙科医生评估。",
+}
 
 
 @dataclass
@@ -168,19 +173,35 @@ def default_advice(detections: list[dict[str, Any]]) -> str:
             "建议携带原始牙片咨询专业牙科医生复核。日常请保持刷牙、牙线和定期口腔检查。"
         )
 
-    counts: dict[str, int] = {}
+    grouped: dict[str, list[dict[str, Any]]] = {}
     for det in detections:
         label = str(det.get("class", "未知区域"))
-        counts[label] = counts.get(label, 0) + 1
-    count_text = "，".join(f"{name} {count} 处" for name, count in counts.items())
-    high_conf = max(float(det.get("confidence", 0)) for det in detections)
-    return (
-        f"{SAFETY_NOTICE}\n\n"
-        f"检测结果提示需要关注的区域包括：{count_text}。最高置信度约为 {high_conf:.2f}。"
-        "建议结合原始影像和口腔症状，由专业牙科医生复查检测框附近区域；如存在疼痛、肿胀、"
-        "咬合不适或反复发炎，应尽快就诊。平时注意清洁牙间隙，减少高糖饮食，并保留本次检测结果"
-        "供医生参考。"
+        grouped.setdefault(label, []).append(det)
+
+    sections = [SAFETY_NOTICE]
+    for label, items in sorted(grouped.items()):
+        confidences = [float(item.get("confidence", 0) or 0) for item in items]
+        high_conf = max(confidences)
+        if high_conf >= 0.70:
+            level = "重点关注"
+        elif high_conf >= 0.40:
+            level = "建议复查确认"
+        else:
+            level = "低置信度，仅供参考"
+
+        advice = CLASS_ADVICE.get(
+            label,
+            "检测到模型标记的可疑区域。建议结合原始影像、症状和医生检查进行复核。",
+        )
+        sections.append(
+            f"{label}：{level}。共 {len(items)} 处，最高置信度约 {high_conf:.2f}。{advice}"
+        )
+
+    sections.append(
+        "请保留原始影像和检测结果，必要时携带给专业牙科医生复查。"
+        "本建议不构成最终诊断，不提供处方，也不提供具体药物剂量。"
     )
+    return "\n\n".join(sections)
 
 
 def save_conversation(messages: list[dict[str, str]], storage_dir: str | None = None) -> Path:
