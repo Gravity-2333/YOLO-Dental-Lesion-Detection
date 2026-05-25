@@ -15,16 +15,17 @@ import pandas as pd
 import torch
 
 from src.dental_detection.assistant import (
-    APP_HOME,
     AiSettings,
     default_advice,
     detection_prompt,
     ensure_app_dirs,
+    export_dir,
     load_settings,
     save_conversation,
     save_settings,
     test_chat_completion,
     chat_completion,
+    DEFAULT_AI_PROMPT,
 )
 from src.dental_detection.config import DEFAULT_MODEL_NAME, MODEL_REGISTRY
 from src.dental_detection.inference import Detection, run_inference
@@ -86,6 +87,7 @@ def _ai_settings(
     save_key: bool,
     auto_save: bool,
     storage_dir: str,
+    custom_prompt: str,
 ) -> AiSettings:
     return AiSettings(
         enabled=ai_enabled,
@@ -96,6 +98,7 @@ def _ai_settings(
         save_api_key=save_key,
         auto_save=auto_save,
         storage_dir=(storage_dir or "").strip() or str(ensure_app_dirs()),
+        custom_prompt=(custom_prompt or "").strip() or DEFAULT_AI_PROMPT,
     )
 
 
@@ -103,7 +106,12 @@ def _build_advice(settings: AiSettings, detections: list[dict[str, Any]]) -> str
     if not settings.enabled:
         return default_advice(detections)
     try:
-        return chat_completion(settings, detection_prompt(detections), temperature=0.2, max_tokens=500)
+        return chat_completion(
+            settings,
+            detection_prompt(detections, settings.custom_prompt),
+            temperature=0.2,
+            max_tokens=500,
+        )
     except Exception as exc:
         return f"{default_advice(detections)}\n\nAI 建议生成失败：{exc}"
 
@@ -148,13 +156,13 @@ def _summary_lines(batch_state: list[dict[str, Any]], export_info: dict[str, Any
     return lines
 
 
-def export_batch_results(batch_state: list[dict[str, Any]]):
+def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     if not batch_state:
         raise gr.Error("请先完成批量检测，再导出结果。")
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    ensure_app_dirs()
-    export_root = APP_HOME / "exports" / f"batch_result_{stamp}"
+    ensure_app_dirs(storage_dir)
+    export_root = export_dir(storage_dir) / f"batch_result_{stamp}"
     export_root.mkdir(parents=True, exist_ok=True)
     zip_path = export_root / f"batch_result_{stamp}.zip"
     work_dir = export_root / "payload"
@@ -287,6 +295,7 @@ def run_single_detection(
     save_key: bool,
     auto_save: bool,
     storage_dir: str,
+    custom_prompt: str,
 ):
     if image is None:
         raise gr.Error("请先上传一张牙科影像。")
@@ -308,7 +317,15 @@ def run_single_detection(
 
     assert primary is not None
     settings = _ai_settings(
-        ai_enabled, base_url, ai_model, key_mode, api_key, save_key, auto_save, storage_dir
+        ai_enabled,
+        base_url,
+        ai_model,
+        key_mode,
+        api_key,
+        save_key,
+        auto_save,
+        storage_dir,
+        custom_prompt,
     )
     save_settings(settings)
     advice = _build_advice(settings, primary["detections"])
@@ -380,13 +397,22 @@ def run_batch_detection(
     save_key: bool,
     auto_save: bool,
     storage_dir: str,
+    custom_prompt: str,
 ):
     if not files:
         raise gr.Error("请先批量上传牙科影像。")
 
     device, _ = _device(use_gpu)
     settings = _ai_settings(
-        ai_enabled, base_url, ai_model, key_mode, api_key, save_key, auto_save, storage_dir
+        ai_enabled,
+        base_url,
+        ai_model,
+        key_mode,
+        api_key,
+        save_key,
+        auto_save,
+        storage_dir,
+        custom_prompt,
     )
     save_settings(settings)
     selected_model = MODEL_OPTIMIZED if model_choice == MODEL_COMPARE else model_choice
@@ -458,9 +484,18 @@ def test_ai_settings(
     save_key: bool,
     auto_save: bool,
     storage_dir: str,
+    custom_prompt: str,
 ):
     settings = _ai_settings(
-        ai_enabled, base_url, ai_model, key_mode, api_key, save_key, auto_save, storage_dir
+        ai_enabled,
+        base_url,
+        ai_model,
+        key_mode,
+        api_key,
+        save_key,
+        auto_save,
+        storage_dir,
+        custom_prompt,
     )
     save_settings(settings)
     if not settings.enabled:
@@ -482,11 +517,20 @@ def continue_chat(
     save_key: bool,
     auto_save: bool,
     storage_dir: str,
+    custom_prompt: str,
 ):
     if not message:
         return history, history, ""
     settings = _ai_settings(
-        ai_enabled, base_url, ai_model, key_mode, api_key, save_key, auto_save, storage_dir
+        ai_enabled,
+        base_url,
+        ai_model,
+        key_mode,
+        api_key,
+        save_key,
+        auto_save,
+        storage_dir,
+        custom_prompt,
     )
     history = list(history or [])
     history.append({"role": "user", "content": message})
@@ -606,11 +650,16 @@ def build_app() -> gr.Blocks:
                         type="password",
                     )
                     save_key = gr.Checkbox(value=saved.save_api_key, label="保存 API Key 到本地配置")
+                    custom_prompt = gr.Textbox(
+                        value=saved.custom_prompt or DEFAULT_AI_PROMPT,
+                        label="AI 建议 Prompt",
+                        lines=7,
+                    )
                     test_btn = gr.Button("测试接口")
                     test_result = gr.Textbox(label="测试反馈", interactive=False)
             with gr.Tab("对话记录"):
                 auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
-                storage_dir = gr.Textbox(value=saved.storage_dir, label="存储位置")
+                storage_dir = gr.Textbox(value=saved.storage_dir, label="存储位置（数据根目录）")
                 export_btn = gr.Button("导出当前对话")
                 export_file = gr.File(label="导出的对话文件")
             with gr.Tab("高级接口"):
@@ -641,6 +690,7 @@ def build_app() -> gr.Blocks:
             save_key,
             auto_save,
             storage_dir,
+            custom_prompt,
         ]
         common_outputs = [
             original_output,
@@ -674,6 +724,7 @@ def build_app() -> gr.Blocks:
                 save_key,
                 auto_save,
                 storage_dir,
+                custom_prompt,
             ],
             outputs=common_outputs,
         )
@@ -695,7 +746,17 @@ def build_app() -> gr.Blocks:
         show_summary.change(fn=toggle_summary, inputs=show_summary, outputs=summary)
         test_btn.click(
             fn=test_ai_settings,
-            inputs=[ai_enabled, base_url, ai_model, key_mode, api_key, save_key, auto_save, storage_dir],
+            inputs=[
+                ai_enabled,
+                base_url,
+                ai_model,
+                key_mode,
+                api_key,
+                save_key,
+                auto_save,
+                storage_dir,
+                custom_prompt,
+            ],
             outputs=test_result,
         )
         chat_btn.click(
@@ -711,11 +772,12 @@ def build_app() -> gr.Blocks:
                 save_key,
                 auto_save,
                 storage_dir,
+                custom_prompt,
             ],
             outputs=[chatbot, chat_state, chat_input],
         )
         export_btn.click(fn=export_chat, inputs=[chat_state, storage_dir], outputs=export_file)
-        export_batch_btn.click(fn=export_batch_results, inputs=batch_state, outputs=batch_export_file)
+        export_batch_btn.click(fn=export_batch_results, inputs=[batch_state, storage_dir], outputs=batch_export_file)
 
     return demo
 
