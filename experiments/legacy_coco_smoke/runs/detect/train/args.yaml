@@ -107,4 +107,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: botsort.yaml
-save_dir: D:\studysorft\Stable_Diffusion\sd-webui-aki\sd-webui-aki-v4.11.1-cu128\runs\detect\train
+save_dir: experiments/legacy_coco_smoke/runs/detect/train

@@ -1,7 +1,7 @@
 task: detect
 mode: train
-model: /root/autodl-tmp/ultralytics-main/yolov8n.pt
-data: /root/autodl-tmp/ultralytics-main/datasets/datasets/yolov8_dental/dental_yolo.yaml
+model: models/pretrained/yolov8n.pt
+data: data/dental_yolo.yaml
 epochs: 300
 time: null
 patience: 100
@@ -12,7 +12,7 @@ save_period: -1
 cache: false
 device: '0'
 workers: 8
-project: /root/autodl-tmp/yolov8_runs
+project: models
 name: dental_detect-12
 exist_ok: false
 pretrained: true
@@ -107,4 +107,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: botsort.yaml
-save_dir: /root/autodl-tmp/yolov8_runs/dental_detect-12
+save_dir: models/dental_detect_12

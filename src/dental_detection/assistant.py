@@ -6,6 +6,7 @@ import ipaddress
 import json
 import os
 from pathlib import Path
+import shutil
 from typing import Any
 from urllib.parse import urlparse
 
@@ -114,10 +115,10 @@ def _move_contents(source: Path, target: Path) -> None:
             if _is_empty_dir(child):
                 child.rmdir()
         elif not destination.exists():
-            child.replace(destination)
+            shutil.move(str(child), str(destination))
         else:
             suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
-            child.replace(target / f"{child.stem}_{suffix}{child.suffix}")
+            shutil.move(str(child), str(target / f"{child.stem}_{suffix}{child.suffix}"))
 
 
 def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) -> None:

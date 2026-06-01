@@ -36,6 +36,28 @@ MODEL_SOURCE = "YOLOv8m 原始结构"
 MODEL_OPTIMIZED = "YOLOv8m C2f-Faster-lite"
 MODEL_COMPARE = "双模型对比"
 TABLE_COLUMNS = ["class", "confidence", "x1", "y1", "x2", "y2"]
+CSS_PATH = PROJECT_ROOT / "assets" / "workbench.css"
+STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
+
+
+def _load_workbench_css() -> str:
+    if CSS_PATH.exists():
+        return CSS_PATH.read_text(encoding="utf-8")
+    return ""
+
+
+def _allowed_file_roots() -> list[Path]:
+    roots = [Path.home(), PROJECT_ROOT.parent, STARTUP_STORAGE_ROOT]
+    return [root.resolve() for root in roots if root.exists()]
+
+
+def _can_return_file(path: str | Path) -> bool:
+    target = Path(path).resolve()
+    return any(target == root or root in target.parents for root in _allowed_file_roots())
+
+
+def _file_output(path: str | Path) -> str | None:
+    return str(path) if _can_return_file(path) else None
 
 
 def _empty_table() -> pd.DataFrame:
@@ -135,7 +157,8 @@ def _summary_lines(batch_state: list[dict[str, Any]], export_info: dict[str, Any
     class_counts: Counter[str] = Counter()
     total_boxes = 0
     for item in batch_state:
-        detections = item["result"]["detections"]
+        result = item.get("result") or item
+        detections = result.get("detections", [])
         total_boxes += len(detections)
         class_counts.update(str(det.get("class", "unknown")) for det in detections)
 
@@ -186,17 +209,24 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     json_items = []
 
     for index, item in enumerate(batch_state, start=1):
-        name = item["name"]
+        name = item.get("name") or item.get("image_name") or f"image_{index:03d}.png"
         stem = f"{index:03d}_{_safe_stem(name)}"
-        result = item["result"]
+        result = item.get("result") or item
         suggestion_type = item.get("suggestion_type", "default")
+        advice = item.get("advice") or item.get("suggestion") or ""
 
-        result["original"].save(images_dir / f"{stem}_original.png")
-        result["model_input"].save(images_dir / f"{stem}_input.png")
-        result["annotated"].save(images_dir / f"{stem}_result.png")
-        (suggestions_dir / f"{stem}.txt").write_text(item["advice"], encoding="utf-8")
+        original_image = result.get("original") or result.get("original_image")
+        input_image = result.get("model_input") or result.get("input_image")
+        annotated_image = result.get("annotated") or result.get("result_image")
+        if original_image is None or input_image is None or annotated_image is None:
+            raise gr.Error(f"{name} 的批量结果不完整，无法导出图片。")
 
-        detections = result["detections"]
+        original_image.save(images_dir / f"{stem}_original.png")
+        input_image.save(images_dir / f"{stem}_input.png")
+        annotated_image.save(images_dir / f"{stem}_result.png")
+        (suggestions_dir / f"{stem}.txt").write_text(advice, encoding="utf-8")
+
+        detections = result.get("detections", [])
         if detections:
             for det in detections:
                 csv_rows.append(
@@ -228,9 +258,9 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
         json_items.append(
             {
                 "image_name": name,
-                "model": result["model"],
+                "model": result.get("model", item.get("model", "unknown")),
                 "suggestion_type": suggestion_type,
-                "suggestion": item["advice"],
+                "suggestion": advice,
                 "detections": detections,
                 "image_files": {
                     "original": f"images/{stem}_original.png",
@@ -263,7 +293,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             if path.is_file():
                 archive.write(path, path.relative_to(work_dir).as_posix())
     shutil.rmtree(work_dir)
-    return str(zip_path)
+    return _file_output(zip_path), f"已导出：{zip_path}"
 
 
 def clear_outputs():
@@ -279,6 +309,7 @@ def clear_outputs():
         [],
         [],
         None,
+        "",
         gr.update(interactive=False),
     )
 
@@ -380,6 +411,7 @@ def run_single_detection(
         chat_history,
         chat_history,
         None,
+        "",
         gr.update(interactive=False),
     )
 
@@ -463,6 +495,7 @@ def run_batch_detection(
         chat_history,
         chat_history,
         None,
+        "",
         gr.update(interactive=True),
     )
 
@@ -565,7 +598,7 @@ def export_chat(history: list[dict[str, str]], storage_dir: str):
     if not history:
         raise gr.Error("当前没有可导出的对话记录。")
     path = save_conversation(history, storage_dir)
-    return str(path)
+    return _file_output(path), f"已导出：{path}"
 
 
 def toggle_ai_settings(enabled: bool):
@@ -582,21 +615,7 @@ def build_app() -> gr.Blocks:
     with gr.Blocks(title="牙齿病变区域识别") as demo:
         batch_state = gr.State([])
         chat_state = gr.State([])
-        gr.HTML(
-            """
-            <style>
-              body, .gradio-container { background: #f6f8fb !important; color: #142033; }
-              .gradio-container { max-width: 1340px !important; margin: 0 auto !important; }
-              button.primary, button.primary:hover { background: #2563eb !important; border-color: #2563eb !important; }
-              button.secondary { border-radius: 6px !important; }
-              .tabs button[role="tab"][aria-selected="true"] { color: #2563eb !important; border-color: #2563eb !important; }
-              .form, .block, .panel { border-radius: 8px !important; }
-              textarea, input, select { border-radius: 6px !important; }
-              .wrap, .contain { border-radius: 8px !important; }
-              table { font-size: 0.92rem !important; }
-            </style>
-            """
-        )
+        gr.HTML(f"<style>{_load_workbench_css()}</style>")
         gr.Markdown(
             "医院与个人辅助筛查工作台\n"
             "# 牙齿病变区域识别\n"
@@ -624,6 +643,7 @@ def build_app() -> gr.Blocks:
                         batch_select = gr.Dropdown(label="查看某张图片", choices=[])
                         export_batch_btn = gr.Button("一键导出批量结果", interactive=False)
                         batch_export_file = gr.File(label="批量结果 ZIP")
+                        batch_export_path = gr.Textbox(label="导出路径", interactive=False)
 
                 with gr.Row():
                     model_choice = gr.Radio(
@@ -686,6 +706,7 @@ def build_app() -> gr.Blocks:
                 storage_dir = gr.Textbox(value=saved.storage_dir, label="存储位置（数据根目录）")
                 export_btn = gr.Button("导出当前对话")
                 export_file = gr.File(label="导出的对话文件")
+                export_path = gr.Textbox(label="导出路径", interactive=False)
             with gr.Tab("高级接口"):
                 gr.Markdown(
                     "第一版固定使用 OpenAI-compatible Chat Completions `/v1/chat/completions`。"
@@ -728,6 +749,7 @@ def build_app() -> gr.Blocks:
             chatbot,
             chat_state,
             batch_export_file,
+            batch_export_path,
             export_batch_btn,
         ]
 
@@ -802,8 +824,12 @@ def build_app() -> gr.Blocks:
             ],
             outputs=[chatbot, chat_state, chat_input],
         )
-        export_btn.click(fn=export_chat, inputs=[chat_state, storage_dir], outputs=export_file)
-        export_batch_btn.click(fn=export_batch_results, inputs=[batch_state, storage_dir], outputs=batch_export_file)
+        export_btn.click(fn=export_chat, inputs=[chat_state, storage_dir], outputs=[export_file, export_path])
+        export_batch_btn.click(
+            fn=export_batch_results,
+            inputs=[batch_state, storage_dir],
+            outputs=[batch_export_file, batch_export_path],
+        )
 
     return demo
 
@@ -827,5 +853,5 @@ if __name__ == "__main__":
         server_name=args.server_name,
         server_port=args.server_port,
         share=args.share,
-        allowed_paths=[str(APP_HOME), str(PROJECT_ROOT.parent)],
+        allowed_paths=[str(root) for root in _allowed_file_roots()],
     )

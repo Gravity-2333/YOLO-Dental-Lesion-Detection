@@ -12,7 +12,7 @@ save_period: -1
 cache: false
 device: '0'
 workers: 24
-project: /root/autodl-tmp/work/yolov8-train/runs/detect/dentex_v4_region_yolov8m_full
+project: models/final_candidates
 name: dentex_v4_region_yolov8m_1280_full_b8_20260524_104521_1fdf7df
 exist_ok: true
 pretrained: true
@@ -107,4 +107,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: botsort.yaml
-save_dir: /root/autodl-tmp/work/yolov8-train/runs/detect/dentex_v4_region_yolov8m_full/dentex_v4_region_yolov8m_1280_full_b8_20260524_104521_1fdf7df
+save_dir: models/final_candidates/yolov8m_1280_full
