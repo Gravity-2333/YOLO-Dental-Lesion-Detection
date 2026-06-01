@@ -16,6 +16,7 @@ import pandas as pd
 import torch
 
 from src.dental_detection.assistant import (
+    APP_HOME,
     AiSettings,
     default_advice,
     detection_prompt,
@@ -28,7 +29,7 @@ from src.dental_detection.assistant import (
     chat_completion,
     DEFAULT_AI_PROMPT,
 )
-from src.dental_detection.config import DEFAULT_MODEL_NAME, MODEL_REGISTRY
+from src.dental_detection.config import DEFAULT_MODEL_NAME, MODEL_REGISTRY, PROJECT_ROOT
 from src.dental_detection.inference import Detection, run_inference
 
 MODEL_SOURCE = "YOLOv8m 原始结构"
@@ -826,4 +827,5 @@ if __name__ == "__main__":
         server_name=args.server_name,
         server_port=args.server_port,
         share=args.share,
+        allowed_paths=[str(APP_HOME), str(PROJECT_ROOT.parent)],
     )
