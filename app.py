@@ -60,6 +60,15 @@ def _file_output(path: str | Path) -> str | None:
     return str(path) if _can_return_file(path) else None
 
 
+def _file_component_output(path: str | Path):
+    file_path = _file_output(path)
+    return gr.update(value=file_path, visible=bool(file_path))
+
+
+def _clear_file_output():
+    return gr.update(value=None, visible=False)
+
+
 def _empty_table() -> pd.DataFrame:
     return pd.DataFrame(columns=TABLE_COLUMNS)
 
@@ -306,7 +315,9 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     finally:
         if work_dir.exists():
             shutil.rmtree(work_dir)
-    return _file_output(zip_path), f"已导出：{zip_path}"
+        if not zip_path.exists() and export_root.exists() and not any(export_root.iterdir()):
+            export_root.rmdir()
+    return _file_component_output(zip_path), f"已导出：{zip_path}"
 
 
 def clear_outputs():
@@ -321,7 +332,7 @@ def clear_outputs():
         gr.update(choices=[], value=None),
         [],
         [],
-        None,
+        _clear_file_output(),
         "",
         gr.update(interactive=False),
     )
@@ -423,7 +434,7 @@ def run_single_detection(
         gr.update(choices=["当前单图"], value="当前单图"),
         chat_history,
         chat_history,
-        None,
+        _clear_file_output(),
         "",
         gr.update(interactive=False),
     )
@@ -509,7 +520,7 @@ def run_batch_detection(
         gr.update(choices=choices, value=choices[0]),
         chat_history,
         chat_history,
-        None,
+        _clear_file_output(),
         "",
         gr.update(interactive=True),
     )
@@ -617,7 +628,7 @@ def export_chat(history: list[dict[str, str]], storage_dir: str):
     if not history:
         raise gr.Error("当前没有可导出的对话记录。")
     path = save_conversation(history, storage_dir)
-    return _file_output(path), f"已导出：{path}"
+    return _file_component_output(path), f"已导出：{path}"
 
 
 def toggle_ai_settings(enabled: bool):
@@ -649,102 +660,106 @@ def build_app() -> gr.Blocks:
             "上传牙科影像，查看模型输入、检测框和辅助建议。结果仅供参考，不能替代专业牙科医生诊断。"
         )
 
-        with gr.Row():
-            with gr.Column(scale=4):
-                with gr.Tabs():
-                    with gr.Tab("单张分析"):
-                        image = gr.Image(
-                            type="pil",
-                            label="拖拽或点击上传牙科影像",
-                            height=390,
-                            sources=["upload", "clipboard"],
+        with gr.Tabs():
+            with gr.Tab("检测工作台"):
+                with gr.Row():
+                    with gr.Column(scale=4):
+                        with gr.Tabs():
+                            with gr.Tab("单张分析"):
+                                image = gr.Image(
+                                    type="pil",
+                                    label="拖拽或点击上传牙科影像",
+                                    height=390,
+                                    sources=["upload", "clipboard"],
+                                )
+                                run_btn = gr.Button("开始分析", variant="primary")
+                            with gr.Tab("批量分析"):
+                                batch_files = gr.File(
+                                    label="批量上传图片",
+                                    file_count="multiple",
+                                    file_types=["image"],
+                                )
+                                batch_btn = gr.Button("批量分析", variant="primary")
+                                batch_select = gr.Dropdown(label="查看某张图片", choices=[])
+                                export_batch_btn = gr.Button("一键导出批量结果", interactive=False)
+                                batch_export_file = gr.File(label="批量结果 ZIP", visible=False)
+                                batch_export_path = gr.Textbox(label="导出路径", interactive=False)
+
+                        with gr.Row():
+                            model_choice = gr.Radio(
+                                choices=[MODEL_OPTIMIZED, MODEL_SOURCE, MODEL_COMPARE],
+                                value=DEFAULT_MODEL_NAME,
+                                label="模型",
+                            )
+                            use_gpu = gr.Checkbox(value=torch.cuda.is_available(), label="GPU")
+                        with gr.Row():
+                            conf = gr.Slider(0.05, 0.95, value=0.25, step=0.05, label="置信度")
+                            iou = gr.Slider(0.1, 0.9, value=0.7, step=0.05, label="IoU")
+                        use_clahe = gr.Checkbox(
+                            value=False,
+                            label="使用 CLAHE 增强后推理（适合低对比度牙片）",
                         )
-                        run_btn = gr.Button("开始分析", variant="primary")
-                    with gr.Tab("批量分析"):
-                        batch_files = gr.File(
-                            label="批量上传图片",
-                            file_count="multiple",
-                            file_types=["image"],
+
+                    with gr.Column(scale=7):
+                        with gr.Row():
+                            original_output = gr.Image(type="pil", label="原始上传图", height=260)
+                            model_input_output = gr.Image(type="pil", label="实际送入模型的图", height=260)
+                            result_output = gr.Image(type="pil", label="检测结果图", height=260)
+                        det_table = gr.Dataframe(
+                            headers=TABLE_COLUMNS,
+                            label="检测框表格",
+                            wrap=True,
+                            interactive=False,
                         )
-                        batch_btn = gr.Button("批量分析", variant="primary")
-                        batch_select = gr.Dropdown(label="查看某张图片", choices=[])
-                        export_batch_btn = gr.Button("一键导出批量结果", interactive=False)
-                        batch_export_file = gr.File(label="批量结果 ZIP")
-                        batch_export_path = gr.Textbox(label="导出路径", interactive=False)
+                        advice_box = gr.Textbox(label="牙齿辅助建议", lines=7, interactive=False)
+                        summary = gr.JSON(label="参数与检测摘要", visible=False)
 
+            with gr.Tab("AI 问答"):
+                chatbot = gr.Chatbot(label="问答记录", height=360)
                 with gr.Row():
-                    model_choice = gr.Radio(
-                        choices=[MODEL_OPTIMIZED, MODEL_SOURCE, MODEL_COMPARE],
-                        value=DEFAULT_MODEL_NAME,
-                        label="模型",
-                    )
-                    use_gpu = gr.Checkbox(value=torch.cuda.is_available(), label="GPU")
+                    chat_input = gr.Textbox(label="继续提问", scale=6)
+                    chat_btn = gr.Button("发送", variant="primary", scale=1)
                 with gr.Row():
-                    conf = gr.Slider(0.05, 0.95, value=0.25, step=0.05, label="置信度")
-                    iou = gr.Slider(0.1, 0.9, value=0.7, step=0.05, label="IoU")
-                use_clahe = gr.Checkbox(
-                    value=False,
-                    label="使用 CLAHE 增强后推理（适合低对比度牙片）",
-                )
-
-            with gr.Column(scale=7):
-                with gr.Row():
-                    original_output = gr.Image(type="pil", label="原始上传图", height=260)
-                    model_input_output = gr.Image(type="pil", label="实际送入模型的图", height=260)
-                    result_output = gr.Image(type="pil", label="检测结果图", height=260)
-                det_table = gr.Dataframe(
-                    headers=TABLE_COLUMNS,
-                    label="检测框表格",
-                    wrap=True,
-                    interactive=False,
-                )
-                advice_box = gr.Textbox(label="牙齿辅助建议", lines=7, interactive=False)
-                summary = gr.JSON(label="参数与检测摘要", visible=False)
-
-        with gr.Accordion("设置", open=False):
-            with gr.Tab("检测显示"):
-                enable_compare = gr.Checkbox(value=True, label="启用双模型对比选项")
-                show_summary = gr.Checkbox(value=False, label="显示参数分析和摘要")
-            with gr.Tab("AI 建议"):
-                ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
-                with gr.Group(visible=saved.enabled) as ai_group:
-                    ai_model = gr.Textbox(value=saved.model, label="模型")
-                    base_url = gr.Textbox(value=saved.base_url, label="接口 API / base_url")
-                    key_mode = gr.Radio(
-                        choices=["环境变量", "直接 Key 值"],
-                        value=saved.key_mode,
-                        label="API Key 类型",
-                    )
-                    api_key = gr.Textbox(
-                        value=saved.api_key if saved.save_api_key or saved.key_mode == "环境变量" else "",
-                        label="API Key 或环境变量名",
-                        type="password",
-                    )
-                    save_key = gr.Checkbox(value=saved.save_api_key, label="保存 API Key 到本地配置")
-                    custom_prompt = gr.Textbox(
-                        value=saved.custom_prompt or DEFAULT_AI_PROMPT,
-                        label="AI 建议 Prompt",
-                        lines=7,
-                    )
-                    test_btn = gr.Button("测试接口")
-                    test_result = gr.Textbox(label="测试反馈", interactive=False)
-            with gr.Tab("对话记录"):
-                auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
-                storage_dir = gr.Textbox(value=saved.storage_dir, label="存储位置（数据根目录）")
-                export_btn = gr.Button("导出当前对话")
-                export_file = gr.File(label="导出的对话文件")
+                    export_btn = gr.Button("导出当前对话")
+                    export_file = gr.File(label="导出的对话文件", visible=False)
                 export_path = gr.Textbox(label="导出路径", interactive=False)
-            with gr.Tab("高级接口"):
-                gr.Markdown(
-                    "第一版固定使用 OpenAI-compatible Chat Completions `/v1/chat/completions`。"
-                    "请求字段只使用 `model`、`messages`、`temperature`、`max_tokens`。"
-                )
 
-        with gr.Accordion("基于建议继续问答", open=False):
-            chatbot = gr.Chatbot(label="问答记录", height=280)
-            with gr.Row():
-                chat_input = gr.Textbox(label="继续提问", scale=6)
-                chat_btn = gr.Button("发送", variant="primary", scale=1)
+            with gr.Tab("设置"):
+                with gr.Tabs():
+                    with gr.Tab("检测显示"):
+                        enable_compare = gr.Checkbox(value=True, label="启用双模型对比选项")
+                        show_summary = gr.Checkbox(value=False, label="显示参数分析和摘要")
+                    with gr.Tab("AI 建议"):
+                        ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
+                        with gr.Group(visible=saved.enabled) as ai_group:
+                            ai_model = gr.Textbox(value=saved.model, label="模型")
+                            base_url = gr.Textbox(value=saved.base_url, label="接口 API / base_url")
+                            key_mode = gr.Radio(
+                                choices=["环境变量", "直接 Key 值"],
+                                value=saved.key_mode,
+                                label="API Key 类型",
+                            )
+                            api_key = gr.Textbox(
+                                value=saved.api_key if saved.save_api_key or saved.key_mode == "环境变量" else "",
+                                label="API Key 或环境变量名",
+                                type="password",
+                            )
+                            save_key = gr.Checkbox(value=saved.save_api_key, label="保存 API Key 到本地配置")
+                            custom_prompt = gr.Textbox(
+                                value=saved.custom_prompt or DEFAULT_AI_PROMPT,
+                                label="AI 建议 Prompt",
+                                lines=7,
+                            )
+                            test_btn = gr.Button("测试接口")
+                            test_result = gr.Textbox(label="测试反馈", interactive=False)
+                    with gr.Tab("对话记录"):
+                        auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
+                        storage_dir = gr.Textbox(value=saved.storage_dir, label="存储位置（数据根目录）")
+                    with gr.Tab("高级接口"):
+                        gr.Markdown(
+                            "第一版固定使用 OpenAI-compatible Chat Completions `/v1/chat/completions`。"
+                            "请求字段只使用 `model`、`messages`、`temperature`、`max_tokens`。"
+                        )
 
         common_inputs = [
             model_choice,

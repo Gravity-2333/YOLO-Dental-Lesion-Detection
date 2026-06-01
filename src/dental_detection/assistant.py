@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 import ipaddress
 import json
@@ -88,7 +88,12 @@ def load_settings() -> AiSettings:
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return AiSettings()
-    return AiSettings(**{**AiSettings().__dict__, **data})
+    if not isinstance(data, dict):
+        return AiSettings()
+    allowed = {field.name for field in fields(AiSettings)}
+    defaults = AiSettings().__dict__
+    filtered = {key: value for key, value in data.items() if key in allowed}
+    return AiSettings(**{**defaults, **filtered})
 
 
 def save_settings(settings: AiSettings) -> Path:
