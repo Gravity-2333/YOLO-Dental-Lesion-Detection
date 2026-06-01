@@ -181,15 +181,25 @@ def _summary_lines(batch_state: list[dict[str, Any]], export_info: dict[str, Any
     return lines
 
 
+def _unique_batch_export_paths(storage_dir: str, stamp: str) -> tuple[Path, Path]:
+    export_base = export_dir(storage_dir)
+    export_root = export_base / f"batch_result_{stamp}"
+    counter = 1
+    while export_root.exists():
+        export_root = export_base / f"batch_result_{stamp}_{counter:02d}"
+        counter += 1
+    zip_path = export_root / f"{export_root.name}.zip"
+    return export_root, zip_path
+
+
 def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     if not batch_state:
         raise gr.Error("请先完成批量检测，再导出结果。")
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     ensure_app_dirs(storage_dir)
-    export_root = export_dir(storage_dir) / f"batch_result_{stamp}"
+    export_root, zip_path = _unique_batch_export_paths(storage_dir, stamp)
     export_root.mkdir(parents=True, exist_ok=True)
-    zip_path = export_root / f"batch_result_{stamp}.zip"
     work_dir = export_root / "payload"
     images_dir = work_dir / "images"
     suggestions_dir = work_dir / "suggestions"
@@ -205,94 +215,97 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
         "iou": first_summary.get("iou", "unknown"),
         "model": first_summary.get("模型", "unknown"),
     }
-    csv_rows: list[dict[str, Any]] = []
-    json_items = []
+    try:
+        csv_rows: list[dict[str, Any]] = []
+        json_items = []
 
-    for index, item in enumerate(batch_state, start=1):
-        name = item.get("name") or item.get("image_name") or f"image_{index:03d}.png"
-        stem = f"{index:03d}_{_safe_stem(name)}"
-        result = item.get("result") or item
-        suggestion_type = item.get("suggestion_type", "default")
-        advice = item.get("advice") or item.get("suggestion") or ""
+        for index, item in enumerate(batch_state, start=1):
+            name = item.get("name") or item.get("image_name") or f"image_{index:03d}.png"
+            stem = f"{index:03d}_{_safe_stem(name)}"
+            result = item.get("result") or item
+            suggestion_type = item.get("suggestion_type", "default")
+            advice = item.get("advice") or item.get("suggestion") or ""
 
-        original_image = result.get("original") or result.get("original_image")
-        input_image = result.get("model_input") or result.get("input_image")
-        annotated_image = result.get("annotated") or result.get("result_image")
-        if original_image is None or input_image is None or annotated_image is None:
-            raise gr.Error(f"{name} 的批量结果不完整，无法导出图片。")
+            original_image = result.get("original") or result.get("original_image")
+            input_image = result.get("model_input") or result.get("input_image")
+            annotated_image = result.get("annotated") or result.get("result_image")
+            if original_image is None or input_image is None or annotated_image is None:
+                raise gr.Error(f"{name} 的批量结果不完整，无法导出图片。")
 
-        original_image.save(images_dir / f"{stem}_original.png")
-        input_image.save(images_dir / f"{stem}_input.png")
-        annotated_image.save(images_dir / f"{stem}_result.png")
-        (suggestions_dir / f"{stem}.txt").write_text(advice, encoding="utf-8")
+            original_image.save(images_dir / f"{stem}_original.png")
+            input_image.save(images_dir / f"{stem}_input.png")
+            annotated_image.save(images_dir / f"{stem}_result.png")
+            (suggestions_dir / f"{stem}.txt").write_text(advice, encoding="utf-8")
 
-        detections = result.get("detections", [])
-        if detections:
-            for det in detections:
+            detections = result.get("detections", [])
+            if detections:
+                for det in detections:
+                    csv_rows.append(
+                        {
+                            "image_name": name,
+                            "class": det.get("class", ""),
+                            "confidence": det.get("confidence", ""),
+                            "x1": det.get("x1", ""),
+                            "y1": det.get("y1", ""),
+                            "x2": det.get("x2", ""),
+                            "y2": det.get("y2", ""),
+                            "suggestion_type": suggestion_type,
+                        }
+                    )
+            else:
                 csv_rows.append(
                     {
                         "image_name": name,
-                        "class": det.get("class", ""),
-                        "confidence": det.get("confidence", ""),
-                        "x1": det.get("x1", ""),
-                        "y1": det.get("y1", ""),
-                        "x2": det.get("x2", ""),
-                        "y2": det.get("y2", ""),
+                        "class": "",
+                        "confidence": "",
+                        "x1": "",
+                        "y1": "",
+                        "x2": "",
+                        "y2": "",
                         "suggestion_type": suggestion_type,
                     }
                 )
-        else:
-            csv_rows.append(
+
+            json_items.append(
                 {
                     "image_name": name,
-                    "class": "",
-                    "confidence": "",
-                    "x1": "",
-                    "y1": "",
-                    "x2": "",
-                    "y2": "",
+                    "model": result.get("model", item.get("model", "unknown")),
                     "suggestion_type": suggestion_type,
+                    "suggestion": advice,
+                    "detections": detections,
+                    "image_files": {
+                        "original": f"images/{stem}_original.png",
+                        "input": f"images/{stem}_input.png",
+                        "result": f"images/{stem}_result.png",
+                    },
                 }
             )
 
-        json_items.append(
-            {
-                "image_name": name,
-                "model": result.get("model", item.get("model", "unknown")),
-                "suggestion_type": suggestion_type,
-                "suggestion": advice,
-                "detections": detections,
-                "image_files": {
-                    "original": f"images/{stem}_original.png",
-                    "input": f"images/{stem}_input.png",
-                    "result": f"images/{stem}_result.png",
-                },
-            }
+        csv_path = work_dir / "detections.csv"
+        with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=["image_name", "class", "confidence", "x1", "y1", "x2", "y2", "suggestion_type"],
+            )
+            writer.writeheader()
+            writer.writerows(csv_rows)
+
+        (work_dir / "detections.json").write_text(
+            json.dumps({"export": export_info, "items": json_items}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        (work_dir / "summary.txt").write_text(
+            "\n".join(_summary_lines(batch_state, export_info)) + "\n",
+            encoding="utf-8",
         )
 
-    csv_path = work_dir / "detections.csv"
-    with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=["image_name", "class", "confidence", "x1", "y1", "x2", "y2", "suggestion_type"],
-        )
-        writer.writeheader()
-        writer.writerows(csv_rows)
-
-    (work_dir / "detections.json").write_text(
-        json.dumps({"export": export_info, "items": json_items}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    (work_dir / "summary.txt").write_text(
-        "\n".join(_summary_lines(batch_state, export_info)) + "\n",
-        encoding="utf-8",
-    )
-
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for path in work_dir.rglob("*"):
-            if path.is_file():
-                archive.write(path, path.relative_to(work_dir).as_posix())
-    shutil.rmtree(work_dir)
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for path in work_dir.rglob("*"):
+                if path.is_file():
+                    archive.write(path, path.relative_to(work_dir).as_posix())
+    finally:
+        if work_dir.exists():
+            shutil.rmtree(work_dir)
     return _file_output(zip_path), f"已导出：{zip_path}"
 
 
@@ -456,19 +469,21 @@ def run_batch_detection(
     save_settings(settings)
     selected_model = MODEL_OPTIMIZED if model_choice == MODEL_COMPARE else model_choice
     batch_state = []
-    for file_obj in files:
+    for index, file_obj in enumerate(files, start=1):
         path = getattr(file_obj, "name", None) or file_obj
+        file_name = _file_name(file_obj)
         result = _detect_model(selected_model, path, use_clahe, conf, iou, device)
         advice = _build_advice(settings, result["detections"])
         batch_state.append(
             {
-                "name": _file_name(file_obj),
+                "name": file_name,
+                "display_name": f"{index:03d} - {file_name}",
                 "result": result,
                 "all_results": [result],
                 "advice": advice,
                 "suggestion_type": _suggestion_type(settings.enabled),
                 "summary": {
-                    "文件": _file_name(file_obj),
+                    "文件": file_name,
                     "模型": selected_model,
                     "检测数量": len(result["detections"]),
                     "CLAHE增强": bool(use_clahe),
@@ -482,7 +497,7 @@ def run_batch_detection(
     chat_history = _conversation_from_advice(first["advice"])
     if settings.auto_save:
         save_conversation(chat_history, settings.storage_dir)
-    choices = [item["name"] for item in batch_state]
+    choices = [item["display_name"] for item in batch_state]
     return (
         first["result"]["original"],
         first["result"]["model_input"],
@@ -503,7 +518,10 @@ def run_batch_detection(
 def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
     if not name or not batch_state:
         return None, None, None, _empty_table(), "", {}, [], []
-    item = next((row for row in batch_state if row["name"] == name), batch_state[0])
+    item = next(
+        (row for row in batch_state if row.get("display_name") == name or row.get("name") == name),
+        batch_state[0],
+    )
     chat_history = _conversation_from_advice(item["advice"])
     return (
         item["result"]["original"],
@@ -585,7 +603,8 @@ def continue_chat(
         )
     else:
         try:
-            answer = chat_completion(settings, history, temperature=0.2, max_tokens=500)
+            messages = [{"role": "system", "content": settings.custom_prompt}, *history]
+            answer = chat_completion(settings, messages, temperature=0.2, max_tokens=500)
         except Exception as exc:
             answer = f"AI 回复失败：{exc}"
         history.append({"role": "assistant", "content": answer})
@@ -607,6 +626,14 @@ def toggle_ai_settings(enabled: bool):
 
 def toggle_summary(show_summary: bool):
     return gr.update(visible=show_summary)
+
+
+def toggle_compare_options(enabled: bool, current_model: str):
+    choices = [MODEL_OPTIMIZED, MODEL_SOURCE]
+    if enabled:
+        choices.append(MODEL_COMPARE)
+    value = current_model if current_model in choices else MODEL_OPTIMIZED
+    return gr.update(choices=choices, value=value)
 
 
 def build_app() -> gr.Blocks:
@@ -672,12 +699,12 @@ def build_app() -> gr.Blocks:
                     interactive=False,
                 )
                 advice_box = gr.Textbox(label="牙齿辅助建议", lines=7, interactive=False)
-                summary = gr.JSON(label="参数与检测摘要", visible=True)
+                summary = gr.JSON(label="参数与检测摘要", visible=False)
 
         with gr.Accordion("设置", open=False):
             with gr.Tab("检测显示"):
                 enable_compare = gr.Checkbox(value=True, label="启用双模型对比选项")
-                show_summary = gr.Checkbox(value=True, label="显示参数分析和摘要")
+                show_summary = gr.Checkbox(value=False, label="显示参数分析和摘要")
             with gr.Tab("AI 建议"):
                 ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
                 with gr.Group(visible=saved.enabled) as ai_group:
@@ -713,7 +740,7 @@ def build_app() -> gr.Blocks:
                     "请求字段只使用 `model`、`messages`、`temperature`、`max_tokens`。"
                 )
 
-        with gr.Accordion("基于建议继续问答", open=True):
+        with gr.Accordion("基于建议继续问答", open=False):
             chatbot = gr.Chatbot(label="问答记录", height=280)
             with gr.Row():
                 chat_input = gr.Textbox(label="继续提问", scale=6)
@@ -754,6 +781,7 @@ def build_app() -> gr.Blocks:
         ]
 
         image.change(fn=clear_outputs, outputs=common_outputs)
+        batch_files.change(fn=clear_outputs, outputs=common_outputs)
         run_btn.click(fn=run_single_detection, inputs=[image, *common_inputs], outputs=common_outputs)
         batch_btn.click(
             fn=run_batch_detection,
@@ -792,6 +820,7 @@ def build_app() -> gr.Blocks:
         )
         ai_enabled.change(fn=toggle_ai_settings, inputs=ai_enabled, outputs=ai_group)
         show_summary.change(fn=toggle_summary, inputs=show_summary, outputs=summary)
+        enable_compare.change(fn=toggle_compare_options, inputs=[enable_compare, model_choice], outputs=model_choice)
         test_btn.click(
             fn=test_ai_settings,
             inputs=[
