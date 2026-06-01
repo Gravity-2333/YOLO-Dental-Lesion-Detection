@@ -168,6 +168,20 @@ def _base_url_origin(base_url: str) -> str:
     return base_url.split("/")[0].split(":")[0]
 
 
+def normalize_base_url(base_url: str) -> str:
+    value = (base_url or "").strip().rstrip("/") or "https://api.openai.com/v1"
+    lowered = value.lower()
+    for suffix in ("/v1/chat/completions", "/chat/completions"):
+        if lowered.endswith(suffix):
+            value = value[: -len(suffix)]
+            lowered = value.lower()
+            break
+    parsed = urlparse(value)
+    if parsed.scheme and parsed.netloc and not parsed.path.strip("/"):
+        value = f"{value}/v1"
+    return value.rstrip("/")
+
+
 def is_private_base_url(base_url: str) -> bool:
     host = _base_url_origin(base_url).lower()
     if host in {"localhost", "127.0.0.1", "::1"}:
@@ -197,7 +211,7 @@ def validate_ai_request(settings: AiSettings) -> tuple[bool, str, str]:
 def _client(settings: AiSettings, api_key: str) -> OpenAI:
     from openai import OpenAI
 
-    return OpenAI(base_url=settings.base_url.rstrip("/"), api_key=api_key)
+    return OpenAI(base_url=normalize_base_url(settings.base_url), api_key=api_key)
 
 
 def chat_completion(

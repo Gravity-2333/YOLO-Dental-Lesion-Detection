@@ -23,6 +23,7 @@ from src.dental_detection.assistant import (
     ensure_app_dirs,
     export_dir,
     load_settings,
+    normalize_base_url,
     save_conversation,
     save_settings,
     test_chat_completion,
@@ -124,7 +125,7 @@ def _ai_settings(
 ) -> AiSettings:
     return AiSettings(
         enabled=ai_enabled,
-        base_url=(base_url or "").strip() or "https://api.openai.com/v1",
+        base_url=normalize_base_url(base_url),
         model=(ai_model or "").strip() or "gpt-4o-mini",
         key_mode=key_mode,
         api_key=(api_key or "").strip(),
@@ -422,14 +423,13 @@ def run_single_detection(
             "summary": summary,
         }
     ]
-    summary_output = summary if show_summary else {}
     return (
         primary["original"],
         primary["model_input"],
         primary["annotated"],
         primary["table"],
         advice,
-        summary_output,
+        gr.update(value=summary, visible=show_summary),
         batch_state,
         gr.update(choices=["当前单图"], value="当前单图"),
         chat_history,
@@ -575,6 +575,32 @@ def test_ai_settings(
         return test_chat_completion(settings)
     except Exception as exc:
         return f"测试失败：{exc}"
+
+
+def save_ui_settings(
+    ai_enabled: bool,
+    base_url: str,
+    ai_model: str,
+    key_mode: str,
+    api_key: str,
+    save_key: bool,
+    auto_save: bool,
+    storage_dir: str,
+    custom_prompt: str,
+):
+    settings = _ai_settings(
+        ai_enabled,
+        base_url,
+        ai_model,
+        key_mode,
+        api_key,
+        save_key,
+        auto_save,
+        storage_dir,
+        custom_prompt,
+    )
+    path = save_settings(settings)
+    return f"设置已保存：{path}"
 
 
 def continue_chat(
@@ -760,6 +786,8 @@ def build_app() -> gr.Blocks:
                             "第一版固定使用 OpenAI-compatible Chat Completions `/v1/chat/completions`。"
                             "请求字段只使用 `model`、`messages`、`temperature`、`max_tokens`。"
                         )
+                save_settings_btn = gr.Button("保存设置", variant="primary")
+                settings_feedback = gr.Textbox(label="设置反馈", interactive=False)
 
         common_inputs = [
             model_choice,
@@ -850,6 +878,21 @@ def build_app() -> gr.Blocks:
                 custom_prompt,
             ],
             outputs=test_result,
+        )
+        save_settings_btn.click(
+            fn=save_ui_settings,
+            inputs=[
+                ai_enabled,
+                base_url,
+                ai_model,
+                key_mode,
+                api_key,
+                save_key,
+                auto_save,
+                storage_dir,
+                custom_prompt,
+            ],
+            outputs=settings_feedback,
         )
         chat_btn.click(
             fn=continue_chat,

@@ -34,6 +34,24 @@ python -m pip install -r requirements.txt
 
 ## 启动 Gradio
 
+推荐直接使用项目脚本：
+
+```powershell
+.\start_project.bat
+```
+
+脚本会先检查当前端口上是否已有本项目进程；如果已有，会先自动关闭再重新启动。参数集中在 `scripts/project_config.bat`，可在其中修改端口、地址、mamba 环境名或 Python 路径。
+
+关闭项目：
+
+```powershell
+.\stop_project.bat
+```
+
+关闭脚本会先检查是否存在可关闭的项目进程，存在时才执行关闭。
+
+也可以手动启动：
+
 ```powershell
 mamba activate yolo
 python app.py
