@@ -336,6 +336,8 @@ def clear_outputs():
         _clear_file_output(),
         "",
         gr.update(interactive=False),
+        _clear_file_output(),
+        "",
     )
 
 
@@ -437,6 +439,8 @@ def run_single_detection(
         _clear_file_output(),
         "",
         gr.update(interactive=False),
+        _clear_file_output(),
+        "",
     )
 
 
@@ -523,12 +527,14 @@ def run_batch_detection(
         _clear_file_output(),
         "",
         gr.update(interactive=True),
+        _clear_file_output(),
+        "",
     )
 
 
 def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
     if not name or not batch_state:
-        return None, None, None, _empty_table(), "", {}, [], []
+        return None, None, None, _empty_table(), "", {}, [], [], _clear_file_output(), ""
     item = next(
         (row for row in batch_state if row.get("display_name") == name or row.get("name") == name),
         batch_state[0],
@@ -543,6 +549,8 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
         item["summary"],
         chat_history,
         chat_history,
+        _clear_file_output(),
+        "",
     )
 
 
@@ -617,7 +625,7 @@ def continue_chat(
     custom_prompt: str,
 ):
     if not message:
-        return history, history, ""
+        return history, history, "", _clear_file_output(), ""
     settings = _ai_settings(
         ai_enabled,
         base_url,
@@ -647,7 +655,7 @@ def continue_chat(
         history.append({"role": "assistant", "content": answer})
     if settings.auto_save:
         save_conversation(history, settings.storage_dir)
-    return history, history, ""
+    return history, history, "", _clear_file_output(), ""
 
 
 def export_chat(history: list[dict[str, str]], storage_dir: str):
@@ -821,6 +829,8 @@ def build_app() -> gr.Blocks:
             batch_export_file,
             batch_export_path,
             export_batch_btn,
+            export_file,
+            export_path,
         ]
 
         image.change(fn=clear_outputs, outputs=common_outputs)
@@ -859,6 +869,8 @@ def build_app() -> gr.Blocks:
                 summary,
                 chatbot,
                 chat_state,
+                export_file,
+                export_path,
             ],
         )
         ai_enabled.change(fn=toggle_ai_settings, inputs=ai_enabled, outputs=ai_group)
@@ -909,7 +921,24 @@ def build_app() -> gr.Blocks:
                 storage_dir,
                 custom_prompt,
             ],
-            outputs=[chatbot, chat_state, chat_input],
+            outputs=[chatbot, chat_state, chat_input, export_file, export_path],
+        )
+        chat_input.submit(
+            fn=continue_chat,
+            inputs=[
+                chat_input,
+                chat_state,
+                ai_enabled,
+                base_url,
+                ai_model,
+                key_mode,
+                api_key,
+                save_key,
+                auto_save,
+                storage_dir,
+                custom_prompt,
+            ],
+            outputs=[chatbot, chat_state, chat_input, export_file, export_path],
         )
         export_btn.click(fn=export_chat, inputs=[chat_state, storage_dir], outputs=[export_file, export_path])
         export_batch_btn.click(
