@@ -31,4 +31,5 @@ if "%STOP_CODE%"=="2" (
     )
 )
 
+if "%QUIET%"=="0" pause
 endlocal
