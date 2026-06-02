@@ -622,8 +622,8 @@ def clear_outputs():
         "",
         _clear_file_output(),
         "",
-        gr.update(interactive=False),
-        gr.update(interactive=False),
+        gr.update(value="检测完成后可导出报告", interactive=False),
+        gr.update(value="检测完成后可保存病例", interactive=False),
     )
 
 
@@ -736,8 +736,8 @@ def run_single_detection(
         "",
         _clear_file_output(),
         "",
-        gr.update(interactive=True),
-        gr.update(interactive=True),
+        gr.update(value="导出当前单图报告", interactive=True),
+        gr.update(value="保存当前结果为病例记录", interactive=True),
     )
 
 
@@ -829,8 +829,8 @@ def run_batch_detection(
         "",
         _clear_file_output(),
         "",
-        gr.update(interactive=True),
-        gr.update(interactive=True),
+        gr.update(value="导出当前单图报告", interactive=True),
+        gr.update(value="保存当前结果为病例记录", interactive=True),
     )
 
 
@@ -850,8 +850,8 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
             "",
             _clear_file_output(),
             "",
-            gr.update(interactive=False),
-            gr.update(interactive=False),
+            gr.update(value="检测完成后可导出报告", interactive=False),
+            gr.update(value="检测完成后可保存病例", interactive=False),
         )
     item = next(
         (row for row in batch_state if row.get("display_name") == name or row.get("name") == name),
@@ -872,8 +872,8 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
         "",
         _clear_file_output(),
         "",
-        gr.update(interactive=True),
-        gr.update(interactive=True),
+        gr.update(value="导出当前单图报告", interactive=True),
+        gr.update(value="保存当前结果为病例记录", interactive=True),
     )
 
 
@@ -1104,7 +1104,7 @@ def build_app() -> gr.Blocks:
                         )
                         summary = gr.JSON(label="参数与检测摘要", visible=False)
                         with gr.Row():
-                            export_report_btn = gr.Button("导出当前单图报告", interactive=False)
+                            export_report_btn = gr.Button("检测完成后可导出报告", interactive=False)
                             report_file = gr.File(label="单图报告 ZIP", visible=False)
                         report_path = gr.Textbox(label="报告路径", interactive=False)
 
@@ -1127,7 +1127,7 @@ def build_app() -> gr.Blocks:
                     case_note = gr.Textbox(label="病例备注", placeholder="可填写主诉、复查说明或医生备注")
                 with gr.Row():
                     save_case_btn = gr.Button(
-                        "保存当前结果为病例记录",
+                        "检测完成后可保存病例",
                         variant="primary",
                         interactive=False,
                     )

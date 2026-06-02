@@ -12,7 +12,7 @@ call "%PROJECT_ROOT%stop_project.bat" --from-start
 if not exist "%YOLO_CONFIG_DIR%" mkdir "%YOLO_CONFIG_DIR%"
 
 if defined PYTHON_EXE (
-    set "RUNNER=""%PYTHON_EXE%" app.py --server-name %SERVER_NAME% --server-port %SERVER_PORT% %GRADIO_EXTRA_ARGS%"
+    set "RUNNER="%PYTHON_EXE%" app.py --server-name %SERVER_NAME% --server-port %SERVER_PORT% %GRADIO_EXTRA_ARGS%"
 ) else (
     set "RUNNER=%MAMBA_EXE% run -n %MAMBA_ENV% python app.py --server-name %SERVER_NAME% --server-port %SERVER_PORT% %GRADIO_EXTRA_ARGS%"
 )
