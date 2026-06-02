@@ -52,12 +52,23 @@ def _load_workbench_css() -> str:
 
 
 def _allowed_file_roots() -> list[Path]:
-    roots = [Path.home(), PROJECT_ROOT.parent, STARTUP_STORAGE_ROOT]
-    return [root.resolve() for root in roots if root.exists()]
+    roots = [Path.home(), PROJECT_ROOT.parent, APP_HOME, STARTUP_STORAGE_ROOT]
+    resolved: list[Path] = []
+    for root in roots:
+        if root.exists():
+            path = root.resolve()
+            if path not in resolved:
+                resolved.append(path)
+    return resolved
+
+
+def _is_within_known_download_roots(path: str | Path) -> bool:
+    target = Path(path).expanduser().resolve()
+    return any(target == root or root in target.parents for root in _allowed_file_roots())
 
 
 def _can_return_file(path: str | Path) -> bool:
-    target = Path(path).resolve()
+    target = Path(path).expanduser().resolve()
     return any(target == root or root in target.parents for root in _allowed_file_roots())
 
 
@@ -893,7 +904,13 @@ def save_ui_settings(
         custom_prompt,
     )
     path = save_settings(settings)
-    return f"设置已保存：{path}"
+    feedback = [f"设置已保存：{path}"]
+    if not _is_within_known_download_roots(settings.storage_dir):
+        feedback.append(
+            "提示：新的存储位置不在当前 Gradio 文件下载白名单内。"
+            "设置已生效，但如需直接下载该目录下的报告或导出文件，请重启项目脚本。"
+        )
+    return "\n".join(feedback)
 
 
 def continue_chat(

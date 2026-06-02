@@ -143,6 +143,10 @@ def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) ->
     new_root = storage_root(new_storage_dir).resolve()
     if old_root == new_root or not old_root.exists() or not old_root.is_dir():
         return
+    if old_root in new_root.parents:
+        # 新目录位于旧目录内部时，直接搬迁旧目录会形成“目录搬进自己”的递归移动。
+        # 这种情况下保留旧内容不动，新目录由后续 ensure_app_dirs 创建。
+        return
 
     if old_root == APP_HOME.resolve():
         for child_name in ("conversations", "exports", "cases", "reports"):
