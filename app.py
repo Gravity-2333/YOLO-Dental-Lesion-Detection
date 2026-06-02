@@ -622,6 +622,8 @@ def clear_outputs():
         "",
         _clear_file_output(),
         "",
+        gr.update(interactive=False),
+        gr.update(interactive=False),
     )
 
 
@@ -734,6 +736,8 @@ def run_single_detection(
         "",
         _clear_file_output(),
         "",
+        gr.update(interactive=True),
+        gr.update(interactive=True),
     )
 
 
@@ -825,12 +829,30 @@ def run_batch_detection(
         "",
         _clear_file_output(),
         "",
+        gr.update(interactive=True),
+        gr.update(interactive=True),
     )
 
 
 def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
     if not name or not batch_state:
-        return None, None, None, _empty_table(), "", "尚未上传图片。", {}, [], [], _clear_file_output(), "", _clear_file_output(), ""
+        return (
+            None,
+            None,
+            None,
+            _empty_table(),
+            "",
+            "尚未上传图片。",
+            {},
+            [],
+            [],
+            _clear_file_output(),
+            "",
+            _clear_file_output(),
+            "",
+            gr.update(interactive=False),
+            gr.update(interactive=False),
+        )
     item = next(
         (row for row in batch_state if row.get("display_name") == name or row.get("name") == name),
         batch_state[0],
@@ -850,6 +872,8 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
         "",
         _clear_file_output(),
         "",
+        gr.update(interactive=True),
+        gr.update(interactive=True),
     )
 
 
@@ -1066,10 +1090,15 @@ def build_app() -> gr.Blocks:
                             interactive=False,
                         )
                         advice_box = gr.Textbox(label="牙齿辅助建议", lines=7, interactive=False)
-                        quality_box = gr.Textbox(label="图像质量提示", lines=5, interactive=False)
+                        quality_box = gr.Textbox(
+                            value="尚未上传图片。",
+                            label="图像质量提示",
+                            lines=5,
+                            interactive=False,
+                        )
                         summary = gr.JSON(label="参数与检测摘要", visible=False)
                         with gr.Row():
-                            export_report_btn = gr.Button("导出当前单图报告")
+                            export_report_btn = gr.Button("导出当前单图报告", interactive=False)
                             report_file = gr.File(label="单图报告 ZIP", visible=False)
                         report_path = gr.Textbox(label="报告路径", interactive=False)
 
@@ -1091,7 +1120,11 @@ def build_app() -> gr.Blocks:
                     case_id = gr.Textbox(label="病例编号 / 备注名称", placeholder="例如：20260602-复查")
                     case_note = gr.Textbox(label="病例备注", placeholder="可填写主诉、复查说明或医生备注")
                 with gr.Row():
-                    save_case_btn = gr.Button("保存当前结果为病例记录", variant="primary")
+                    save_case_btn = gr.Button(
+                        "保存当前结果为病例记录",
+                        variant="primary",
+                        interactive=False,
+                    )
                     refresh_case_btn = gr.Button("刷新病例记录")
                 case_feedback = gr.Textbox(label="病例反馈", interactive=False)
                 case_select = gr.Dropdown(label="已保存病例", choices=_case_choices(saved.storage_dir))
@@ -1173,6 +1206,8 @@ def build_app() -> gr.Blocks:
             export_path,
             report_file,
             report_path,
+            export_report_btn,
+            save_case_btn,
         ]
 
         image.change(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
@@ -1216,6 +1251,8 @@ def build_app() -> gr.Blocks:
                 export_path,
                 report_file,
                 report_path,
+                export_report_btn,
+                save_case_btn,
             ],
         )
         ai_enabled.change(fn=toggle_ai_settings, inputs=ai_enabled, outputs=ai_group)
