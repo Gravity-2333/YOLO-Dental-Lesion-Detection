@@ -170,6 +170,15 @@ def _base_url_origin(base_url: str) -> str:
 
 def normalize_base_url(base_url: str) -> str:
     value = (base_url or "").strip().rstrip("/") or "https://api.openai.com/v1"
+    if not value.lower().startswith(("http://", "https://")):
+        host = value.split("/")[0].split(":")[0].lower()
+        scheme = "http" if host in {"localhost", "127.0.0.1", "::1"} else "https"
+        try:
+            if ipaddress.ip_address(host).is_private:
+                scheme = "http"
+        except ValueError:
+            pass
+        value = f"{scheme}://{value}"
     lowered = value.lower()
     for suffix in ("/v1/chat/completions", "/chat/completions"):
         if lowered.endswith(suffix):
@@ -203,7 +212,7 @@ def validate_ai_request(settings: AiSettings) -> tuple[bool, str, str]:
     api_key = resolve_api_key(settings)
     if api_key:
         return True, api_key, ""
-    if is_private_base_url(settings.base_url):
+    if is_private_base_url(normalize_base_url(settings.base_url)):
         return True, "EMPTY", ""
     return False, "", "公网 API 地址需要填写 API Key，或在环境变量模式中填写环境变量名。"
 
