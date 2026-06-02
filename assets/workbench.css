@@ -44,3 +44,38 @@ select {
 table {
   font-size: 0.92rem !important;
 }
+
+.gradio-container .prose {
+  max-width: none !important;
+}
+
+[data-testid="block-info"] {
+  color: #4b647f !important;
+}
+
+.gradio-container label {
+  font-weight: 600 !important;
+  color: #20314a !important;
+}
+
+.gradio-container .tabitem {
+  padding-top: 12px !important;
+}
+
+.gradio-container .image-container,
+.gradio-container .table-wrap {
+  border-radius: 8px !important;
+}
+
+textarea[aria-label="图像质量提示"],
+textarea[aria-label="牙齿辅助建议"] {
+  background: #ffffff !important;
+  line-height: 1.55 !important;
+}
+
+textarea[aria-label="报告路径"],
+textarea[aria-label="导出路径"],
+textarea[aria-label="病例反馈"],
+textarea[aria-label="设置反馈"] {
+  font-size: 0.9rem !important;
+}

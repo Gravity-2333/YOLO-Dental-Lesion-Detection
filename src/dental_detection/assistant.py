@@ -34,11 +34,13 @@ CONFIG_PATH = APP_HOME / "settings.json"
 CONVERSATION_DIR = APP_HOME / "conversations"
 SAFETY_NOTICE = "本结果仅供辅助参考，不能替代专业牙科医生诊断。"
 DEFAULT_AI_PROMPT = (
-    "你是牙科影像检测结果解释助手。请只基于 YOLO 检测结果文本生成辅助建议，"
-    "不要声称已经完成诊断。必须包含“本结果仅供辅助参考，不能替代专业牙科医生诊断。”"
-    "不要给处方，不要给具体药物剂量，不要建议自行用药。"
-    "建议应聚焦于复查、就医沟通、关注检测框附近区域、保持口腔卫生、携带原始影像和检测结果咨询专业牙科医生。"
-    "如果检测结果为空，请说明未检测到明确目标框，但仍建议结合症状和医生检查复核。"
+    "你是牙科影像检测结果解释助手，服务对象可能是牙科医生、口腔科助理或普通用户。"
+    "你只能基于用户提供的 YOLO 检测结果文本生成辅助建议，不接收、不分析、不猜测牙片图片本身。"
+    "必须在建议开头包含原句：本结果仅供辅助参考，不能替代专业牙科医生诊断。"
+    "不要输出最终诊断，不要给处方，不要给具体药物剂量，不要建议自行用药，也不要使用“确诊、一定、必须治疗”等绝对表达。"
+    "请按检测类别、数量、置信度和检测框位置描述需要关注的区域，并把建议限制在复查确认、预约就医、携带原始影像和检测结果沟通、观察症状、保持口腔卫生、定期口腔检查等范围。"
+    "如果检测结果为空，请说明模型未检测到明确目标框，但仍建议结合症状、原始影像质量和专业牙科检查复核。"
+    "输出应简洁、分条、中文，不超过 260 字。"
 )
 CLASS_ADVICE = {
     "Caries": "疑似龋坏相关区域。建议关注该区域是否有冷热刺激痛、食物嵌塞或颜色改变，并预约牙科检查确认。",
@@ -50,10 +52,10 @@ CLASS_ADVICE = {
 @dataclass
 class AiSettings:
     enabled: bool = False
-    base_url: str = "https://api.openai.com/v1"
-    model: str = "gpt-4o-mini"
+    base_url: str = "https://api.deepseek.com/v1"
+    model: str = "deepseek-chat"
     key_mode: str = "环境变量"
-    api_key: str = ""
+    api_key: str = "DEEPSEEK_API_KEY"
     save_api_key: bool = False
     auto_save: bool = True
     storage_dir: str = str(APP_HOME)
@@ -72,12 +74,22 @@ def export_dir(storage_dir: str | None = None) -> Path:
     return storage_root(storage_dir) / "exports"
 
 
+def case_dir(storage_dir: str | None = None) -> Path:
+    return storage_root(storage_dir) / "cases"
+
+
+def report_dir(storage_dir: str | None = None) -> Path:
+    return storage_root(storage_dir) / "reports"
+
+
 def ensure_app_dirs(storage_dir: str | None = None) -> Path:
     APP_HOME.mkdir(parents=True, exist_ok=True)
     root = storage_root(storage_dir)
     root.mkdir(parents=True, exist_ok=True)
     conversation_dir(str(root)).mkdir(parents=True, exist_ok=True)
     export_dir(str(root)).mkdir(parents=True, exist_ok=True)
+    case_dir(str(root)).mkdir(parents=True, exist_ok=True)
+    report_dir(str(root)).mkdir(parents=True, exist_ok=True)
     return root
 
 
@@ -133,7 +145,7 @@ def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) ->
         return
 
     if old_root == APP_HOME.resolve():
-        for child_name in ("conversations", "exports"):
+        for child_name in ("conversations", "exports", "cases", "reports"):
             source = old_root / child_name
             if source.exists() and source.is_dir():
                 _move_contents(source, new_root / child_name)

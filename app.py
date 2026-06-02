@@ -14,16 +14,20 @@ import zipfile
 import gradio as gr
 import pandas as pd
 import torch
+from PIL import ImageOps, ImageStat
 
 from src.dental_detection.assistant import (
     APP_HOME,
     AiSettings,
+    SAFETY_NOTICE,
+    case_dir,
     default_advice,
     detection_prompt,
     ensure_app_dirs,
     export_dir,
     load_settings,
     normalize_base_url,
+    report_dir,
     save_conversation,
     save_settings,
     test_chat_completion,
@@ -83,6 +87,39 @@ def _records_from_detections(detections: list[Detection]) -> list[dict[str, Any]
     return [det.as_row() for det in detections]
 
 
+def assess_image_quality(image) -> str:
+    if image is None:
+        return "尚未上传图片。"
+    pil_image = ImageOps.exif_transpose(image).convert("RGB")
+    width, height = pil_image.size
+    gray = pil_image.convert("L")
+    stat = ImageStat.Stat(gray)
+    brightness = float(stat.mean[0])
+    contrast = float(stat.stddev[0])
+    ratio = max(width, height) / max(1, min(width, height))
+
+    notes = [
+        f"图像尺寸：{width} x {height}",
+        f"平均亮度：{brightness:.1f}",
+        f"对比度估计：{contrast:.1f}",
+    ]
+    warnings = []
+    if min(width, height) < 512:
+        warnings.append("分辨率偏低，细小病变区域可能不稳定。")
+    if brightness < 45:
+        warnings.append("图像整体偏暗，建议确认牙片曝光或阅片窗宽窗位。")
+    elif brightness > 220:
+        warnings.append("图像整体偏亮，建议确认牙片曝光或显示设置。")
+    if contrast < 28:
+        warnings.append("对比度偏低，可尝试勾选 CLAHE 增强后推理进行辅助对照。")
+    if ratio > 4:
+        warnings.append("宽高比非常极端，建议确认是否上传了完整牙片而不是过窄裁剪。")
+
+    if warnings:
+        return "\n".join(["图像质量提示：", *notes, *[f"- {item}" for item in warnings]])
+    return "\n".join(["图像质量提示：当前未发现明显输入质量风险。", *notes])
+
+
 def _device(use_gpu: bool) -> tuple[str | int, bool]:
     cuda_available = torch.cuda.is_available()
     if use_gpu and not cuda_available:
@@ -126,7 +163,7 @@ def _ai_settings(
     return AiSettings(
         enabled=ai_enabled,
         base_url=normalize_base_url(base_url),
-        model=(ai_model or "").strip() or "gpt-4o-mini",
+        model=(ai_model or "").strip() or "deepseek-chat",
         key_mode=key_mode,
         api_key=(api_key or "").strip(),
         save_api_key=save_key,
@@ -161,6 +198,68 @@ def _suggestion_type(ai_enabled: bool) -> str:
 def _safe_stem(name: str) -> str:
     stem = Path(name).stem or "image"
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", stem).strip("._") or "image"
+
+
+def _current_item(batch_state: list[dict[str, Any]], selected_name: str | None = None) -> dict[str, Any]:
+    if not batch_state:
+        raise gr.Error("当前没有可用的检测结果。")
+    if selected_name:
+        for item in batch_state:
+            if item.get("display_name") == selected_name or item.get("name") == selected_name:
+                return item
+    return batch_state[0]
+
+
+def _case_choices(storage_dir: str) -> list[str]:
+    ensure_app_dirs(storage_dir)
+    choices = []
+    for path in sorted(case_dir(storage_dir).glob("case_*.json"), reverse=True):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        title = data.get("case_id") or path.stem
+        image_name = data.get("image_name") or "未命名图片"
+        created_at = data.get("created_at") or ""
+        choices.append(f"{created_at} | {title} | {image_name} | {path.name}")
+    return choices
+
+
+def _write_text(path: Path, content: str) -> None:
+    path.write_text(content, encoding="utf-8")
+
+
+def _html_escape(value: Any) -> str:
+    return (
+        str(value)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def _detections_html(detections: list[dict[str, Any]]) -> str:
+    if not detections:
+        return "<p>未检测到目标框。</p>"
+    rows = []
+    for det in detections:
+        cells = "".join(
+            f"<td>{_html_escape(det.get(key, ''))}</td>" for key in TABLE_COLUMNS
+        )
+        rows.append(f"<tr>{cells}</tr>")
+    headers = "".join(f"<th>{name}</th>" for name in TABLE_COLUMNS)
+    return f"<table><thead><tr>{headers}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
+
+
+def _unique_report_paths(storage_dir: str, stamp: str) -> tuple[Path, Path]:
+    base = report_dir(storage_dir)
+    root = base / f"single_report_{stamp}"
+    counter = 1
+    while root.exists():
+        root = base / f"single_report_{stamp}_{counter:02d}"
+        counter += 1
+    return root, root / f"{root.name}.zip"
 
 
 def _summary_lines(batch_state: list[dict[str, Any]], export_info: dict[str, Any]) -> list[str]:
@@ -321,6 +420,174 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     return _file_component_output(zip_path), f"已导出：{zip_path}"
 
 
+def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
+    item = _current_item(batch_state, selected_name)
+    result = item.get("result") or item
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ensure_app_dirs(storage_dir)
+    report_root, zip_path = _unique_report_paths(storage_dir, stamp)
+    report_root.mkdir(parents=True, exist_ok=True)
+    work_dir = report_root / "payload"
+    images_dir = work_dir / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+
+    name = item.get("name") or item.get("image_name") or "当前单图"
+    stem = _safe_stem(name)
+    advice = item.get("advice") or ""
+    detections = result.get("detections", [])
+    summary_data = item.get("summary", {})
+    export_info = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "image_name": name,
+        "model": result.get("model", summary_data.get("模型", "unknown")),
+        "suggestion_type": item.get("suggestion_type", "default"),
+        "safety_notice": SAFETY_NOTICE,
+    }
+    try:
+        image_files = {
+            "original": f"images/{stem}_original.png",
+            "input": f"images/{stem}_input.png",
+            "result": f"images/{stem}_result.png",
+        }
+        result["original"].save(work_dir / image_files["original"])
+        result["model_input"].save(work_dir / image_files["input"])
+        result["annotated"].save(work_dir / image_files["result"])
+
+        csv_path = work_dir / "detections.csv"
+        with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=TABLE_COLUMNS)
+            writer.writeheader()
+            writer.writerows(detections)
+
+        _write_text(
+            work_dir / "detections.json",
+            json.dumps(
+                {
+                    "report": export_info,
+                    "summary": summary_data,
+                    "detections": detections,
+                    "image_files": image_files,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+        )
+        _write_text(work_dir / "suggestion.txt", advice)
+        _write_text(
+            work_dir / "summary.txt",
+            "\n".join(
+                [
+                    "YOLO Dental Lesion Detection Single Report",
+                    f"生成时间: {export_info['created_at']}",
+                    f"图片名称: {name}",
+                    f"模型: {export_info['model']}",
+                    f"建议类型: {export_info['suggestion_type']}",
+                    f"检测框数量: {len(detections)}",
+                    f"安全声明: {SAFETY_NOTICE}",
+                ]
+            )
+            + "\n",
+        )
+        html = f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>牙齿病变辅助检测报告</title>
+  <style>
+    body {{ font-family: "Microsoft YaHei", Arial, sans-serif; margin: 28px; color: #172033; }}
+    h1 {{ font-size: 24px; }}
+    .notice {{ padding: 12px 14px; background: #fff7ed; border-left: 4px solid #f97316; }}
+    .grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }}
+    img {{ max-width: 100%; border: 1px solid #d7dde8; border-radius: 6px; }}
+    table {{ border-collapse: collapse; width: 100%; margin-top: 12px; }}
+    th, td {{ border: 1px solid #d7dde8; padding: 8px; text-align: left; }}
+    th {{ background: #eff4fb; }}
+    pre {{ white-space: pre-wrap; background: #f6f8fb; padding: 12px; border-radius: 6px; }}
+  </style>
+</head>
+<body>
+  <h1>牙齿病变辅助检测报告</h1>
+  <p class="notice">{_html_escape(SAFETY_NOTICE)}</p>
+  <p>生成时间：{_html_escape(export_info['created_at'])}</p>
+  <p>图片名称：{_html_escape(name)}；模型：{_html_escape(export_info['model'])}</p>
+  <div class="grid">
+    <figure><img src="{image_files['original']}"><figcaption>原始上传图</figcaption></figure>
+    <figure><img src="{image_files['input']}"><figcaption>实际送入模型的图</figcaption></figure>
+    <figure><img src="{image_files['result']}"><figcaption>检测结果图</figcaption></figure>
+  </div>
+  <h2>检测框</h2>
+  {_detections_html(detections)}
+  <h2>辅助建议</h2>
+  <pre>{_html_escape(advice)}</pre>
+  <h2>参数摘要</h2>
+  <pre>{_html_escape(json.dumps(summary_data, ensure_ascii=False, indent=2))}</pre>
+</body>
+</html>
+"""
+        _write_text(work_dir / "report.html", html)
+
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for path in work_dir.rglob("*"):
+                if path.is_file():
+                    archive.write(path, path.relative_to(work_dir).as_posix())
+    finally:
+        if work_dir.exists():
+            shutil.rmtree(work_dir)
+        if not zip_path.exists() and report_root.exists() and not any(report_root.iterdir()):
+            report_root.rmdir()
+    return _file_component_output(zip_path), f"已导出单图报告：{zip_path}"
+
+
+def save_case_record(
+    batch_state: list[dict[str, Any]],
+    selected_name: str,
+    case_id: str,
+    case_note: str,
+    storage_dir: str,
+):
+    item = _current_item(batch_state, selected_name)
+    result = item.get("result") or item
+    ensure_app_dirs(storage_dir)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_case = _safe_stem(case_id or item.get("name") or "case")
+    path = case_dir(storage_dir) / f"case_{stamp}_{safe_case}.json"
+    payload = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "case_id": case_id.strip() if case_id else "未填写",
+        "note": case_note.strip() if case_note else "",
+        "image_name": item.get("name") or "当前单图",
+        "summary": item.get("summary", {}),
+        "detections": result.get("detections", []),
+        "suggestion_type": item.get("suggestion_type", "default"),
+        "suggestion": item.get("advice", ""),
+        "safety_notice": SAFETY_NOTICE,
+    }
+    _write_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
+    choices = _case_choices(storage_dir)
+    selected = next((choice for choice in choices if path.name in choice), choices[0] if choices else None)
+    return f"病例记录已保存：{path}", gr.update(choices=choices, value=selected), payload
+
+
+def refresh_case_records(storage_dir: str):
+    choices = _case_choices(storage_dir)
+    return gr.update(choices=choices, value=choices[0] if choices else None), (
+        "已刷新病例记录。" if choices else "暂无病例记录。"
+    )
+
+
+def load_case_record(choice: str, storage_dir: str):
+    if not choice:
+        return {}
+    file_name = choice.split("|")[-1].strip()
+    path = case_dir(storage_dir) / file_name
+    if not path.exists():
+        return {"错误": f"病例文件不存在：{path}"}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"错误": str(exc)}
+
+
 def clear_outputs():
     return (
         None,
@@ -328,6 +595,7 @@ def clear_outputs():
         None,
         _empty_table(),
         "",
+        "尚未上传图片。",
         {},
         [],
         gr.update(choices=[], value=None),
@@ -338,7 +606,15 @@ def clear_outputs():
         gr.update(interactive=False),
         _clear_file_output(),
         "",
+        _clear_file_output(),
+        "",
     )
+
+
+def clear_outputs_with_quality(image):
+    values = list(clear_outputs())
+    values[5] = assess_image_quality(image)
+    return tuple(values)
 
 
 def run_single_detection(
@@ -431,6 +707,7 @@ def run_single_detection(
         primary["annotated"],
         primary["table"],
         advice,
+        assess_image_quality(primary["original"]),
         gr.update(value=summary, visible=show_summary),
         batch_state,
         gr.update(choices=["当前单图"], value="当前单图"),
@@ -439,6 +716,8 @@ def run_single_detection(
         _clear_file_output(),
         "",
         gr.update(interactive=False),
+        _clear_file_output(),
+        "",
         _clear_file_output(),
         "",
     )
@@ -519,6 +798,7 @@ def run_batch_detection(
         first["result"]["annotated"],
         first["result"]["table"],
         first["advice"],
+        assess_image_quality(first["result"]["original"]),
         first["summary"],
         batch_state,
         gr.update(choices=choices, value=choices[0]),
@@ -529,12 +809,14 @@ def run_batch_detection(
         gr.update(interactive=True),
         _clear_file_output(),
         "",
+        _clear_file_output(),
+        "",
     )
 
 
 def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
     if not name or not batch_state:
-        return None, None, None, _empty_table(), "", {}, [], [], _clear_file_output(), ""
+        return None, None, None, _empty_table(), "", "尚未上传图片。", {}, [], [], _clear_file_output(), "", _clear_file_output(), ""
     item = next(
         (row for row in batch_state if row.get("display_name") == name or row.get("name") == name),
         batch_state[0],
@@ -546,9 +828,12 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
         item["result"]["annotated"],
         item["result"]["table"],
         item["advice"],
+        assess_image_quality(item["result"]["original"]),
         item["summary"],
         chat_history,
         chat_history,
+        _clear_file_output(),
+        "",
         _clear_file_output(),
         "",
     )
@@ -681,8 +966,23 @@ def toggle_compare_options(enabled: bool, current_model: str):
     return gr.update(choices=choices, value=value)
 
 
+def _with_current_defaults(saved: AiSettings) -> AiSettings:
+    if (
+        saved.base_url == "https://api.openai.com/v1"
+        and saved.model == "gpt-4o-mini"
+        and saved.key_mode == "环境变量"
+        and saved.api_key in {"", "OPENAI_API_KEY"}
+    ):
+        saved.base_url = "https://api.deepseek.com/v1"
+        saved.model = "deepseek-chat"
+        saved.api_key = "DEEPSEEK_API_KEY"
+    if (saved.custom_prompt or "").strip().lower() in {"", "prompt"}:
+        saved.custom_prompt = DEFAULT_AI_PROMPT
+    return saved
+
+
 def build_app() -> gr.Blocks:
-    saved = load_settings()
+    saved = _with_current_defaults(load_settings())
     ensure_app_dirs(saved.storage_dir)
     with gr.Blocks(title="牙齿病变区域识别") as demo:
         batch_state = gr.State([])
@@ -746,7 +1046,12 @@ def build_app() -> gr.Blocks:
                             interactive=False,
                         )
                         advice_box = gr.Textbox(label="牙齿辅助建议", lines=7, interactive=False)
+                        quality_box = gr.Textbox(label="图像质量提示", lines=5, interactive=False)
                         summary = gr.JSON(label="参数与检测摘要", visible=False)
+                        with gr.Row():
+                            export_report_btn = gr.Button("导出当前单图报告")
+                            report_file = gr.File(label="单图报告 ZIP", visible=False)
+                        report_path = gr.Textbox(label="报告路径", interactive=False)
 
             with gr.Tab("AI 问答"):
                 chatbot = gr.Chatbot(label="问答记录", height=360)
@@ -757,6 +1062,20 @@ def build_app() -> gr.Blocks:
                     export_btn = gr.Button("导出当前对话")
                     export_file = gr.File(label="导出的对话文件", visible=False)
                 export_path = gr.Textbox(label="导出路径", interactive=False)
+
+            with gr.Tab("病例记录"):
+                gr.Markdown(
+                    "保存当前检测摘要、检测框和建议，便于后续复查。不会自动保存原始牙片图片。"
+                )
+                with gr.Row():
+                    case_id = gr.Textbox(label="病例编号 / 备注名称", placeholder="例如：20260602-复查")
+                    case_note = gr.Textbox(label="病例备注", placeholder="可填写主诉、复查说明或医生备注")
+                with gr.Row():
+                    save_case_btn = gr.Button("保存当前结果为病例记录", variant="primary")
+                    refresh_case_btn = gr.Button("刷新病例记录")
+                case_feedback = gr.Textbox(label="病例反馈", interactive=False)
+                case_select = gr.Dropdown(label="已保存病例", choices=_case_choices(saved.storage_dir))
+                case_detail = gr.JSON(label="病例详情")
 
             with gr.Tab("设置"):
                 with gr.Tabs():
@@ -821,6 +1140,7 @@ def build_app() -> gr.Blocks:
             result_output,
             det_table,
             advice_box,
+            quality_box,
             summary,
             batch_state,
             batch_select,
@@ -831,9 +1151,11 @@ def build_app() -> gr.Blocks:
             export_batch_btn,
             export_file,
             export_path,
+            report_file,
+            report_path,
         ]
 
-        image.change(fn=clear_outputs, outputs=common_outputs)
+        image.change(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
         batch_files.change(fn=clear_outputs, outputs=common_outputs)
         run_btn.click(fn=run_single_detection, inputs=[image, *common_inputs], outputs=common_outputs)
         batch_btn.click(
@@ -866,11 +1188,14 @@ def build_app() -> gr.Blocks:
                 result_output,
                 det_table,
                 advice_box,
+                quality_box,
                 summary,
                 chatbot,
                 chat_state,
                 export_file,
                 export_path,
+                report_file,
+                report_path,
             ],
         )
         ai_enabled.change(fn=toggle_ai_settings, inputs=ai_enabled, outputs=ai_group)
@@ -945,6 +1270,26 @@ def build_app() -> gr.Blocks:
             fn=export_batch_results,
             inputs=[batch_state, storage_dir],
             outputs=[batch_export_file, batch_export_path],
+        )
+        export_report_btn.click(
+            fn=export_single_report,
+            inputs=[batch_state, batch_select, storage_dir],
+            outputs=[report_file, report_path],
+        )
+        save_case_btn.click(
+            fn=save_case_record,
+            inputs=[batch_state, batch_select, case_id, case_note, storage_dir],
+            outputs=[case_feedback, case_select, case_detail],
+        )
+        refresh_case_btn.click(
+            fn=refresh_case_records,
+            inputs=storage_dir,
+            outputs=[case_select, case_feedback],
+        )
+        case_select.change(
+            fn=load_case_record,
+            inputs=[case_select, storage_dir],
+            outputs=case_detail,
         )
 
     return demo

@@ -70,10 +70,14 @@ http://127.0.0.1:7860
 - 默认推理只做 EXIF 方向修正、RGB 转换和 `numpy.uint8` 格式化，不强制增强。
 - 可勾选“使用 CLAHE 增强后推理（适合低对比度牙片）”，执行灰度、轻微高斯模糊、CLAHE、RGB 三通道转换后再送入 YOLO。
 - 检测框表格字段为 `class`、`confidence`、`x1`、`y1`、`x2`、`y2`。
+- 上传图片后会显示轻量图像质量提示，包括尺寸、亮度、对比度和可能的低质量输入风险；该提示只用于提醒，不会改变默认推理图像。
+- 检测完成后可导出当前单图报告 ZIP，包含 `report.html`、三张结果图、检测表 CSV/JSON、建议文本和摘要文本。
+- “病例记录”页可把当前检测摘要、检测框和建议保存为病例记录 JSON；默认不保存原始牙片图片。
 
 ## AI 建议与对话
 
 - AI 功能关闭时，界面根据检测类别、数量、置信度和框位置生成内置默认建议。
+- AI 接口默认使用 DeepSeek OpenAI-compatible 配置：`https://api.deepseek.com/v1`、`deepseek-chat`、环境变量名 `DEEPSEEK_API_KEY`。
 - AI 功能开启时，使用 OpenAI-compatible Chat Completions 协议，固定调用 `/v1/chat/completions`。
 - 第一版请求字段只使用 `model`、`messages`、`temperature`、`max_tokens`，不使用 Responses API、tools、function calling、reasoning 或持久化接口字段。
 - 测试接口按钮发送极小请求：`请只回复 OK`、`temperature=0`、`max_tokens=8`。
@@ -84,6 +88,7 @@ http://127.0.0.1:7860
 
 - 用户配置和对话记录保存在用户目录下的 `YOLO-Dental-Lesion-Detection` 文件夹中。
 - 默认对话目录为 `Path.home() / "YOLO-Dental-Lesion-Detection" / "conversations"`。
+- 批量导出、单图报告和病例记录默认分别保存在同一数据根目录下的 `exports/`、`reports/`、`cases/`。
 - 环境变量模式下，API Key 输入框填写环境变量名，配置文件只保存环境变量名。
 - 直接 Key 值模式下，默认不保存真实 Key；只有勾选“保存 API Key 到本地配置”时才写入用户目录配置文件。
 - 公网 HTTPS API 地址缺少 Key 时不会发起请求；本地或局域网接口允许空 Key 或占位 Key。
