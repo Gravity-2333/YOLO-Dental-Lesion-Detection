@@ -33,6 +33,9 @@ APP_HOME = _resolve_app_home()
 CONFIG_PATH = APP_HOME / "settings.json"
 CONVERSATION_DIR = APP_HOME / "conversations"
 SAFETY_NOTICE = "本结果仅供辅助参考，不能替代专业牙科医生诊断。"
+DEFAULT_AI_BASE_URL = "https://api.deepseek.com/v1"
+DEFAULT_AI_MODEL = "deepseek-chat"
+DEFAULT_AI_KEY_ENV = "DEEPSEEK_API_KEY"
 DEFAULT_AI_PROMPT = (
     "你是牙科影像检测结果解释助手，服务对象可能是牙科医生、口腔科助理或普通用户。"
     "你只能基于用户提供的 YOLO 检测结果文本生成辅助建议，不接收、不分析、不猜测牙片图片本身。"
@@ -52,10 +55,10 @@ CLASS_ADVICE = {
 @dataclass
 class AiSettings:
     enabled: bool = False
-    base_url: str = "https://api.deepseek.com/v1"
-    model: str = "deepseek-chat"
+    base_url: str = DEFAULT_AI_BASE_URL
+    model: str = DEFAULT_AI_MODEL
     key_mode: str = "环境变量"
-    api_key: str = "DEEPSEEK_API_KEY"
+    api_key: str = DEFAULT_AI_KEY_ENV
     save_api_key: bool = False
     auto_save: bool = True
     storage_dir: str = str(APP_HOME)
@@ -185,7 +188,7 @@ def _base_url_origin(base_url: str) -> str:
 
 
 def normalize_base_url(base_url: str) -> str:
-    value = (base_url or "").strip().rstrip("/") or "https://api.openai.com/v1"
+    value = (base_url or "").strip().rstrip("/") or DEFAULT_AI_BASE_URL
     if not value.lower().startswith(("http://", "https://")):
         host = value.split("/")[0].split(":")[0].lower()
         scheme = "http" if host in {"localhost", "127.0.0.1", "::1"} else "https"

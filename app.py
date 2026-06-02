@@ -33,6 +33,9 @@ from src.dental_detection.assistant import (
     test_chat_completion,
     chat_completion,
     DEFAULT_AI_PROMPT,
+    DEFAULT_AI_BASE_URL,
+    DEFAULT_AI_KEY_ENV,
+    DEFAULT_AI_MODEL,
 )
 from src.dental_detection.config import DEFAULT_MODEL_NAME, MODEL_REGISTRY, PROJECT_ROOT
 from src.dental_detection.inference import Detection, run_inference
@@ -174,7 +177,7 @@ def _ai_settings(
     return AiSettings(
         enabled=ai_enabled,
         base_url=normalize_base_url(base_url),
-        model=(ai_model or "").strip() or "deepseek-chat",
+        model=(ai_model or "").strip() or DEFAULT_AI_MODEL,
         key_mode=key_mode,
         api_key=(api_key or "").strip(),
         save_api_key=save_key,
@@ -990,9 +993,9 @@ def _with_current_defaults(saved: AiSettings) -> AiSettings:
         and saved.key_mode == "环境变量"
         and saved.api_key in {"", "OPENAI_API_KEY"}
     ):
-        saved.base_url = "https://api.deepseek.com/v1"
-        saved.model = "deepseek-chat"
-        saved.api_key = "DEEPSEEK_API_KEY"
+        saved.base_url = DEFAULT_AI_BASE_URL
+        saved.model = DEFAULT_AI_MODEL
+        saved.api_key = DEFAULT_AI_KEY_ENV
     if (saved.custom_prompt or "").strip().lower() in {"", "prompt"}:
         saved.custom_prompt = DEFAULT_AI_PROMPT
     return saved
