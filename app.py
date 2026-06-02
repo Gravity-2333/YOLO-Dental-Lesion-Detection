@@ -937,7 +937,13 @@ def save_ui_settings(
             "提示：新的存储位置不在当前 Gradio 文件下载白名单内。"
             "设置已生效，但如需直接下载该目录下的报告或导出文件，请重启项目脚本。"
         )
-    return "\n".join(feedback)
+    case_choices = _case_choices(settings.storage_dir)
+    case_message = "病例列表已同步到当前存储位置。" if case_choices else "当前存储位置暂无病例记录。"
+    return (
+        "\n".join(feedback),
+        gr.update(choices=case_choices, value=case_choices[0] if case_choices else None),
+        case_message,
+    )
 
 
 def continue_chat(
@@ -1286,7 +1292,7 @@ def build_app() -> gr.Blocks:
                 storage_dir,
                 custom_prompt,
             ],
-            outputs=settings_feedback,
+            outputs=[settings_feedback, case_select, case_feedback],
         )
         chat_btn.click(
             fn=continue_chat,
