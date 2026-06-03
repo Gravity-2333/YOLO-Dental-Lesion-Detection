@@ -714,8 +714,13 @@ select {
 }
 
 .gradio-container textarea,
-.gradio-container input {
+.gradio-container input:not([type="radio"]):not([type="checkbox"]):not([type="range"]) {
   background-color: var(--input-bg) !important;
+}
+
+.gradio-container input[type="radio"],
+.gradio-container input[type="checkbox"] {
+  accent-color: var(--primary) !important;
 }
 
 textarea[aria-label="病例备注"],

@@ -302,6 +302,7 @@ def _choose_directory_dialog(title: str, initial_dir: str | Path) -> str | None:
     start_dir = Path(initial_dir or PROJECT_ROOT).expanduser()
     if not start_dir.exists():
         start_dir = start_dir.parent if start_dir.parent.exists() else PROJECT_ROOT
+    root = None
     try:
         root = tk.Tk()
         root.withdraw()
@@ -311,9 +312,14 @@ def _choose_directory_dialog(title: str, initial_dir: str | Path) -> str | None:
             initialdir=str(start_dir.resolve()),
             mustexist=True,
         )
-        root.destroy()
     except Exception as exc:
         raise gr.Error(f"无法打开路径选择器，请手动输入路径：{exc}") from exc
+    finally:
+        if root is not None:
+            try:
+                root.destroy()
+            except Exception:
+                pass
     return selected or None
 
 
@@ -387,8 +393,13 @@ def _save_runtime_settings(
     model_dir: str | None = None,
     primary_model_path: str | None = None,
     compare_model_path: str | None = None,
+    persist_storage: bool = False,
 ) -> Path:
     saved = load_settings()
+    if not persist_storage:
+        # 检测、测试接口等运行时动作可以使用界面上的临时 storage_dir，
+        # 但不应静默迁移或覆盖用户已保存的数据根目录。
+        settings.storage_dir = saved.storage_dir
     settings.model_mode = model_mode or saved.model_mode
     settings.model_dir = str(Path(model_dir or saved.model_dir or PROJECT_ROOT / "models").expanduser().resolve())
     settings.primary_model_path = _model_path_or_default(
@@ -997,12 +1008,6 @@ def run_single_detection(
         storage_dir,
         custom_prompt,
     )
-    _save_runtime_settings(
-        settings,
-        model_mode=model_mode if enable_compare else MODEL_MODE_SINGLE,
-        primary_model_path=primary_model_path,
-        compare_model_path=compare_model_path,
-    )
     advice = _build_advice(settings, primary["detections"])
     chat_history = _conversation_from_advice(advice)
     if settings.auto_save:
@@ -1106,12 +1111,6 @@ def run_batch_detection(
         storage_dir,
         custom_prompt,
     )
-    _save_runtime_settings(
-        settings,
-        model_mode=model_mode or MODEL_MODE_SINGLE,
-        primary_model_path=primary_model_path,
-        compare_model_path=compare_model_path,
-    )
     selected_model_name, selected_model_path = _configured_models(MODEL_MODE_SINGLE, primary_model_path, compare_model_path)[0]
     batch_state: list[dict[str, Any]] = []
     batch_errors: list[str] = []
@@ -1151,9 +1150,6 @@ def run_batch_detection(
         raise gr.Error(f"所有图片处理失败：{error_detail}")
 
     first = batch_state[0]
-    chat_history = _conversation_from_advice(first["advice"])
-    if settings.auto_save:
-        save_conversation(chat_history, settings.storage_dir)
     choices = [item["display_name"] for item in batch_state]
     # 部分失败时在第一条建议中追加失败信息
     if batch_errors:
@@ -1162,6 +1158,9 @@ def run_batch_detection(
         )
         if len(batch_errors) > 10:
             first["advice"] += f"\n…等共 {len(batch_errors)} 张"
+    chat_history = _conversation_from_advice(first["advice"])
+    if settings.auto_save:
+        save_conversation(chat_history, settings.storage_dir)
     return (
         first["result"]["original"],
         first["result"]["model_input"],
@@ -1207,8 +1206,10 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
         )
     item = next(
         (row for row in batch_state if row.get("display_name") == name or row.get("name") == name),
-        batch_state[0],
+        None,
     )
+    if item is None:
+        raise gr.Error("当前选择的结果已失效，请重新选择图片。")
     chat_history = _conversation_from_advice(item["advice"])
     return (
         item["result"]["original"],
