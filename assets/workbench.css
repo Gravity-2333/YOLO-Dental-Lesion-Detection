@@ -93,6 +93,17 @@ body,
   border-bottom: 1px solid var(--soft-border) !important;
 }
 
+.main-tabs > .tab-nav,
+.settings-tabs > .tab-nav,
+.sub-tabs > .tab-nav,
+.main-tabs [role="tablist"],
+.settings-tabs [role="tablist"],
+.sub-tabs [role="tablist"] {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: thin;
+}
+
 .tabs button[role="tab"] {
   border-radius: 0 !important;
   color: #334155 !important;
@@ -242,6 +253,10 @@ body,
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
+}
+
+.card-heading > div {
+  min-width: 0;
 }
 
 .card-heading h2 {
@@ -830,7 +845,46 @@ footer,
   .path-row,
   .model-row,
   .chat-input-row {
-    grid-template-columns: 1fr !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .path-row > *,
+  .model-row > *,
+  .chat-input-row > * {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .path-row .form,
+  .path-row .block,
+  .model-row .form,
+  .model-row .block,
+  .chat-input-row .form,
+  .chat-input-row .block {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .row.path-row > button,
+  .row.model-row > button,
+  .row.chat-input-row > button,
+  .path-row > button.secondary-action,
+  .model-row > button.secondary-action,
+  .chat-input-row > button.primary-action {
+    flex: 1 1 100% !important;
+    align-self: stretch !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: none !important;
+  }
+
+  .card-heading {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
   }
 
   .control-panel {
@@ -849,8 +903,56 @@ footer,
 }
 
 @media (max-width: 640px) {
+  .gradio-container {
+    max-width: calc(100vw - 16px) !important;
+  }
+
   .app-title {
     font-size: 1.55rem;
+  }
+
+  .main-tabs [role="tablist"],
+  .settings-tabs [role="tablist"],
+  .sub-tabs [role="tablist"] {
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+    padding-bottom: 4px !important;
+  }
+
+  .main-tabs button[role="tab"],
+  .settings-tabs button[role="tab"],
+  .sub-tabs button[role="tab"] {
+    flex: 0 0 auto !important;
+    min-width: max-content !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    white-space: nowrap !important;
+  }
+
+  .main-tabs .overflow-menu > button,
+  .settings-tabs .overflow-menu > button,
+  .sub-tabs .overflow-menu > button {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    min-width: 64px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  .main-tabs .overflow-menu > button::after,
+  .settings-tabs .overflow-menu > button::after,
+  .sub-tabs .overflow-menu > button::after {
+    content: "更多";
+    font-size: 0.82rem;
+    font-weight: 650;
+  }
+
+  .card-heading h2,
+  .section-heading h2 {
+    word-break: keep-all;
+    overflow-wrap: normal;
   }
 
   .section-card,
