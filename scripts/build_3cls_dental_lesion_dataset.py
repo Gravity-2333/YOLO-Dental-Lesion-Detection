@@ -49,6 +49,7 @@ TARGET_CLASS_NAMES = {0: "Caries", 1: "Periapical Lesion", 2: "Impacted"}
 SPLITS = ("train", "valid", "test")
 TARGET_SPLITS = ("train", "val", "test")
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 @dataclass
@@ -565,9 +566,9 @@ names:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a clean 3-class YOLO detection dataset from the 31-class dental dataset.")
-    parser.add_argument("--source-root", type=Path, default=Path(r"E:\code\AI\YOLO\资料\31 类常见牙科疾病数据集"))
-    parser.add_argument("--output-root", type=Path, default=Path(r"/root/autodl-tmp/work/dental_lesion_3cls_large"))
-    parser.add_argument("--server-dataset-root", default="/root/autodl-tmp/work/dental_lesion_3cls_large")
+    parser.add_argument("--source-root", type=Path, default=PROJECT_ROOT / "data" / "raw" / "dental_31cls")
+    parser.add_argument("--output-root", type=Path, default=PROJECT_ROOT / "transfer" / "dental_lesion_3cls_large")
+    parser.add_argument("--server-dataset-root", default="transfer/dental_lesion_3cls_large")
     parser.add_argument("--yaml-out", type=Path, default=Path("data/dental_lesion_3cls_large.yaml"))
     parser.add_argument("--report-out", type=Path, default=Path("docs/dataset_audit_report.md"))
     parser.add_argument("--summary-json", type=Path, default=Path("docs/dataset_audit_summary.json"))

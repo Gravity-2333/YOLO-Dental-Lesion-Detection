@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 TARGET_NAMES = {0: "Caries", 1: "Periapical_Lesion", 2: "Impacted"}
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"}
 SPLITS = ("train", "val", "test")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 @dataclass
@@ -508,8 +509,8 @@ def new_report() -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Convert DENTEX to a YOLOv8 3-class lesion detection dataset.")
-    parser.add_argument("--source-root", type=Path, default=Path(r"E:\code\AI\YOLO\资料\huggingface"))
-    parser.add_argument("--output-root", type=Path, default=Path(r"E:\code\AI\YOLO\transfer\dentex_yolov8_3cls"))
+    parser.add_argument("--source-root", type=Path, default=PROJECT_ROOT / "data" / "raw" / "huggingface")
+    parser.add_argument("--output-root", type=Path, default=PROJECT_ROOT / "transfer" / "dentex_yolov8_3cls")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
