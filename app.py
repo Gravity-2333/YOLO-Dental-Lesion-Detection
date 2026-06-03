@@ -38,13 +38,11 @@ from src.dental_detection.assistant import (
     DEFAULT_AI_KEY_ENV,
     DEFAULT_AI_MODEL,
 )
-from src.dental_detection.config import DEFAULT_MODEL_NAME, DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJECT_ROOT
+from src.dental_detection.config import DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJECT_ROOT
 from src.dental_detection.inference import Detection, run_inference
 from ultralytics import YOLO
 
 MODEL_SOURCE = "YOLOv8m 原始结构"
-MODEL_OPTIMIZED = "YOLOv8m C2f-Faster-lite"
-MODEL_COMPARE = "双模型对比"
 TABLE_COLUMNS = ["class", "confidence", "x1", "y1", "x2", "y2"]
 CSS_PATH = PROJECT_ROOT / "assets" / "workbench.css"
 STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
@@ -1171,12 +1169,6 @@ def toggle_ai_settings(enabled: bool):
     return gr.update(visible=enabled)
 
 
-def _looks_like_direct_api_key(value: str) -> bool:
-    lowered = (value or "").strip().lower()
-    prefixes = ("sk-", "sk_", "ds-", "ak-", "api-")
-    return lowered.startswith(prefixes) or (len(lowered) >= 32 and "_" not in lowered)
-
-
 def set_api_key_mode(key_mode: str):
     direct_mode = key_mode == "直接 Key 值"
     return (
@@ -1220,14 +1212,6 @@ def open_storage_dir(storage_dir: str):
     if os.name == "nt":
         os.startfile(str(path.resolve()))  # type: ignore[attr-defined]
     return _toast(f"已打开当前数据目录：{path.resolve()}")
-
-
-def toggle_compare_options(enabled: bool, current_model: str):
-    choices = [MODEL_OPTIMIZED, MODEL_SOURCE]
-    if enabled:
-        choices.append(MODEL_COMPARE)
-    value = current_model if current_model in choices else MODEL_OPTIMIZED
-    return gr.update(choices=choices, value=value)
 
 
 def _with_current_defaults(saved: AiSettings) -> AiSettings:
