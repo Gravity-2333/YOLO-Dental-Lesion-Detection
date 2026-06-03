@@ -203,7 +203,7 @@ def _move_contents(source: Path, target: Path) -> None:
         elif not destination.exists():
             shutil.move(str(child), str(destination))
         else:
-            suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
+            suffix = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
             shutil.move(str(child), str(target / f"{child.stem}_{suffix}{child.suffix}"))
 
 

@@ -195,7 +195,18 @@ def _detect_model(model_name: str, image, use_clahe: bool, conf: float, iou: flo
     return _detect_model_path(model_name, model_info["path"], image, use_clahe, conf, iou, device)
 
 
+_SUPPORTED_MODEL_SUFFIXES = {".pt", ".onnx", ".engine", ".mlmodel", ".mlpackage", ".torchscript"}
+
+
 def _detect_model_path(model_name: str, model_path: str | Path, image, use_clahe: bool, conf: float, iou: float, device):
+    model_path = Path(model_path)
+    if model_path.suffix.lower() not in _SUPPORTED_MODEL_SUFFIXES:
+        raise gr.Error(
+            f"模型文件后缀 '{model_path.suffix}' 不在支持列表中。"
+            f"支持的格式：{', '.join(sorted(_SUPPORTED_MODEL_SUFFIXES))}"
+        )
+    if not model_path.exists():
+        raise gr.Error(f"模型文件不存在：{model_path}")
     original, model_input, annotated, detections, names = run_inference(
         image=image,
         model_path=model_path,
@@ -223,11 +234,26 @@ def _model_label_from_path(path: str | Path) -> str:
     return f"{parent} / {model_path.name}"
 
 
+_MAX_MODEL_FILES = 500       # 单次扫描最多列出的模型文件数
+_MAX_MODEL_SCAN_DEPTH = 8    # 最大递归深度
+
+
 def _scan_model_files(model_dir: str | Path) -> list[tuple[str, str]]:
     root = Path(model_dir or PROJECT_ROOT / "models").expanduser()
     if not root.exists() or not root.is_dir():
         return []
-    files = sorted(root.rglob("*.pt"), key=lambda item: str(item).lower())
+    files = []
+    for path in sorted(root.rglob("*.pt"), key=lambda item: str(item).lower()):
+        # 限制扫描深度，防止在盘符根目录等位置卡死
+        try:
+            depth = len(path.relative_to(root).parents)
+        except ValueError:
+            depth = 0
+        if depth > _MAX_MODEL_SCAN_DEPTH:
+            continue
+        files.append(path)
+        if len(files) >= _MAX_MODEL_FILES:
+            break
     return [(f"{_model_label_from_path(path)}  |  {path}", str(path.resolve())) for path in files]
 
 
@@ -245,9 +271,14 @@ def _configured_models(model_mode: str, primary_model_path: str, compare_model_p
     return models
 
 
-def refresh_model_choices(model_dir: str):
+def refresh_model_choices(model_dir: str, current_value: str | None = None):
     choices = _scan_model_files(model_dir)
-    value = choices[0][1] if choices else None
+    # 保留用户已选模型，仅当原模型不在新列表中时才回退第一个
+    value = current_value
+    if value and not any(value == c[1] for c in choices):
+        value = choices[0][1] if choices else None
+    if not value:
+        value = choices[0][1] if choices else None
     message = f"已扫描到 {len(choices)} 个 .pt 模型文件。" if choices else "当前目录未发现 .pt 模型文件，请确认路径。"
     return gr.update(choices=choices, value=value), message
 
@@ -763,7 +794,7 @@ def save_case_record(
     path = case_dir(storage_dir) / f"case_{stamp}_{safe_case}.json"
     payload = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "case_id": case_id.strip() if case_id else "未填写",
+        "case_id": case_id.strip() or "未填写",
         "note": case_note.strip() if case_note else "",
         "image_name": item.get("name") or "当前单图",
         "summary": item.get("summary", {}),
@@ -871,7 +902,8 @@ def run_single_detection(
         if primary is None:
             primary = result
 
-    assert primary is not None
+    if primary is None:
+        raise gr.Error("推理失败：未能获取检测结果，请检查模型文件是否有效。")
     settings = _ai_settings(
         ai_enabled,
         base_url,
@@ -1146,11 +1178,13 @@ def test_ai_settings(
         storage_dir,
         custom_prompt,
     )
-    _save_runtime_settings(settings)
     if not settings.enabled:
         return "AI 功能未开启。开启后可测试接口。"
     try:
-        return test_chat_completion(settings)
+        result = test_chat_completion(settings)
+        # 测试成功才保存 AI 相关设置
+        _save_runtime_settings(settings)
+        return result
     except Exception as exc:
         return f"测试失败：{exc}"
 
@@ -1257,7 +1291,10 @@ def continue_chat(
             answer = chat_completion(settings, messages, temperature=0.2, max_tokens=500)
         except Exception as exc:
             answer = f"AI 回复失败：{exc}"
-        history.append({"role": "assistant", "content": answer})
+        if answer.strip():
+            history.append({"role": "assistant", "content": answer})
+        else:
+            history.append({"role": "assistant", "content": "AI 未返回有效内容，请重试或检查接口配置。"})
     if settings.auto_save:
         save_conversation(history, settings.storage_dir)
     return history, history, "", _clear_file_output(), ""
@@ -1646,7 +1683,11 @@ def build_app() -> gr.Blocks:
                             with gr.Group(visible=saved.enabled, elem_classes=["panel-card"]) as ai_group:
                                 with gr.Row(elem_classes=["compact-row"]):
                                     ai_model = gr.Textbox(value=saved.model, label="模型")
-                                    base_url = gr.Textbox(value=saved.base_url, label="Base URL")
+                                    base_url = gr.Textbox(
+                                        value=saved.base_url,
+                                        label="Base URL",
+                                        info="仅支持 OpenAI 兼容 Chat Completions 接口。无路径时自动追加 /v1。",
+                                    )
                                 key_mode = gr.Radio(
                                     choices=["环境变量", "直接 Key 值"],
                                     value=saved.key_mode,
@@ -1722,7 +1763,10 @@ def build_app() -> gr.Blocks:
                                     elem_classes=["secondary-action"],
                                 )
                             with gr.Accordion("帮助", open=False):
-                                gr.Markdown("对话、导出和病例记录会保存在该数据根目录下；更换目录后保存设置即可迁移。")
+                                gr.Markdown(
+                                    "对话、导出和病例记录会保存在该数据根目录下；更换目录后保存设置即可迁移。"
+                                    "开启自动保存后每次检测都会生成对话记录文件，建议定期通过'...'按钮打开目录清理旧文件。"
+                                )
                     with gr.Tab("高级接口"):
                         with gr.Group(elem_classes=["settings-card"]):
                             gr.Markdown("用于接入兼容 OpenAI Chat Completions 的服务。")
@@ -1936,7 +1980,7 @@ def build_app() -> gr.Blocks:
         )
         refresh_model_btn.click(
             fn=refresh_model_choices,
-            inputs=model_dir,
+            inputs=[model_dir, model_file_select],
             outputs=[model_file_select, model_feedback],
         )
         open_model_dir_btn.click(fn=open_model_dir, inputs=model_dir, outputs=model_feedback)

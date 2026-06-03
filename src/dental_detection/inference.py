@@ -87,7 +87,11 @@ class DentalDetector:
         device: str | int | None = None,
     ) -> tuple[Image.Image, Image.Image, Image.Image, list[Detection]]:
         original_array = preprocess_image(image, use_clahe=False)
-        model_array = preprocess_image(image, use_clahe=use_clahe)
+        # CLAHE 关闭时复用 original_array，避免重复的 EXIF transpose + RGB 转换
+        if use_clahe:
+            model_array = preprocess_image(image, use_clahe=True)
+        else:
+            model_array = original_array
         results = self.model.predict(
             source=model_array,
             conf=conf,
