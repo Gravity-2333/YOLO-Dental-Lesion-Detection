@@ -5,6 +5,7 @@ from collections import Counter
 import csv
 from datetime import datetime
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -37,8 +38,9 @@ from src.dental_detection.assistant import (
     DEFAULT_AI_KEY_ENV,
     DEFAULT_AI_MODEL,
 )
-from src.dental_detection.config import DEFAULT_MODEL_NAME, MODEL_REGISTRY, PROJECT_ROOT
+from src.dental_detection.config import DEFAULT_MODEL_NAME, DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJECT_ROOT
 from src.dental_detection.inference import Detection, run_inference
+from ultralytics import YOLO
 
 MODEL_SOURCE = "YOLOv8m 原始结构"
 MODEL_OPTIMIZED = "YOLOv8m C2f-Faster-lite"
@@ -46,6 +48,8 @@ MODEL_COMPARE = "双模型对比"
 TABLE_COLUMNS = ["class", "confidence", "x1", "y1", "x2", "y2"]
 CSS_PATH = PROJECT_ROOT / "assets" / "workbench.css"
 STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
+MODEL_MODE_SINGLE = "单模型"
+MODEL_MODE_COMPARE = "对比模型"
 
 
 def _load_workbench_css() -> str:
@@ -134,18 +138,48 @@ def assess_image_quality(image) -> str:
     return "\n".join(["图像质量提示：当前未发现明显输入质量风险。", *notes])
 
 
-def _device(use_gpu: bool) -> tuple[str | int, bool]:
+def _device_choices() -> list[tuple[str, str]]:
+    choices = [("CPU", "cpu")]
+    if torch.cuda.is_available():
+        count = torch.cuda.device_count()
+        if count <= 1:
+            choices.append(("CUDA GPU", "cuda:0"))
+        else:
+            choices.extend((f"CUDA GPU {index}", f"cuda:{index}") for index in range(count))
+    return choices
+
+
+def _default_device_choice() -> str:
+    choices = _device_choices()
+    return choices[1][1] if len(choices) > 1 else "cpu"
+
+
+def _device(device_choice: str) -> tuple[str | int, bool]:
     cuda_available = torch.cuda.is_available()
-    if use_gpu and not cuda_available:
+    choice = device_choice or "cpu"
+    if choice.startswith("cuda") and not cuda_available:
         raise gr.Error("当前 Python 环境没有可用 CUDA。请使用 mamba 的 yolo 环境启动应用。")
-    return (0 if use_gpu and cuda_available else "cpu"), cuda_available
+    if choice.startswith("cuda"):
+        try:
+            return int(choice.split(":", 1)[1]), cuda_available
+        except (IndexError, ValueError):
+            return 0, cuda_available
+    return "cpu", cuda_available
+
+
+def _device_label(device: str | int) -> str:
+    return f"cuda:{device}" if isinstance(device, int) else "cpu"
 
 
 def _detect_model(model_name: str, image, use_clahe: bool, conf: float, iou: float, device):
     model_info = MODEL_REGISTRY[model_name]
+    return _detect_model_path(model_name, model_info["path"], image, use_clahe, conf, iou, device)
+
+
+def _detect_model_path(model_name: str, model_path: str | Path, image, use_clahe: bool, conf: float, iou: float, device):
     original, model_input, annotated, detections, names = run_inference(
         image=image,
-        model_path=model_info["path"],
+        model_path=model_path,
         use_clahe=use_clahe,
         conf=conf,
         iou=iou,
@@ -160,7 +194,79 @@ def _detect_model(model_name: str, image, use_clahe: bool, conf: float, iou: flo
         "detections": _records_from_detections(detections),
         "table": _table_from_detections(detections),
         "class_names": {str(key): value for key, value in names.items()},
+        "model_path": str(Path(model_path).resolve()),
     }
+
+
+def _model_label_from_path(path: str | Path) -> str:
+    model_path = Path(path)
+    parent = model_path.parent.parent.name if model_path.parent.name == "weights" else model_path.parent.name
+    return f"{parent} / {model_path.name}"
+
+
+def _scan_model_files(model_dir: str | Path) -> list[tuple[str, str]]:
+    root = Path(model_dir or PROJECT_ROOT / "models").expanduser()
+    if not root.exists() or not root.is_dir():
+        return []
+    files = sorted(root.rglob("*.pt"), key=lambda item: str(item).lower())
+    return [(f"{_model_label_from_path(path)}  |  {path}", str(path.resolve())) for path in files]
+
+
+def _model_path_or_default(path: str, fallback: str) -> str:
+    value = str(path or "").strip()
+    return str(Path(value).expanduser().resolve()) if value else str(Path(fallback).resolve())
+
+
+def _configured_models(model_mode: str, primary_model_path: str, compare_model_path: str) -> list[tuple[str, Path]]:
+    primary = Path(_model_path_or_default(primary_model_path, str(DEFAULT_MODEL_PATH)))
+    models = [(_model_label_from_path(primary), primary)]
+    if model_mode == MODEL_MODE_COMPARE:
+        compare = Path(_model_path_or_default(compare_model_path, str(MODEL_REGISTRY[MODEL_SOURCE]["path"])))
+        models.append((_model_label_from_path(compare), compare))
+    return models
+
+
+def refresh_model_choices(model_dir: str):
+    choices = _scan_model_files(model_dir)
+    value = choices[0][1] if choices else None
+    message = f"已扫描到 {len(choices)} 个 .pt 模型文件。" if choices else "当前目录未发现 .pt 模型文件，请确认路径。"
+    return gr.update(choices=choices, value=value), message
+
+
+def apply_selected_model(selected_path: str, target: str):
+    if not selected_path:
+        raise gr.Error("请先从模型文件下拉框选择一个 .pt 文件。")
+    path = str(Path(selected_path).expanduser().resolve())
+    if target == "对比模型":
+        return gr.update(), gr.update(value=path), f"已填入对比模型：{path}"
+    return gr.update(value=path), gr.update(), f"已填入主模型：{path}"
+
+
+def open_model_dir(model_dir: str):
+    path = Path(model_dir or PROJECT_ROOT / "models").expanduser()
+    path.mkdir(parents=True, exist_ok=True)
+    if os.name == "nt":
+        os.startfile(str(path.resolve()))  # type: ignore[attr-defined]
+    return f"已打开模型目录：{path.resolve()}。可将模型放入此目录后点击“刷新模型列表”。"
+
+
+def test_model_file(primary_model_path: str, compare_model_path: str, model_mode: str):
+    messages = []
+    for role, path in _configured_models(model_mode, primary_model_path, compare_model_path):
+        if not path.exists():
+            messages.append(f"{role}：文件不存在，路径为 {path}")
+            continue
+        if path.suffix.lower() != ".pt":
+            messages.append(f"{role}：文件后缀不是 .pt，当前路径为 {path}")
+            continue
+        try:
+            model = YOLO(str(path))
+            names = getattr(model, "names", {})
+            class_text = ", ".join(str(value) for value in names.values()) if isinstance(names, dict) else str(names)
+            messages.append(f"{role}：可加载。类别：{class_text or '未读取到类别名'}")
+        except Exception as exc:
+            messages.append(f"{role}：加载失败：{exc}")
+    return "\n".join(messages)
 
 
 def _ai_settings(
@@ -168,12 +274,19 @@ def _ai_settings(
     base_url: str,
     ai_model: str,
     key_mode: str,
-    api_key: str,
+    env_api_key: str,
+    direct_api_key_hidden: str,
+    direct_api_key_visible: str,
+    direct_key_visible: bool,
     save_key: bool,
     auto_save: bool,
     storage_dir: str,
     custom_prompt: str,
 ) -> AiSettings:
+    if key_mode == "环境变量":
+        api_key = (env_api_key or "").strip() or DEFAULT_AI_KEY_ENV
+    else:
+        api_key = direct_api_key_visible if direct_key_visible else direct_api_key_hidden
     return AiSettings(
         enabled=ai_enabled,
         base_url=normalize_base_url(base_url),
@@ -185,6 +298,12 @@ def _ai_settings(
         storage_dir=(storage_dir or "").strip() or str(ensure_app_dirs()),
         custom_prompt=(custom_prompt or "").strip() or DEFAULT_AI_PROMPT,
     )
+
+
+def _api_key_inputs(saved: AiSettings) -> tuple[str, str]:
+    if saved.key_mode == "环境变量":
+        return saved.api_key or DEFAULT_AI_KEY_ENV, ""
+    return DEFAULT_AI_KEY_ENV, saved.api_key if saved.save_api_key else ""
 
 
 def _build_advice(settings: AiSettings, detections: list[dict[str, Any]]) -> str:
@@ -251,6 +370,12 @@ def _html_escape(value: Any) -> str:
         .replace(">", "&gt;")
         .replace('"', "&quot;")
     )
+
+
+def _toast(message: str, kind: str = "success") -> str:
+    if not message:
+        return ""
+    return f'<div class="app-toast app-toast-{kind}">{_html_escape(message).replace(chr(10), "<br>")}</div>'
 
 
 def _detections_html(detections: list[dict[str, Any]]) -> str:
@@ -635,10 +760,12 @@ def clear_outputs_with_quality(image):
 
 def run_single_detection(
     image,
-    model_choice: str,
+    model_mode: str,
+    primary_model_path: str,
+    compare_model_path: str,
     conf: float,
     iou: float,
-    use_gpu: bool,
+    device_choice: str,
     use_clahe: bool,
     enable_compare: bool,
     show_summary: bool,
@@ -646,7 +773,10 @@ def run_single_detection(
     base_url: str,
     ai_model: str,
     key_mode: str,
-    api_key: str,
+    env_api_key: str,
+    direct_api_key_hidden: str,
+    direct_api_key_visible: str,
+    direct_key_visible: bool,
     save_key: bool,
     auto_save: bool,
     storage_dir: str,
@@ -655,17 +785,13 @@ def run_single_detection(
     if image is None:
         raise gr.Error("请先上传一张牙科影像。")
 
-    device, cuda_available = _device(use_gpu)
-    selected_models = [model_choice]
-    if enable_compare and model_choice == MODEL_COMPARE:
-        selected_models = [MODEL_SOURCE, MODEL_OPTIMIZED]
-    elif model_choice == MODEL_COMPARE:
-        selected_models = [MODEL_OPTIMIZED]
+    device, cuda_available = _device(device_choice)
+    selected_models = _configured_models(model_mode if enable_compare else MODEL_MODE_SINGLE, primary_model_path, compare_model_path)
 
     primary = None
     all_results = []
-    for model_name in selected_models:
-        result = _detect_model(model_name, image, use_clahe, conf, iou, device)
+    for model_name, model_path in selected_models:
+        result = _detect_model_path(model_name, model_path, image, use_clahe, conf, iou, device)
         all_results.append(result)
         if primary is None:
             primary = result
@@ -676,7 +802,10 @@ def run_single_detection(
         base_url,
         ai_model,
         key_mode,
-        api_key,
+        env_api_key,
+        direct_api_key_hidden,
+        direct_api_key_visible,
+        direct_key_visible,
         save_key,
         auto_save,
         storage_dir,
@@ -689,8 +818,8 @@ def run_single_detection(
         save_conversation(chat_history, settings.storage_dir)
 
     summary = {
-        "运行设备": "cuda:0" if device != "cpu" else "cpu",
-        "GPU请求": bool(use_gpu),
+        "运行设备": _device_label(device),
+        "设备选择": device_choice,
         "CUDA可用": bool(cuda_available),
         "推理尺寸": 1280,
         "CLAHE增强": bool(use_clahe),
@@ -701,7 +830,7 @@ def run_single_detection(
                 "模型": item["model"],
                 "检测数量": len(item["detections"]),
                 "类别映射": item["class_names"],
-                "路径": str(MODEL_REGISTRY[item["model"]]["path"]),
+                "路径": item.get("model_path", ""),
             }
             for item in all_results
         ],
@@ -748,16 +877,21 @@ def _file_name(file_obj) -> str:
 
 def run_batch_detection(
     files,
-    model_choice: str,
+    model_mode: str,
+    primary_model_path: str,
+    compare_model_path: str,
     conf: float,
     iou: float,
-    use_gpu: bool,
+    device_choice: str,
     use_clahe: bool,
     ai_enabled: bool,
     base_url: str,
     ai_model: str,
     key_mode: str,
-    api_key: str,
+    env_api_key: str,
+    direct_api_key_hidden: str,
+    direct_api_key_visible: str,
+    direct_key_visible: bool,
     save_key: bool,
     auto_save: bool,
     storage_dir: str,
@@ -766,25 +900,28 @@ def run_batch_detection(
     if not files:
         raise gr.Error("请先批量上传牙科影像。")
 
-    device, _ = _device(use_gpu)
+    device, _ = _device(device_choice)
     settings = _ai_settings(
         ai_enabled,
         base_url,
         ai_model,
         key_mode,
-        api_key,
+        env_api_key,
+        direct_api_key_hidden,
+        direct_api_key_visible,
+        direct_key_visible,
         save_key,
         auto_save,
         storage_dir,
         custom_prompt,
     )
     save_settings(settings)
-    selected_model = MODEL_OPTIMIZED if model_choice == MODEL_COMPARE else model_choice
+    selected_model_name, selected_model_path = _configured_models(MODEL_MODE_SINGLE, primary_model_path, compare_model_path)[0]
     batch_state = []
     for index, file_obj in enumerate(files, start=1):
         path = getattr(file_obj, "name", None) or file_obj
         file_name = _file_name(file_obj)
-        result = _detect_model(selected_model, path, use_clahe, conf, iou, device)
+        result = _detect_model_path(selected_model_name, selected_model_path, path, use_clahe, conf, iou, device)
         advice = _build_advice(settings, result["detections"])
         batch_state.append(
             {
@@ -796,7 +933,8 @@ def run_batch_detection(
                 "suggestion_type": _suggestion_type(settings.enabled),
                 "summary": {
                     "文件": file_name,
-                    "模型": selected_model,
+                    "模型": selected_model_name,
+                    "模型路径": str(selected_model_path),
                     "检测数量": len(result["detections"]),
                     "CLAHE增强": bool(use_clahe),
                     "conf": conf,
@@ -882,7 +1020,10 @@ def test_ai_settings(
     base_url: str,
     ai_model: str,
     key_mode: str,
-    api_key: str,
+    env_api_key: str,
+    direct_api_key_hidden: str,
+    direct_api_key_visible: str,
+    direct_key_visible: bool,
     save_key: bool,
     auto_save: bool,
     storage_dir: str,
@@ -893,7 +1034,10 @@ def test_ai_settings(
         base_url,
         ai_model,
         key_mode,
-        api_key,
+        env_api_key,
+        direct_api_key_hidden,
+        direct_api_key_visible,
+        direct_key_visible,
         save_key,
         auto_save,
         storage_dir,
@@ -913,22 +1057,39 @@ def save_ui_settings(
     base_url: str,
     ai_model: str,
     key_mode: str,
-    api_key: str,
+    env_api_key: str,
+    direct_api_key_hidden: str,
+    direct_api_key_visible: str,
+    direct_key_visible: bool,
     save_key: bool,
     auto_save: bool,
     storage_dir: str,
     custom_prompt: str,
+    model_mode: str,
+    model_dir: str,
+    primary_model_path: str,
+    compare_model_path: str,
 ):
     settings = _ai_settings(
         ai_enabled,
         base_url,
         ai_model,
         key_mode,
-        api_key,
+        env_api_key,
+        direct_api_key_hidden,
+        direct_api_key_visible,
+        direct_key_visible,
         save_key,
         auto_save,
         storage_dir,
         custom_prompt,
+    )
+    settings.model_mode = model_mode or MODEL_MODE_SINGLE
+    settings.model_dir = str(Path(model_dir or PROJECT_ROOT / "models").expanduser().resolve())
+    settings.primary_model_path = _model_path_or_default(primary_model_path, str(DEFAULT_MODEL_PATH))
+    settings.compare_model_path = _model_path_or_default(
+        compare_model_path,
+        str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
     )
     path = save_settings(settings)
     feedback = [f"设置已保存：{path}"]
@@ -940,7 +1101,7 @@ def save_ui_settings(
     case_choices = _case_choices(settings.storage_dir)
     case_message = "病例列表已同步到当前存储位置。" if case_choices else "当前存储位置暂无病例记录。"
     return (
-        "\n".join(feedback),
+        _toast("\n".join(feedback), "success"),
         gr.update(choices=case_choices, value=case_choices[0] if case_choices else None),
         case_message,
     )
@@ -953,7 +1114,10 @@ def continue_chat(
     base_url: str,
     ai_model: str,
     key_mode: str,
-    api_key: str,
+    env_api_key: str,
+    direct_api_key_hidden: str,
+    direct_api_key_visible: str,
+    direct_key_visible: bool,
     save_key: bool,
     auto_save: bool,
     storage_dir: str,
@@ -966,7 +1130,10 @@ def continue_chat(
         base_url,
         ai_model,
         key_mode,
-        api_key,
+        env_api_key,
+        direct_api_key_hidden,
+        direct_api_key_visible,
+        direct_key_visible,
         save_key,
         auto_save,
         storage_dir,
@@ -1004,8 +1171,55 @@ def toggle_ai_settings(enabled: bool):
     return gr.update(visible=enabled)
 
 
+def _looks_like_direct_api_key(value: str) -> bool:
+    lowered = (value or "").strip().lower()
+    prefixes = ("sk-", "sk_", "ds-", "ak-", "api-")
+    return lowered.startswith(prefixes) or (len(lowered) >= 32 and "_" not in lowered)
+
+
+def set_api_key_mode(key_mode: str):
+    direct_mode = key_mode == "直接 Key 值"
+    return (
+        gr.update(visible=not direct_mode),
+        gr.update(visible=direct_mode),
+        gr.update(visible=False),
+        gr.update(visible=direct_mode, value="显示 Key"),
+        False,
+    )
+
+
+def toggle_direct_key_visibility(hidden_key: str, visible_key: str, direct_key_visible: bool):
+    next_visible = not bool(direct_key_visible)
+    key_value = visible_key if direct_key_visible else hidden_key
+    return (
+        gr.update(value=key_value, visible=not next_visible),
+        gr.update(value=key_value, visible=next_visible),
+        gr.update(value="隐藏 Key" if next_visible else "显示 Key"),
+        next_visible,
+    )
+
+
 def toggle_summary(show_summary: bool):
     return gr.update(visible=show_summary)
+
+
+def toggle_model_mode(model_mode: str):
+    return gr.update(visible=model_mode == MODEL_MODE_COMPARE)
+
+
+def sync_model_mode(model_mode: str):
+    return gr.update(value=model_mode), gr.update(visible=model_mode == MODEL_MODE_COMPARE)
+
+
+def default_storage_dir():
+    return str(APP_HOME), _toast(f"已恢复默认数据目录：{APP_HOME}")
+
+
+def open_storage_dir(storage_dir: str):
+    path = ensure_app_dirs(storage_dir)
+    if os.name == "nt":
+        os.startfile(str(path.resolve()))  # type: ignore[attr-defined]
+    return _toast(f"已打开当前数据目录：{path.resolve()}")
 
 
 def toggle_compare_options(enabled: bool, current_model: str):
@@ -1034,6 +1248,9 @@ def _with_current_defaults(saved: AiSettings) -> AiSettings:
 def build_app() -> gr.Blocks:
     saved = _with_current_defaults(load_settings())
     ensure_app_dirs(saved.storage_dir)
+    env_key_value, direct_key_value = _api_key_inputs(saved)
+    model_choices = _scan_model_files(saved.model_dir)
+    device_choices = _device_choices()
     with gr.Blocks(title="牙齿病变区域识别") as demo:
         batch_state = gr.State([])
         chat_state = gr.State([])
@@ -1070,12 +1287,23 @@ def build_app() -> gr.Blocks:
                                 batch_export_path = gr.Textbox(label="导出路径", interactive=False)
 
                         with gr.Row():
-                            model_choice = gr.Radio(
-                                choices=[MODEL_OPTIMIZED, MODEL_SOURCE, MODEL_COMPARE],
-                                value=DEFAULT_MODEL_NAME,
-                                label="模型",
+                            model_mode = gr.Radio(
+                                choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
+                                value=saved.model_mode,
+                                label="模型模式",
                             )
-                            use_gpu = gr.Checkbox(value=torch.cuda.is_available(), label="GPU")
+                            if len(device_choices) > 2:
+                                device_choice = gr.Dropdown(
+                                    choices=device_choices,
+                                    value=_default_device_choice(),
+                                    label="推理设备",
+                                )
+                            else:
+                                device_choice = gr.Radio(
+                                    choices=device_choices,
+                                    value=_default_device_choice(),
+                                    label="推理设备",
+                                )
                         with gr.Row():
                             conf = gr.Slider(0.05, 0.95, value=0.25, step=0.05, label="置信度")
                             iou = gr.Slider(0.1, 0.9, value=0.7, step=0.05, label="IoU")
@@ -1139,8 +1367,48 @@ def build_app() -> gr.Blocks:
             with gr.Tab("设置"):
                 with gr.Tabs():
                     with gr.Tab("检测显示"):
-                        enable_compare = gr.Checkbox(value=True, label="启用双模型对比选项")
+                        enable_compare = gr.Checkbox(value=True, label="允许主界面使用对比模型模式")
                         show_summary = gr.Checkbox(value=False, label="显示参数分析和摘要")
+                    with gr.Tab("模型选择"):
+                        settings_model_mode = gr.Radio(
+                            choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
+                            value=saved.model_mode,
+                            label="模型模式",
+                        )
+                        model_dir = gr.Textbox(
+                            value=str(Path(saved.model_dir).expanduser().resolve()),
+                            label="模型文件默认目录",
+                            info="下方下拉框会扫描该目录及子目录中的 .pt 文件。",
+                        )
+                        gr.Markdown("三点按钮会打开当前模型目录；Web 前端不能直接读取 Windows 原生选择器返回的绝对路径。")
+                        with gr.Row():
+                            refresh_model_btn = gr.Button("刷新模型列表")
+                            open_model_dir_btn = gr.Button("...", size="sm")
+                        model_file_select = gr.Dropdown(
+                            choices=model_choices,
+                            value=model_choices[0][1] if model_choices else None,
+                            label="当前目录模型文件",
+                        )
+                        model_apply_target = gr.Radio(
+                            choices=["主模型", "对比模型"],
+                            value="主模型",
+                            label="填入位置",
+                        )
+                        apply_model_btn = gr.Button("使用选中的模型文件")
+                        primary_model_path = gr.Textbox(
+                            value=_model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH)),
+                            label="主模型路径",
+                        )
+                        compare_model_path = gr.Textbox(
+                            value=_model_path_or_default(
+                                saved.compare_model_path,
+                                str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
+                            ),
+                            label="对比模型路径",
+                            visible=saved.model_mode == MODEL_MODE_COMPARE,
+                        )
+                        test_model_btn = gr.Button("测试模型文件")
+                        model_feedback = gr.Textbox(label="模型反馈", interactive=False)
                     with gr.Tab("AI 建议"):
                         ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
                         with gr.Group(visible=saved.enabled) as ai_group:
@@ -1151,10 +1419,34 @@ def build_app() -> gr.Blocks:
                                 value=saved.key_mode,
                                 label="API Key 类型",
                             )
-                            api_key = gr.Textbox(
-                                value=saved.api_key if saved.save_api_key or saved.key_mode == "环境变量" else "",
-                                label="API Key 或环境变量名",
+                            env_api_key = gr.Textbox(
+                                value=env_key_value,
+                                label="环境变量名",
+                                placeholder="例如：DEEPSEEK_API_KEY",
+                                info="填写系统或启动环境中的环境变量名称，程序会从该变量读取真实 Key。",
+                                visible=saved.key_mode == "环境变量",
+                            )
+                            direct_api_key_hidden = gr.Textbox(
+                                value=direct_key_value,
+                                label="直接 API Key",
                                 type="password",
+                                placeholder="请输入真实 API Key",
+                                info="默认不保存真实 Key；只有勾选“保存 API Key 到本地配置”后才会写入用户目录。",
+                                visible=saved.key_mode == "直接 Key 值",
+                            )
+                            direct_api_key_visible = gr.Textbox(
+                                value=direct_key_value,
+                                label="直接 API Key",
+                                type="text",
+                                placeholder="请输入真实 API Key",
+                                info="当前为明文显示，注意旁人可见。",
+                                visible=False,
+                            )
+                            direct_key_visible = gr.State(False)
+                            show_direct_key_btn = gr.Button(
+                                "显示 Key",
+                                visible=saved.key_mode == "直接 Key 值",
+                                size="sm",
                             )
                             save_key = gr.Checkbox(value=saved.save_api_key, label="保存 API Key 到本地配置")
                             custom_prompt = gr.Textbox(
@@ -1166,20 +1458,30 @@ def build_app() -> gr.Blocks:
                             test_result = gr.Textbox(label="测试反馈", interactive=False)
                     with gr.Tab("对话记录"):
                         auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
-                        storage_dir = gr.Textbox(value=saved.storage_dir, label="存储位置（数据根目录）")
+                        gr.Markdown("三点按钮会打开当前数据目录；如需更换位置，请在输入框中填写目标目录后保存设置。")
+                        with gr.Row():
+                            storage_dir = gr.Textbox(
+                                value=saved.storage_dir,
+                                label="存储位置（数据根目录）",
+                                scale=8,
+                            )
+                            open_storage_btn = gr.Button("...", size="sm", scale=1)
+                            default_storage_btn = gr.Button("恢复默认目录")
                     with gr.Tab("高级接口"):
                         gr.Markdown(
                             "第一版固定使用 OpenAI-compatible Chat Completions `/v1/chat/completions`。"
                             "请求字段只使用 `model`、`messages`、`temperature`、`max_tokens`。"
                         )
                 save_settings_btn = gr.Button("保存设置", variant="primary")
-                settings_feedback = gr.Textbox(label="设置反馈", interactive=False)
+                settings_feedback = gr.HTML()
 
         common_inputs = [
-            model_choice,
+            model_mode,
+            primary_model_path,
+            compare_model_path,
             conf,
             iou,
-            use_gpu,
+            device_choice,
             use_clahe,
             enable_compare,
             show_summary,
@@ -1187,7 +1489,10 @@ def build_app() -> gr.Blocks:
             base_url,
             ai_model,
             key_mode,
-            api_key,
+            env_api_key,
+            direct_api_key_hidden,
+            direct_api_key_visible,
+            direct_key_visible,
             save_key,
             auto_save,
             storage_dir,
@@ -1223,16 +1528,21 @@ def build_app() -> gr.Blocks:
             fn=run_batch_detection,
             inputs=[
                 batch_files,
-                model_choice,
+                model_mode,
+                primary_model_path,
+                compare_model_path,
                 conf,
                 iou,
-                use_gpu,
+                device_choice,
                 use_clahe,
                 ai_enabled,
                 base_url,
                 ai_model,
                 key_mode,
-                api_key,
+                env_api_key,
+                direct_api_key_hidden,
+                direct_api_key_visible,
+                direct_key_visible,
                 save_key,
                 auto_save,
                 storage_dir,
@@ -1262,8 +1572,19 @@ def build_app() -> gr.Blocks:
             ],
         )
         ai_enabled.change(fn=toggle_ai_settings, inputs=ai_enabled, outputs=ai_group)
+        key_mode.change(
+            fn=set_api_key_mode,
+            inputs=key_mode,
+            outputs=[env_api_key, direct_api_key_hidden, direct_api_key_visible, show_direct_key_btn, direct_key_visible],
+        )
+        show_direct_key_btn.click(
+            fn=toggle_direct_key_visibility,
+            inputs=[direct_api_key_hidden, direct_api_key_visible, direct_key_visible],
+            outputs=[direct_api_key_hidden, direct_api_key_visible, show_direct_key_btn, direct_key_visible],
+        )
+        model_mode.change(fn=sync_model_mode, inputs=model_mode, outputs=[settings_model_mode, compare_model_path])
+        settings_model_mode.change(fn=sync_model_mode, inputs=settings_model_mode, outputs=[model_mode, compare_model_path])
         show_summary.change(fn=toggle_summary, inputs=show_summary, outputs=summary)
-        enable_compare.change(fn=toggle_compare_options, inputs=[enable_compare, model_choice], outputs=model_choice)
         test_btn.click(
             fn=test_ai_settings,
             inputs=[
@@ -1271,7 +1592,10 @@ def build_app() -> gr.Blocks:
                 base_url,
                 ai_model,
                 key_mode,
-                api_key,
+                env_api_key,
+                direct_api_key_hidden,
+                direct_api_key_visible,
+                direct_key_visible,
                 save_key,
                 auto_save,
                 storage_dir,
@@ -1286,11 +1610,18 @@ def build_app() -> gr.Blocks:
                 base_url,
                 ai_model,
                 key_mode,
-                api_key,
+                env_api_key,
+                direct_api_key_hidden,
+                direct_api_key_visible,
+                direct_key_visible,
                 save_key,
                 auto_save,
                 storage_dir,
                 custom_prompt,
+                settings_model_mode,
+                model_dir,
+                primary_model_path,
+                compare_model_path,
             ],
             outputs=[settings_feedback, case_select, case_feedback],
         )
@@ -1303,7 +1634,10 @@ def build_app() -> gr.Blocks:
                 base_url,
                 ai_model,
                 key_mode,
-                api_key,
+                env_api_key,
+                direct_api_key_hidden,
+                direct_api_key_visible,
+                direct_key_visible,
                 save_key,
                 auto_save,
                 storage_dir,
@@ -1320,7 +1654,10 @@ def build_app() -> gr.Blocks:
                 base_url,
                 ai_model,
                 key_mode,
-                api_key,
+                env_api_key,
+                direct_api_key_hidden,
+                direct_api_key_visible,
+                direct_key_visible,
                 save_key,
                 auto_save,
                 storage_dir,
@@ -1328,6 +1665,24 @@ def build_app() -> gr.Blocks:
             ],
             outputs=[chatbot, chat_state, chat_input, export_file, export_path],
         )
+        refresh_model_btn.click(
+            fn=refresh_model_choices,
+            inputs=model_dir,
+            outputs=[model_file_select, model_feedback],
+        )
+        open_model_dir_btn.click(fn=open_model_dir, inputs=model_dir, outputs=model_feedback)
+        apply_model_btn.click(
+            fn=apply_selected_model,
+            inputs=[model_file_select, model_apply_target],
+            outputs=[primary_model_path, compare_model_path, model_feedback],
+        )
+        test_model_btn.click(
+            fn=test_model_file,
+            inputs=[primary_model_path, compare_model_path, model_mode],
+            outputs=model_feedback,
+        )
+        default_storage_btn.click(fn=default_storage_dir, outputs=[storage_dir, settings_feedback])
+        open_storage_btn.click(fn=open_storage_dir, inputs=storage_dir, outputs=settings_feedback)
         export_btn.click(fn=export_chat, inputs=[chat_state, storage_dir], outputs=[export_file, export_path])
         export_batch_btn.click(
             fn=export_batch_results,

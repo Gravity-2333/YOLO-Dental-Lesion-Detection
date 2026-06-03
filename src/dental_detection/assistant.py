@@ -63,6 +63,24 @@ class AiSettings:
     auto_save: bool = True
     storage_dir: str = str(APP_HOME)
     custom_prompt: str = DEFAULT_AI_PROMPT
+    model_mode: str = "单模型"
+    model_dir: str = str(PROJECT_ROOT / "models")
+    primary_model_path: str = str(
+        PROJECT_ROOT
+        / "models"
+        / "final_candidates"
+        / "yolov8m_c2f_faster_lite_1280_full"
+        / "weights"
+        / "best.pt"
+    )
+    compare_model_path: str = str(
+        PROJECT_ROOT
+        / "models"
+        / "final_candidates"
+        / "yolov8m_1280_full"
+        / "weights"
+        / "best.pt"
+    )
 
 
 def storage_root(storage_dir: str | None = None) -> Path:
