@@ -9,9 +9,17 @@
   --primary-hover: #1d4ed8;
   --accent: #2563eb;
   --radius: 12px;
-  --radius-sm: 8px;
+  --radius-sm: 10px;
+  --button-height: 40px;
+  --primary-height: 44px;
   --shadow-soft: 0 14px 44px rgba(15, 23, 42, 0.05);
   --surface-bg: #fbfcfe;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box !important;
 }
 
 body,
@@ -95,16 +103,16 @@ body,
   gap: 24px !important;
   background: var(--surface-bg) !important;
   border: 1px solid var(--card-border) !important;
-  border-radius: 16px !important;
+  border-radius: 18px !important;
   box-shadow: var(--shadow-soft) !important;
-  padding: 18px !important;
+  padding: 24px !important;
   overflow: hidden !important;
 }
 
 .control-panel {
   flex: 0 0 410px !important;
-  max-width: 430px;
-  min-width: 360px;
+  max-width: 420px;
+  min-width: 380px;
   overflow: hidden !important;
 }
 
@@ -156,6 +164,20 @@ body,
 .upload-card .styler,
 .panel-card .styler {
   background: #fff !important;
+}
+
+.settings-card .settings-card,
+.chat-card .chat-card,
+.case-card .case-card,
+.settings-card .styler,
+.chat-card .styler,
+.case-card .styler {
+  width: 100% !important;
+  max-width: none !important;
+  flex: 1 1 auto !important;
+  align-self: stretch !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 
 .control-panel .tabitem,
@@ -254,6 +276,19 @@ button.primary:hover,
   background: var(--primary) !important;
   border-color: var(--primary) !important;
   color: #fff !important;
+  min-height: var(--primary-height) !important;
+  border-radius: var(--radius) !important;
+  font-size: 0.98rem !important;
+  font-weight: 700 !important;
+}
+
+button,
+.gradio-button,
+button.primary,
+button.secondary,
+button[disabled],
+button[aria-disabled="true"] {
+  border-radius: var(--radius-sm) !important;
 }
 
 button.primary:hover,
@@ -267,6 +302,7 @@ button.secondary,
   background: #f8fafc !important;
   border-color: var(--card-border) !important;
   color: #1f2937 !important;
+  min-height: var(--button-height) !important;
 }
 
 .compact-button,
@@ -285,17 +321,19 @@ button.secondary,
 }
 
 .icon-action button {
-  min-width: 42px !important;
-  width: 42px !important;
+  min-width: 44px !important;
+  width: 44px !important;
+  height: 44px !important;
   padding-left: 0 !important;
   padding-right: 0 !important;
 }
 
 button[disabled],
 button[aria-disabled="true"] {
-  background: #e5e7eb !important;
-  border-color: #e5e7eb !important;
-  color: #64748b !important;
+  background: #e5eaf2 !important;
+  border-color: #e5eaf2 !important;
+  color: #94a3b8 !important;
+  border-radius: var(--radius-sm) !important;
 }
 
 .path-row,
@@ -306,11 +344,35 @@ button[aria-disabled="true"] {
   overflow: hidden !important;
 }
 
+.path-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 44px 132px !important;
+  align-items: end !important;
+}
+
+.export-toolbar .path-row,
+.chat-card .path-row {
+  grid-template-columns: minmax(0, 1fr) 120px !important;
+}
+
+.model-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 132px !important;
+  gap: 10px !important;
+  align-items: end !important;
+  overflow: hidden !important;
+}
+
+.chat-input-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 112px !important;
+}
+
 .path-row > .icon-action {
-  flex: 0 0 48px !important;
-  width: 48px !important;
-  min-width: 48px !important;
-  max-width: 48px !important;
+  flex: 0 0 44px !important;
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
 }
 
 .path-row > .secondary-action {
@@ -328,15 +390,24 @@ button[aria-disabled="true"] {
 .path-row textarea,
 .path-row input {
   min-height: 42px !important;
+  height: 42px !important;
 }
 
 .path-output textarea,
 textarea[aria-label="报告路径"],
 textarea[aria-label="导出路径"],
-textarea[aria-label="批量导出路径"] {
+textarea[aria-label="批量导出路径"],
+textarea[aria-label="模型目录"],
+textarea[aria-label="存储目录"],
+textarea[aria-label="主模型路径"],
+textarea[aria-label="对比模型路径"] {
   font-size: 0.88rem !important;
   color: #334155 !important;
   background: #f8fafc !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  resize: none !important;
 }
 
 .image-grid {
@@ -348,6 +419,18 @@ textarea[aria-label="批量导出路径"] {
   border-radius: 14px !important;
 }
 
+.image-panel {
+  min-width: 0 !important;
+  gap: 8px !important;
+}
+
+.image-title {
+  color: #0f172a;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
 .result-card {
   overflow: hidden !important;
   background: #f8fafc !important;
@@ -357,11 +440,18 @@ textarea[aria-label="批量导出路径"] {
 .upload-input .image-container,
 .result-card .image-container {
   min-height: 100% !important;
+  border-style: dashed !important;
+  border-color: #cbd5e1 !important;
 }
 
 .upload-input [data-testid="image"],
 .result-card [data-testid="image"] {
   background: #f8fafc !important;
+}
+
+.upload-input svg,
+.result-card svg {
+  opacity: 0.28 !important;
 }
 
 .gradio-container .image-container {
@@ -392,6 +482,8 @@ textarea[aria-label="牙齿辅助建议"] {
   background: #fbfcfe !important;
   line-height: 1.6 !important;
   border-color: var(--soft-border) !important;
+  min-height: 150px !important;
+  overflow-y: auto !important;
 }
 
 textarea[aria-label="图像质量提示"]:placeholder-shown,
@@ -402,6 +494,13 @@ textarea[aria-label="牙齿辅助建议"]:placeholder-shown {
 table {
   font-size: 0.9rem !important;
   min-width: 560px !important;
+}
+
+thead,
+thead tr,
+th {
+  background: #f8fafc !important;
+  border-color: var(--soft-border) !important;
 }
 
 th,
@@ -439,7 +538,7 @@ td {
 
 .chat-card,
 .case-card {
-  max-width: 1080px !important;
+  max-width: 960px !important;
   margin: 18px auto 0 !important;
   padding: 18px !important;
   background: #fff !important;
@@ -461,6 +560,10 @@ td {
   border-radius: 12px !important;
 }
 
+.chat-window [data-testid="block-label"] {
+  display: none !important;
+}
+
 .chat-input-row {
   margin-top: 12px !important;
 }
@@ -474,6 +577,15 @@ td {
   border-color: transparent !important;
   width: 100% !important;
   max-width: none !important;
+}
+
+.settings-card .auto-margin,
+.chat-card .auto-margin,
+.case-card .auto-margin {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 
 .settings-card .form,
@@ -547,6 +659,38 @@ select {
   min-width: 0 !important;
 }
 
+textarea[aria-label="病例备注"],
+textarea[aria-label="病例反馈"],
+textarea[aria-label="病例详情"],
+textarea[aria-label="模型反馈"],
+textarea[aria-label="测试反馈"] {
+  overflow-y: auto !important;
+  resize: none !important;
+}
+
+textarea[aria-label="病例备注"] {
+  min-height: 72px !important;
+}
+
+textarea[aria-label="病例反馈"] {
+  min-height: 90px !important;
+}
+
+textarea[aria-label="病例详情"] {
+  min-height: 220px !important;
+  line-height: 1.65 !important;
+  color: #1f2937 !important;
+  background: #fbfcfe !important;
+}
+
+textarea[aria-label="AI 建议 Prompt"] {
+  min-height: 150px !important;
+  line-height: 1.6 !important;
+  padding: 12px 14px !important;
+  overflow-x: hidden !important;
+  resize: vertical !important;
+}
+
 .control-panel .wrap,
 .control-panel .block,
 .control-panel .form {
@@ -565,8 +709,9 @@ select {
   min-height: 0 !important;
 }
 
-footer {
-  color: #94a3b8 !important;
+footer,
+.gradio-container > footer {
+  display: none !important;
 }
 
 .app-toast {
@@ -611,10 +756,17 @@ footer {
   .image-grid,
   .insight-grid,
   .path-row,
+  .model-row,
   .compact-row,
   .chat-input-row {
     flex-direction: column !important;
     align-items: stretch !important;
+  }
+
+  .path-row,
+  .model-row,
+  .chat-input-row {
+    grid-template-columns: 1fr !important;
   }
 
   .control-panel {

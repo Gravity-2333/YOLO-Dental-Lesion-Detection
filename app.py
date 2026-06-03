@@ -112,7 +112,7 @@ def _clear_file_output():
 
 
 def _empty_table() -> pd.DataFrame:
-    return pd.DataFrame(columns=TABLE_COLUMNS)
+    return pd.DataFrame([{"class": "暂无检测结果", "confidence": "", "x1": "", "y1": "", "x2": "", "y2": ""}], columns=TABLE_COLUMNS)
 
 
 def _table_from_detections(detections: list[Detection]) -> pd.DataFrame:
@@ -810,7 +810,7 @@ def save_case_record(
         (choice for choice in choices if choice.split("|")[-1].strip() == path.name),
         choices[0] if choices else None,
     )
-    return f"病例记录已保存：{path}", gr.update(choices=choices, value=selected), payload
+    return f"病例记录已保存：{path}", gr.update(choices=choices, value=selected), _format_case_record(payload)
 
 
 def refresh_case_records(storage_dir: str):
@@ -820,17 +820,65 @@ def refresh_case_records(storage_dir: str):
     )
 
 
+def _format_case_record(data: dict[str, Any] | None) -> str:
+    if not data:
+        return "暂无病例详情。选择已保存病例后，会在这里显示检测摘要、检测框和辅助建议。"
+    if "错误" in data:
+        return str(data["错误"])
+    if "提示" in data:
+        return str(data["提示"])
+
+    summary = data.get("summary") or {}
+    detections = data.get("detections") or []
+    lines = [
+        f"病例编号：{data.get('case_id') or '未填写'}",
+        f"保存时间：{data.get('created_at') or '-'}",
+        f"图片名称：{data.get('image_name') or '-'}",
+        f"建议来源：{data.get('suggestion_type') or 'default'}",
+    ]
+    note = data.get("note")
+    if note:
+        lines.append(f"病例备注：{note}")
+
+    lines.extend(["", "检测摘要："])
+    if summary:
+        for key, value in summary.items():
+            lines.append(f"- {key}: {value}")
+    else:
+        lines.append("- 暂无摘要信息")
+
+    lines.extend(["", f"检测框：共 {len(detections)} 个"])
+    if detections:
+        for index, det in enumerate(detections, start=1):
+            lines.append(
+                "- "
+                f"{index}. {det.get('class', '-')}"
+                f" | confidence={det.get('confidence', '-')}"
+                f" | bbox=({det.get('x1', '-')}, {det.get('y1', '-')}, {det.get('x2', '-')}, {det.get('y2', '-')})"
+            )
+    else:
+        lines.append("- 未检测到病变框")
+
+    suggestion = data.get("suggestion")
+    if suggestion:
+        lines.extend(["", "辅助建议：", suggestion])
+    notice = data.get("safety_notice") or SAFETY_NOTICE
+    if notice:
+        lines.extend(["", notice])
+    return "\n".join(lines)
+
+
 def load_case_record(choice: str, storage_dir: str):
     if not choice:
-        return {}
+        return _format_case_record({"提示": "暂无病例详情。选择已保存病例后，会在这里显示检测摘要、检测框和辅助建议。"})
     file_name = choice.split("|")[-1].strip()
     path = case_dir(storage_dir) / file_name
     if not path.exists():
-        return {"错误": f"病例文件不存在：{path}"}
+        return _format_case_record({"错误": f"病例文件不存在：{path}"})
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return _format_case_record(json.loads(path.read_text(encoding="utf-8")))
     except (OSError, json.JSONDecodeError) as exc:
-        return {"错误": str(exc)}
+        return _format_case_record({"错误": str(exc)})
 
 
 def clear_outputs():
@@ -1420,6 +1468,7 @@ def build_app() -> gr.Blocks:
                                     image = gr.Image(
                                         type="pil",
                                         label="上传牙科影像",
+                                        show_label=False,
                                         height=280,
                                         sources=["upload", "clipboard"],
                                         placeholder="拖拽牙科影像到此处\n支持常见图片格式",
@@ -1437,6 +1486,7 @@ def build_app() -> gr.Blocks:
                                     )
                                     batch_files = gr.File(
                                         label="批量上传图片",
+                                        show_label=False,
                                         file_count="multiple",
                                         file_types=[".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"],
                                         elem_classes=["upload-input"],
@@ -1457,6 +1507,8 @@ def build_app() -> gr.Blocks:
                                     batch_export_path = gr.Textbox(
                                         label="批量导出路径",
                                         interactive=False,
+                                        lines=1,
+                                        max_lines=1,
                                         elem_classes=["path-output"],
                                     )
 
@@ -1493,29 +1545,39 @@ def build_app() -> gr.Blocks:
 
                     with gr.Column(scale=7, elem_classes=["result-panel"]):
                         with gr.Row(elem_classes=["image-grid"]):
-                            original_output = gr.Image(
-                                type="pil",
-                                label="原图",
-                                height=260,
-                                placeholder="等待上传",
-                                elem_classes=["result-card"],
-                            )
-                            model_input_output = gr.Image(
-                                type="pil",
-                                label="模型输入",
-                                height=260,
-                                placeholder="等待推理",
-                                elem_classes=["result-card"],
-                            )
-                            result_output = gr.Image(
-                                type="pil",
-                                label="检测结果",
-                                height=260,
-                                placeholder="等待检测",
-                                elem_classes=["result-card"],
-                            )
+                            with gr.Column(elem_classes=["image-panel"]):
+                                gr.HTML('<div class="image-title">原图</div>')
+                                original_output = gr.Image(
+                                    type="pil",
+                                    label="原图",
+                                    show_label=False,
+                                    height=240,
+                                    placeholder="等待上传",
+                                    elem_classes=["result-card"],
+                                )
+                            with gr.Column(elem_classes=["image-panel"]):
+                                gr.HTML('<div class="image-title">模型输入</div>')
+                                model_input_output = gr.Image(
+                                    type="pil",
+                                    label="模型输入",
+                                    show_label=False,
+                                    height=240,
+                                    placeholder="完成检测后显示",
+                                    elem_classes=["result-card"],
+                                )
+                            with gr.Column(elem_classes=["image-panel"]):
+                                gr.HTML('<div class="image-title">检测结果</div>')
+                                result_output = gr.Image(
+                                    type="pil",
+                                    label="检测结果",
+                                    show_label=False,
+                                    height=240,
+                                    placeholder="完成检测后显示",
+                                    elem_classes=["result-card"],
+                                )
                         with gr.Group(elem_classes=["section-card", "result-table-card"]):
                             det_table = gr.Dataframe(
+                                value=_empty_table(),
                                 headers=TABLE_COLUMNS,
                                 label="检测框",
                                 wrap=False,
@@ -1541,6 +1603,8 @@ def build_app() -> gr.Blocks:
                                 report_path = gr.Textbox(
                                     label="报告路径",
                                     interactive=False,
+                                    lines=1,
+                                    max_lines=1,
                                     scale=8,
                                     elem_classes=["path-output"],
                                 )
@@ -1561,6 +1625,7 @@ def build_app() -> gr.Blocks:
                     )
                     chatbot = gr.Chatbot(
                         label="问答记录",
+                        show_label=False,
                         height=500,
                         placeholder="暂无对话。完成检测后，可以继续追问病变位置、可能风险和复查建议。",
                         elem_classes=["chat-window"],
@@ -1581,6 +1646,8 @@ def build_app() -> gr.Blocks:
                         export_path = gr.Textbox(
                             label="导出路径",
                             interactive=False,
+                            lines=1,
+                            max_lines=1,
                             scale=8,
                             elem_classes=["path-output"],
                         )
@@ -1599,7 +1666,7 @@ def build_app() -> gr.Blocks:
                     )
                     with gr.Row(elem_classes=["compact-row"]):
                         case_id = gr.Textbox(label="病例编号 / 备注名称", placeholder="例如：20260602-复查")
-                        case_note = gr.Textbox(label="病例备注", placeholder="可填写主诉、复查说明或医生备注")
+                        case_note = gr.Textbox(label="病例备注", placeholder="可填写主诉、复查说明或医生备注", lines=3)
                     with gr.Row(elem_classes=["compact-row"]):
                         save_case_btn = gr.Button(
                             "完成检测后可保存",
@@ -1611,13 +1678,18 @@ def build_app() -> gr.Blocks:
                             "刷新记录",
                             elem_classes=["secondary-action", "compact-button"],
                         )
-                    case_feedback = gr.Textbox(label="病例反馈", interactive=False, lines=2)
+                    case_feedback = gr.Textbox(label="病例反馈", interactive=False, lines=3)
                     with gr.Accordion("说明", open=False):
                         gr.Markdown("病例记录仅保存检测摘要、检测框和建议，不自动保存原始牙片图片。")
                 with gr.Group(elem_classes=["section-card", "case-card"]):
                     gr.HTML('<div class="section-heading"><h2>已保存病例</h2><p>选择记录后查看结构化详情。</p></div>')
                     case_select = gr.Dropdown(label="已保存病例", choices=_case_choices(saved.storage_dir))
-                    case_detail = gr.JSON(label="病例详情")
+                    case_detail = gr.Textbox(
+                        value=_format_case_record(None),
+                        label="病例详情",
+                        interactive=False,
+                        lines=14,
+                    )
 
             with gr.Tab("设置"):
                 with gr.Tabs(elem_classes=["settings-tabs"]):
@@ -1641,6 +1713,8 @@ def build_app() -> gr.Blocks:
                                 model_dir = gr.Textbox(
                                     value=str(Path(saved.model_dir).expanduser().resolve()),
                                     label="模型目录",
+                                    lines=1,
+                                    max_lines=1,
                                     scale=8,
                                 )
                                 open_model_dir_btn = gr.Button(
@@ -1654,7 +1728,7 @@ def build_app() -> gr.Blocks:
                                     scale=2,
                                     elem_classes=["secondary-action"],
                                 )
-                            with gr.Row(elem_classes=["compact-row"]):
+                            with gr.Row(elem_classes=["model-row"]):
                                 model_file_select = gr.Dropdown(
                                     choices=model_choices,
                                     value=model_choices[0][1] if model_choices else None,
@@ -1676,6 +1750,8 @@ def build_app() -> gr.Blocks:
                             primary_model_path = gr.Textbox(
                                 value=_model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH)),
                                 label="主模型路径",
+                                lines=1,
+                                max_lines=1,
                             )
                             compare_model_path = gr.Textbox(
                                 value=_model_path_or_default(
@@ -1683,6 +1759,8 @@ def build_app() -> gr.Blocks:
                                     str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
                                 ),
                                 label="对比模型路径",
+                                lines=1,
+                                max_lines=1,
                                 visible=saved.model_mode == MODEL_MODE_COMPARE,
                             )
                             with gr.Row(elem_classes=["compact-row"]):
@@ -1747,6 +1825,7 @@ def build_app() -> gr.Blocks:
                                     value=saved.custom_prompt or DEFAULT_AI_PROMPT,
                                     label="AI 建议 Prompt",
                                     lines=7,
+                                    max_lines=12,
                                 )
                                 with gr.Row(elem_classes=["compact-row"]):
                                     test_btn = gr.Button(
@@ -1767,6 +1846,8 @@ def build_app() -> gr.Blocks:
                                 storage_dir = gr.Textbox(
                                     value=saved.storage_dir,
                                     label="存储目录",
+                                    lines=1,
+                                    max_lines=1,
                                     scale=8,
                                 )
                                 open_storage_btn = gr.Button(
