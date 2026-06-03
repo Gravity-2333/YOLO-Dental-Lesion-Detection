@@ -298,6 +298,27 @@ def _ai_settings(
     )
 
 
+def _save_runtime_settings(
+    settings: AiSettings,
+    model_mode: str | None = None,
+    model_dir: str | None = None,
+    primary_model_path: str | None = None,
+    compare_model_path: str | None = None,
+) -> Path:
+    saved = load_settings()
+    settings.model_mode = model_mode or saved.model_mode
+    settings.model_dir = str(Path(model_dir or saved.model_dir or PROJECT_ROOT / "models").expanduser().resolve())
+    settings.primary_model_path = _model_path_or_default(
+        primary_model_path or saved.primary_model_path,
+        str(DEFAULT_MODEL_PATH),
+    )
+    settings.compare_model_path = _model_path_or_default(
+        compare_model_path or saved.compare_model_path,
+        str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
+    )
+    return save_settings(settings)
+
+
 def _api_key_inputs(saved: AiSettings) -> tuple[str, str]:
     if saved.key_mode == "环境变量":
         return saved.api_key or DEFAULT_AI_KEY_ENV, ""
@@ -809,7 +830,12 @@ def run_single_detection(
         storage_dir,
         custom_prompt,
     )
-    save_settings(settings)
+    _save_runtime_settings(
+        settings,
+        model_mode=model_mode if enable_compare else MODEL_MODE_SINGLE,
+        primary_model_path=primary_model_path,
+        compare_model_path=compare_model_path,
+    )
     advice = _build_advice(settings, primary["detections"])
     chat_history = _conversation_from_advice(advice)
     if settings.auto_save:
@@ -913,7 +939,12 @@ def run_batch_detection(
         storage_dir,
         custom_prompt,
     )
-    save_settings(settings)
+    _save_runtime_settings(
+        settings,
+        model_mode=model_mode or MODEL_MODE_SINGLE,
+        primary_model_path=primary_model_path,
+        compare_model_path=compare_model_path,
+    )
     selected_model_name, selected_model_path = _configured_models(MODEL_MODE_SINGLE, primary_model_path, compare_model_path)[0]
     batch_state = []
     for index, file_obj in enumerate(files, start=1):
@@ -1041,7 +1072,7 @@ def test_ai_settings(
         storage_dir,
         custom_prompt,
     )
-    save_settings(settings)
+    _save_runtime_settings(settings)
     if not settings.enabled:
         return "AI 功能未开启。开启后可测试接口。"
     try:
