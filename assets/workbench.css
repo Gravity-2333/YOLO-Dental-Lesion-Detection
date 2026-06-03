@@ -1,51 +1,312 @@
+:root {
+  --app-bg: #f6f8fb;
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --soft-border: #e5e7eb;
+  --text-main: #111827;
+  --text-muted: #64748b;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --accent: #f97316;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow-soft: 0 12px 34px rgba(15, 23, 42, 0.06);
+}
+
 body,
 .gradio-container {
-  background: #f6f8fb !important;
-  color: #142033;
+  background: var(--app-bg) !important;
+  color: var(--text-main) !important;
 }
 
 .gradio-container {
-  width: 1340px !important;
+  width: 1320px !important;
   max-width: calc(100vw - 48px) !important;
   margin: 0 auto !important;
   min-height: 100vh !important;
   box-sizing: border-box !important;
 }
 
-button.primary,
-button.primary:hover {
-  background: #2563eb !important;
-  border-color: #2563eb !important;
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 28px 0 18px;
 }
 
-button.secondary {
-  border-radius: 6px !important;
+.eyebrow {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+
+.app-title {
+  color: var(--text-main);
+  font-size: 2rem;
+  line-height: 1.15;
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.app-subtitle {
+  color: #334155;
+  font-size: 1rem;
+  line-height: 1.7;
+  margin: 12px 0 0;
+  max-width: 760px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.82rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.main-tabs > .tab-nav,
+.settings-tabs > .tab-nav,
+.sub-tabs > .tab-nav {
+  border-bottom: 1px solid var(--soft-border) !important;
+}
+
+.tabs button[role="tab"] {
+  border-radius: 0 !important;
+  color: #334155 !important;
+  font-weight: 600 !important;
 }
 
 .tabs button[role="tab"][aria-selected="true"] {
-  color: #2563eb !important;
-  border-color: #2563eb !important;
+  color: var(--primary) !important;
+  border-color: var(--accent) !important;
 }
 
-.form,
-.block,
-.panel {
-  border-radius: 8px !important;
+.workbench-grid {
+  align-items: flex-start !important;
+  gap: 16px !important;
 }
 
-textarea,
-input,
-select {
-  border-radius: 6px !important;
+.control-panel {
+  max-width: 430px;
 }
 
-.wrap,
-.contain {
-  border-radius: 8px !important;
+.result-panel {
+  min-width: 0;
+}
+
+.section-card,
+.panel-card,
+.result-card,
+.settings-card,
+.chat-card,
+.case-card {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+.section-card,
+.settings-card,
+.chat-card,
+.case-card {
+  padding: 14px !important;
+}
+
+.section-card .block,
+.section-card .form,
+.settings-card .block,
+.settings-card .form,
+.chat-card .block,
+.chat-card .form,
+.case-card .block,
+.case-card .form,
+.panel-card .block,
+.panel-card .form {
+  background: #fff !important;
+}
+
+.section-card .row,
+.settings-card .row,
+.chat-card .row,
+.case-card .row,
+.panel-card .row {
+  background: #fff !important;
+}
+
+.section-card .block,
+.settings-card .block,
+.chat-card .block,
+.case-card .block {
+  border-color: var(--card-border) !important;
+}
+
+.upload-card {
+  margin-bottom: 14px !important;
+}
+
+.panel-card {
+  padding: 12px !important;
+}
+
+.card-title h3,
+.card-title {
+  margin: 0 0 8px !important;
+  color: #1e293b !important;
+  font-size: 0.98rem !important;
+  font-weight: 700 !important;
+}
+
+.card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.card-heading h2 {
+  margin: 0;
+  font-size: 1.18rem;
+  letter-spacing: 0;
+}
+
+.card-heading p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+button.primary,
+button.primary:hover,
+.primary-action button,
+.primary-action button:hover {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #fff !important;
+}
+
+button.primary:hover,
+.primary-action button:hover {
+  background: var(--primary-hover) !important;
+}
+
+button.secondary,
+.secondary-action button {
+  border-radius: var(--radius-sm) !important;
+  background: #f8fafc !important;
+  border-color: var(--card-border) !important;
+  color: #1f2937 !important;
+}
+
+.compact-button,
+.secondary-action,
+.icon-action {
+  flex: 0 0 auto !important;
+}
+
+.compact-button button,
+.secondary-action button,
+.icon-action button {
+  min-width: 88px !important;
+  width: auto !important;
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+}
+
+.icon-action button {
+  min-width: 42px !important;
+  width: 42px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+button[disabled],
+button[aria-disabled="true"] {
+  background: #e5e7eb !important;
+  border-color: #e5e7eb !important;
+  color: #64748b !important;
+}
+
+.path-row,
+.compact-row,
+.chat-input-row {
+  align-items: end !important;
+  gap: 10px !important;
+}
+
+.path-row > .icon-action {
+  flex: 0 0 48px !important;
+  width: 48px !important;
+  min-width: 48px !important;
+  max-width: 48px !important;
+}
+
+.path-row > .secondary-action {
+  flex: 0 0 132px !important;
+  width: 132px !important;
+  min-width: 132px !important;
+  max-width: 132px !important;
+}
+
+.path-row > .form,
+.path-row > .block {
+  min-width: 0 !important;
+}
+
+.path-row textarea,
+.path-row input {
+  min-height: 42px !important;
+}
+
+.path-output textarea,
+textarea[aria-label="报告路径"],
+textarea[aria-label="导出路径"],
+textarea[aria-label="批量导出路径"] {
+  font-size: 0.88rem !important;
+  color: #334155 !important;
+  background: #f8fafc !important;
+}
+
+.image-grid {
+  gap: 14px !important;
+  margin-bottom: 14px !important;
+}
+
+.result-card {
+  overflow: hidden !important;
+}
+
+.gradio-container .image-container {
+  border-radius: var(--radius-sm) !important;
+  background: #fbfdff !important;
+}
+
+.result-table-card {
+  margin-bottom: 14px !important;
+}
+
+.insight-grid {
+  gap: 14px !important;
+  align-items: stretch !important;
+}
+
+textarea[aria-label="图像质量提示"],
+textarea[aria-label="牙齿辅助建议"] {
+  background: #ffffff !important;
+  line-height: 1.6 !important;
 }
 
 table {
-  font-size: 0.92rem !important;
+  font-size: 0.9rem !important;
   min-width: 560px !important;
 }
 
@@ -56,43 +317,82 @@ td {
 
 .gradio-container .table-wrap {
   overflow-x: auto !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.export-toolbar {
+  margin-top: 14px !important;
+}
+
+.settings-card {
+  margin-top: 14px !important;
+}
+
+.settings-actions {
+  justify-content: flex-end !important;
+  margin-top: 14px !important;
+}
+
+.chat-card,
+.case-card {
+  margin-top: 14px !important;
+}
+
+.chat-card [role="log"],
+.chat-card .bubble-wrap,
+.chat-card .block:focus-within {
+  border-color: var(--card-border) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.chat-input-row {
+  margin-top: 12px !important;
+}
+
+.segmented-control .wrap,
+.segmented-control .form,
+.compact-control .wrap,
+.compact-control .form {
+  border-radius: var(--radius-sm) !important;
+}
+
+.gradio-container label {
+  color: #20314a !important;
+  font-weight: 650 !important;
+}
+
+[data-testid="block-info"] {
+  color: var(--text-muted) !important;
+  font-size: 0.82rem !important;
 }
 
 .gradio-container .prose {
   max-width: none !important;
 }
 
-[data-testid="block-info"] {
-  color: #4b647f !important;
+.form,
+.block,
+.panel,
+.wrap,
+.contain {
+  border-radius: var(--radius-sm) !important;
 }
 
-.gradio-container label {
-  font-weight: 600 !important;
-  color: #20314a !important;
+textarea,
+input,
+select {
+  border-radius: var(--radius-sm) !important;
 }
 
 .gradio-container .tabitem {
-  padding-top: 12px !important;
+  padding-top: 14px !important;
   width: 100% !important;
   min-height: 0 !important;
 }
 
-.gradio-container .image-container,
-.gradio-container .table-wrap {
-  border-radius: 8px !important;
-}
-
-textarea[aria-label="图像质量提示"],
-textarea[aria-label="牙齿辅助建议"] {
-  background: #ffffff !important;
-  line-height: 1.55 !important;
-}
-
-textarea[aria-label="报告路径"],
-textarea[aria-label="导出路径"],
-textarea[aria-label="病例反馈"],
-textarea[aria-label="设置反馈"] {
-  font-size: 0.9rem !important;
+footer {
+  color: #94a3b8 !important;
 }
 
 .app-toast {
@@ -102,7 +402,7 @@ textarea[aria-label="设置反馈"] {
   z-index: 9999;
   max-width: min(520px, calc(100vw - 48px));
   padding: 14px 18px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: #12314f;
   color: #fff;
   box-shadow: 0 16px 44px rgba(20, 32, 51, 0.18);
@@ -119,7 +419,57 @@ textarea[aria-label="设置反馈"] {
   background: #0f766e;
 }
 
+@media (max-width: 900px) {
+  .gradio-container {
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  .app-header {
+    display: block;
+    padding-top: 18px;
+  }
+
+  .status-badge {
+    margin-top: 12px;
+  }
+
+  .workbench-grid,
+  .image-grid,
+  .insight-grid,
+  .path-row,
+  .compact-row,
+  .chat-input-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .control-panel {
+    max-width: none;
+  }
+
+  .compact-button button,
+  .secondary-action button,
+  .icon-action button {
+    width: 100% !important;
+  }
+
+  .icon-action button {
+    min-width: 100% !important;
+  }
+}
+
 @media (max-width: 640px) {
+  .app-title {
+    font-size: 1.55rem;
+  }
+
+  .section-card,
+  .settings-card,
+  .chat-card,
+  .case-card {
+    padding: 10px !important;
+  }
+
   table {
     width: 100% !important;
     min-width: 100% !important;

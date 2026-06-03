@@ -56,6 +56,14 @@ def _load_workbench_css() -> str:
     return ""
 
 
+def _workbench_theme():
+    return gr.themes.Soft(
+        primary_hue="blue",
+        secondary_hue="orange",
+        neutral_hue="slate",
+    )
+
+
 def _allowed_file_roots() -> list[Path]:
     roots = [Path.home(), PROJECT_ROOT.parent, APP_HOME, STARTUP_STORAGE_ROOT]
     resolved: list[Path] = []
@@ -105,7 +113,7 @@ def _records_from_detections(detections: list[Detection]) -> list[dict[str, Any]
 
 def assess_image_quality(image) -> str:
     if image is None:
-        return "尚未上传图片。"
+        return "等待上传图像"
     pil_image = ImageOps.exif_transpose(image).convert("RGB")
     width, height = pil_image.size
     gray = pil_image.convert("L")
@@ -753,7 +761,7 @@ def clear_outputs():
         None,
         _empty_table(),
         "",
-        "尚未上传图片。",
+        "等待上传图像",
         {},
         [],
         gr.update(choices=[], value=None),
@@ -766,8 +774,8 @@ def clear_outputs():
         "",
         _clear_file_output(),
         "",
-        gr.update(value="检测完成后可导出报告", interactive=False),
-        gr.update(value="检测完成后可保存病例", interactive=False),
+        gr.update(value="报告导出", interactive=False),
+        gr.update(value="完成检测后可保存", interactive=False),
     )
 
 
@@ -889,8 +897,8 @@ def run_single_detection(
         "",
         _clear_file_output(),
         "",
-        gr.update(value="导出当前单图报告", interactive=True),
-        gr.update(value="保存当前结果为病例记录", interactive=True),
+        gr.update(value="报告导出", interactive=True),
+        gr.update(value="保存病例", interactive=True),
     )
 
 
@@ -996,8 +1004,8 @@ def run_batch_detection(
         "",
         _clear_file_output(),
         "",
-        gr.update(value="导出当前单图报告", interactive=True),
-        gr.update(value="保存当前结果为病例记录", interactive=True),
+        gr.update(value="报告导出", interactive=True),
+        gr.update(value="保存病例", interactive=True),
     )
 
 
@@ -1009,7 +1017,7 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
             None,
             _empty_table(),
             "",
-            "尚未上传图片。",
+            "等待上传图像",
             {},
             [],
             [],
@@ -1017,8 +1025,8 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
             "",
             _clear_file_output(),
             "",
-            gr.update(value="检测完成后可导出报告", interactive=False),
-            gr.update(value="检测完成后可保存病例", interactive=False),
+            gr.update(value="报告导出", interactive=False),
+            gr.update(value="完成检测后可保存", interactive=False),
         )
     item = next(
         (row for row in batch_state if row.get("display_name") == name or row.get("name") == name),
@@ -1039,8 +1047,8 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
         "",
         _clear_file_output(),
         "",
-        gr.update(value="导出当前单图报告", interactive=True),
-        gr.update(value="保存当前结果为病例记录", interactive=True),
+        gr.update(value="报告导出", interactive=True),
+        gr.update(value="保存病例", interactive=True),
     )
 
 
@@ -1266,228 +1274,392 @@ def build_app() -> gr.Blocks:
     env_key_value, direct_key_value = _api_key_inputs(saved)
     model_choices = _scan_model_files(saved.model_dir)
     device_choices = _device_choices()
-    with gr.Blocks(title="牙齿病变区域识别") as demo:
+    with gr.Blocks(
+        title="牙齿病变区域识别",
+        elem_classes=["app-shell"],
+    ) as demo:
         batch_state = gr.State([])
         chat_state = gr.State([])
-        gr.HTML(f"<style>{_load_workbench_css()}</style>")
-        gr.Markdown(
-            "医院与个人辅助筛查工作台\n"
-            "# 牙齿病变区域识别\n"
-            "上传牙科影像，查看模型输入、检测框和辅助建议。结果仅供参考，不能替代专业牙科医生诊断。"
+        gr.HTML(
+            """
+            <header class="app-header">
+              <div>
+                <div class="eyebrow">医院与个人辅助筛查工作台</div>
+                <h1 class="app-title">牙齿病变区域识别</h1>
+                <p class="app-subtitle">上传牙科影像，查看模型输入、检测框和辅助建议。结果仅供参考，不能替代专业牙科医生诊断。</p>
+              </div>
+              <span class="status-badge">Dental AI Workbench</span>
+            </header>
+            """
         )
 
-        with gr.Tabs():
+        with gr.Tabs(elem_classes=["main-tabs"]):
             with gr.Tab("检测工作台"):
-                with gr.Row():
-                    with gr.Column(scale=4):
-                        with gr.Tabs():
-                            with gr.Tab("单张分析"):
-                                image = gr.Image(
-                                    type="pil",
-                                    label="拖拽或点击上传牙科影像",
-                                    height=390,
-                                    sources=["upload", "clipboard"],
-                                )
-                                run_btn = gr.Button("开始分析", variant="primary")
-                            with gr.Tab("批量分析"):
-                                batch_files = gr.File(
-                                    label="批量上传图片",
-                                    file_count="multiple",
-                                    file_types=["image"],
-                                )
-                                batch_btn = gr.Button("批量分析", variant="primary")
-                                batch_select = gr.Dropdown(label="查看某张图片", choices=[])
-                                export_batch_btn = gr.Button("一键导出批量结果", interactive=False)
-                                batch_export_file = gr.File(label="批量结果 ZIP", visible=False)
-                                batch_export_path = gr.Textbox(label="导出路径", interactive=False)
+                with gr.Row(elem_classes=["workbench-grid"]):
+                    with gr.Column(scale=4, elem_classes=["control-panel"]):
+                        with gr.Group(elem_classes=["section-card", "upload-card"]):
+                            with gr.Tabs(elem_classes=["sub-tabs"]):
+                                with gr.Tab("单张分析"):
+                                    image = gr.Image(
+                                        type="pil",
+                                        label="上传牙科影像",
+                                        height=390,
+                                        sources=["upload", "clipboard"],
+                                        elem_classes=["upload-input"],
+                                    )
+                                    run_btn = gr.Button(
+                                        "开始分析",
+                                        variant="primary",
+                                        elem_classes=["primary-action"],
+                                    )
+                                with gr.Tab("批量分析"):
+                                    batch_files = gr.File(
+                                        label="批量上传图片",
+                                        file_count="multiple",
+                                        file_types=["image"],
+                                        elem_classes=["upload-input"],
+                                    )
+                                    batch_btn = gr.Button(
+                                        "批量分析",
+                                        variant="primary",
+                                        elem_classes=["primary-action"],
+                                    )
+                                    batch_select = gr.Dropdown(label="查看图片", choices=[])
+                                    with gr.Row(elem_classes=["compact-row"]):
+                                        export_batch_btn = gr.Button(
+                                            "导出批量结果",
+                                            interactive=False,
+                                            elem_classes=["secondary-action"],
+                                        )
+                                        batch_export_file = gr.File(label="批量结果 ZIP", visible=False)
+                                    batch_export_path = gr.Textbox(
+                                        label="批量导出路径",
+                                        interactive=False,
+                                        elem_classes=["path-output"],
+                                    )
 
-                        with gr.Row():
+                        with gr.Group(elem_classes=["section-card", "panel-card"]):
+                            gr.Markdown("### 推理设置", elem_classes=["card-title"])
                             model_mode = gr.Radio(
                                 choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
                                 value=saved.model_mode,
                                 label="模型模式",
+                                elem_classes=["segmented-control"],
                             )
                             if len(device_choices) > 2:
                                 device_choice = gr.Dropdown(
                                     choices=device_choices,
                                     value=_default_device_choice(),
                                     label="推理设备",
+                                    elem_classes=["compact-control"],
                                 )
                             else:
                                 device_choice = gr.Radio(
                                     choices=device_choices,
                                     value=_default_device_choice(),
                                     label="推理设备",
+                                    elem_classes=["segmented-control"],
                                 )
-                        with gr.Row():
-                            conf = gr.Slider(0.05, 0.95, value=0.25, step=0.05, label="置信度")
-                            iou = gr.Slider(0.1, 0.9, value=0.7, step=0.05, label="IoU")
-                        use_clahe = gr.Checkbox(
-                            value=False,
-                            label="使用 CLAHE 增强后推理（适合低对比度牙片）",
-                        )
+                            with gr.Row(elem_classes=["compact-row"]):
+                                conf = gr.Slider(0.05, 0.95, value=0.25, step=0.05, label="置信度")
+                                iou = gr.Slider(0.1, 0.9, value=0.7, step=0.05, label="IoU")
+                            use_clahe = gr.Checkbox(
+                                value=False,
+                                label="CLAHE 增强推理",
+                                info="适合低对比度牙片，默认关闭。",
+                            )
 
-                    with gr.Column(scale=7):
-                        with gr.Row():
-                            original_output = gr.Image(type="pil", label="原始上传图", height=260)
-                            model_input_output = gr.Image(type="pil", label="实际送入模型的图", height=260)
-                            result_output = gr.Image(type="pil", label="检测结果图", height=260)
-                        det_table = gr.Dataframe(
-                            headers=TABLE_COLUMNS,
-                            label="检测框表格",
-                            wrap=False,
-                            interactive=False,
-                        )
-                        advice_box = gr.Textbox(label="牙齿辅助建议", lines=7, interactive=False)
-                        quality_box = gr.Textbox(
-                            value="尚未上传图片。",
-                            label="图像质量提示",
-                            lines=5,
-                            interactive=False,
-                        )
-                        summary = gr.JSON(label="参数与检测摘要", visible=False)
-                        with gr.Row():
-                            export_report_btn = gr.Button("检测完成后可导出报告", interactive=False)
-                            report_file = gr.File(label="单图报告 ZIP", visible=False)
-                        report_path = gr.Textbox(label="报告路径", interactive=False)
+                    with gr.Column(scale=7, elem_classes=["result-panel"]):
+                        with gr.Row(elem_classes=["image-grid"]):
+                            original_output = gr.Image(
+                                type="pil",
+                                label="原图",
+                                height=260,
+                                elem_classes=["result-card"],
+                            )
+                            model_input_output = gr.Image(
+                                type="pil",
+                                label="模型输入",
+                                height=260,
+                                elem_classes=["result-card"],
+                            )
+                            result_output = gr.Image(
+                                type="pil",
+                                label="检测结果",
+                                height=260,
+                                elem_classes=["result-card"],
+                            )
+                        with gr.Group(elem_classes=["section-card", "result-table-card"]):
+                            det_table = gr.Dataframe(
+                                headers=TABLE_COLUMNS,
+                                label="检测框",
+                                wrap=False,
+                                interactive=False,
+                            )
+                        with gr.Row(elem_classes=["insight-grid"]):
+                            advice_box = gr.Textbox(
+                                label="牙齿辅助建议",
+                                lines=7,
+                                interactive=False,
+                                elem_classes=["panel-card"],
+                            )
+                            quality_box = gr.Textbox(
+                                value="等待上传图像",
+                                label="图像质量提示",
+                                lines=7,
+                                interactive=False,
+                                elem_classes=["panel-card"],
+                            )
+                        summary = gr.JSON(label="参数摘要", visible=False)
+                        with gr.Group(elem_classes=["section-card", "export-toolbar"]):
+                            with gr.Row(elem_classes=["path-row"]):
+                                report_path = gr.Textbox(
+                                    label="报告路径",
+                                    interactive=False,
+                                    scale=8,
+                                    elem_classes=["path-output"],
+                                )
+                                export_report_btn = gr.Button(
+                                    "报告导出",
+                                    interactive=False,
+                                    elem_classes=["secondary-action"],
+                                    scale=2,
+                                )
+                                report_file = gr.File(label="单图报告 ZIP", visible=False)
 
             with gr.Tab("AI 问答"):
-                chatbot = gr.Chatbot(label="问答记录", height=360)
-                with gr.Row():
-                    chat_input = gr.Textbox(label="继续提问", scale=6)
-                    chat_btn = gr.Button("发送", variant="primary", scale=1)
-                with gr.Row():
-                    export_btn = gr.Button("导出当前对话")
-                    export_file = gr.File(label="导出的对话文件", visible=False)
-                export_path = gr.Textbox(label="导出路径", interactive=False)
+                with gr.Group(elem_classes=["section-card", "chat-card"]):
+                    gr.HTML(
+                        '<div class="card-heading"><div><h2>AI 问答</h2>'
+                        '<p>完成检测后，可以继续追问关注区域和复查建议。</p></div>'
+                        '<span class="status-badge">自动保存可在设置中调整</span></div>'
+                    )
+                    chatbot = gr.Chatbot(
+                        label="问答记录",
+                        height=420,
+                        placeholder="暂无对话。完成检测后，可以继续追问病变位置、可能风险和复查建议。",
+                    )
+                    with gr.Row(elem_classes=["chat-input-row"]):
+                        chat_input = gr.Textbox(
+                            label="继续提问",
+                            placeholder="例如：这个结果需要重点复查哪些位置？",
+                            scale=7,
+                        )
+                        chat_btn = gr.Button(
+                            "发送",
+                            variant="primary",
+                            scale=1,
+                            elem_classes=["primary-action", "compact-button"],
+                        )
+                    with gr.Row(elem_classes=["path-row"]):
+                        export_path = gr.Textbox(
+                            label="导出路径",
+                            interactive=False,
+                            scale=8,
+                            elem_classes=["path-output"],
+                        )
+                        export_btn = gr.Button(
+                            "导出对话",
+                            scale=2,
+                            elem_classes=["secondary-action"],
+                        )
+                        export_file = gr.File(label="导出的对话文件", visible=False)
 
             with gr.Tab("病例记录"):
-                gr.Markdown(
-                    "保存当前检测摘要、检测框和建议，便于后续复查。不会自动保存原始牙片图片。"
-                )
-                with gr.Row():
-                    case_id = gr.Textbox(label="病例编号 / 备注名称", placeholder="例如：20260602-复查")
-                    case_note = gr.Textbox(label="病例备注", placeholder="可填写主诉、复查说明或医生备注")
-                with gr.Row():
-                    save_case_btn = gr.Button(
-                        "检测完成后可保存病例",
-                        variant="primary",
-                        interactive=False,
+                with gr.Group(elem_classes=["section-card", "case-card"]):
+                    gr.HTML(
+                        '<div class="card-heading"><div><h2>病例记录</h2>'
+                        '<p>保存检测摘要、检测框和建议，便于后续复查。</p></div></div>'
                     )
-                    refresh_case_btn = gr.Button("刷新病例记录")
-                case_feedback = gr.Textbox(label="病例反馈", interactive=False)
-                case_select = gr.Dropdown(label="已保存病例", choices=_case_choices(saved.storage_dir))
-                case_detail = gr.JSON(label="病例详情")
+                    with gr.Row(elem_classes=["compact-row"]):
+                        case_id = gr.Textbox(label="病例编号 / 备注名称", placeholder="例如：20260602-复查")
+                        case_note = gr.Textbox(label="病例备注", placeholder="可填写主诉、复查说明或医生备注")
+                    with gr.Row(elem_classes=["compact-row"]):
+                        save_case_btn = gr.Button(
+                            "完成检测后可保存",
+                            variant="primary",
+                            interactive=False,
+                            elem_classes=["primary-action", "compact-button"],
+                        )
+                        refresh_case_btn = gr.Button(
+                            "刷新记录",
+                            elem_classes=["secondary-action", "compact-button"],
+                        )
+                    case_feedback = gr.Textbox(label="病例反馈", interactive=False, lines=2)
+                    with gr.Accordion("说明", open=False):
+                        gr.Markdown("病例记录仅保存检测摘要、检测框和建议，不自动保存原始牙片图片。")
+                with gr.Group(elem_classes=["section-card", "case-card"]):
+                    case_select = gr.Dropdown(label="已保存病例", choices=_case_choices(saved.storage_dir))
+                    case_detail = gr.JSON(label="病例详情")
 
             with gr.Tab("设置"):
-                with gr.Tabs():
+                with gr.Tabs(elem_classes=["settings-tabs"]):
                     with gr.Tab("检测显示"):
-                        enable_compare = gr.Checkbox(value=True, label="允许主界面使用对比模型模式")
-                        show_summary = gr.Checkbox(value=False, label="显示参数分析和摘要")
+                        with gr.Group(elem_classes=["settings-card"]):
+                            gr.Markdown("### 显示选项", elem_classes=["card-title"])
+                            enable_compare = gr.Checkbox(value=True, label="允许对比模型模式")
+                            show_summary = gr.Checkbox(value=False, label="显示参数分析摘要")
+                            with gr.Accordion("帮助", open=False):
+                                gr.Markdown("对比模型会在单张分析时运行两组模型；参数摘要用于查看推理配置和检测数量。")
                     with gr.Tab("模型选择"):
-                        settings_model_mode = gr.Radio(
-                            choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
-                            value=saved.model_mode,
-                            label="模型模式",
-                        )
-                        model_dir = gr.Textbox(
-                            value=str(Path(saved.model_dir).expanduser().resolve()),
-                            label="模型文件默认目录",
-                            info="下方下拉框会扫描该目录及子目录中的 .pt 文件。",
-                        )
-                        gr.Markdown("三点按钮会打开当前模型目录；Web 前端不能直接读取 Windows 原生选择器返回的绝对路径。")
-                        with gr.Row():
-                            refresh_model_btn = gr.Button("刷新模型列表")
-                            open_model_dir_btn = gr.Button("...", size="sm")
-                        model_file_select = gr.Dropdown(
-                            choices=model_choices,
-                            value=model_choices[0][1] if model_choices else None,
-                            label="当前目录模型文件",
-                        )
-                        model_apply_target = gr.Radio(
-                            choices=["主模型", "对比模型"],
-                            value="主模型",
-                            label="填入位置",
-                        )
-                        apply_model_btn = gr.Button("使用选中的模型文件")
-                        primary_model_path = gr.Textbox(
-                            value=_model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH)),
-                            label="主模型路径",
-                        )
-                        compare_model_path = gr.Textbox(
-                            value=_model_path_or_default(
-                                saved.compare_model_path,
-                                str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
-                            ),
-                            label="对比模型路径",
-                            visible=saved.model_mode == MODEL_MODE_COMPARE,
-                        )
-                        test_model_btn = gr.Button("测试模型文件")
-                        model_feedback = gr.Textbox(label="模型反馈", interactive=False)
+                        with gr.Group(elem_classes=["settings-card"]):
+                            gr.Markdown("### 模型文件", elem_classes=["card-title"])
+                            settings_model_mode = gr.Radio(
+                                choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
+                                value=saved.model_mode,
+                                label="模型模式",
+                                elem_classes=["segmented-control"],
+                            )
+                            with gr.Row(elem_classes=["path-row"]):
+                                model_dir = gr.Textbox(
+                                    value=str(Path(saved.model_dir).expanduser().resolve()),
+                                    label="模型目录",
+                                    scale=8,
+                                )
+                                open_model_dir_btn = gr.Button(
+                                    "...",
+                                    size="sm",
+                                    scale=1,
+                                    elem_classes=["icon-action"],
+                                )
+                                refresh_model_btn = gr.Button(
+                                    "刷新",
+                                    scale=2,
+                                    elem_classes=["secondary-action"],
+                                )
+                            model_file_select = gr.Dropdown(
+                                choices=model_choices,
+                                value=model_choices[0][1] if model_choices else None,
+                                label="目录内模型",
+                            )
+                            with gr.Row(elem_classes=["compact-row"]):
+                                model_apply_target = gr.Radio(
+                                    choices=["主模型", "对比模型"],
+                                    value="主模型",
+                                    label="填入位置",
+                                    elem_classes=["segmented-control"],
+                                )
+                                apply_model_btn = gr.Button(
+                                    "使用选中模型",
+                                    elem_classes=["secondary-action"],
+                                )
+                            primary_model_path = gr.Textbox(
+                                value=_model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH)),
+                                label="主模型路径",
+                            )
+                            compare_model_path = gr.Textbox(
+                                value=_model_path_or_default(
+                                    saved.compare_model_path,
+                                    str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
+                                ),
+                                label="对比模型路径",
+                                visible=saved.model_mode == MODEL_MODE_COMPARE,
+                            )
+                            with gr.Row(elem_classes=["compact-row"]):
+                                test_model_btn = gr.Button(
+                                    "测试模型",
+                                    elem_classes=["secondary-action", "compact-button"],
+                                )
+                            model_feedback = gr.Textbox(label="模型反馈", interactive=False, lines=3)
+                            with gr.Accordion("帮助", open=False):
+                                gr.Markdown("刷新会扫描模型目录及子目录中的 `.pt` 文件；三点按钮用于打开当前模型目录。")
                     with gr.Tab("AI 建议"):
-                        ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
-                        with gr.Group(visible=saved.enabled) as ai_group:
-                            ai_model = gr.Textbox(value=saved.model, label="模型")
-                            base_url = gr.Textbox(value=saved.base_url, label="接口 API / base_url")
-                            key_mode = gr.Radio(
-                                choices=["环境变量", "直接 Key 值"],
-                                value=saved.key_mode,
-                                label="API Key 类型",
-                            )
-                            env_api_key = gr.Textbox(
-                                value=env_key_value,
-                                label="环境变量名",
-                                placeholder="例如：DEEPSEEK_API_KEY",
-                                info="填写系统或启动环境中的环境变量名称，程序会从该变量读取真实 Key。",
-                                visible=saved.key_mode == "环境变量",
-                            )
-                            direct_api_key_hidden = gr.Textbox(
-                                value=direct_key_value,
-                                label="直接 API Key",
-                                type="password",
-                                placeholder="请输入真实 API Key",
-                                info="默认不保存真实 Key；只有勾选“保存 API Key 到本地配置”后才会写入用户目录。",
-                                visible=saved.key_mode == "直接 Key 值",
-                            )
-                            direct_api_key_visible = gr.Textbox(
-                                value=direct_key_value,
-                                label="直接 API Key",
-                                type="text",
-                                placeholder="请输入真实 API Key",
-                                info="当前为明文显示，注意旁人可见。",
-                                visible=False,
-                            )
-                            direct_key_visible = gr.State(False)
-                            show_direct_key_btn = gr.Button(
-                                "显示 Key",
-                                visible=saved.key_mode == "直接 Key 值",
-                                size="sm",
-                            )
-                            save_key = gr.Checkbox(value=saved.save_api_key, label="保存 API Key 到本地配置")
-                            custom_prompt = gr.Textbox(
-                                value=saved.custom_prompt or DEFAULT_AI_PROMPT,
-                                label="AI 建议 Prompt",
-                                lines=7,
-                            )
-                            test_btn = gr.Button("测试接口")
-                            test_result = gr.Textbox(label="测试反馈", interactive=False)
+                        with gr.Group(elem_classes=["settings-card"]):
+                            ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
+                            with gr.Group(visible=saved.enabled, elem_classes=["panel-card"]) as ai_group:
+                                with gr.Row(elem_classes=["compact-row"]):
+                                    ai_model = gr.Textbox(value=saved.model, label="模型")
+                                    base_url = gr.Textbox(value=saved.base_url, label="Base URL")
+                                key_mode = gr.Radio(
+                                    choices=["环境变量", "直接 Key 值"],
+                                    value=saved.key_mode,
+                                    label="API Key 类型",
+                                    elem_classes=["segmented-control"],
+                                )
+                                env_api_key = gr.Textbox(
+                                    value=env_key_value,
+                                    label="环境变量名",
+                                    placeholder="例如：DEEPSEEK_API_KEY",
+                                    info="填写环境变量名称。",
+                                    visible=saved.key_mode == "环境变量",
+                                )
+                                direct_api_key_hidden = gr.Textbox(
+                                    value=direct_key_value,
+                                    label="直接 API Key",
+                                    type="password",
+                                    placeholder="请输入真实 API Key",
+                                    info="默认不保存真实 Key。",
+                                    visible=saved.key_mode == "直接 Key 值",
+                                )
+                                direct_api_key_visible = gr.Textbox(
+                                    value=direct_key_value,
+                                    label="直接 API Key",
+                                    type="text",
+                                    placeholder="请输入真实 API Key",
+                                    info="当前为明文显示。",
+                                    visible=False,
+                                )
+                                direct_key_visible = gr.State(False)
+                                with gr.Row(elem_classes=["compact-row"]):
+                                    show_direct_key_btn = gr.Button(
+                                        "显示 Key",
+                                        visible=saved.key_mode == "直接 Key 值",
+                                        size="sm",
+                                        elem_classes=["secondary-action", "compact-button"],
+                                    )
+                                    save_key = gr.Checkbox(value=saved.save_api_key, label="保存 API Key 到本地配置")
+                                custom_prompt = gr.Textbox(
+                                    value=saved.custom_prompt or DEFAULT_AI_PROMPT,
+                                    label="AI 建议 Prompt",
+                                    lines=7,
+                                )
+                                with gr.Row(elem_classes=["compact-row"]):
+                                    test_btn = gr.Button(
+                                        "测试接口",
+                                        elem_classes=["secondary-action", "compact-button"],
+                                    )
+                                test_result = gr.Textbox(label="测试反馈", interactive=False, lines=2)
+                                with gr.Accordion("接口说明", open=False):
+                                    gr.Markdown(
+                                        "兼容 OpenAI Chat Completions。测试请求仅发送 `请只回复 OK`，"
+                                        "字段限定为 `model`、`messages`、`temperature`、`max_tokens`。"
+                                    )
                     with gr.Tab("对话记录"):
-                        auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
-                        gr.Markdown("三点按钮会打开当前数据目录；如需更换位置，请在输入框中填写目标目录后保存设置。")
-                        with gr.Row():
-                            storage_dir = gr.Textbox(
-                                value=saved.storage_dir,
-                                label="存储位置（数据根目录）",
-                                scale=8,
-                            )
-                            open_storage_btn = gr.Button("...", size="sm", scale=1)
-                            default_storage_btn = gr.Button("恢复默认目录")
+                        with gr.Group(elem_classes=["settings-card"]):
+                            auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
+                            with gr.Row(elem_classes=["path-row"]):
+                                storage_dir = gr.Textbox(
+                                    value=saved.storage_dir,
+                                    label="存储目录",
+                                    scale=8,
+                                )
+                                open_storage_btn = gr.Button(
+                                    "...",
+                                    size="sm",
+                                    scale=1,
+                                    elem_classes=["icon-action"],
+                                )
+                                default_storage_btn = gr.Button(
+                                    "恢复默认",
+                                    scale=2,
+                                    elem_classes=["secondary-action"],
+                                )
+                            with gr.Accordion("帮助", open=False):
+                                gr.Markdown("对话、导出和病例记录会保存在该数据根目录下；更换目录后保存设置即可迁移。")
                     with gr.Tab("高级接口"):
-                        gr.Markdown(
-                            "第一版固定使用 OpenAI-compatible Chat Completions `/v1/chat/completions`。"
-                            "请求字段只使用 `model`、`messages`、`temperature`、`max_tokens`。"
-                        )
-                save_settings_btn = gr.Button("保存设置", variant="primary")
+                        with gr.Group(elem_classes=["settings-card"]):
+                            gr.Markdown("用于接入兼容 OpenAI Chat Completions 的服务。")
+                            with gr.Accordion("查看接口说明", open=False):
+                                gr.Markdown(
+                                    "第一版固定使用 `/v1/chat/completions`，"
+                                    "请求字段只使用 `model`、`messages`、`temperature`、`max_tokens`。"
+                                )
+                with gr.Row(elem_classes=["settings-actions"]):
+                    save_settings_btn = gr.Button(
+                        "保存设置",
+                        variant="primary",
+                        elem_classes=["primary-action", "compact-button"],
+                    )
                 settings_feedback = gr.HTML()
 
         common_inputs = [
@@ -1747,5 +1919,7 @@ if __name__ == "__main__":
         server_name=args.server_name,
         server_port=args.server_port,
         share=args.share,
+        theme=_workbench_theme(),
+        css=_load_workbench_css(),
         allowed_paths=[str(root) for root in _allowed_file_roots()],
     )
