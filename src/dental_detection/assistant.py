@@ -47,9 +47,18 @@ DEFAULT_AI_PROMPT = (
 )
 CLASS_ADVICE = {
     "Caries": "疑似龋坏相关区域。建议关注该区域是否有冷热刺激痛、食物嵌塞或颜色改变，并预约牙科检查确认。",
-    "Periapical_Lesion": "疑似根尖周相关异常区域。建议结合疼痛、咬合不适、牙龈肿胀等症状，由牙科医生复查根尖区域。",
+    "Periapical Lesion": "疑似根尖周相关异常区域。建议结合疼痛、咬合不适、牙龈肿胀等症状，由牙科医生复查根尖区域。",
     "Impacted": "疑似阻生牙相关区域。建议关注局部清洁难度、反复发炎或邻牙受影响风险，并咨询牙科医生评估。",
 }
+
+
+def _normalize_class_name(name: str) -> str:
+    """将类别名统一规范化：下划线替换为空格，去除首尾空白。
+
+    用于 CLASS_ADVICE 查找，消除 "Periapical_Lesion" 与
+    "Periapical Lesion" 之间的不一致。
+    """
+    return name.replace("_", " ").strip()
 
 
 @dataclass
@@ -125,7 +134,35 @@ def load_settings() -> AiSettings:
         return AiSettings()
     allowed = {field.name for field in fields(AiSettings)}
     defaults = AiSettings().__dict__
-    filtered = {key: value for key, value in data.items() if key in allowed}
+
+    # 类型校验：防止损坏的 settings.json 在模块导入阶段导致 Path(123) 等 TypeError
+    _STRING_FIELDS = {
+        "base_url", "model", "key_mode", "api_key", "storage_dir",
+        "custom_prompt", "model_mode", "model_dir",
+        "primary_model_path", "compare_model_path",
+    }
+    _BOOL_FIELDS = {"enabled", "save_api_key", "auto_save"}
+
+    filtered: dict[str, Any] = {}
+    for key, value in data.items():
+        if key not in allowed:
+            continue
+        if key in _STRING_FIELDS:
+            if isinstance(value, (int, float, bool)):
+                filtered[key] = str(value)
+            elif isinstance(value, str):
+                filtered[key] = value
+            # 非字符串/数字/布尔类型（列表、字典等）丢弃，使用默认值
+        elif key in _BOOL_FIELDS:
+            if isinstance(value, bool):
+                filtered[key] = value
+            elif isinstance(value, str):
+                filtered[key] = value.lower() in {"true", "1", "yes", "on"}
+            elif isinstance(value, (int, float)):
+                filtered[key] = bool(value)
+            # 其他类型丢弃
+        else:
+            filtered[key] = value
     return AiSettings(**{**defaults, **filtered})
 
 
@@ -331,9 +368,13 @@ def default_advice(detections: list[dict[str, Any]]) -> str:
         else:
             level = "低置信度，仅供参考"
 
+        normalized = _normalize_class_name(label)
         advice = CLASS_ADVICE.get(
-            label,
-            "检测到模型标记的可疑区域。建议结合原始影像、症状和医生检查进行复核。",
+            normalized,
+            CLASS_ADVICE.get(
+                label,
+                "检测到模型标记的可疑区域。建议结合原始影像、症状和医生检查进行复核。",
+            ),
         )
         sections.append(
             f"{label}：{level}。共 {len(items)} 处，最高置信度约 {high_conf:.2f}。{advice}"

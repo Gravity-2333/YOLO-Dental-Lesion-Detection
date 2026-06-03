@@ -20,6 +20,7 @@ from PIL import ImageOps, ImageStat
 from src.dental_detection.assistant import (
     APP_HOME,
     AiSettings,
+    CONFIG_PATH,
     SAFETY_NOTICE,
     case_dir,
     default_advice,
@@ -65,7 +66,19 @@ def _workbench_theme():
 
 
 def _allowed_file_roots() -> list[Path]:
-    roots = [Path.home(), PROJECT_ROOT.parent, APP_HOME, STARTUP_STORAGE_ROOT]
+    # 动态读取当前设置中的 storage_dir，确保更换存储目录后导出下载入口仍然可用
+    try:
+        current_storage = Path(load_settings().storage_dir).expanduser()
+    except Exception:
+        current_storage = None
+    roots = [
+        Path.home(),
+        PROJECT_ROOT.parent,
+        APP_HOME,
+        STARTUP_STORAGE_ROOT,
+    ]
+    if current_storage and current_storage.exists():
+        roots.append(current_storage)
     resolved: list[Path] = []
     for root in roots:
         if root.exists():
@@ -367,6 +380,8 @@ def _current_item(batch_state: list[dict[str, Any]], selected_name: str | None =
         for item in batch_state:
             if item.get("display_name") == selected_name or item.get("name") == selected_name:
                 return item
+        # 有选中名称但未匹配到任何项 → 抛出明确错误，不静默回退
+        raise gr.Error("当前选择的结果已失效，请重新选择图片。")
     return batch_state[0]
 
 
@@ -602,10 +617,18 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     advice = item.get("advice") or ""
     detections = result.get("detections", [])
     summary_data = item.get("summary", {})
+    # 优先取 result 顶层 model（批量检测），其次取 summary["模型结果"][0]["模型"]（单图检测）
+    model_name = result.get("model")
+    if not model_name:
+        model_results = summary_data.get("模型结果", [])
+        model_name = model_results[0].get("模型") if model_results else None
+    if not model_name:
+        model_name = summary_data.get("模型", "unknown")
+
     export_info = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "image_name": name,
-        "model": result.get("model", summary_data.get("模型", "unknown")),
+        "model": model_name,
         "suggestion_type": item.get("suggestion_type", "default"),
         "safety_notice": SAFETY_NOTICE,
     }
@@ -1253,23 +1276,26 @@ def open_storage_dir(storage_dir: str):
     return _toast(f"已打开当前数据目录：{path.resolve()}")
 
 
-def _with_current_defaults(saved: AiSettings) -> AiSettings:
-    if (
-        saved.base_url == "https://api.openai.com/v1"
-        and saved.model == "gpt-4o-mini"
-        and saved.key_mode == "环境变量"
-        and saved.api_key in {"", "OPENAI_API_KEY"}
-    ):
-        saved.base_url = DEFAULT_AI_BASE_URL
-        saved.model = DEFAULT_AI_MODEL
-        saved.api_key = DEFAULT_AI_KEY_ENV
-    if (saved.custom_prompt or "").strip().lower() in {"", "prompt"}:
-        saved.custom_prompt = DEFAULT_AI_PROMPT
+def _with_current_defaults(saved: AiSettings, *, config_exists: bool = False) -> AiSettings:
+    # 仅当 settings.json 不存在（首次运行）时才迁移旧默认配置。
+    # 若文件已存在，说明用户已保存过设置，不应静默覆盖。
+    if not config_exists:
+        if (
+            saved.base_url == "https://api.openai.com/v1"
+            and saved.model == "gpt-4o-mini"
+            and saved.key_mode == "环境变量"
+            and saved.api_key in {"", "OPENAI_API_KEY"}
+        ):
+            saved.base_url = DEFAULT_AI_BASE_URL
+            saved.model = DEFAULT_AI_MODEL
+            saved.api_key = DEFAULT_AI_KEY_ENV
+        if (saved.custom_prompt or "").strip().lower() in {"", "prompt"}:
+            saved.custom_prompt = DEFAULT_AI_PROMPT
     return saved
 
 
 def build_app() -> gr.Blocks:
-    saved = _with_current_defaults(load_settings())
+    saved = _with_current_defaults(load_settings(), config_exists=CONFIG_PATH.exists())
     ensure_app_dirs(saved.storage_dir)
     env_key_value, direct_key_value = _api_key_inputs(saved)
     model_choices = _scan_model_files(saved.model_dir)
