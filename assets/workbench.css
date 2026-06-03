@@ -46,6 +46,16 @@ select {
 
 table {
   font-size: 0.92rem !important;
+  min-width: 560px !important;
+}
+
+th,
+td {
+  white-space: nowrap !important;
+}
+
+.gradio-container .table-wrap {
+  overflow-x: auto !important;
 }
 
 .gradio-container .prose {
@@ -100,8 +110,32 @@ textarea[aria-label="设置反馈"] {
   animation: app-toast-in 180ms ease-out, app-toast-out 420ms ease-in 4.4s forwards;
 }
 
+.app-toast,
+.app-toast * {
+  color: #fff !important;
+}
+
 .app-toast-success {
   background: #0f766e;
+}
+
+@media (max-width: 640px) {
+  table {
+    width: 100% !important;
+    min-width: 100% !important;
+    font-size: 0.72rem !important;
+  }
+
+  th,
+  td {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+
+  th:nth-child(2),
+  td:nth-child(2) {
+    min-width: 78px !important;
+  }
 }
 
 @keyframes app-toast-in {

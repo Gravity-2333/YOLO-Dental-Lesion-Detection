@@ -1304,7 +1304,7 @@ def build_app() -> gr.Blocks:
                         det_table = gr.Dataframe(
                             headers=TABLE_COLUMNS,
                             label="检测框表格",
-                            wrap=True,
+                            wrap=False,
                             interactive=False,
                         )
                         advice_box = gr.Textbox(label="牙齿辅助建议", lines=7, interactive=False)
