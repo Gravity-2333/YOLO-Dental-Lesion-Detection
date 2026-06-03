@@ -1413,11 +1413,16 @@ def build_app() -> gr.Blocks:
                         with gr.Group(elem_classes=["section-card", "upload-card"]):
                             with gr.Tabs(elem_classes=["sub-tabs"]):
                                 with gr.Tab("单张分析"):
+                                    gr.HTML(
+                                        '<div class="section-heading"><h2>上传影像</h2>'
+                                        '<p>拖拽牙科影像到此处，支持常见图片格式。</p></div>'
+                                    )
                                     image = gr.Image(
                                         type="pil",
                                         label="上传牙科影像",
-                                        height=390,
+                                        height=280,
                                         sources=["upload", "clipboard"],
+                                        placeholder="拖拽牙科影像到此处\n支持常见图片格式",
                                         elem_classes=["upload-input"],
                                     )
                                     run_btn = gr.Button(
@@ -1426,7 +1431,10 @@ def build_app() -> gr.Blocks:
                                         elem_classes=["primary-action"],
                                     )
                                 with gr.Tab("批量分析"):
-                                    gr.Markdown("> 批量分析仅使用主模型，不运行对比模型。", elem_classes=["batch-hint"])
+                                    gr.HTML(
+                                        '<div class="section-heading"><h2>批量上传</h2>'
+                                        '<p>批量分析使用主模型逐张检测，可在完成后导出结果包。</p></div>'
+                                    )
                                     batch_files = gr.File(
                                         label="批量上传图片",
                                         file_count="multiple",
@@ -1453,7 +1461,7 @@ def build_app() -> gr.Blocks:
                                     )
 
                         with gr.Group(elem_classes=["section-card", "panel-card"]):
-                            gr.Markdown("### 推理设置", elem_classes=["card-title"])
+                            gr.HTML('<div class="section-heading"><h2>推理设置</h2></div>')
                             model_mode = gr.Radio(
                                 choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
                                 value=saved.model_mode,
@@ -1479,7 +1487,7 @@ def build_app() -> gr.Blocks:
                                 iou = gr.Slider(0.1, 0.9, value=0.7, step=0.05, label="IoU")
                             use_clahe = gr.Checkbox(
                                 value=False,
-                                label="CLAHE 增强推理",
+                                label="CLAHE 增强",
                                 info="适合低对比度牙片，默认关闭。",
                             )
 
@@ -1489,18 +1497,21 @@ def build_app() -> gr.Blocks:
                                 type="pil",
                                 label="原图",
                                 height=260,
+                                placeholder="等待上传",
                                 elem_classes=["result-card"],
                             )
                             model_input_output = gr.Image(
                                 type="pil",
                                 label="模型输入",
                                 height=260,
+                                placeholder="等待推理",
                                 elem_classes=["result-card"],
                             )
                             result_output = gr.Image(
                                 type="pil",
                                 label="检测结果",
                                 height=260,
+                                placeholder="等待检测",
                                 elem_classes=["result-card"],
                             )
                         with gr.Group(elem_classes=["section-card", "result-table-card"]):
@@ -1550,8 +1561,9 @@ def build_app() -> gr.Blocks:
                     )
                     chatbot = gr.Chatbot(
                         label="问答记录",
-                        height=420,
+                        height=500,
                         placeholder="暂无对话。完成检测后，可以继续追问病变位置、可能风险和复查建议。",
+                        elem_classes=["chat-window"],
                     )
                     with gr.Row(elem_classes=["chat-input-row"]):
                         chat_input = gr.Textbox(
@@ -1603,6 +1615,7 @@ def build_app() -> gr.Blocks:
                     with gr.Accordion("说明", open=False):
                         gr.Markdown("病例记录仅保存检测摘要、检测框和建议，不自动保存原始牙片图片。")
                 with gr.Group(elem_classes=["section-card", "case-card"]):
+                    gr.HTML('<div class="section-heading"><h2>已保存病例</h2><p>选择记录后查看结构化详情。</p></div>')
                     case_select = gr.Dropdown(label="已保存病例", choices=_case_choices(saved.storage_dir))
                     case_detail = gr.JSON(label="病例详情")
 
@@ -1610,14 +1623,14 @@ def build_app() -> gr.Blocks:
                 with gr.Tabs(elem_classes=["settings-tabs"]):
                     with gr.Tab("检测显示"):
                         with gr.Group(elem_classes=["settings-card"]):
-                            gr.Markdown("### 显示选项", elem_classes=["card-title"])
+                            gr.HTML('<div class="section-heading"><h2>显示选项</h2><p>控制主工作台中展示的分析能力。</p></div>')
                             enable_compare = gr.Checkbox(value=True, label="允许对比模型模式")
                             show_summary = gr.Checkbox(value=False, label="显示参数分析摘要")
                             with gr.Accordion("帮助", open=False):
                                 gr.Markdown("对比模型会在单张分析时运行两组模型；参数摘要用于查看推理配置和检测数量。")
                     with gr.Tab("模型选择"):
                         with gr.Group(elem_classes=["settings-card"]):
-                            gr.Markdown("### 模型文件", elem_classes=["card-title"])
+                            gr.HTML('<div class="section-heading"><h2>模型文件</h2><p>选择主模型、对比模型和模型目录。</p></div>')
                             settings_model_mode = gr.Radio(
                                 choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
                                 value=saved.model_mode,
@@ -1641,21 +1654,24 @@ def build_app() -> gr.Blocks:
                                     scale=2,
                                     elem_classes=["secondary-action"],
                                 )
-                            model_file_select = gr.Dropdown(
-                                choices=model_choices,
-                                value=model_choices[0][1] if model_choices else None,
-                                label="目录内模型",
-                            )
+                            with gr.Row(elem_classes=["compact-row"]):
+                                model_file_select = gr.Dropdown(
+                                    choices=model_choices,
+                                    value=model_choices[0][1] if model_choices else None,
+                                    label="目录内模型",
+                                    scale=8,
+                                )
+                                apply_model_btn = gr.Button(
+                                    "使用选中模型",
+                                    elem_classes=["secondary-action"],
+                                    scale=2,
+                                )
                             with gr.Row(elem_classes=["compact-row"]):
                                 model_apply_target = gr.Radio(
                                     choices=["主模型", "对比模型"],
                                     value="主模型",
                                     label="填入位置",
                                     elem_classes=["segmented-control"],
-                                )
-                                apply_model_btn = gr.Button(
-                                    "使用选中模型",
-                                    elem_classes=["secondary-action"],
                                 )
                             primary_model_path = gr.Textbox(
                                 value=_model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH)),
@@ -1674,11 +1690,12 @@ def build_app() -> gr.Blocks:
                                     "测试模型",
                                     elem_classes=["secondary-action", "compact-button"],
                                 )
-                            model_feedback = gr.Textbox(label="模型反馈", interactive=False, lines=3)
+                            model_feedback = gr.Textbox(label="模型反馈", interactive=False, lines=2)
                             with gr.Accordion("帮助", open=False):
                                 gr.Markdown("刷新会扫描模型目录及子目录中的 `.pt` 文件；三点按钮用于打开当前模型目录。")
                     with gr.Tab("AI 建议"):
                         with gr.Group(elem_classes=["settings-card"]):
+                            gr.HTML('<div class="section-heading"><h2>AI 建议</h2><p>配置检测后的辅助建议与追问能力。</p></div>')
                             ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
                             with gr.Group(visible=saved.enabled, elem_classes=["panel-card"]) as ai_group:
                                 with gr.Row(elem_classes=["compact-row"]):
@@ -1744,6 +1761,7 @@ def build_app() -> gr.Blocks:
                                     )
                     with gr.Tab("对话记录"):
                         with gr.Group(elem_classes=["settings-card"]):
+                            gr.HTML('<div class="section-heading"><h2>对话记录</h2><p>管理对话自动保存和数据目录。</p></div>')
                             auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
                             with gr.Row(elem_classes=["path-row"]):
                                 storage_dir = gr.Textbox(
@@ -1769,7 +1787,7 @@ def build_app() -> gr.Blocks:
                                 )
                     with gr.Tab("高级接口"):
                         with gr.Group(elem_classes=["settings-card"]):
-                            gr.Markdown("用于接入兼容 OpenAI Chat Completions 的服务。")
+                            gr.HTML('<div class="section-heading"><h2>兼容接口</h2><p>用于接入兼容 OpenAI Chat Completions 的服务。</p></div>')
                             with gr.Accordion("查看接口说明", open=False):
                                 gr.Markdown(
                                     "第一版固定使用 `/v1/chat/completions`，"
