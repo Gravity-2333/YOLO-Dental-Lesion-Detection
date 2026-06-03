@@ -39,6 +39,9 @@ class Detection:
         }
 
 
+MAX_IMAGE_PIXELS = 8000 * 8000  # 最大像素数，超过此值先等比例缩放
+
+
 def preprocess_image(image: Image.Image | np.ndarray | str | Path, use_clahe: bool = False) -> np.ndarray:
     """Normalize user input for YOLO without changing aspect ratio."""
     if isinstance(image, Image.Image):
@@ -48,6 +51,14 @@ def preprocess_image(image: Image.Image | np.ndarray | str | Path, use_clahe: bo
             pil_image = ImageOps.exif_transpose(img).convert("RGB")
     else:
         pil_image = ImageOps.exif_transpose(Image.fromarray(np.asarray(image))).convert("RGB")
+
+    # 超大图像先等比例缩放，避免内存暴涨
+    w, h = pil_image.size
+    pixels = w * h
+    if pixels > MAX_IMAGE_PIXELS:
+        scale = (MAX_IMAGE_PIXELS / pixels) ** 0.5
+        new_w, new_h = int(w * scale), int(h * scale)
+        pil_image = pil_image.resize((new_w, new_h), Image.LANCZOS)
 
     rgb = np.asarray(pil_image, dtype=np.uint8)
     if not use_clahe:

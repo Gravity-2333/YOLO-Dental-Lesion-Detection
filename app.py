@@ -370,7 +370,10 @@ def _suggestion_type(ai_enabled: bool) -> str:
 
 def _safe_stem(name: str) -> str:
     stem = Path(name).stem or "image"
-    return re.sub(r"[^A-Za-z0-9_.-]+", "_", stem).strip("._") or "image"
+    # 保留 Unicode 字母/数字、空格、中文等非 ASCII 字符，只过滤路径分隔符和控制字符
+    # Windows 禁用字符 < > : " / \\ | ? * 也被过滤
+    safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", stem).strip(" ._")
+    return safe or "image"
 
 
 def _current_item(batch_state: list[dict[str, Any]], selected_name: str | None = None) -> dict[str, Any]:
@@ -594,10 +597,16 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                 if path.is_file():
                     archive.write(path, path.relative_to(work_dir).as_posix())
     finally:
-        if work_dir.exists():
-            shutil.rmtree(work_dir)
-        if not zip_path.exists() and export_root.exists() and not any(export_root.iterdir()):
-            export_root.rmdir()
+        try:
+            if work_dir.exists():
+                shutil.rmtree(work_dir)
+        except OSError:
+            pass  # 清理失败不掩盖导出成功
+        try:
+            if not zip_path.exists() and export_root.exists() and not any(export_root.iterdir()):
+                export_root.rmdir()
+        except OSError:
+            pass
     return _file_component_output(zip_path), f"已导出：{zip_path}"
 
 
@@ -638,9 +647,15 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
             "input": f"images/{stem}_input.png",
             "result": f"images/{stem}_result.png",
         }
-        result["original"].save(work_dir / image_files["original"])
-        result["model_input"].save(work_dir / image_files["input"])
-        result["annotated"].save(work_dir / image_files["result"])
+        # None 检查：与批量导出保持一致，防止缺少图片时 AttributeError
+        original_img = result.get("original")
+        input_img = result.get("model_input")
+        annotated_img = result.get("annotated")
+        if original_img is None or input_img is None or annotated_img is None:
+            raise gr.Error(f"{name} 的结果不完整（缺少图片数据），无法导出报告。")
+        original_img.save(work_dir / image_files["original"])
+        input_img.save(work_dir / image_files["input"])
+        annotated_img.save(work_dir / image_files["result"])
 
         csv_path = work_dir / "detections.csv"
         with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
@@ -720,10 +735,16 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
                 if path.is_file():
                     archive.write(path, path.relative_to(work_dir).as_posix())
     finally:
-        if work_dir.exists():
-            shutil.rmtree(work_dir)
-        if not zip_path.exists() and report_root.exists() and not any(report_root.iterdir()):
-            report_root.rmdir()
+        try:
+            if work_dir.exists():
+                shutil.rmtree(work_dir)
+        except OSError:
+            pass  # 清理失败不掩盖导出成功
+        try:
+            if not zip_path.exists() and report_root.exists() and not any(report_root.iterdir()):
+                report_root.rmdir()
+        except OSError:
+            pass
     return _file_component_output(zip_path), f"已导出单图报告：{zip_path}"
 
 
@@ -753,7 +774,11 @@ def save_case_record(
     }
     _write_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
     choices = _case_choices(storage_dir)
-    selected = next((choice for choice in choices if path.name in choice), choices[0] if choices else None)
+    # 精确匹配：choices 格式为 "created_at | case_id | image_name | filename.json"
+    selected = next(
+        (choice for choice in choices if choice.split("|")[-1].strip() == path.name),
+        choices[0] if choices else None,
+    )
     return f"病例记录已保存：{path}", gr.update(choices=choices, value=selected), payload
 
 
@@ -785,11 +810,11 @@ def clear_outputs():
         _empty_table(),
         "",
         "等待上传图像",
-        {},
+        gr.update(value={}, visible=False),  # summary: 同时重置可见性
         [],
         gr.update(choices=[], value=None),
-        [],
-        [],
+        gr.update(),       # chatbot: 保留对话，不静默清空
+        gr.update(),       # chat_state: 保留对话状态
         _clear_file_output(),
         "",
         gr.update(interactive=False),
@@ -977,12 +1002,17 @@ def run_batch_detection(
         compare_model_path=compare_model_path,
     )
     selected_model_name, selected_model_path = _configured_models(MODEL_MODE_SINGLE, primary_model_path, compare_model_path)[0]
-    batch_state = []
+    batch_state: list[dict[str, Any]] = []
+    batch_errors: list[str] = []
     for index, file_obj in enumerate(files, start=1):
         path = getattr(file_obj, "name", None) or file_obj
         file_name = _file_name(file_obj)
-        result = _detect_model_path(selected_model_name, selected_model_path, path, use_clahe, conf, iou, device)
-        advice = _build_advice(settings, result["detections"])
+        try:
+            result = _detect_model_path(selected_model_name, selected_model_path, path, use_clahe, conf, iou, device)
+            advice = _build_advice(settings, result["detections"])
+        except Exception as exc:
+            batch_errors.append(f"{file_name}: {exc}")
+            continue
         batch_state.append(
             {
                 "name": file_name,
@@ -1003,11 +1033,24 @@ def run_batch_detection(
             }
         )
 
+    if not batch_state:
+        error_detail = "; ".join(batch_errors[:5])
+        if len(batch_errors) > 5:
+            error_detail += f" …等共 {len(batch_errors)} 张"
+        raise gr.Error(f"所有图片处理失败：{error_detail}")
+
     first = batch_state[0]
     chat_history = _conversation_from_advice(first["advice"])
     if settings.auto_save:
         save_conversation(chat_history, settings.storage_dir)
     choices = [item["display_name"] for item in batch_state]
+    # 部分失败时在第一条建议中追加失败信息
+    if batch_errors:
+        first["advice"] += f"\n\n⚠ 以下 {len(batch_errors)} 张图片处理失败：\n" + "\n".join(
+            f"- {err}" for err in batch_errors[:10]
+        )
+        if len(batch_errors) > 10:
+            first["advice"] += f"\n…等共 {len(batch_errors)} 张"
     return (
         first["result"]["original"],
         first["result"]["model_input"],
@@ -1261,6 +1304,13 @@ def toggle_model_mode(model_mode: str):
     return gr.update(visible=model_mode == MODEL_MODE_COMPARE)
 
 
+def on_enable_compare_change(enable_compare: bool):
+    """关闭'允许对比模型模式'时，强制模型模式回到单模型。"""
+    if not enable_compare:
+        return gr.update(value=MODEL_MODE_SINGLE), gr.update(visible=False)
+    return gr.update(), gr.update()
+
+
 def sync_model_mode(model_mode: str):
     return gr.update(value=model_mode), gr.update(visible=model_mode == MODEL_MODE_COMPARE)
 
@@ -1339,6 +1389,7 @@ def build_app() -> gr.Blocks:
                                         elem_classes=["primary-action"],
                                     )
                                 with gr.Tab("批量分析"):
+                                    gr.Markdown("> 批量分析仅使用主模型，不运行对比模型。", elem_classes=["batch-hint"])
                                     batch_files = gr.File(
                                         label="批量上传图片",
                                         file_count="multiple",
@@ -1797,6 +1848,11 @@ def build_app() -> gr.Blocks:
         )
         model_mode.change(fn=sync_model_mode, inputs=model_mode, outputs=[settings_model_mode, compare_model_path])
         settings_model_mode.change(fn=sync_model_mode, inputs=settings_model_mode, outputs=[model_mode, compare_model_path])
+        enable_compare.change(
+            fn=on_enable_compare_change,
+            inputs=enable_compare,
+            outputs=[model_mode, compare_model_path],
+        )
         show_summary.change(fn=toggle_summary, inputs=show_summary, outputs=summary)
         test_btn.click(
             fn=test_ai_settings,
@@ -1940,6 +1996,30 @@ if __name__ == "__main__":
     ]
     if missing:
         raise FileNotFoundError("模型文件不存在: " + "; ".join(missing))
+
+    # 验证默认模型文件是否可被 YOLO 正常加载（捕获自定义模块缺失等）
+    try:
+        test_model = YOLO(str(DEFAULT_MODEL_PATH))
+        print(f"[信息] 默认模型加载成功，类别：{test_model.names}")
+    except Exception as exc:
+        print(f"[警告] 默认模型加载失败：{exc}")
+        print("  请确认自定义 YOLO 模块路径已配置，或切换到原始结构模型。")
+
+    # 校验用户在设置中保存的模型路径是否存在
+    saved = load_settings()
+    user_model_issues = []
+    for label, path_str in [
+        ("主模型", saved.primary_model_path),
+        ("对比模型", saved.compare_model_path),
+    ]:
+        if path_str and not Path(path_str).expanduser().exists():
+            user_model_issues.append(f"{label}：{path_str}")
+    if user_model_issues:
+        print("[警告] 以下用户设置中的模型文件不存在：")
+        for issue in user_model_issues:
+            print(f"  - {issue}")
+        print("  应用仍可启动，但使用这些模型前请在设置页重新选择有效模型文件。")
+
     args = parse_args()
     build_app().launch(
         server_name=args.server_name,

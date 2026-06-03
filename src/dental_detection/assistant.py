@@ -129,6 +129,12 @@ def load_settings() -> AiSettings:
     try:
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
+        # 保留损坏文件的备份，方便用户恢复
+        try:
+            corrupt_backup = CONFIG_PATH.with_suffix(".json.corrupt")
+            CONFIG_PATH.replace(corrupt_backup)
+        except OSError:
+            pass
         return AiSettings()
     if not isinstance(data, dict):
         return AiSettings()
@@ -173,7 +179,12 @@ def save_settings(settings: AiSettings) -> Path:
     data = settings.__dict__.copy()
     if settings.key_mode == "直接 Key 值" and not settings.save_api_key:
         data["api_key"] = ""
-    CONFIG_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # 原子写入：先写临时文件，成功后再替换，防止写入中断导致配置损坏
+    content = json.dumps(data, ensure_ascii=False, indent=2)
+    tmp_path = CONFIG_PATH.with_suffix(".tmp")
+    tmp_path.write_text(content, encoding="utf-8")
+    tmp_path.replace(CONFIG_PATH)
     return CONFIG_PATH
 
 
@@ -291,10 +302,18 @@ def validate_ai_request(settings: AiSettings) -> tuple[bool, str, str]:
     return False, "", "公网 API 地址需要填写 API Key，或在环境变量模式中填写环境变量名。"
 
 
+AI_REQUEST_TIMEOUT = 30.0  # 秒，OpenAI-compatible API 请求超时
+
+
 def _client(settings: AiSettings, api_key: str) -> OpenAI:
     from openai import OpenAI
 
-    return OpenAI(base_url=normalize_base_url(settings.base_url), api_key=api_key)
+    return OpenAI(
+        base_url=normalize_base_url(settings.base_url),
+        api_key=api_key,
+        timeout=AI_REQUEST_TIMEOUT,
+        max_retries=1,
+    )
 
 
 def chat_completion(
@@ -390,10 +409,17 @@ def default_advice(detections: list[dict[str, Any]]) -> str:
 def save_conversation(messages: list[dict[str, str]], storage_dir: str | None = None) -> Path:
     ensure_app_dirs(storage_dir)
     target_dir = conversation_dir(storage_dir)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    now = datetime.now()
+    stamp = now.strftime("%Y%m%d_%H%M%S_%f")  # 微秒级精度防止同秒覆盖
     path = target_dir / f"dental_chat_{stamp}.json"
+    # 若极端情况下仍存在同名文件，追加序号
+    if path.exists():
+        counter = 1
+        while path.exists():
+            path = target_dir / f"dental_chat_{stamp}_{counter:02d}.json"
+            counter += 1
     payload = {
-        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "created_at": now.isoformat(timespec="seconds"),
         "safety_notice": SAFETY_NOTICE,
         "messages": messages,
     }
