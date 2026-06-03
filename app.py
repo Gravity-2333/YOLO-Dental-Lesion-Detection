@@ -1430,7 +1430,7 @@ def build_app() -> gr.Blocks:
                                     batch_files = gr.File(
                                         label="批量上传图片",
                                         file_count="multiple",
-                                        file_types=["image"],
+                                        file_types=[".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"],
                                         elem_classes=["upload-input"],
                                     )
                                     batch_btn = gr.Button(

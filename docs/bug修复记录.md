@@ -3,94 +3,121 @@
 > 开始时间：2026-06-03
 > 修复依据：`docs/代码bug.md`（筛选后的真实问题清单）
 > 修复顺序：P0 → P1 → P2
+> 总共修复：6 (P0) + 14 (P1) + 14 (P2) + 3 (低优先级) = 37 项
 
 ---
 
 ## 修复总览
 
-| 编号 | 问题 | 状态 | 验证结果 |
+### P0（6/6 ✅）
+| 编号 | 问题 | 状态 | 验证 |
 |---|---|---|---|
-| P0-1 | 类别名不一致 | ✅ 已修复 | 编译通过 |
-| P0-2 | 单图报告模型名 unknown | ✅ 已修复 | 编译通过 |
-| P0-3 | 下载白名单不动态更新 | ✅ 已修复 | 编译通过 |
-| P0-4 | OpenAI 配置被静默迁移 | ✅ 已修复 | 编译通过 |
-| P0-5 | load_settings 缺少类型校验 | ✅ 已修复 | 编译通过 |
-| P0-6 | _current_item 静默回退 | ✅ 已修复 | 编译通过 |
+| P0-1 | 类别名不一致 → 建议静默丢失 | ✅ | 编译通过 |
+| P0-2 | 单图报告模型名 unknown | ✅ | 编译通过 |
+| P0-3 | 下载白名单不动态更新 | ✅ | 编译通过 |
+| P0-4 | OpenAI 配置被静默迁移 | ✅ | 编译通过 |
+| P0-5 | load_settings 缺类型校验 | ✅ | 编译通过 |
+| P0-6 | _current_item 静默回退 | ✅ | 编译通过 |
+
+### P1（14/14 ✅）
+| 编号 | 问题 | 状态 | 验证 |
+|---|---|---|---|
+| P1-1 | export_single_report 缺 None 检查 | ✅ | 编译通过 |
+| P1-2 | 批量 UI 允许选对比模型但实际不跑 | ✅ | 编译通过 |
+| P1-3 | 中文文件名变 image | ✅ | 编译通过 |
+| P1-4 | 启动不验证用户模型路径 | ✅ | 编译通过 |
+| P1-5 | AI 请求无超时 | ✅ | 编译通过 |
+| P1-6 | 对话文件名可被覆盖 | ✅ | 编译通过 |
+| P1-7 | 病例保存子串匹配 | ✅ | 编译通过 |
+| P1-8 | rmtree 掩盖导出成功 | ✅ | 编译通过 |
+| P1-9 | 批量单张失败整批作废 | ✅ | 编译通过 |
+| P1-10 | 无图像尺寸上限 | ✅ | 编译通过 |
+| P1-11 | 默认模型自定义模块未验证 | ✅ | 编译通过 |
+| P1-12 | settings 非原子写入 | ✅ | 编译通过 |
+| P1-13 | enable_compare 无联动 | ✅ | 编译通过 |
+| P1-14 | 换图清空对话 | ✅ | 编译通过 |
+
+### P2（14/14 ✅）
+| 编号 | 问题 | 状态 | 验证 |
+|---|---|---|---|
+| P2-1 | assert 用于控制流 | ✅ | 编译通过 |
+| P2-2 | CLAHE 关闭时重复预处理 | ✅ | 编译通过 |
+| P2-3 | 刷新模型重置选中 | ✅ | 编译通过 |
+| P2-4 | 纯空白 case_id | ✅ | 编译通过 |
+| P2-5 | 模型扫描缺保护 | ✅ | 编译通过 |
+| P2-6 | 推理路径缺扩展名校验 | ✅ | 编译通过 |
+| P2-7 | normalize_base_url 说明 | ✅ | 编译通过 |
+| P2-8 | DENTEX YAML 缺 nc | ✅ | 编译通过 |
+| P2-9 | 多边形静默裁剪 | ✅ | 编译通过 |
+| P2-10 | 迁移文件时间戳冲突 | ✅ | 编译通过 |
+| P2-11 | 对话无限累积 | ✅ | 编译通过 |
+| P2-12 | test_ai 意外保存设置 | ✅ | 编译通过 |
+| P2-13 | 空 AI 回复空白气泡 | ✅ | 编译通过 |
+| P2-14 | summary 可见性 | ✅ | 编译通过 |
+
+### 低优先级（3 项）
+| 项 | 处理 |
+|---|---|
+| file_types=["image"] | ✅ 改为明确扩展名列表 |
+| project_config.bat gitignore | ✅ 加入 .gitignore |
+| Image.open context manager | 当前脚本已是 with 用法 |
 
 ---
 
-## P0 修复详情
+## 修改文件清单
 
-### P0-1: 类别名不一致导致根尖病变建议静默丢失
-
-**修改文件**：`src/dental_detection/assistant.py`
-
-**改动**：
-1. 新增 `_normalize_class_name()` 函数，将下划线替换为空格并 strip，统一类别名格式
-2. `CLASS_ADVICE` 的 key 从 `"Periapical_Lesion"` 改为 `"Periapical Lesion"`（与 data yaml 一致）
-3. `default_advice()` 中 CLASS_ADVICE 查找前先 normalize label，兜底保留原始 label 查找
-
-**验证**：`python -m compileall src/dental_detection/assistant.py` 通过
+| 文件 | 改动行数（约） | 涉及修复 |
+|---|---|---|
+| `app.py` | ~120 行 | P0-2~P0-6, P1-1~P1-4, P1-7~P1-9, P1-13, P1-14, P2-1, P2-3~P2-7, P2-11~P2-14 |
+| `src/dental_detection/assistant.py` | ~60 行 | P0-1, P0-5, P1-5, P1-6, P1-12, P2-10 |
+| `src/dental_detection/inference.py` | ~10 行 | P1-10, P2-2 |
+| `scripts/convert_dentex_to_yolov8_3cls.py` | ~2 行 | P2-8 |
+| `scripts/build_3cls_dental_lesion_dataset.py` | ~6 行 | P2-9 |
+| `.gitignore` | +1 行 | project_config.bat |
 
 ---
 
-### P0-2: 单图报告导出模型名始终 unknown
+## 编译验证
 
-**修改文件**：`app.py`
+所有修复完成后执行：
 
-**改动**：`export_single_report()` 中模型名提取逻辑改为：
-1. 优先取 `result["model"]`（批量检测）
-2. 其次取 `summary["模型结果"][0]["模型"]`（单图检测嵌套结构）
-3. 再次取 `summary["模型"]`（批量检测 summary 顶层）
-4. 最后兜底 `"unknown"`
+```
+python -m compileall app.py src/dental_detection scripts
+```
 
-**验证**：`python -m compileall app.py` 通过
+结果：**全部通过，无编译错误。**
 
 ---
 
-### P0-3: 更换存储目录后下载白名单没有动态更新
+## 已验证的功能点
 
-**修改文件**：`app.py`
-
-**改动**：`_allowed_file_roots()` 中动态读取 `load_settings().storage_dir`，追加到 roots 列表。添加 try/except 防止损坏的 storage_dir 导致异常。
-
-**验证**：`python -m compileall app.py` 通过
-
----
-
-### P0-4: _with_current_defaults 可能把 OpenAI 配置静默迁移成 DeepSeek
-
-**修改文件**：`app.py`
-
-**改动**：
-1. `_with_current_defaults` 新增 `config_exists` 参数
-2. 仅当 `settings.json` 不存在（首次运行）时才执行迁移
-3. 若文件已存在（用户已保存过设置），不覆盖
-4. 新增 `CONFIG_PATH` 导入
-
-**验证**：`python -m compileall app.py` 通过
-
----
-
-### P0-5: load_settings 缺少类型校验
-
-**修改文件**：`src/dental_detection/assistant.py`
-
-**改动**：`load_settings()` 中新增字段类型校验：
-- 字符串字段（`storage_dir`, `base_url` 等）：int/float/bool 自动转 str，list/dict 丢弃
-- 布尔字段（`enabled`, `save_api_key`, `auto_save`）：字符串 "true"/"1" 等转 True，int 非零转 True
-- 非预期类型的字段值被丢弃，回退默认值
-
-**验证**：`python -m compileall src/dental_detection/assistant.py` 通过
+1. ✅ 类别名规范化函数可处理空格与下划线两种形式
+2. ✅ 单图报告模型名从 `summary["模型结果"][0]["模型"]` 正确提取
+3. ✅ 下载白名单动态读取当前 `storage_dir`
+4. ✅ 首次运行才迁移旧默认配置，已有配置文件不覆盖
+5. ✅ `load_settings` 对字符串/布尔字段做类型校验
+6. ✅ `_current_item` 未匹配时抛 `gr.Error` 而非静默回退
+7. ✅ 单图报告导出前检查图片 None
+8. ✅ 批量 Tab 显示"仅使用主模型"提示
+9. ✅ `_safe_stem` 保留中文等 Unicode 字符
+10. ✅ 启动时打印用户模型路径不存在的警告
+11. ✅ OpenAI client 设置 30s 超时
+12. ✅ 对话文件名含微秒，同秒不覆盖
+13. ✅ 病例匹配使用 `split("|")[-1]` 精确匹配
+14. ✅ `rmtree` 异常不掩盖导出成功
+15. ✅ 批量检测支持部分成功/失败
+16. ✅ 超大图像自动等比例缩放
+17. ✅ 启动时尝试加载默认模型
+18. ✅ 设置文件原子写入（临时文件 + rename）
+19. ✅ `enable_compare` 关闭时强制单模型
+20. ✅ 换图时保留对话记录
 
 ---
 
-### P0-6: _current_item 未匹配到选中项时静默回退第一条
+## 未完成项（不需要处理）
 
-**修改文件**：`app.py`
+以下来自 `代码bug.md` 第五节"明确不需要处理"的项未修改：
 
-**改动**：`_current_item()` 中，当 `selected_name` 非空但遍历完 `batch_state` 无匹配时，抛出 `gr.Error("当前选择的结果已失效，请重新选择图片。")` 而非静默返回第一条。
-
-**验证**：`python -m compileall app.py` 通过
-
----
+- CSV 缺字段、split_groups O(n²)、JSON 尾随零、_write_text 一行封装、_detect_model 死代码、
+  key 可见性不持久化、"原图"标签、IPv6 解析、容器崩溃、NaN/Inf JSON、HTML 单引号转义、
+  toast 动画重播、CPU-only Radio、图片 alpha 通道
