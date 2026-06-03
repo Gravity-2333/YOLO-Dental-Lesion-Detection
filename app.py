@@ -5,7 +5,6 @@ from collections import Counter
 import csv
 from datetime import datetime
 import json
-import os
 from pathlib import Path
 import re
 import shutil
@@ -292,12 +291,44 @@ def apply_selected_model(selected_path: str, target: str):
     return gr.update(value=path), gr.update(), f"已填入主模型：{path}"
 
 
-def open_model_dir(model_dir: str):
-    path = Path(model_dir or PROJECT_ROOT / "models").expanduser()
-    path.mkdir(parents=True, exist_ok=True)
-    if os.name == "nt":
-        os.startfile(str(path.resolve()))  # type: ignore[attr-defined]
-    return f"已打开模型目录：{path.resolve()}。可将模型放入此目录后点击“刷新模型列表”。"
+def _choose_directory_dialog(title: str, initial_dir: str | Path) -> str | None:
+    """Open a native directory picker when the app is running with a desktop session."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception as exc:
+        raise gr.Error(f"当前 Python 环境无法打开路径选择器：{exc}") from exc
+
+    start_dir = Path(initial_dir or PROJECT_ROOT).expanduser()
+    if not start_dir.exists():
+        start_dir = start_dir.parent if start_dir.parent.exists() else PROJECT_ROOT
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected = filedialog.askdirectory(
+            title=title,
+            initialdir=str(start_dir.resolve()),
+            mustexist=True,
+        )
+        root.destroy()
+    except Exception as exc:
+        raise gr.Error(f"无法打开路径选择器，请手动输入路径：{exc}") from exc
+    return selected or None
+
+
+def choose_model_dir(model_dir: str, current_value: str | None = None):
+    selected = _choose_directory_dialog("选择模型目录", model_dir or PROJECT_ROOT / "models")
+    if not selected:
+        return gr.update(), gr.update(), "未选择模型目录。"
+    path = str(Path(selected).expanduser().resolve())
+    choices = _scan_model_files(path)
+    value = current_value if current_value and any(current_value == c[1] for c in choices) else None
+    value = value or (choices[0][1] if choices else None)
+    message = f"已选择模型目录：{path}。扫描到 {len(choices)} 个 .pt 模型文件。"
+    if not choices:
+        message += " 请确认该目录或其子目录中存在模型文件。"
+    return gr.update(value=path), gr.update(choices=choices, value=value), message
 
 
 def test_model_file(primary_model_path: str, compare_model_path: str, model_mode: str):
@@ -1404,11 +1435,12 @@ def default_storage_dir():
     return str(APP_HOME), _toast(f"已恢复默认数据目录：{APP_HOME}")
 
 
-def open_storage_dir(storage_dir: str):
-    path = ensure_app_dirs(storage_dir)
-    if os.name == "nt":
-        os.startfile(str(path.resolve()))  # type: ignore[attr-defined]
-    return _toast(f"已打开当前数据目录：{path.resolve()}")
+def choose_storage_dir(storage_dir: str):
+    selected = _choose_directory_dialog("选择数据存储目录", storage_dir or APP_HOME)
+    if not selected:
+        return gr.update(), _toast("未选择新的数据存储目录。")
+    path = str(Path(selected).expanduser().resolve())
+    return gr.update(value=path), _toast(f"已选择数据存储目录：{path}。保存设置后生效。")
 
 
 def _with_current_defaults(saved: AiSettings, *, config_exists: bool = False) -> AiSettings:
@@ -1770,7 +1802,7 @@ def build_app() -> gr.Blocks:
                                 )
                             model_feedback = gr.Textbox(label="模型反馈", interactive=False, lines=2)
                             with gr.Accordion("帮助", open=False):
-                                gr.Markdown("刷新会扫描模型目录及子目录中的 `.pt` 文件；三点按钮用于打开当前模型目录。")
+                                gr.Markdown("刷新会扫描模型目录及子目录中的 `.pt` 文件；三点按钮用于弹出路径选择器并切换模型目录。")
                     with gr.Tab("AI 建议"):
                         with gr.Group(elem_classes=["settings-card"]):
                             gr.HTML('<div class="section-heading"><h2>AI 建议</h2><p>配置检测后的辅助建议与追问能力。</p></div>')
@@ -1864,7 +1896,7 @@ def build_app() -> gr.Blocks:
                             with gr.Accordion("帮助", open=False):
                                 gr.Markdown(
                                     "对话、导出和病例记录会保存在该数据根目录下；更换目录后保存设置即可迁移。"
-                                    "开启自动保存后每次检测都会生成对话记录文件，建议定期通过'...'按钮打开目录清理旧文件。"
+                                    "三点按钮会弹出路径选择器；开启自动保存后每次检测都会生成对话记录文件。"
                                 )
                     with gr.Tab("高级接口"):
                         with gr.Group(elem_classes=["settings-card"]):
@@ -2082,7 +2114,11 @@ def build_app() -> gr.Blocks:
             inputs=[model_dir, model_file_select],
             outputs=[model_file_select, model_feedback],
         )
-        open_model_dir_btn.click(fn=open_model_dir, inputs=model_dir, outputs=model_feedback)
+        open_model_dir_btn.click(
+            fn=choose_model_dir,
+            inputs=[model_dir, model_file_select],
+            outputs=[model_dir, model_file_select, model_feedback],
+        )
         apply_model_btn.click(
             fn=apply_selected_model,
             inputs=[model_file_select, model_apply_target],
@@ -2094,7 +2130,7 @@ def build_app() -> gr.Blocks:
             outputs=model_feedback,
         )
         default_storage_btn.click(fn=default_storage_dir, outputs=[storage_dir, settings_feedback])
-        open_storage_btn.click(fn=open_storage_dir, inputs=storage_dir, outputs=settings_feedback)
+        open_storage_btn.click(fn=choose_storage_dir, inputs=storage_dir, outputs=[storage_dir, settings_feedback])
         export_btn.click(fn=export_chat, inputs=[chat_state, storage_dir], outputs=[export_file, export_path])
         export_batch_btn.click(
             fn=export_batch_results,

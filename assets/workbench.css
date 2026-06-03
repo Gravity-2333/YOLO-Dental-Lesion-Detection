@@ -1,8 +1,14 @@
 :root {
-  --app-bg: #f5f7fb;
+  --app-bg: #f3f6fb;
   --card-bg: #ffffff;
-  --card-border: #e6eaf0;
-  --soft-border: #eef2f7;
+  --card-border: #d6deea;
+  --soft-border: #dfe7f1;
+  --input-border: #cbd5e1;
+  --input-bg: #ffffff;
+  --input-muted-bg: #f8fafc;
+  --secondary-bg: #f8fafc;
+  --secondary-hover-bg: #eef4ff;
+  --secondary-hover-border: #93b7f4;
   --text-main: #111827;
   --text-muted: #64748b;
   --primary: #2563eb;
@@ -101,7 +107,7 @@ body,
 .workbench-grid {
   align-items: flex-start !important;
   gap: 24px !important;
-  background: var(--surface-bg) !important;
+  background: #f9fbff !important;
   border: 1px solid var(--card-border) !important;
   border-radius: 18px !important;
   box-shadow: var(--shadow-soft) !important;
@@ -280,6 +286,7 @@ button.primary:hover,
   border-radius: var(--radius) !important;
   font-size: 0.98rem !important;
   font-weight: 700 !important;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease !important;
 }
 
 button,
@@ -299,10 +306,32 @@ button.primary:hover,
 button.secondary,
 .secondary-action button {
   border-radius: var(--radius-sm) !important;
-  background: #f8fafc !important;
+  background: var(--secondary-bg) !important;
   border-color: var(--card-border) !important;
   color: #1f2937 !important;
   min-height: var(--button-height) !important;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 140ms ease !important;
+}
+
+button:not([disabled]):not([aria-disabled="true"]) {
+  cursor: pointer !important;
+}
+
+button.secondary:not([disabled]):hover,
+.secondary-action button:not([disabled]):hover,
+.icon-action button:not([disabled]):hover {
+  background: var(--secondary-hover-bg) !important;
+  border-color: var(--secondary-hover-border) !important;
+  color: #174ea6 !important;
+  box-shadow: 0 7px 18px rgba(37, 99, 235, 0.12) !important;
+  transform: translateY(-1px);
+}
+
+button.secondary:not([disabled]):active,
+.secondary-action button:not([disabled]):active,
+.icon-action button:not([disabled]):active {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.1) !important;
 }
 
 .compact-button,
@@ -348,6 +377,8 @@ button[aria-disabled="true"] {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 44px 132px !important;
   align-items: end !important;
+  column-gap: 12px !important;
+  row-gap: 8px !important;
 }
 
 .export-toolbar .path-row,
@@ -389,8 +420,24 @@ button[aria-disabled="true"] {
 
 .path-row textarea,
 .path-row input {
-  min-height: 42px !important;
-  height: 42px !important;
+  min-height: 44px !important;
+  height: 44px !important;
+}
+
+.path-row button,
+.model-row button,
+.chat-input-row button {
+  height: 44px !important;
+  min-height: 44px !important;
+}
+
+.path-row > .block,
+.path-row > .form,
+.model-row > .block,
+.model-row > .form,
+.chat-input-row > .block,
+.chat-input-row > .form {
+  align-self: end !important;
 }
 
 .path-output textarea,
@@ -403,7 +450,8 @@ textarea[aria-label="主模型路径"],
 textarea[aria-label="对比模型路径"] {
   font-size: 0.88rem !important;
   color: #334155 !important;
-  background: #f8fafc !important;
+  background: var(--input-muted-bg) !important;
+  border-color: var(--input-border) !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
@@ -433,7 +481,7 @@ textarea[aria-label="对比模型路径"] {
 
 .result-card {
   overflow: hidden !important;
-  background: #f8fafc !important;
+  background: var(--input-muted-bg) !important;
   border: 1px solid var(--soft-border) !important;
 }
 
@@ -446,7 +494,7 @@ textarea[aria-label="对比模型路径"] {
 
 .upload-input [data-testid="image"],
 .result-card [data-testid="image"] {
-  background: #f8fafc !important;
+  background: var(--input-muted-bg) !important;
 }
 
 .upload-input svg,
@@ -456,8 +504,8 @@ textarea[aria-label="对比模型路径"] {
 
 .gradio-container .image-container {
   border-radius: var(--radius-sm) !important;
-  background: #f8fafc !important;
-  border-color: #edf2f7 !important;
+  background: var(--input-muted-bg) !important;
+  border-color: var(--input-border) !important;
 }
 
 .result-table-card {
@@ -479,9 +527,9 @@ textarea[aria-label="对比模型路径"] {
 
 textarea[aria-label="图像质量提示"],
 textarea[aria-label="牙齿辅助建议"] {
-  background: #fbfcfe !important;
+  background: var(--input-bg) !important;
   line-height: 1.6 !important;
-  border-color: var(--soft-border) !important;
+  border-color: var(--input-border) !important;
   min-height: 150px !important;
   overflow-y: auto !important;
 }
@@ -499,7 +547,7 @@ table {
 thead,
 thead tr,
 th {
-  background: #f8fafc !important;
+  background: #f1f5f9 !important;
   border-color: var(--soft-border) !important;
 }
 
@@ -555,8 +603,8 @@ td {
 }
 
 .chat-window {
-  background: #fbfcfe !important;
-  border: 1px solid var(--soft-border) !important;
+  background: #ffffff !important;
+  border: 1px solid var(--input-border) !important;
   border-radius: 12px !important;
 }
 
@@ -659,6 +707,17 @@ select {
   min-width: 0 !important;
 }
 
+.gradio-container .input-container,
+.gradio-container .wrap.default,
+.gradio-container .container.show_textbox_border {
+  border-color: var(--input-border) !important;
+}
+
+.gradio-container textarea,
+.gradio-container input {
+  background-color: var(--input-bg) !important;
+}
+
 textarea[aria-label="病例备注"],
 textarea[aria-label="病例反馈"],
 textarea[aria-label="病例详情"],
@@ -680,7 +739,7 @@ textarea[aria-label="病例详情"] {
   min-height: 220px !important;
   line-height: 1.65 !important;
   color: #1f2937 !important;
-  background: #fbfcfe !important;
+  background: var(--input-bg) !important;
 }
 
 textarea[aria-label="AI 建议 Prompt"] {
