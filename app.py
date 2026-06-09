@@ -314,7 +314,15 @@ def refresh_model_choices(model_dir: str, current_value: str | None = None):
 def apply_selected_model(selected_path: str, target: str):
     if not selected_path:
         raise gr.Error("请先从模型文件下拉框选择一个支持的模型文件。")
-    path = str(Path(selected_path).expanduser().resolve())
+    model_path = Path(selected_path).expanduser().resolve()
+    if model_path.suffix.lower() not in _SUPPORTED_MODEL_SUFFIXES:
+        raise gr.Error(
+            f"所选文件后缀 '{model_path.suffix}' 不在支持列表中。"
+            f"支持的格式：{', '.join(sorted(_SUPPORTED_MODEL_SUFFIXES))}"
+        )
+    if not model_path.exists():
+        raise gr.Error(f"所选模型文件不存在：{model_path}")
+    path = str(model_path)
     if target == "对比模型":
         return gr.update(), gr.update(value=path), f"已填入对比模型：{path}"
     return gr.update(value=path), gr.update(), f"已填入主模型：{path}"

@@ -300,16 +300,37 @@ def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) ->
 
 
 def _base_url_origin(base_url: str) -> str:
-    parsed = urlparse(base_url)
-    if parsed.scheme and parsed.netloc:
-        return parsed.netloc.split("@")[-1].split(":")[0]
-    return base_url.split("/")[0].split(":")[0]
+    value = str(base_url or "").strip()
+    parsed = urlparse(value if "://" in value else f"//{value}")
+    if parsed.hostname:
+        return parsed.hostname.strip("[]")
+    netloc = (parsed.netloc or value.split("/", 1)[0]).split("@")[-1]
+    if netloc.startswith("[") and "]" in netloc:
+        return netloc[1 : netloc.index("]")]
+    if netloc == "::1" or netloc.startswith("::1:"):
+        return "::1"
+    return netloc.split(":")[0].strip("[]")
+
+
+def _normalize_ipv6_netloc(value: str) -> str:
+    netloc, sep, suffix = value.partition("/")
+    if netloc.startswith("["):
+        return value
+    if netloc == "::1":
+        return f"[::1]{sep}{suffix}" if sep else "[::1]"
+    if netloc.startswith("::1:"):
+        port = netloc.removeprefix("::1:")
+        if port.isdigit():
+            normalized = f"[::1]:{port}"
+            return f"{normalized}{sep}{suffix}" if sep else normalized
+    return value
 
 
 def normalize_base_url(base_url: str) -> str:
     value = (base_url or "").strip().rstrip("/") or DEFAULT_AI_BASE_URL
     if not value.lower().startswith(("http://", "https://")):
-        host = value.split("/")[0].split(":")[0].lower()
+        value = _normalize_ipv6_netloc(value)
+        host = _base_url_origin(value).lower()
         scheme = "http" if host in {"localhost", "127.0.0.1", "::1"} else "https"
         try:
             if ipaddress.ip_address(host).is_private:
@@ -340,7 +361,7 @@ def is_private_base_url(base_url: str) -> bool:
 
 
 def resolve_api_key(settings: AiSettings) -> str:
-    value = settings.api_key.strip()
+    value = str(settings.api_key or "").strip()
     if settings.key_mode == "环境变量":
         return os.getenv(value, "") if value else ""
     return value
@@ -444,7 +465,12 @@ def default_advice(detections: list[dict[str, Any]]) -> str:
 
     sections = [SAFETY_NOTICE]
     for label, items in sorted(grouped.items()):
-        confidences = [float(item.get("confidence", 0) or 0) for item in items]
+        confidences = []
+        for item in items:
+            try:
+                confidences.append(float(item.get("confidence", 0) or 0))
+            except (TypeError, ValueError):
+                confidences.append(0.0)
         high_conf = max(confidences)
         if high_conf >= 0.70:
             level = "重点关注"
