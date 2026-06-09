@@ -48,6 +48,7 @@ CSS_PATH = PROJECT_ROOT / "assets" / "workbench.css"
 STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
 MODEL_MODE_SINGLE = "单模型"
 MODEL_MODE_COMPARE = "对比模型"
+_EXTRA_ALLOWED_FILE_ROOTS: set[Path] = set()
 
 
 def _load_workbench_css() -> str:
@@ -71,10 +72,10 @@ def _allowed_file_roots() -> list[Path]:
     except Exception:
         current_storage = None
     roots = [
-        Path.home(),
-        PROJECT_ROOT.parent,
         APP_HOME,
         STARTUP_STORAGE_ROOT,
+        PROJECT_ROOT / "outputs",
+        *_EXTRA_ALLOWED_FILE_ROOTS,
     ]
     if current_storage and current_storage.exists():
         roots.append(current_storage)
@@ -87,9 +88,31 @@ def _allowed_file_roots() -> list[Path]:
     return resolved
 
 
-def _is_within_known_download_roots(path: str | Path) -> bool:
-    target = Path(path).expanduser().resolve()
-    return any(target == root or root in target.parents for root in _allowed_file_roots())
+def _sync_gradio_allowed_paths() -> None:
+    """Refresh the running Gradio app's static-file allowlist after storage changes."""
+    try:
+        from gradio.context import LocalContext
+    except Exception:
+        return
+    blocks = LocalContext.blocks.get(None)
+    if blocks is None:
+        return
+    try:
+        blocks.allowed_paths = [str(root) for root in _allowed_file_roots()]
+    except Exception:
+        return
+
+
+def _remember_allowed_file_root(path: str | Path | None) -> None:
+    if not path:
+        return
+    try:
+        root = Path(path).expanduser().resolve()
+    except (OSError, RuntimeError):
+        return
+    if root.exists():
+        _EXTRA_ALLOWED_FILE_ROOTS.add(root)
+        _sync_gradio_allowed_paths()
 
 
 def _can_return_file(path: str | Path) -> bool:
@@ -400,7 +423,9 @@ def _save_runtime_settings(
         # 检测、测试接口等运行时动作可以使用界面上的临时 storage_dir，
         # 但不应静默迁移或覆盖用户已保存的数据根目录。
         settings.storage_dir = saved.storage_dir
-    settings.model_mode = model_mode or saved.model_mode
+    settings.enable_compare = saved.enable_compare
+    settings.show_summary = saved.show_summary
+    settings.model_mode = (model_mode or saved.model_mode) if settings.enable_compare else MODEL_MODE_SINGLE
     settings.model_dir = str(Path(model_dir or saved.model_dir or PROJECT_ROOT / "models").expanduser().resolve())
     settings.primary_model_path = _model_path_or_default(
         primary_model_path or saved.primary_model_path,
@@ -446,6 +471,15 @@ def _safe_stem(name: str) -> str:
     # 保留 Unicode 字母/数字、空格、中文等非 ASCII 字符，只过滤路径分隔符和控制字符
     # Windows 禁用字符 < > : " / \\ | ? * 也被过滤
     safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", stem).strip(" ._")
+    if safe.upper() in {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *(f"COM{index}" for index in range(1, 10)),
+        *(f"LPT{index}" for index in range(1, 10)),
+    }:
+        safe = f"{safe}_file"
     return safe or "image"
 
 
@@ -558,12 +592,23 @@ def _unique_batch_export_paths(storage_dir: str, stamp: str) -> tuple[Path, Path
     return export_root, zip_path
 
 
+def _unique_case_path(storage_dir: str, stamp: str, safe_case: str) -> Path:
+    base = case_dir(storage_dir)
+    path = base / f"case_{stamp}_{safe_case}.json"
+    counter = 1
+    while path.exists():
+        path = base / f"case_{stamp}_{safe_case}_{counter:02d}.json"
+        counter += 1
+    return path
+
+
 def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     if not batch_state:
         raise gr.Error("请先完成批量检测，再导出结果。")
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    ensure_app_dirs(storage_dir)
+    storage_root = ensure_app_dirs(storage_dir)
+    _remember_allowed_file_root(storage_root)
     export_root, zip_path = _unique_batch_export_paths(storage_dir, stamp)
     export_root.mkdir(parents=True, exist_ok=True)
     work_dir = export_root / "payload"
@@ -687,7 +732,8 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     item = _current_item(batch_state, selected_name)
     result = item.get("result") or item
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    ensure_app_dirs(storage_dir)
+    storage_root = ensure_app_dirs(storage_dir)
+    _remember_allowed_file_root(storage_root)
     report_root, zip_path = _unique_report_paths(storage_dir, stamp)
     report_root.mkdir(parents=True, exist_ok=True)
     work_dir = report_root / "payload"
@@ -831,11 +877,12 @@ def save_case_record(
     item = _current_item(batch_state, selected_name)
     result = item.get("result") or item
     ensure_app_dirs(storage_dir)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    now = datetime.now()
+    stamp = now.strftime("%Y%m%d_%H%M%S_%f")
     safe_case = _safe_stem(case_id or item.get("name") or "case")
-    path = case_dir(storage_dir) / f"case_{stamp}_{safe_case}.json"
+    path = _unique_case_path(storage_dir, stamp, safe_case)
     payload = {
-        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "created_at": now.isoformat(timespec="seconds"),
         "case_id": case_id.strip() or "未填写",
         "note": case_note.strip() if case_note else "",
         "image_name": item.get("name") or "当前单图",
@@ -914,11 +961,20 @@ def load_case_record(choice: str, storage_dir: str):
     if not choice:
         return _format_case_record({"提示": "暂无病例详情。选择已保存病例后，会在这里显示检测摘要、检测框和辅助建议。"})
     file_name = choice.split("|")[-1].strip()
+    if Path(file_name).name != file_name or not file_name.startswith("case_") or not file_name.endswith(".json"):
+        return _format_case_record({"错误": "病例选择无效，请刷新病例列表后重试。"})
     path = case_dir(storage_dir) / file_name
+    try:
+        case_root = case_dir(storage_dir).resolve()
+        resolved_path = path.resolve()
+    except OSError as exc:
+        return _format_case_record({"错误": str(exc)})
+    if resolved_path.parent != case_root:
+        return _format_case_record({"错误": "病例选择无效，请刷新病例列表后重试。"})
     if not path.exists():
         return _format_case_record({"错误": f"病例文件不存在：{path}"})
     try:
-        return _format_case_record(json.loads(path.read_text(encoding="utf-8")))
+        return _format_case_record(json.loads(resolved_path.read_text(encoding="utf-8")))
     except (OSError, json.JSONDecodeError) as exc:
         return _format_case_record({"错误": str(exc)})
 
@@ -1282,6 +1338,8 @@ def save_ui_settings(
     auto_save: bool,
     storage_dir: str,
     custom_prompt: str,
+    enable_compare: bool,
+    show_summary: bool,
     model_mode: str,
     model_dir: str,
     primary_model_path: str,
@@ -1301,7 +1359,9 @@ def save_ui_settings(
         storage_dir,
         custom_prompt,
     )
-    settings.model_mode = model_mode or MODEL_MODE_SINGLE
+    settings.enable_compare = bool(enable_compare)
+    settings.show_summary = bool(show_summary)
+    settings.model_mode = (model_mode or MODEL_MODE_SINGLE) if settings.enable_compare else MODEL_MODE_SINGLE
     settings.model_dir = str(Path(model_dir or PROJECT_ROOT / "models").expanduser().resolve())
     settings.primary_model_path = _model_path_or_default(primary_model_path, str(DEFAULT_MODEL_PATH))
     settings.compare_model_path = _model_path_or_default(
@@ -1309,12 +1369,8 @@ def save_ui_settings(
         str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
     )
     path = save_settings(settings)
+    _remember_allowed_file_root(settings.storage_dir)
     feedback = [f"设置已保存：{path}"]
-    if not _is_within_known_download_roots(settings.storage_dir):
-        feedback.append(
-            "提示：新的存储位置不在当前 Gradio 文件下载白名单内。"
-            "设置已生效，但如需直接下载该目录下的报告或导出文件，请重启项目脚本。"
-        )
     case_choices = _case_choices(settings.storage_dir)
     case_message = "病例列表已同步到当前存储位置。" if case_choices else "当前存储位置暂无病例记录。"
     return (
@@ -1340,7 +1396,8 @@ def continue_chat(
     storage_dir: str,
     custom_prompt: str,
 ):
-    if not message:
+    user_message = (message or "").strip()
+    if not user_message:
         return history, history, "", _clear_file_output(), ""
     settings = _ai_settings(
         ai_enabled,
@@ -1357,8 +1414,10 @@ def continue_chat(
         custom_prompt,
     )
     history = list(history or [])
-    history.append({"role": "user", "content": message})
+    user_entry = {"role": "user", "content": user_message}
+    clear_input = True
     if not settings.enabled:
+        history.append(user_entry)
         history.append(
             {
                 "role": "assistant",
@@ -1367,22 +1426,27 @@ def continue_chat(
         )
     else:
         try:
-            messages = [{"role": "system", "content": settings.custom_prompt}, *history]
+            messages = [{"role": "system", "content": settings.custom_prompt}, *history, user_entry]
             answer = chat_completion(settings, messages, temperature=0.2, max_tokens=500)
         except Exception as exc:
             answer = f"AI 回复失败：{exc}"
+            clear_input = False
+        history.append(user_entry)
         if answer.strip():
             history.append({"role": "assistant", "content": answer})
         else:
             history.append({"role": "assistant", "content": "AI 未返回有效内容，请重试或检查接口配置。"})
+            clear_input = False
     if settings.auto_save:
         save_conversation(history, settings.storage_dir)
-    return history, history, "", _clear_file_output(), ""
+    return history, history, "" if clear_input else user_message, _clear_file_output(), ""
 
 
 def export_chat(history: list[dict[str, str]], storage_dir: str):
     if not history:
         raise gr.Error("当前没有可导出的对话记录。")
+    storage_root = ensure_app_dirs(storage_dir)
+    _remember_allowed_file_root(storage_root)
     path = save_conversation(history, storage_dir)
     return _file_component_output(path), f"已导出：{path}"
 
@@ -1424,8 +1488,12 @@ def toggle_model_mode(model_mode: str):
 def on_enable_compare_change(enable_compare: bool):
     """关闭'允许对比模型模式'时，强制模型模式回到单模型。"""
     if not enable_compare:
-        return gr.update(value=MODEL_MODE_SINGLE), gr.update(visible=False)
-    return gr.update(), gr.update()
+        return (
+            gr.update(value=MODEL_MODE_SINGLE),
+            gr.update(value=MODEL_MODE_SINGLE),
+            gr.update(visible=False),
+        )
+    return gr.update(), gr.update(), gr.update()
 
 
 def sync_model_mode(model_mode: str):
@@ -1549,7 +1617,7 @@ def build_app() -> gr.Blocks:
                             gr.HTML('<div class="section-heading"><h2>推理设置</h2></div>')
                             model_mode = gr.Radio(
                                 choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
-                                value=saved.model_mode,
+                                value=saved.model_mode if saved.enable_compare else MODEL_MODE_SINGLE,
                                 label="模型模式",
                                 elem_classes=["segmented-control"],
                             )
@@ -1729,8 +1797,8 @@ def build_app() -> gr.Blocks:
                     with gr.Tab("检测显示"):
                         with gr.Group(elem_classes=["settings-card"]):
                             gr.HTML('<div class="section-heading"><h2>显示选项</h2><p>控制主工作台中展示的分析能力。</p></div>')
-                            enable_compare = gr.Checkbox(value=True, label="允许对比模型模式")
-                            show_summary = gr.Checkbox(value=False, label="显示参数分析摘要")
+                            enable_compare = gr.Checkbox(value=saved.enable_compare, label="允许对比模型模式")
+                            show_summary = gr.Checkbox(value=saved.show_summary, label="显示参数分析摘要")
                             with gr.Accordion("帮助", open=False):
                                 gr.Markdown("对比模型会在单张分析时运行两组模型；参数摘要用于查看推理配置和检测数量。")
                     with gr.Tab("模型选择"):
@@ -1738,7 +1806,7 @@ def build_app() -> gr.Blocks:
                             gr.HTML('<div class="section-heading"><h2>模型文件</h2><p>选择主模型、对比模型和模型目录。</p></div>')
                             settings_model_mode = gr.Radio(
                                 choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
-                                value=saved.model_mode,
+                                value=saved.model_mode if saved.enable_compare else MODEL_MODE_SINGLE,
                                 label="模型模式",
                                 elem_classes=["segmented-control"],
                             )
@@ -1794,7 +1862,7 @@ def build_app() -> gr.Blocks:
                                 label="对比模型路径",
                                 lines=1,
                                 max_lines=1,
-                                visible=saved.model_mode == MODEL_MODE_COMPARE,
+                                visible=saved.enable_compare and saved.model_mode == MODEL_MODE_COMPARE,
                             )
                             with gr.Row(elem_classes=["compact-row"]):
                                 test_model_btn = gr.Button(
@@ -2027,7 +2095,7 @@ def build_app() -> gr.Blocks:
         enable_compare.change(
             fn=on_enable_compare_change,
             inputs=enable_compare,
-            outputs=[model_mode, compare_model_path],
+            outputs=[model_mode, settings_model_mode, compare_model_path],
         )
         show_summary.change(fn=toggle_summary, inputs=show_summary, outputs=summary)
         test_btn.click(
@@ -2063,6 +2131,8 @@ def build_app() -> gr.Blocks:
                 auto_save,
                 storage_dir,
                 custom_prompt,
+                enable_compare,
+                show_summary,
                 settings_model_mode,
                 model_dir,
                 primary_model_path,

@@ -6,6 +6,7 @@ import ipaddress
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 from typing import Any
 from urllib.parse import urlparse
@@ -53,12 +54,22 @@ CLASS_ADVICE = {
 
 
 def _normalize_class_name(name: str) -> str:
-    """将类别名统一规范化：下划线替换为空格，去除首尾空白。
+    """将类别名统一为内部建议匹配使用的规范名称。
 
-    用于 CLASS_ADVICE 查找，消除 "Periapical_Lesion" 与
-    "Periapical Lesion" 之间的不一致。
+    UI 和导出仍保留模型返回的原始类别名；这里只消除空格、下划线、
+    短横线、大小写等差异，避免专属建议静默回退成泛用建议。
     """
-    return name.replace("_", " ").strip()
+    token = re.sub(r"[^a-z0-9]+", " ", str(name).casefold()).strip()
+    token = re.sub(r"\s+", " ", token)
+    aliases = {
+        "caries": "Caries",
+        "periapical lesion": "Periapical Lesion",
+        "periapical lesions": "Periapical Lesion",
+        "impacted": "Impacted",
+        "impacted tooth": "Impacted",
+        "impacted teeth": "Impacted",
+    }
+    return aliases.get(token, str(name).replace("_", " ").strip())
 
 
 @dataclass
@@ -73,6 +84,8 @@ class AiSettings:
     storage_dir: str = str(APP_HOME)
     custom_prompt: str = DEFAULT_AI_PROMPT
     model_mode: str = "单模型"
+    enable_compare: bool = True
+    show_summary: bool = False
     model_dir: str = str(PROJECT_ROOT / "models")
     primary_model_path: str = str(
         PROJECT_ROOT
@@ -123,6 +136,18 @@ def ensure_app_dirs(storage_dir: str | None = None) -> Path:
     return root
 
 
+def _unique_corrupt_settings_backup() -> Path:
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    backup = CONFIG_PATH.with_name(f"{CONFIG_PATH.stem}.{stamp}.corrupt{CONFIG_PATH.suffix}")
+    counter = 1
+    while backup.exists():
+        backup = CONFIG_PATH.with_name(
+            f"{CONFIG_PATH.stem}.{stamp}_{counter:02d}.corrupt{CONFIG_PATH.suffix}"
+        )
+        counter += 1
+    return backup
+
+
 def load_settings() -> AiSettings:
     if not CONFIG_PATH.exists():
         return AiSettings()
@@ -131,7 +156,7 @@ def load_settings() -> AiSettings:
     except (OSError, json.JSONDecodeError):
         # 保留损坏文件的备份，方便用户恢复
         try:
-            corrupt_backup = CONFIG_PATH.with_suffix(".json.corrupt")
+            corrupt_backup = _unique_corrupt_settings_backup()
             CONFIG_PATH.replace(corrupt_backup)
         except OSError:
             pass
@@ -143,11 +168,14 @@ def load_settings() -> AiSettings:
 
     # 类型校验：防止损坏的 settings.json 在模块导入阶段导致 Path(123) 等 TypeError
     _STRING_FIELDS = {
-        "base_url", "model", "key_mode", "api_key", "storage_dir",
-        "custom_prompt", "model_mode", "model_dir",
+        "base_url", "model", "key_mode", "api_key",
+        "custom_prompt", "model_mode",
+    }
+    _PATH_FIELDS = {
+        "storage_dir", "model_dir",
         "primary_model_path", "compare_model_path",
     }
-    _BOOL_FIELDS = {"enabled", "save_api_key", "auto_save"}
+    _BOOL_FIELDS = {"enabled", "save_api_key", "auto_save", "enable_compare", "show_summary"}
 
     filtered: dict[str, Any] = {}
     for key, value in data.items():
@@ -159,6 +187,9 @@ def load_settings() -> AiSettings:
             elif isinstance(value, str):
                 filtered[key] = value
             # 非字符串/数字/布尔类型（列表、字典等）丢弃，使用默认值
+        elif key in _PATH_FIELDS:
+            if isinstance(value, str) and value.strip():
+                filtered[key] = value
         elif key in _BOOL_FIELDS:
             if isinstance(value, bool):
                 filtered[key] = value
@@ -169,6 +200,10 @@ def load_settings() -> AiSettings:
             # 其他类型丢弃
         else:
             filtered[key] = value
+    if filtered.get("key_mode") not in {"环境变量", "直接 Key 值"}:
+        filtered.pop("key_mode", None)
+    if filtered.get("model_mode") not in {"单模型", "对比模型"}:
+        filtered.pop("model_mode", None)
     return AiSettings(**{**defaults, **filtered})
 
 
@@ -316,6 +351,16 @@ def _client(settings: AiSettings, api_key: str) -> OpenAI:
     )
 
 
+def _friendly_ai_error(exc: Exception) -> ValueError:
+    name = exc.__class__.__name__
+    text = str(exc)
+    if name in {"APITimeoutError", "TimeoutException"} or "timed out" in text.lower():
+        return ValueError("AI 服务响应超时，请检查网络或接口配置。")
+    if name in {"APIConnectionError", "ConnectError", "ConnectTimeout"}:
+        return ValueError("无法连接 AI 服务，请检查网络、Base URL 或代理配置。")
+    return ValueError(text or "AI 服务请求失败，请检查接口配置。")
+
+
 def chat_completion(
     settings: AiSettings,
     messages: list[dict[str, str]],
@@ -325,12 +370,15 @@ def chat_completion(
     ok, api_key, error = validate_ai_request(settings)
     if not ok:
         raise ValueError(error)
-    response = _client(settings, api_key).chat.completions.create(
-        model=settings.model,
-        messages=messages,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
+    try:
+        response = _client(settings, api_key).chat.completions.create(
+            model=settings.model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+    except Exception as exc:
+        raise _friendly_ai_error(exc) from exc
     return response.choices[0].message.content or ""
 
 
