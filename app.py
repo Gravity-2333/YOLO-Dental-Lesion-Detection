@@ -497,6 +497,26 @@ def _conversation_from_advice(advice: str) -> list[dict[str, str]]:
     return [{"role": "assistant", "content": advice}]
 
 
+def _normalize_chat_history(history: Any) -> list[dict[str, str]]:
+    normalized: list[dict[str, str]] = []
+    for item in history or []:
+        if isinstance(item, dict):
+            role = str(item.get("role") or "assistant")
+            content = item.get("content", "")
+            if role not in {"system", "user", "assistant"}:
+                role = "assistant"
+            normalized.append({"role": role, "content": str(content)})
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
+            user_content, assistant_content = item[0], item[1]
+            if user_content is not None and user_content != "":
+                normalized.append({"role": "user", "content": str(user_content)})
+            if assistant_content is not None and assistant_content != "":
+                normalized.append({"role": "assistant", "content": str(assistant_content)})
+        elif item is not None and item != "":
+            normalized.append({"role": "assistant", "content": str(item)})
+    return normalized
+
+
 def _suggestion_type(ai_enabled: bool) -> str:
     return "ai" if ai_enabled else "default"
 
@@ -1571,7 +1591,7 @@ def continue_chat(
         storage_dir,
         custom_prompt,
     )
-    history = list(history or [])
+    history = _normalize_chat_history(history)
     user_entry = {"role": "user", "content": user_message}
     clear_input = True
     if not settings.enabled:
@@ -1601,6 +1621,7 @@ def continue_chat(
 
 
 def export_chat(history: list[dict[str, str]], storage_dir: str):
+    history = _normalize_chat_history(history)
     if not history:
         raise gr.Error("当前没有可导出的对话记录。")
     storage_root = ensure_app_dirs(storage_dir)
