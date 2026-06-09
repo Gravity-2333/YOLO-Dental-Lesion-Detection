@@ -560,14 +560,24 @@ def _unique_report_paths(storage_dir: str, stamp: str) -> tuple[Path, Path]:
     return root, root / f"{root.name}.zip"
 
 
+def _item_results(item: dict[str, Any]) -> list[dict[str, Any]]:
+    results = item.get("all_results")
+    if isinstance(results, list) and results:
+        return [result for result in results if isinstance(result, dict)]
+    result = item.get("result") or item
+    return [result] if isinstance(result, dict) else []
+
+
 def _summary_lines(batch_state: list[dict[str, Any]], export_info: dict[str, Any]) -> list[str]:
     class_counts: Counter[str] = Counter()
     total_boxes = 0
+    model_counts: Counter[str] = Counter()
     for item in batch_state:
-        result = item.get("result") or item
-        detections = result.get("detections", [])
-        total_boxes += len(detections)
-        class_counts.update(str(det.get("class", "unknown")) for det in detections)
+        for result in _item_results(item):
+            detections = result.get("detections", [])
+            total_boxes += len(detections)
+            model_counts.update([str(result.get("model", "unknown"))])
+            class_counts.update(str(det.get("class", "unknown")) for det in detections)
 
     lines = [
         "YOLO Dental Lesion Detection Batch Export",
@@ -577,7 +587,8 @@ def _summary_lines(batch_state: list[dict[str, Any]], export_info: dict[str, Any
         f"是否使用 CLAHE: {export_info['use_clahe']}",
         f"conf: {export_info['conf']}",
         f"iou: {export_info['iou']}",
-        f"model: {export_info['model']}",
+        f"models: {', '.join(export_info.get('models') or [export_info.get('model', 'unknown')])}",
+        f"模型结果组数: {sum(model_counts.values())}",
         "",
         "各类别数量:",
     ]
@@ -585,6 +596,11 @@ def _summary_lines(batch_state: list[dict[str, Any]], export_info: dict[str, Any
         lines.extend(f"- {name}: {count}" for name, count in sorted(class_counts.items()))
     else:
         lines.append("- 无检测框")
+    lines.extend(["", "各模型处理数量:"])
+    if model_counts:
+        lines.extend(f"- {name}: {count}" for name, count in sorted(model_counts.items()))
+    else:
+        lines.append("- 无模型结果")
     return lines
 
 
@@ -625,13 +641,28 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     suggestions_dir.mkdir(parents=True, exist_ok=True)
 
     first_summary = batch_state[0].get("summary", {})
+    first_summary = first_summary if isinstance(first_summary, dict) else {}
+    first_model_results = first_summary.get("模型结果") if isinstance(first_summary, dict) else []
+    model_names = [
+        str(item.get("模型"))
+        for item in first_model_results
+        if isinstance(item, dict) and item.get("模型")
+    ]
+    if not model_names and batch_state:
+        model_names = [
+            str(result.get("model"))
+            for result in _item_results(batch_state[0])
+            if result.get("model")
+        ]
     export_info = {
         "exported_at": datetime.now().isoformat(timespec="seconds"),
         "image_count": len(batch_state),
         "use_clahe": bool(first_summary.get("CLAHE增强", False)),
         "conf": first_summary.get("conf", "unknown"),
         "iou": first_summary.get("iou", "unknown"),
-        "model": first_summary.get("模型", "unknown"),
+        "model": model_names[0] if model_names else first_summary.get("模型", "unknown"),
+        "models": model_names or [first_summary.get("模型", "unknown")],
+        "model_mode": first_summary.get("模型模式", MODEL_MODE_SINGLE),
     }
     try:
         csv_rows: list[dict[str, Any]] = []
@@ -641,6 +672,8 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             name = item.get("name") or item.get("image_name") or f"image_{index:03d}.png"
             stem = f"{index:03d}_{_safe_stem(name)}"
             result = item.get("result") or item
+            all_results = _item_results(item)
+            primary_detections = result.get("detections", [])
             suggestion_type = item.get("suggestion_type", "default")
             advice = item.get("advice") or item.get("suggestion") or ""
 
@@ -655,42 +688,55 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             annotated_image.save(images_dir / f"{stem}_result.png")
             (suggestions_dir / f"{stem}.txt").write_text(advice, encoding="utf-8")
 
-            detections = result.get("detections", [])
-            if detections:
-                for det in detections:
+            model_json_items = []
+            for model_result in all_results:
+                model_name = model_result.get("model", item.get("model", "unknown"))
+                detections = model_result.get("detections", [])
+                model_json_items.append(
+                    {
+                        "model": model_name,
+                        "model_path": model_result.get("model_path", ""),
+                        "detections": detections,
+                    }
+                )
+                if detections:
+                    for det in detections:
+                        csv_rows.append(
+                            {
+                                "image_name": name,
+                                "model": model_name,
+                                "class": det.get("class", ""),
+                                "confidence": det.get("confidence", ""),
+                                "x1": det.get("x1", ""),
+                                "y1": det.get("y1", ""),
+                                "x2": det.get("x2", ""),
+                                "y2": det.get("y2", ""),
+                                "suggestion_type": suggestion_type,
+                            }
+                        )
+                else:
                     csv_rows.append(
                         {
                             "image_name": name,
-                            "class": det.get("class", ""),
-                            "confidence": det.get("confidence", ""),
-                            "x1": det.get("x1", ""),
-                            "y1": det.get("y1", ""),
-                            "x2": det.get("x2", ""),
-                            "y2": det.get("y2", ""),
+                            "model": model_name,
+                            "class": "",
+                            "confidence": "",
+                            "x1": "",
+                            "y1": "",
+                            "x2": "",
+                            "y2": "",
                             "suggestion_type": suggestion_type,
                         }
                     )
-            else:
-                csv_rows.append(
-                    {
-                        "image_name": name,
-                        "class": "",
-                        "confidence": "",
-                        "x1": "",
-                        "y1": "",
-                        "x2": "",
-                        "y2": "",
-                        "suggestion_type": suggestion_type,
-                    }
-                )
 
             json_items.append(
                 {
                     "image_name": name,
                     "model": result.get("model", item.get("model", "unknown")),
+                    "models": model_json_items,
                     "suggestion_type": suggestion_type,
                     "suggestion": advice,
-                    "detections": detections,
+                    "detections": primary_detections,
                     "image_files": {
                         "original": f"images/{stem}_original.png",
                         "input": f"images/{stem}_input.png",
@@ -703,7 +749,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
         with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.DictWriter(
                 handle,
-                fieldnames=["image_name", "class", "confidence", "x1", "y1", "x2", "y2", "suggestion_type"],
+                fieldnames=["image_name", "model", "class", "confidence", "x1", "y1", "x2", "y2", "suggestion_type"],
             )
             writer.writeheader()
             writer.writerows(csv_rows)
@@ -1554,6 +1600,12 @@ def build_app() -> gr.Blocks:
     ensure_app_dirs(saved.storage_dir)
     env_key_value, direct_key_value = _api_key_inputs(saved)
     model_choices = _scan_model_files(saved.model_dir)
+    model_choice_values = {value for _, value in model_choices}
+    selected_model_choice = (
+        saved.primary_model_path
+        if saved.primary_model_path in model_choice_values
+        else (model_choices[0][1] if model_choices else None)
+    )
     device_choices = _device_choices()
     with gr.Blocks(
         title="牙齿病变区域识别",
@@ -1851,7 +1903,7 @@ def build_app() -> gr.Blocks:
                             with gr.Row(elem_classes=["model-row"]):
                                 model_file_select = gr.Dropdown(
                                     choices=model_choices,
-                                    value=model_choices[0][1] if model_choices else None,
+                                    value=selected_model_choice,
                                     label="目录内模型",
                                     scale=8,
                                 )
@@ -1890,7 +1942,7 @@ def build_app() -> gr.Blocks:
                                 )
                             model_feedback = gr.Textbox(label="模型反馈", interactive=False, lines=2)
                             with gr.Accordion("帮助", open=False):
-                                gr.Markdown("刷新会扫描模型目录及子目录中的 `.pt` 文件；三点按钮用于弹出路径选择器并切换模型目录。")
+                                gr.Markdown("刷新会扫描模型目录及子目录中的受支持模型文件；三点按钮用于弹出路径选择器并切换模型目录。")
                     with gr.Tab("AI 建议"):
                         with gr.Group(elem_classes=["settings-card"]):
                             gr.HTML('<div class="section-heading"><h2>AI 建议</h2><p>配置检测后的辅助建议与追问能力。</p></div>')
