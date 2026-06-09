@@ -197,14 +197,16 @@ def _default_device_choice() -> str:
 
 def _device(device_choice: str) -> tuple[str | int, bool]:
     cuda_available = torch.cuda.is_available()
-    choice = device_choice or "cpu"
+    choice = str(device_choice or "cpu").strip().lower()
     if choice.startswith("cuda") and not cuda_available:
         raise gr.Error("当前 Python 环境没有可用 CUDA。请使用 mamba 的 yolo 环境启动应用。")
     if choice.startswith("cuda"):
         try:
             return int(choice.split(":", 1)[1]), cuda_available
         except (IndexError, ValueError):
-            return 0, cuda_available
+            raise gr.Error(f"推理设备参数无效：{device_choice}") from None
+    if choice != "cpu":
+        return "cpu", cuda_available
     return "cpu", cuda_available
 
 
@@ -220,6 +222,14 @@ def _detect_model(model_name: str, image, use_clahe: bool, conf: float, iou: flo
 _SUPPORTED_MODEL_SUFFIXES = {".pt", ".onnx", ".engine", ".mlmodel", ".mlpackage", ".torchscript"}
 
 
+def _bounded_float(value: Any, *, default: float, minimum: float, maximum: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = default
+    return max(minimum, min(maximum, number))
+
+
 def _detect_model_path(model_name: str, model_path: str | Path, image, use_clahe: bool, conf: float, iou: float, device):
     model_path = Path(model_path)
     if model_path.suffix.lower() not in _SUPPORTED_MODEL_SUFFIXES:
@@ -229,6 +239,8 @@ def _detect_model_path(model_name: str, model_path: str | Path, image, use_clahe
         )
     if not model_path.exists():
         raise gr.Error(f"模型文件不存在：{model_path}")
+    conf = _bounded_float(conf, default=0.25, minimum=0.01, maximum=0.99)
+    iou = _bounded_float(iou, default=0.7, minimum=0.01, maximum=0.99)
     original, model_input, annotated, detections, names = run_inference(
         image=image,
         model_path=model_path,

@@ -153,18 +153,26 @@ class DentalDetector:
         for det in detections:
             color = colors.get(det.cls_id, (245, 174, 45))
             width = max(2, round(min(image.size) / 300))
-            draw.rectangle((det.x1, det.y1, det.x2, det.y2), outline=color, width=width)
+            x1, x2 = sorted((float(det.x1), float(det.x2)))
+            y1, y2 = sorted((float(det.y1), float(det.y2)))
+            x1 = max(0.0, min(float(image.width - 1), x1))
+            x2 = max(0.0, min(float(image.width - 1), x2))
+            y1 = max(0.0, min(float(image.height - 1), y1))
+            y2 = max(0.0, min(float(image.height - 1), y2))
+            if x2 <= x1 or y2 <= y1:
+                continue
+            draw.rectangle((x1, y1, x2, y2), outline=color, width=width)
 
             text = f"{det.label} {det.confidence:.2f}"
-            text_box = draw.textbbox((det.x1, det.y1), text, font=font)
+            text_box = draw.textbbox((x1, y1), text, font=font)
             text_w = text_box[2] - text_box[0]
             text_h = text_box[3] - text_box[1]
-            label_y = max(0, det.y1 - text_h - 6)
+            label_y = max(0, y1 - text_h - 6)
             draw.rectangle(
-                (det.x1, label_y, det.x1 + text_w + 8, label_y + text_h + 6),
+                (x1, label_y, min(image.width - 1, x1 + text_w + 8), label_y + text_h + 6),
                 fill=color,
             )
-            draw.text((det.x1 + 4, label_y + 3), text, fill=(255, 255, 255), font=font)
+            draw.text((x1 + 4, label_y + 3), text, fill=(255, 255, 255), font=font)
 
         return annotated
 
