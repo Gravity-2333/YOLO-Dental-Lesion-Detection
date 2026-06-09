@@ -39,11 +39,14 @@ from src.dental_detection.assistant import (
     DEFAULT_AI_MODEL,
 )
 from src.dental_detection.config import DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJECT_ROOT
+from src.dental_detection.batch_summary import build_batch_summary
 from src.dental_detection.inference import Detection, run_inference
+from src.dental_detection.reporting import SingleReportData, export_single_docx_report
+from src.dental_detection.result_levels import enrich_detection_row
 from ultralytics import YOLO
 
 MODEL_SOURCE = "YOLOv8m 原始结构"
-TABLE_COLUMNS = ["class", "confidence", "x1", "y1", "x2", "y2"]
+TABLE_COLUMNS = ["class", "中文名称", "confidence", "关注等级", "置信度解释", "x1", "y1", "x2", "y2"]
 CSS_PATH = PROJECT_ROOT / "assets" / "workbench.css"
 STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
 MODEL_MODE_SINGLE = "单模型"
@@ -139,16 +142,19 @@ def _clear_file_output():
 
 
 def _empty_table() -> pd.DataFrame:
-    return pd.DataFrame([{"class": "暂无检测结果", "confidence": "", "x1": "", "y1": "", "x2": "", "y2": ""}], columns=TABLE_COLUMNS)
+    return pd.DataFrame(
+        [{"class": "暂无检测结果", "中文名称": "", "confidence": "", "关注等级": "", "置信度解释": "", "x1": "", "y1": "", "x2": "", "y2": ""}],
+        columns=TABLE_COLUMNS,
+    )
 
 
 def _table_from_detections(detections: list[Detection]) -> pd.DataFrame:
-    rows = [det.as_row() for det in detections]
+    rows = _clean_detection_records(det.as_row() for det in detections)
     return pd.DataFrame(rows, columns=TABLE_COLUMNS) if rows else _empty_table()
 
 
 def _records_from_detections(detections: list[Detection]) -> list[dict[str, Any]]:
-    return [det.as_row() for det in detections]
+    return _clean_detection_records(det.as_row() for det in detections)
 
 
 def _clean_detection_records(detections: Any) -> list[dict[str, Any]]:
@@ -156,7 +162,7 @@ def _clean_detection_records(detections: Any) -> list[dict[str, Any]]:
     for det in detections or []:
         if not isinstance(det, dict):
             continue
-        row = {key: det.get(key, "") for key in TABLE_COLUMNS}
+        row = enrich_detection_row(det)
         if all(value in {"", None} for value in row.values()):
             continue
         rows.append(row)
@@ -707,6 +713,10 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     if not batch_state:
         raise gr.Error("请先完成批量检测，再导出结果。")
 
+    batch_errors = batch_state[0].get("batch_errors", []) if batch_state else []
+    if not isinstance(batch_errors, list):
+        batch_errors = []
+    batch_overview = build_batch_summary(batch_state, batch_errors)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     storage_root = ensure_app_dirs(storage_dir)
     _remember_allowed_file_root(storage_root)
@@ -783,12 +793,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                             {
                                 "image_name": name,
                                 "model": model_name,
-                                "class": det.get("class", ""),
-                                "confidence": det.get("confidence", ""),
-                                "x1": det.get("x1", ""),
-                                "y1": det.get("y1", ""),
-                                "x2": det.get("x2", ""),
-                                "y2": det.get("y2", ""),
+                                **{key: det.get(key, "") for key in TABLE_COLUMNS},
                                 "suggestion_type": suggestion_type,
                             }
                         )
@@ -797,12 +802,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                         {
                             "image_name": name,
                             "model": model_name,
-                            "class": "",
-                            "confidence": "",
-                            "x1": "",
-                            "y1": "",
-                            "x2": "",
-                            "y2": "",
+                            **{key: "" for key in TABLE_COLUMNS},
                             "suggestion_type": suggestion_type,
                         }
                     )
@@ -827,13 +827,36 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
         with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.DictWriter(
                 handle,
-                fieldnames=["image_name", "model", "class", "confidence", "x1", "y1", "x2", "y2", "suggestion_type"],
+                fieldnames=["image_name", "model", *TABLE_COLUMNS, "suggestion_type"],
             )
             writer.writeheader()
             writer.writerows(csv_rows)
 
         (work_dir / "detections.json").write_text(
-            json.dumps({"export": export_info, "items": json_items}, ensure_ascii=False, indent=2),
+            json.dumps({"export": export_info, "overview": batch_overview, "items": json_items}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        (work_dir / "batch_overview.json").write_text(
+            json.dumps(batch_overview, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        with (work_dir / "class_stats.csv").open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=["类别", "中文名称", "检测框数量", "涉及图片数", "平均置信度", "最高置信度"],
+            )
+            writer.writeheader()
+            writer.writerows(batch_overview.get("类别统计", []))
+        with (work_dir / "focus_images.csv").open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["排名", "图片名称", "最高类别", "最高置信度", "检测框数量", "关注等级"])
+            writer.writeheader()
+            writer.writerows(batch_overview.get("重点关注图片", []))
+        (work_dir / "failed_images.txt").write_text(
+            "\n".join(str(item) for item in batch_overview.get("失败图片", [])) + "\n",
+            encoding="utf-8",
+        )
+        (work_dir / "no_detection_images.txt").write_text(
+            "\n".join(str(item) for item in batch_overview.get("无检测结果图片", [])) + "\n",
             encoding="utf-8",
         )
         (work_dir / "summary.txt").write_text(
@@ -1017,6 +1040,52 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     return _file_component_output(zip_path), f"已导出单图报告：{zip_path}"
 
 
+def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
+    item = _current_item(batch_state, selected_name)
+    result = item.get("result") or item
+    name = item.get("name") or item.get("image_name") or "当前单图"
+    summary_data = item.get("summary", {})
+    if not isinstance(summary_data, dict):
+        summary_data = {}
+
+    original_img = result.get("original")
+    annotated_img = result.get("annotated")
+    if original_img is None or annotated_img is None:
+        raise gr.Error(f"{name} 的结果不完整（缺少图片数据），无法导出 Word 报告。")
+
+    model_name = result.get("model")
+    if not model_name:
+        model_results = summary_data.get("模型结果", [])
+        model_name = model_results[0].get("模型") if model_results else None
+    if not model_name:
+        model_name = summary_data.get("模型", "unknown")
+
+    storage_root = ensure_app_dirs(storage_dir)
+    _remember_allowed_file_root(storage_root)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = report_dir(storage_dir) / f"word_report_{stamp}_{_safe_stem(name)}"
+    counter = 1
+    while output_dir.exists():
+        output_dir = report_dir(storage_dir) / f"word_report_{stamp}_{_safe_stem(name)}_{counter:02d}"
+        counter += 1
+
+    report_data = SingleReportData(
+        image_name=name,
+        created_at=datetime.now().isoformat(timespec="seconds"),
+        model_name=str(model_name),
+        original_image=original_img,
+        model_input_image=result.get("model_input"),
+        annotated_image=annotated_img,
+        detections=_clean_detection_records(result.get("detections", [])),
+        advice=item.get("advice") or "",
+        quality_text=assess_image_quality(original_img),
+        summary=summary_data,
+        safety_notice=SAFETY_NOTICE,
+    )
+    path = export_single_docx_report(report_data, output_dir)
+    return _file_component_output(path), f"已导出 Word 报告：{path}"
+
+
 def save_case_record(
     batch_state: list[dict[str, Any]],
     selected_name: str,
@@ -1117,10 +1186,14 @@ def _format_case_record(data: dict[str, Any] | None) -> str:
     lines.extend(["", f"检测框：共 {len(detections)} 个"])
     if detections:
         for index, det in enumerate(detections, start=1):
+            display_name = det.get("中文名称") or det.get("class", "-")
+            attention = det.get("关注等级") or "-"
             lines.append(
                 "- "
                 f"{index}. {det.get('class', '-')}"
+                f"（{display_name}）"
                 f" | confidence={det.get('confidence', '-')}"
+                f" | 关注等级={attention}"
                 f" | bbox=({det.get('x1', '-')}, {det.get('y1', '-')}, {det.get('x2', '-')}, {det.get('y2', '-')})"
             )
     else:
@@ -1166,6 +1239,7 @@ def clear_outputs():
         "",
         "等待上传图像",
         gr.update(value={}, visible=False),  # summary: 同时重置可见性
+        gr.update(value={}, visible=False),
         [],
         gr.update(choices=[], value=None),
         gr.update(),       # chatbot: 保留对话，不静默清空
@@ -1175,9 +1249,12 @@ def clear_outputs():
         gr.update(interactive=False),
         _clear_file_output(),
         "",
+        gr.update(value="导出 Word 报告", interactive=False),
         _clear_file_output(),
         "",
-        gr.update(value="报告导出", interactive=False),
+        _clear_file_output(),
+        "",
+        gr.update(value="导出 ZIP 数据包", interactive=False),
         gr.update(value="完成检测后可保存", interactive=False),
     )
 
@@ -1284,6 +1361,7 @@ def run_single_detection(
         advice,
         assess_image_quality(primary["original"]),
         gr.update(value=summary, visible=show_summary),
+        gr.update(value={}, visible=False),
         batch_state,
         gr.update(choices=["当前单图"], value="当前单图"),
         chat_history,
@@ -1293,9 +1371,12 @@ def run_single_detection(
         gr.update(interactive=False),
         _clear_file_output(),
         "",
+        gr.update(value="导出 Word 报告", interactive=True),
         _clear_file_output(),
         "",
-        gr.update(value="报告导出", interactive=True),
+        _clear_file_output(),
+        "",
+        gr.update(value="导出 ZIP 数据包", interactive=True),
         gr.update(value="保存病例", interactive=True),
     )
 
@@ -1405,6 +1486,8 @@ def run_batch_detection(
         )
         if len(batch_errors) > 10:
             first["advice"] += f"\n…等共 {len(batch_errors)} 张"
+    first["batch_errors"] = batch_errors
+    overview = build_batch_summary(batch_state, batch_errors)
     chat_history = _conversation_from_advice(first["advice"])
     if settings.auto_save:
         save_conversation(chat_history, settings.storage_dir)
@@ -1416,6 +1499,7 @@ def run_batch_detection(
         first["advice"],
         assess_image_quality(first["result"]["original"]),
         gr.update(value=first["summary"], visible=show_summary),
+        gr.update(value=overview, visible=True),
         batch_state,
         gr.update(choices=choices, value=choices[0]),
         chat_history,
@@ -1425,9 +1509,12 @@ def run_batch_detection(
         gr.update(interactive=True),
         _clear_file_output(),
         "",
+        gr.update(value="导出 Word 报告", interactive=True),
         _clear_file_output(),
         "",
-        gr.update(value="报告导出", interactive=True),
+        _clear_file_output(),
+        "",
+        gr.update(value="导出 ZIP 数据包", interactive=True),
         gr.update(value="保存病例", interactive=True),
     )
 
@@ -1448,7 +1535,10 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
             "",
             _clear_file_output(),
             "",
-            gr.update(value="报告导出", interactive=False),
+            gr.update(value="导出 Word 报告", interactive=False),
+            _clear_file_output(),
+            "",
+            gr.update(value="导出 ZIP 数据包", interactive=False),
             gr.update(value="完成检测后可保存", interactive=False),
         )
     item = next(
@@ -1472,7 +1562,10 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
         "",
         _clear_file_output(),
         "",
-        gr.update(value="报告导出", interactive=True),
+        gr.update(value="导出 Word 报告", interactive=True),
+        _clear_file_output(),
+        "",
+        gr.update(value="导出 ZIP 数据包", interactive=True),
         gr.update(value="保存病例", interactive=True),
     )
 
@@ -1811,6 +1904,7 @@ def build_app() -> gr.Blocks:
                                         max_lines=1,
                                         elem_classes=["path-output"],
                                     )
+                                    batch_overview = gr.JSON(label="批量分析总览", visible=False)
 
                         with gr.Group(elem_classes=["section-card", "panel-card"]):
                             gr.HTML('<div class="section-heading"><h2>推理设置</h2></div>')
@@ -1900,8 +1994,24 @@ def build_app() -> gr.Blocks:
                         summary = gr.JSON(label="参数摘要", visible=False)
                         with gr.Group(elem_classes=["section-card", "export-toolbar"]):
                             with gr.Row(elem_classes=["path-row"]):
+                                word_report_path = gr.Textbox(
+                                    label="Word 报告路径",
+                                    interactive=False,
+                                    lines=1,
+                                    max_lines=1,
+                                    scale=8,
+                                    elem_classes=["path-output"],
+                                )
+                                export_word_btn = gr.Button(
+                                    "导出 Word 报告",
+                                    interactive=False,
+                                    elem_classes=["secondary-action"],
+                                    scale=2,
+                                )
+                                word_report_file = gr.File(label="Word 报告", visible=False)
+                            with gr.Row(elem_classes=["path-row"]):
                                 report_path = gr.Textbox(
-                                    label="报告路径",
+                                    label="ZIP 数据包路径",
                                     interactive=False,
                                     lines=1,
                                     max_lines=1,
@@ -1909,7 +2019,7 @@ def build_app() -> gr.Blocks:
                                     elem_classes=["path-output"],
                                 )
                                 export_report_btn = gr.Button(
-                                    "报告导出",
+                                    "导出 ZIP 数据包",
                                     interactive=False,
                                     elem_classes=["secondary-action"],
                                     scale=2,
@@ -2213,6 +2323,7 @@ def build_app() -> gr.Blocks:
             advice_box,
             quality_box,
             summary,
+            batch_overview,
             batch_state,
             batch_select,
             chatbot,
@@ -2222,6 +2333,9 @@ def build_app() -> gr.Blocks:
             export_batch_btn,
             export_file,
             export_path,
+            word_report_file,
+            word_report_path,
+            export_word_btn,
             report_file,
             report_path,
             export_report_btn,
@@ -2274,6 +2388,9 @@ def build_app() -> gr.Blocks:
                 chat_state,
                 export_file,
                 export_path,
+                word_report_file,
+                word_report_path,
+                export_word_btn,
                 report_file,
                 report_path,
                 export_report_btn,
@@ -2408,6 +2525,11 @@ def build_app() -> gr.Blocks:
             fn=export_batch_results,
             inputs=[batch_state, storage_dir],
             outputs=[batch_export_file, batch_export_path],
+        )
+        export_word_btn.click(
+            fn=export_word_report,
+            inputs=[batch_state, batch_select, storage_dir],
+            outputs=[word_report_file, word_report_path],
         )
         export_report_btn.click(
             fn=export_single_report,
