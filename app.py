@@ -151,6 +151,18 @@ def _records_from_detections(detections: list[Detection]) -> list[dict[str, Any]
     return [det.as_row() for det in detections]
 
 
+def _clean_detection_records(detections: Any) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for det in detections or []:
+        if not isinstance(det, dict):
+            continue
+        row = {key: det.get(key, "") for key in TABLE_COLUMNS}
+        if all(value in {"", None} for value in row.values()):
+            continue
+        rows.append(row)
+    return rows
+
+
 def assess_image_quality(image) -> str:
     if image is None:
         return "等待上传图像"
@@ -592,6 +604,7 @@ def _toast(message: str, kind: str = "success") -> str:
 
 
 def _detections_html(detections: list[dict[str, Any]]) -> str:
+    detections = _clean_detection_records(detections)
     if not detections:
         return "<p>未检测到目标框。</p>"
     rows = []
@@ -610,7 +623,7 @@ def _model_detections_html(results: list[dict[str, Any]]) -> str:
     sections = []
     for result in results:
         model = _html_escape(result.get("model", "unknown"))
-        detections = result.get("detections", [])
+        detections = _clean_detection_records(result.get("detections", []))
         sections.append(f"<h3>{model}</h3>{_detections_html(detections)}")
     return "".join(sections)
 
@@ -639,7 +652,7 @@ def _summary_lines(batch_state: list[dict[str, Any]], export_info: dict[str, Any
     model_counts: Counter[str] = Counter()
     for item in batch_state:
         for result in _item_results(item):
-            detections = result.get("detections", [])
+            detections = _clean_detection_records(result.get("detections", []))
             total_boxes += len(detections)
             model_counts.update([str(result.get("model", "unknown"))])
             class_counts.update(str(det.get("class", "unknown")) for det in detections)
@@ -738,7 +751,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             stem = f"{index:03d}_{_safe_stem(name)}"
             result = item.get("result") or item
             all_results = _item_results(item)
-            primary_detections = result.get("detections", [])
+            primary_detections = _clean_detection_records(result.get("detections", []))
             suggestion_type = item.get("suggestion_type", "default")
             advice = item.get("advice") or item.get("suggestion") or ""
 
@@ -756,7 +769,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             model_json_items = []
             for model_result in all_results:
                 model_name = model_result.get("model", item.get("model", "unknown"))
-                detections = model_result.get("detections", [])
+                detections = _clean_detection_records(model_result.get("detections", []))
                 model_json_items.append(
                     {
                         "model": model_name,
@@ -862,12 +875,12 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     name = item.get("name") or item.get("image_name") or "当前单图"
     stem = _safe_stem(name)
     advice = item.get("advice") or ""
-    detections = result.get("detections", [])
+    detections = _clean_detection_records(result.get("detections", []))
     model_items = [
         {
             "model": model_result.get("model", "unknown"),
             "model_path": model_result.get("model_path", ""),
-            "detections": model_result.get("detections", []),
+            "detections": _clean_detection_records(model_result.get("detections", [])),
         }
         for model_result in all_results
     ]
@@ -1026,7 +1039,7 @@ def save_case_record(
         "note": case_note_text,
         "image_name": item.get("name") or "当前单图",
         "summary": item.get("summary", {}),
-        "detections": result.get("detections", []),
+        "detections": _clean_detection_records(result.get("detections", [])),
         "suggestion_type": item.get("suggestion_type", "default"),
         "suggestion": item.get("advice", ""),
         "safety_notice": SAFETY_NOTICE,
@@ -1083,7 +1096,7 @@ def _format_case_record(data: dict[str, Any] | None) -> str:
         return str(data["提示"])
 
     summary = data.get("summary") or {}
-    detections = data.get("detections") or []
+    detections = _clean_detection_records(data.get("detections") or [])
     lines = [
         f"病例编号：{data.get('case_id') or '未填写'}",
         f"保存时间：{data.get('created_at') or '-'}",
