@@ -115,16 +115,21 @@ def _remember_allowed_file_root(path: str | Path | None) -> None:
         _sync_gradio_allowed_paths()
 
 
-def _can_return_file(path: str | Path) -> bool:
-    target = Path(path).expanduser().resolve()
+def _can_return_file(path: str | Path | None) -> bool:
+    if not path:
+        return False
+    try:
+        target = Path(path).expanduser().resolve()
+    except (OSError, TypeError, ValueError, RuntimeError):
+        return False
     return any(target == root or root in target.parents for root in _allowed_file_roots())
 
 
-def _file_output(path: str | Path) -> str | None:
+def _file_output(path: str | Path | None) -> str | None:
     return str(path) if _can_return_file(path) else None
 
 
-def _file_component_output(path: str | Path):
+def _file_component_output(path: str | Path | None):
     file_path = _file_output(path)
     return gr.update(value=file_path, visible=bool(file_path))
 
@@ -277,22 +282,25 @@ def _scan_model_files(model_dir: str | Path) -> list[tuple[str, str]]:
     if not root.exists() or not root.is_dir():
         return []
     files = []
-    candidates = (
-        path
-        for path in root.rglob("*")
-        if path.is_file() and path.suffix.lower() in _SUPPORTED_MODEL_SUFFIXES
-    )
-    for path in sorted(candidates, key=lambda item: str(item).lower()):
-        # 限制扫描深度，防止在盘符根目录等位置卡死
-        try:
-            depth = len(path.relative_to(root).parents)
-        except ValueError:
-            depth = 0
+    pending: list[tuple[Path, int]] = [(root, 0)]
+    while pending and len(files) < _MAX_MODEL_FILES:
+        current, depth = pending.pop(0)
         if depth > _MAX_MODEL_SCAN_DEPTH:
             continue
-        files.append(path)
-        if len(files) >= _MAX_MODEL_FILES:
-            break
+        try:
+            children = sorted(current.iterdir(), key=lambda item: str(item).lower())
+        except OSError:
+            continue
+        for child in children:
+            try:
+                if child.is_dir():
+                    pending.append((child, depth + 1))
+                elif child.is_file() and child.suffix.lower() in _SUPPORTED_MODEL_SUFFIXES:
+                    files.append(child)
+                    if len(files) >= _MAX_MODEL_FILES:
+                        break
+            except OSError:
+                continue
     return [(f"{_model_label_from_path(path)}  |  {path}", str(path.resolve())) for path in files]
 
 
@@ -507,7 +515,13 @@ def _safe_stem(name: str) -> str:
         *(f"LPT{index}" for index in range(1, 10)),
     }:
         safe = f"{safe}_file"
-    return safe or "image"
+    safe = safe or "image"
+    return safe[:120].rstrip(" ._") or "image"
+
+
+def _short_choice_text(value: Any, max_length: int = 48) -> str:
+    text = str(value or "").replace("|", "/").strip() or "-"
+    return text if len(text) <= max_length else f"{text[: max_length - 1]}…"
 
 
 def _current_item(batch_state: list[dict[str, Any]], selected_name: str | None = None) -> dict[str, Any]:
@@ -530,9 +544,9 @@ def _case_choices(storage_dir: str) -> list[str]:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        title = data.get("case_id") or path.stem
-        image_name = data.get("image_name") or "未命名图片"
-        created_at = data.get("created_at") or ""
+        title = _short_choice_text(data.get("case_id") or path.stem)
+        image_name = _short_choice_text(data.get("image_name") or "未命名图片")
+        created_at = _short_choice_text(data.get("created_at") or "", 32)
         choices.append(f"{created_at} | {title} | {image_name} | {path.name}")
     return choices
 
