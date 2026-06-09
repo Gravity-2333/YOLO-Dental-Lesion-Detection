@@ -42,7 +42,7 @@ class Detection:
 MAX_IMAGE_PIXELS = 8000 * 8000  # 最大像素数，超过此值先等比例缩放
 
 
-def preprocess_image(image: Image.Image | np.ndarray | str | Path, use_clahe: bool = False) -> np.ndarray:
+def _normalized_rgb_image(image: Image.Image | np.ndarray | str | Path) -> Image.Image:
     """Normalize user input for YOLO without changing aspect ratio."""
     if isinstance(image, Image.Image):
         pil_image = ImageOps.exif_transpose(image).convert("RGB")
@@ -59,8 +59,11 @@ def preprocess_image(image: Image.Image | np.ndarray | str | Path, use_clahe: bo
         scale = (MAX_IMAGE_PIXELS / pixels) ** 0.5
         new_w, new_h = int(w * scale), int(h * scale)
         pil_image = pil_image.resize((new_w, new_h), Image.LANCZOS)
+    return pil_image
 
-    rgb = np.asarray(pil_image, dtype=np.uint8)
+
+def preprocess_image(image: Image.Image | np.ndarray | str | Path, use_clahe: bool = False) -> np.ndarray:
+    rgb = np.asarray(_normalized_rgb_image(image), dtype=np.uint8)
     if not use_clahe:
         return rgb
 
@@ -86,10 +89,11 @@ class DentalDetector:
         imgsz: int = 1280,
         device: str | int | None = None,
     ) -> tuple[Image.Image, Image.Image, Image.Image, list[Detection]]:
-        original_array = preprocess_image(image, use_clahe=False)
+        normalized_image = _normalized_rgb_image(image)
+        original_array = np.asarray(normalized_image, dtype=np.uint8)
         # CLAHE 关闭时复用 original_array，避免重复的 EXIF transpose + RGB 转换
         if use_clahe:
-            model_array = preprocess_image(image, use_clahe=True)
+            model_array = preprocess_image(normalized_image, use_clahe=True)
         else:
             model_array = original_array
         results = self.model.predict(

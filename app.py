@@ -265,7 +265,12 @@ def _scan_model_files(model_dir: str | Path) -> list[tuple[str, str]]:
     if not root.exists() or not root.is_dir():
         return []
     files = []
-    for path in sorted(root.rglob("*.pt"), key=lambda item: str(item).lower()):
+    candidates = (
+        path
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() in _SUPPORTED_MODEL_SUFFIXES
+    )
+    for path in sorted(candidates, key=lambda item: str(item).lower()):
         # 限制扫描深度，防止在盘符根目录等位置卡死
         try:
             depth = len(path.relative_to(root).parents)
@@ -301,13 +306,14 @@ def refresh_model_choices(model_dir: str, current_value: str | None = None):
         value = choices[0][1] if choices else None
     if not value:
         value = choices[0][1] if choices else None
-    message = f"已扫描到 {len(choices)} 个 .pt 模型文件。" if choices else "当前目录未发现 .pt 模型文件，请确认路径。"
+    suffixes = "、".join(sorted(_SUPPORTED_MODEL_SUFFIXES))
+    message = f"已扫描到 {len(choices)} 个模型文件。" if choices else f"当前目录未发现支持的模型文件（{suffixes}），请确认路径。"
     return gr.update(choices=choices, value=value), message
 
 
 def apply_selected_model(selected_path: str, target: str):
     if not selected_path:
-        raise gr.Error("请先从模型文件下拉框选择一个 .pt 文件。")
+        raise gr.Error("请先从模型文件下拉框选择一个支持的模型文件。")
     path = str(Path(selected_path).expanduser().resolve())
     if target == "对比模型":
         return gr.update(), gr.update(value=path), f"已填入对比模型：{path}"
@@ -354,9 +360,10 @@ def choose_model_dir(model_dir: str, current_value: str | None = None):
     choices = _scan_model_files(path)
     value = current_value if current_value and any(current_value == c[1] for c in choices) else None
     value = value or (choices[0][1] if choices else None)
-    message = f"已选择模型目录：{path}。扫描到 {len(choices)} 个 .pt 模型文件。"
+    suffixes = "、".join(sorted(_SUPPORTED_MODEL_SUFFIXES))
+    message = f"已选择模型目录：{path}。扫描到 {len(choices)} 个模型文件。"
     if not choices:
-        message += " 请确认该目录或其子目录中存在模型文件。"
+        message += f" 请确认该目录或其子目录中存在支持的模型文件（{suffixes}）。"
     return gr.update(value=path), gr.update(choices=choices, value=value), message
 
 
@@ -366,8 +373,8 @@ def test_model_file(primary_model_path: str, compare_model_path: str, model_mode
         if not path.exists():
             messages.append(f"{role}：文件不存在，路径为 {path}")
             continue
-        if path.suffix.lower() != ".pt":
-            messages.append(f"{role}：文件后缀不是 .pt，当前路径为 {path}")
+        if path.suffix.lower() not in _SUPPORTED_MODEL_SUFFIXES:
+            messages.append(f"{role}：文件后缀不在支持列表中，当前路径为 {path}")
             continue
         try:
             model = YOLO(str(path))
@@ -1136,6 +1143,7 @@ def run_batch_detection(
     iou: float,
     device_choice: str,
     use_clahe: bool,
+    enable_compare: bool,
     ai_enabled: bool,
     base_url: str,
     ai_model: str,
@@ -1167,14 +1175,18 @@ def run_batch_detection(
         storage_dir,
         custom_prompt,
     )
-    selected_model_name, selected_model_path = _configured_models(MODEL_MODE_SINGLE, primary_model_path, compare_model_path)[0]
+    selected_models = _configured_models(model_mode if enable_compare else MODEL_MODE_SINGLE, primary_model_path, compare_model_path)
     batch_state: list[dict[str, Any]] = []
     batch_errors: list[str] = []
     for index, file_obj in enumerate(files, start=1):
         path = getattr(file_obj, "name", None) or file_obj
         file_name = _file_name(file_obj)
         try:
-            result = _detect_model_path(selected_model_name, selected_model_path, path, use_clahe, conf, iou, device)
+            all_results = [
+                _detect_model_path(model_name, model_path, path, use_clahe, conf, iou, device)
+                for model_name, model_path in selected_models
+            ]
+            result = all_results[0]
             advice = _build_advice(settings, result["detections"])
         except Exception as exc:
             batch_errors.append(f"{file_name}: {exc}")
@@ -1184,14 +1196,21 @@ def run_batch_detection(
                 "name": file_name,
                 "display_name": f"{index:03d} - {file_name}",
                 "result": result,
-                "all_results": [result],
+                "all_results": all_results,
                 "advice": advice,
                 "suggestion_type": _suggestion_type(settings.enabled),
                 "summary": {
                     "文件": file_name,
-                    "模型": selected_model_name,
-                    "模型路径": str(selected_model_path),
-                    "检测数量": len(result["detections"]),
+                    "模型模式": model_mode if enable_compare else MODEL_MODE_SINGLE,
+                    "模型结果": [
+                        {
+                            "模型": item["model"],
+                            "模型路径": item.get("model_path", ""),
+                            "检测数量": len(item["detections"]),
+                            "类别映射": item["class_names"],
+                        }
+                        for item in all_results
+                    ],
                     "CLAHE增强": bool(use_clahe),
                     "conf": conf,
                     "iou": iou,
@@ -1583,7 +1602,7 @@ def build_app() -> gr.Blocks:
                                 with gr.Tab("批量分析"):
                                     gr.HTML(
                                         '<div class="section-heading"><h2>批量上传</h2>'
-                                        '<p>批量分析使用主模型逐张检测，可在完成后导出结果包。</p></div>'
+                                        '<p>批量分析会按当前模型模式逐张检测，可在完成后导出结果包。</p></div>'
                                     )
                                     batch_files = gr.File(
                                         label="批量上传图片",
@@ -2043,6 +2062,7 @@ def build_app() -> gr.Blocks:
                 iou,
                 device_choice,
                 use_clahe,
+                enable_compare,
                 ai_enabled,
                 base_url,
                 ai_model,
