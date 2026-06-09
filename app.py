@@ -932,12 +932,14 @@ def save_case_record(
     ensure_app_dirs(storage_dir)
     now = datetime.now()
     stamp = now.strftime("%Y%m%d_%H%M%S_%f")
-    safe_case = _safe_stem(case_id or item.get("name") or "case")
+    case_id_text = str(case_id or "").strip()
+    case_note_text = str(case_note or "").strip()
+    safe_case = _safe_stem(case_id_text or item.get("name") or "case")
     path = _unique_case_path(storage_dir, stamp, safe_case)
     payload = {
         "created_at": now.isoformat(timespec="seconds"),
-        "case_id": case_id.strip() or "未填写",
-        "note": case_note.strip() if case_note else "",
+        "case_id": case_id_text or "未填写",
+        "note": case_note_text,
         "image_name": item.get("name") or "当前单图",
         "summary": item.get("summary", {}),
         "detections": result.get("detections", []),
@@ -960,6 +962,32 @@ def refresh_case_records(storage_dir: str):
     return gr.update(choices=choices, value=choices[0] if choices else None), (
         "已刷新病例记录。" if choices else "暂无病例记录。"
     )
+
+
+def _format_summary_value(key: str, value: Any) -> list[str]:
+    if key == "模型结果" and isinstance(value, list):
+        lines = ["- 模型结果:"]
+        for index, item in enumerate(value, start=1):
+            if isinstance(item, dict):
+                model = item.get("模型") or item.get("model") or f"模型 {index}"
+                count = item.get("检测数量", item.get("count", "-"))
+                path = item.get("路径") or item.get("模型路径") or item.get("model_path")
+                line = f"  {index}. {model} | 检测数量={count}"
+                if path:
+                    line += f" | 路径={path}"
+                lines.append(line)
+            else:
+                lines.append(f"  {index}. {item}")
+        return lines
+    if isinstance(value, dict):
+        lines = [f"- {key}:"]
+        lines.extend(f"  {sub_key}: {sub_value}" for sub_key, sub_value in value.items())
+        return lines
+    if isinstance(value, list):
+        lines = [f"- {key}:"]
+        lines.extend(f"  {index}. {item}" for index, item in enumerate(value, start=1))
+        return lines
+    return [f"- {key}: {value}"]
 
 
 def _format_case_record(data: dict[str, Any] | None) -> str:
@@ -985,7 +1013,7 @@ def _format_case_record(data: dict[str, Any] | None) -> str:
     lines.extend(["", "检测摘要："])
     if summary:
         for key, value in summary.items():
-            lines.append(f"- {key}: {value}")
+            lines.extend(_format_summary_value(str(key), value))
     else:
         lines.append("- 暂无摘要信息")
 
@@ -1601,9 +1629,10 @@ def build_app() -> gr.Blocks:
     env_key_value, direct_key_value = _api_key_inputs(saved)
     model_choices = _scan_model_files(saved.model_dir)
     model_choice_values = {value for _, value in model_choices}
+    saved_primary_model_path = _model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH))
     selected_model_choice = (
-        saved.primary_model_path
-        if saved.primary_model_path in model_choice_values
+        saved_primary_model_path
+        if saved_primary_model_path in model_choice_values
         else (model_choices[0][1] if model_choices else None)
     )
     device_choices = _device_choices()

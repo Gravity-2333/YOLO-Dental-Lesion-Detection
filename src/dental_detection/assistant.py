@@ -248,8 +248,26 @@ def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) ->
     if old_root == new_root or not old_root.exists() or not old_root.is_dir():
         return
     if old_root in new_root.parents:
-        # 新目录位于旧目录内部时，直接搬迁旧目录会形成“目录搬进自己”的递归移动。
-        # 这种情况下保留旧内容不动，新目录由后续 ensure_app_dirs 创建。
+        # 新目录位于旧目录内部时，不能整体移动旧目录；只迁移旧目录下的内容，
+        # 并跳过新目录自身，避免形成递归移动。
+        new_root.mkdir(parents=True, exist_ok=True)
+        for child in list(old_root.iterdir()):
+            try:
+                child_resolved = child.resolve()
+            except OSError:
+                continue
+            if child_resolved == new_root or new_root in child_resolved.parents:
+                continue
+            destination = new_root / child.name
+            if child.is_dir() and destination.exists() and destination.is_dir():
+                _move_contents(child, destination)
+                if _is_empty_dir(child):
+                    child.rmdir()
+            elif not destination.exists():
+                shutil.move(str(child), str(destination))
+            else:
+                suffix = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                shutil.move(str(child), str(new_root / f"{child.stem}_{suffix}{child.suffix}"))
         return
 
     if old_root == APP_HOME.resolve():
