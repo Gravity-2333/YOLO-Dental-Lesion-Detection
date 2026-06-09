@@ -570,6 +570,17 @@ def _detections_html(detections: list[dict[str, Any]]) -> str:
     return f"<table><thead><tr>{headers}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
 
 
+def _model_detections_html(results: list[dict[str, Any]]) -> str:
+    if len(results) <= 1:
+        return _detections_html(results[0].get("detections", []) if results else [])
+    sections = []
+    for result in results:
+        model = _html_escape(result.get("model", "unknown"))
+        detections = result.get("detections", [])
+        sections.append(f"<h3>{model}</h3>{_detections_html(detections)}")
+    return "".join(sections)
+
+
 def _unique_report_paths(storage_dir: str, stamp: str) -> tuple[Path, Path]:
     base = report_dir(storage_dir)
     root = base / f"single_report_{stamp}"
@@ -804,6 +815,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
 def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
     item = _current_item(batch_state, selected_name)
     result = item.get("result") or item
+    all_results = _item_results(item)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     storage_root = ensure_app_dirs(storage_dir)
     _remember_allowed_file_root(storage_root)
@@ -817,6 +829,15 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     stem = _safe_stem(name)
     advice = item.get("advice") or ""
     detections = result.get("detections", [])
+    model_items = [
+        {
+            "model": model_result.get("model", "unknown"),
+            "model_path": model_result.get("model_path", ""),
+            "detections": model_result.get("detections", []),
+        }
+        for model_result in all_results
+    ]
+    total_detections = sum(len(model_item["detections"]) for model_item in model_items)
     summary_data = item.get("summary", {})
     # 优先取 result 顶层 model（批量检测），其次取 summary["模型结果"][0]["模型"]（单图检测）
     model_name = result.get("model")
@@ -851,9 +872,16 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
 
         csv_path = work_dir / "detections.csv"
         with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=TABLE_COLUMNS)
+            writer = csv.DictWriter(handle, fieldnames=["model", *TABLE_COLUMNS])
             writer.writeheader()
-            writer.writerows(detections)
+            for model_item in model_items:
+                model = model_item["model"]
+                model_detections = model_item["detections"]
+                if model_detections:
+                    for det in model_detections:
+                        writer.writerow({"model": model, **{key: det.get(key, "") for key in TABLE_COLUMNS}})
+                else:
+                    writer.writerow({"model": model, **{key: "" for key in TABLE_COLUMNS}})
 
         _write_text(
             work_dir / "detections.json",
@@ -861,6 +889,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
                 {
                     "report": export_info,
                     "summary": summary_data,
+                    "models": model_items,
                     "detections": detections,
                     "image_files": image_files,
                 },
@@ -878,7 +907,8 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
                     f"图片名称: {name}",
                     f"模型: {export_info['model']}",
                     f"建议类型: {export_info['suggestion_type']}",
-                    f"检测框数量: {len(detections)}",
+                    f"主模型检测框数量: {len(detections)}",
+                    f"全部模型检测框数量: {total_detections}",
                     f"安全声明: {SAFETY_NOTICE}",
                 ]
             )
@@ -912,7 +942,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     <figure><img src="{image_files['result']}"><figcaption>检测结果图</figcaption></figure>
   </div>
   <h2>检测框</h2>
-  {_detections_html(detections)}
+  {_model_detections_html(all_results)}
   <h2>辅助建议</h2>
   <pre>{_html_escape(advice)}</pre>
   <h2>参数摘要</h2>
@@ -1238,6 +1268,7 @@ def run_batch_detection(
     device_choice: str,
     use_clahe: bool,
     enable_compare: bool,
+    show_summary: bool,
     ai_enabled: bool,
     base_url: str,
     ai_model: str,
@@ -1337,7 +1368,7 @@ def run_batch_detection(
         first["result"]["table"],
         first["advice"],
         assess_image_quality(first["result"]["original"]),
-        first["summary"],
+        gr.update(value=first["summary"], visible=show_summary),
         batch_state,
         gr.update(choices=choices, value=choices[0]),
         chat_history,
@@ -1354,7 +1385,7 @@ def run_batch_detection(
     )
 
 
-def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
+def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary: bool):
     if not name or not batch_state:
         return (
             None,
@@ -1363,7 +1394,7 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
             _empty_table(),
             "",
             "等待上传图像",
-            {},
+            gr.update(value={}, visible=False),
             [],
             [],
             _clear_file_output(),
@@ -1387,7 +1418,7 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]]):
         item["result"]["table"],
         item["advice"],
         assess_image_quality(item["result"]["original"]),
-        item["summary"],
+        gr.update(value=item["summary"], visible=show_summary),
         chat_history,
         chat_history,
         _clear_file_output(),
@@ -2164,6 +2195,7 @@ def build_app() -> gr.Blocks:
                 device_choice,
                 use_clahe,
                 enable_compare,
+                show_summary,
                 ai_enabled,
                 base_url,
                 ai_model,
@@ -2181,7 +2213,7 @@ def build_app() -> gr.Blocks:
         )
         batch_select.change(
             fn=select_batch_item,
-            inputs=[batch_select, batch_state],
+            inputs=[batch_select, batch_state, show_summary],
             outputs=[
                 original_output,
                 model_input_output,
