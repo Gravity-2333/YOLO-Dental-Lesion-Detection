@@ -47,9 +47,23 @@ from src.dental_detection.case_store import (
 )
 from src.dental_detection.config import DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJECT_ROOT
 from src.dental_detection.batch_summary import build_batch_summary
+from src.dental_detection.history_store import (
+    HISTORY_TABLE_COLUMNS,
+    append_history_records,
+    clear_history_records,
+    delete_history_record,
+    history_rows,
+    load_history_record as load_history_record_data,
+)
 from src.dental_detection.image_quality import assess_image_quality_detail, format_quality_text
 from src.dental_detection.inference import Detection, run_inference
-from src.dental_detection.reporting import SingleReportData, export_single_docx_report
+from src.dental_detection.model_info import (
+    build_model_cards,
+    format_model_info_markdown,
+    legend_html,
+    model_cards_html,
+)
+from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.result_levels import enrich_detection_row
 from src.dental_detection.visualization import crop_detection_regions, save_result_image
 from ultralytics import YOLO
@@ -375,6 +389,41 @@ def apply_selected_model(selected_path: str, target: str):
     return gr.update(value=path), gr.update(), f"已填入主模型：{path}"
 
 
+def _model_cards(selected_path: str | None = None) -> list[dict[str, Any]]:
+    return build_model_cards(MODEL_REGISTRY)
+
+
+def _model_card_choices() -> list[tuple[str, str]]:
+    choices = []
+    for card in _model_cards():
+        suffix = "可用" if card.get("available") else "缺失"
+        choices.append((f"{card['title']} - {card['name']}（{suffix}）", card["path"]))
+    return choices
+
+
+def _current_model_info_markdown(selected_path: str | None = None) -> str:
+    cards = _model_cards(selected_path)
+    selected = next((card for card in cards if str(card.get("path")) == str(selected_path or "")), None)
+    return format_model_info_markdown(selected or cards[0])
+
+
+def apply_model_card(selected_path: str):
+    if not selected_path:
+        raise gr.Error("请先选择一个模型卡片。")
+    card = next((item for item in _model_cards() if item.get("path") == selected_path), None)
+    if not card:
+        raise gr.Error("所选模型卡片无效，请刷新页面后重试。")
+    if not card.get("available"):
+        raise gr.Error(f"模型文件不存在：{card.get('path')}")
+    path = str(Path(card["path"]).expanduser().resolve())
+    return (
+        gr.update(value=path),
+        model_cards_html(_model_cards(path), path),
+        _current_model_info_markdown(path),
+        f"已选择{card['title']}：{card['name']}",
+    )
+
+
 def _choose_directory_dialog(title: str, initial_dir: str | Path) -> str | None:
     """Open a native directory picker when the app is running with a desktop session."""
     try:
@@ -509,10 +558,19 @@ def _api_key_inputs(saved: AiSettings) -> tuple[str, str]:
 def _build_advice(settings: AiSettings, detections: list[dict[str, Any]]) -> str:
     if not settings.enabled:
         return default_advice(detections)
+    style = load_settings().advice_style
+    style_prompt = {
+        "简洁版": "建议风格：简洁版，重点明确，避免冗长。",
+        "医生版": "建议风格：医生版，保留类别名、置信度和必要的检测框信息，语言专业克制。",
+        "患者版": "建议风格：患者版，使用易懂中文，少用技术术语，避免制造焦虑。",
+    }.get(style, "")
+    prompt = settings.custom_prompt
+    if style_prompt:
+        prompt = f"{prompt}\n{style_prompt}"
     try:
         return chat_completion(
             settings,
-            detection_prompt(detections, settings.custom_prompt),
+            detection_prompt(detections, prompt),
             temperature=0.2,
             max_tokens=500,
         )
@@ -1009,6 +1067,29 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     return _file_component_output(zip_path), f"已导出：{zip_path}"
 
 
+def export_batch_word_report(batch_state: list[dict[str, Any]], storage_dir: str):
+    if not batch_state:
+        raise gr.Error("请先完成批量检测，再导出合并 Word 报告。")
+    batch_errors = batch_state[0].get("batch_errors", []) if batch_state else []
+    if not isinstance(batch_errors, list):
+        batch_errors = []
+    overview = build_batch_summary(batch_state, batch_errors)
+    overview["生成时间"] = datetime.now().isoformat(timespec="seconds")
+    storage_root = ensure_app_dirs(storage_dir)
+    _remember_allowed_file_root(storage_root)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = report_dir(storage_dir) / f"batch_word_report_{stamp}"
+    counter = 1
+    while output_dir.exists():
+        output_dir = report_dir(storage_dir) / f"batch_word_report_{stamp}_{counter:02d}"
+        counter += 1
+    try:
+        path = export_batch_docx_report(batch_state, overview, output_dir)
+    except Exception as exc:
+        raise gr.Error(f"批量 Word 报告导出失败：{exc}") from exc
+    return _file_component_output(path), f"已导出批量 Word 报告：{path}"
+
+
 def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
     item = _current_item(batch_state, selected_name)
     result = item.get("result") or item
@@ -1425,6 +1506,92 @@ def load_case_record(choice: str, storage_dir: str):
         return _format_case_record({"错误": str(exc)})
 
 
+def _history_table_from_rows(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    return pd.DataFrame(rows, columns=HISTORY_TABLE_COLUMNS)
+
+
+def _history_choices_from_rows(rows: list[dict[str, Any]]) -> list[str]:
+    choices = []
+    for row in rows:
+        created_at = _short_choice_text(row.get("检测时间") or "", 32)
+        image_name = _short_choice_text(row.get("图片名称") or "未命名图片")
+        record_id = row.get("记录ID", "")
+        if record_id:
+            choices.append(f"{created_at} | {image_name} | {record_id}")
+    return choices
+
+
+def _history_id(choice: str) -> str:
+    return str(choice or "").split("|")[-1].strip()
+
+
+def _format_history_record(record: dict[str, Any] | None) -> str:
+    if not record:
+        return "请选择一条检测历史。"
+    detections = record.get("detections") or []
+    lines = [
+        f"检测时间：{record.get('created_at', '')}",
+        f"图片名称：{record.get('image_name', '')}",
+        f"模型：{record.get('model', '')}",
+        f"CLAHE 增强：{'是' if record.get('use_clahe') else '否'}",
+        f"检测数量：{record.get('detection_count', 0)}",
+        f"涉及类别：{'、'.join(record.get('classes') or []) or '无'}",
+        f"最高置信度：{record.get('max_confidence', '') or '无'}",
+        f"关注等级：{record.get('level', '')}",
+        f"报告路径：{record.get('report_path', '') or '暂无'}",
+        "",
+        "检测框明细：",
+    ]
+    if detections:
+        for index, det in enumerate(detections, start=1):
+            lines.append(
+                f"{index}. {det.get('中文名称', det.get('class', '未知类别'))} "
+                f"confidence={det.get('confidence', '')} "
+                f"bbox=({det.get('x1', '')}, {det.get('y1', '')}, {det.get('x2', '')}, {det.get('y2', '')})"
+            )
+    else:
+        lines.append("无检测框。")
+    advice = str(record.get("advice") or "").strip()
+    if advice:
+        lines.extend(["", "辅助建议：", advice])
+    return "\n".join(lines)
+
+
+def refresh_history_records(storage_dir: str):
+    rows = history_rows(storage_dir)
+    choices = _history_choices_from_rows(rows)
+    return (
+        gr.update(choices=choices, value=choices[0] if choices else None),
+        _history_table_from_rows(rows),
+        "历史记录已刷新。" if choices else "暂无检测历史。",
+    )
+
+
+def load_history_record(choice: str, storage_dir: str) -> str:
+    return _format_history_record(load_history_record_data(_history_id(choice), storage_dir))
+
+
+def delete_selected_history_record(choice: str, storage_dir: str):
+    record_id = _history_id(choice)
+    if not record_id:
+        history_select, table, message = refresh_history_records(storage_dir)
+        return history_select, table, "请选择要删除的历史记录。", message
+    deleted = delete_history_record(record_id, storage_dir)
+    history_select, table, message = refresh_history_records(storage_dir)
+    detail = "已删除所选历史记录。" if deleted else "未找到所选历史记录，请刷新后重试。"
+    return history_select, table, detail, message
+
+
+def clear_all_history_records(storage_dir: str):
+    clear_history_records(storage_dir)
+    return (
+        gr.update(choices=[], value=None),
+        _history_table_from_rows([]),
+        "请选择一条检测历史。",
+        "历史记录已清空。病例记录不会被删除。",
+    )
+
+
 def clear_outputs():
     return (
         None,
@@ -1445,6 +1612,9 @@ def clear_outputs():
         gr.update(choices=[], value=None),
         gr.update(),       # chatbot: 保留对话，不静默清空
         gr.update(),       # chat_state: 保留对话状态
+        _clear_file_output(),
+        "",
+        gr.update(interactive=False),
         _clear_file_output(),
         "",
         gr.update(interactive=False),
@@ -1557,6 +1727,9 @@ def run_single_detection(
             "summary": summary,
         }
     ]
+    saved_history_settings = load_settings()
+    if saved_history_settings.save_history:
+        append_history_records(batch_state, settings.storage_dir, saved_history_settings.history_limit)
     highres_image, crop_items, crop_text = _result_visual_outputs(primary)
     return (
         primary["original"],
@@ -1577,6 +1750,9 @@ def run_single_detection(
         gr.update(choices=["当前单图"], value="当前单图"),
         chat_history,
         chat_history,
+        _clear_file_output(),
+        "",
+        gr.update(interactive=False),
         _clear_file_output(),
         "",
         gr.update(interactive=False),
@@ -1705,6 +1881,9 @@ def run_batch_detection(
     chat_history = _conversation_from_advice(first["advice"])
     if settings.auto_save:
         save_conversation(chat_history, settings.storage_dir)
+    saved_history_settings = load_settings()
+    if saved_history_settings.save_history:
+        append_history_records(batch_state, settings.storage_dir, saved_history_settings.history_limit)
     highres_image, crop_items, crop_text = _result_visual_outputs(first["result"])
     return (
         first["result"]["original"],
@@ -1725,6 +1904,9 @@ def run_batch_detection(
         gr.update(choices=choices, value=choices[0]),
         chat_history,
         chat_history,
+        _clear_file_output(),
+        "",
+        gr.update(interactive=True),
         _clear_file_output(),
         "",
         gr.update(interactive=True),
@@ -1856,12 +2038,15 @@ def save_ui_settings(
     auto_save: bool,
     storage_dir: str,
     custom_prompt: str,
+    advice_style: str,
     enable_compare: bool,
     show_summary: bool,
     model_mode: str,
     model_dir: str,
     primary_model_path: str,
     compare_model_path: str,
+    save_history: bool,
+    history_limit: int | float,
 ):
     settings = _ai_settings(
         ai_enabled,
@@ -1878,6 +2063,7 @@ def save_ui_settings(
         custom_prompt,
     )
     settings.enable_compare = bool(enable_compare)
+    settings.advice_style = advice_style if advice_style in {"简洁版", "医生版", "患者版"} else "简洁版"
     settings.show_summary = bool(show_summary)
     settings.model_mode = (model_mode or MODEL_MODE_SINGLE) if settings.enable_compare else MODEL_MODE_SINGLE
     settings.model_dir = str(Path(model_dir or PROJECT_ROOT / "models").expanduser().resolve())
@@ -1886,6 +2072,11 @@ def save_ui_settings(
         compare_model_path,
         str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
     )
+    settings.save_history = bool(save_history)
+    try:
+        settings.history_limit = max(1, min(1000, int(history_limit or 100)))
+    except (TypeError, ValueError):
+        settings.history_limit = 100
     path = save_settings(settings)
     _remember_allowed_file_root(settings.storage_dir)
     feedback = [f"设置已保存：{path}"]
@@ -2058,7 +2249,9 @@ def build_app() -> gr.Blocks:
     model_choices = _scan_model_files(saved.model_dir)
     model_choice_values = {value for _, value in model_choices}
     initial_case_rows = list_case_records(saved.storage_dir)
+    initial_history_rows = history_rows(saved.storage_dir)
     saved_primary_model_path = _model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH))
+    model_card_choices = _model_card_choices()
     selected_model_choice = (
         saved_primary_model_path
         if saved_primary_model_path in model_choice_values
@@ -2133,9 +2326,22 @@ def build_app() -> gr.Blocks:
                                             interactive=False,
                                             elem_classes=["secondary-action"],
                                         )
+                                        export_batch_word_btn = gr.Button(
+                                            "导出批量 Word",
+                                            interactive=False,
+                                            elem_classes=["secondary-action"],
+                                        )
                                         batch_export_file = gr.File(label="批量结果 ZIP", visible=False)
+                                        batch_word_file = gr.File(label="批量 Word 报告", visible=False)
                                     batch_export_path = gr.Textbox(
                                         label="批量导出路径",
+                                        interactive=False,
+                                        lines=1,
+                                        max_lines=1,
+                                        elem_classes=["path-output"],
+                                    )
+                                    batch_word_path = gr.Textbox(
+                                        label="批量 Word 报告路径",
                                         interactive=False,
                                         lines=1,
                                         max_lines=1,
@@ -2240,6 +2446,7 @@ def build_app() -> gr.Blocks:
                                 )
                                 result_image_file = gr.File(label="检测结果图 PNG", visible=False)
                         with gr.Group(elem_classes=["section-card", "result-table-card"]):
+                            gr.HTML(legend_html())
                             det_table = gr.Dataframe(
                                 value=_empty_table(),
                                 headers=TABLE_COLUMNS,
@@ -2405,6 +2612,35 @@ def build_app() -> gr.Blocks:
                         lines=14,
                     )
 
+            with gr.Tab("检测历史"):
+                with gr.Group(elem_classes=["section-card", "case-card"]):
+                    gr.HTML(
+                        '<div class="card-heading"><div><h2>检测历史</h2>'
+                        '<p>自动保存最近检测摘要，默认不保存原始上传图。</p></div></div>'
+                    )
+                    with gr.Row(elem_classes=["compact-row"]):
+                        refresh_history_btn = gr.Button("刷新历史", elem_classes=["secondary-action", "compact-button"])
+                        delete_history_btn = gr.Button("删除所选", elem_classes=["secondary-action", "compact-button"])
+                        clear_history_btn = gr.Button("清空历史", elem_classes=["secondary-action", "compact-button"])
+                    history_feedback = gr.Textbox(label="历史反馈", interactive=False, lines=2)
+                    history_select = gr.Dropdown(
+                        label="检测历史",
+                        choices=_history_choices_from_rows(initial_history_rows),
+                    )
+                    history_table = gr.Dataframe(
+                        value=_history_table_from_rows(initial_history_rows),
+                        headers=HISTORY_TABLE_COLUMNS,
+                        label="历史列表",
+                        wrap=False,
+                        interactive=False,
+                    )
+                    history_detail = gr.Textbox(
+                        value=_format_history_record(None),
+                        label="历史详情",
+                        interactive=False,
+                        lines=14,
+                    )
+
             with gr.Tab("设置"):
                 with gr.Tabs(elem_classes=["settings-tabs"]):
                     with gr.Tab("检测显示"):
@@ -2416,67 +2652,79 @@ def build_app() -> gr.Blocks:
                                 gr.Markdown("对比模型会在单张分析时运行两组模型；参数摘要用于查看推理配置和检测数量。")
                     with gr.Tab("模型选择"):
                         with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML('<div class="section-heading"><h2>模型文件</h2><p>选择主模型、对比模型和模型目录。</p></div>')
+                            gr.HTML('<div class="section-heading"><h2>模型选择</h2><p>普通用户可直接选择推荐卡片，高级路径配置保留在下方。</p></div>')
+                            model_cards_view = gr.HTML(model_cards_html(_model_cards(saved_primary_model_path), saved_primary_model_path))
+                            model_card_select = gr.Radio(
+                                choices=model_card_choices,
+                                value=saved_primary_model_path if any(saved_primary_model_path == value for _, value in model_card_choices) else None,
+                                label="模型卡片",
+                                elem_classes=["segmented-control"],
+                            )
+                            apply_model_card_btn = gr.Button(
+                                "使用模型卡片",
+                                elem_classes=["secondary-action", "compact-button"],
+                            )
                             settings_model_mode = gr.Radio(
                                 choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
                                 value=saved.model_mode if saved.enable_compare else MODEL_MODE_SINGLE,
                                 label="模型模式",
                                 elem_classes=["segmented-control"],
                             )
-                            with gr.Row(elem_classes=["path-row"]):
-                                model_dir = gr.Textbox(
-                                    value=str(Path(saved.model_dir).expanduser().resolve()),
-                                    label="模型目录",
+                            with gr.Accordion("高级模型路径设置", open=False):
+                                with gr.Row(elem_classes=["path-row"]):
+                                    model_dir = gr.Textbox(
+                                        value=str(Path(saved.model_dir).expanduser().resolve()),
+                                        label="模型目录",
+                                        lines=1,
+                                        max_lines=1,
+                                        scale=8,
+                                    )
+                                    open_model_dir_btn = gr.Button(
+                                        "...",
+                                        size="sm",
+                                        scale=1,
+                                        elem_classes=["icon-action"],
+                                    )
+                                    refresh_model_btn = gr.Button(
+                                        "刷新",
+                                        scale=2,
+                                        elem_classes=["secondary-action"],
+                                    )
+                                with gr.Row(elem_classes=["model-row"]):
+                                    model_file_select = gr.Dropdown(
+                                        choices=model_choices,
+                                        value=selected_model_choice,
+                                        label="目录内模型",
+                                        scale=8,
+                                    )
+                                    apply_model_btn = gr.Button(
+                                        "使用选中模型",
+                                        elem_classes=["secondary-action"],
+                                        scale=2,
+                                    )
+                                with gr.Row(elem_classes=["compact-row"]):
+                                    model_apply_target = gr.Radio(
+                                        choices=["主模型", "对比模型"],
+                                        value="主模型",
+                                        label="填入位置",
+                                        elem_classes=["segmented-control"],
+                                    )
+                                primary_model_path = gr.Textbox(
+                                    value=_model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH)),
+                                    label="主模型路径",
                                     lines=1,
                                     max_lines=1,
-                                    scale=8,
                                 )
-                                open_model_dir_btn = gr.Button(
-                                    "...",
-                                    size="sm",
-                                    scale=1,
-                                    elem_classes=["icon-action"],
+                                compare_model_path = gr.Textbox(
+                                    value=_model_path_or_default(
+                                        saved.compare_model_path,
+                                        str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
+                                    ),
+                                    label="对比模型路径",
+                                    lines=1,
+                                    max_lines=1,
+                                    visible=saved.enable_compare and saved.model_mode == MODEL_MODE_COMPARE,
                                 )
-                                refresh_model_btn = gr.Button(
-                                    "刷新",
-                                    scale=2,
-                                    elem_classes=["secondary-action"],
-                                )
-                            with gr.Row(elem_classes=["model-row"]):
-                                model_file_select = gr.Dropdown(
-                                    choices=model_choices,
-                                    value=selected_model_choice,
-                                    label="目录内模型",
-                                    scale=8,
-                                )
-                                apply_model_btn = gr.Button(
-                                    "使用选中模型",
-                                    elem_classes=["secondary-action"],
-                                    scale=2,
-                                )
-                            with gr.Row(elem_classes=["compact-row"]):
-                                model_apply_target = gr.Radio(
-                                    choices=["主模型", "对比模型"],
-                                    value="主模型",
-                                    label="填入位置",
-                                    elem_classes=["segmented-control"],
-                                )
-                            primary_model_path = gr.Textbox(
-                                value=_model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH)),
-                                label="主模型路径",
-                                lines=1,
-                                max_lines=1,
-                            )
-                            compare_model_path = gr.Textbox(
-                                value=_model_path_or_default(
-                                    saved.compare_model_path,
-                                    str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
-                                ),
-                                label="对比模型路径",
-                                lines=1,
-                                max_lines=1,
-                                visible=saved.enable_compare and saved.model_mode == MODEL_MODE_COMPARE,
-                            )
                             with gr.Row(elem_classes=["compact-row"]):
                                 test_model_btn = gr.Button(
                                     "测试模型",
@@ -2485,10 +2733,20 @@ def build_app() -> gr.Blocks:
                             model_feedback = gr.Textbox(label="模型反馈", interactive=False, lines=2)
                             with gr.Accordion("帮助", open=False):
                                 gr.Markdown("刷新会扫描模型目录及子目录中的受支持模型文件；三点按钮用于弹出路径选择器并切换模型目录。")
+                    with gr.Tab("模型说明"):
+                        with gr.Group(elem_classes=["settings-card"]):
+                            gr.HTML('<div class="section-heading"><h2>模型说明</h2><p>识别类别、输入要求、适用边界与安全声明。</p></div>')
+                            model_info_markdown = gr.Markdown(_current_model_info_markdown(saved_primary_model_path))
+                            gr.HTML(legend_html())
                     with gr.Tab("AI 建议"):
                         with gr.Group(elem_classes=["settings-card"]):
                             gr.HTML('<div class="section-heading"><h2>AI 建议</h2><p>配置检测后的辅助建议与追问能力。</p></div>')
                             ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
+                            advice_style = gr.Dropdown(
+                                choices=["简洁版", "医生版", "患者版"],
+                                value=saved.advice_style,
+                                label="AI 建议风格",
+                            )
                             with gr.Group(visible=saved.enabled, elem_classes=["panel-card"]) as ai_group:
                                 with gr.Row(elem_classes=["compact-row"]):
                                     ai_model = gr.Textbox(value=saved.model, label="模型")
@@ -2556,6 +2814,14 @@ def build_app() -> gr.Blocks:
                         with gr.Group(elem_classes=["settings-card"]):
                             gr.HTML('<div class="section-heading"><h2>对话记录</h2><p>管理对话自动保存和数据目录。</p></div>')
                             auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
+                            save_history = gr.Checkbox(value=saved.save_history, label="自动保存检测历史")
+                            history_limit = gr.Number(
+                                value=saved.history_limit,
+                                label="历史记录最多保留数量",
+                                precision=0,
+                                minimum=1,
+                                maximum=1000,
+                            )
                             with gr.Row(elem_classes=["path-row"]):
                                 storage_dir = gr.Textbox(
                                     value=saved.storage_dir,
@@ -2579,6 +2845,7 @@ def build_app() -> gr.Blocks:
                                 gr.Markdown(
                                     "对话、导出和病例记录会保存在该数据根目录下；更换目录后保存设置即可迁移。"
                                     "三点按钮会弹出路径选择器；开启自动保存后每次检测都会生成对话记录文件。"
+                                    "检测历史默认只保存摘要和检测框，不保存原始上传图。"
                                 )
                     with gr.Tab("高级接口"):
                         with gr.Group(elem_classes=["settings-card"]):
@@ -2641,6 +2908,9 @@ def build_app() -> gr.Blocks:
             batch_export_file,
             batch_export_path,
             export_batch_btn,
+            batch_word_file,
+            batch_word_path,
+            export_batch_word_btn,
             export_file,
             export_path,
             word_report_file,
@@ -2765,12 +3035,15 @@ def build_app() -> gr.Blocks:
                 auto_save,
                 storage_dir,
                 custom_prompt,
+                advice_style,
                 enable_compare,
                 show_summary,
                 settings_model_mode,
                 model_dir,
                 primary_model_path,
                 compare_model_path,
+                save_history,
+                history_limit,
             ],
             outputs=[settings_feedback, case_select, case_table, case_feedback],
         )
@@ -2829,6 +3102,11 @@ def build_app() -> gr.Blocks:
             inputs=[model_file_select, model_apply_target],
             outputs=[primary_model_path, compare_model_path, model_feedback],
         )
+        apply_model_card_btn.click(
+            fn=apply_model_card,
+            inputs=model_card_select,
+            outputs=[primary_model_path, model_cards_view, model_info_markdown, model_feedback],
+        )
         test_model_btn.click(
             fn=test_model_file,
             inputs=[primary_model_path, compare_model_path, model_mode],
@@ -2841,6 +3119,11 @@ def build_app() -> gr.Blocks:
             fn=export_batch_results,
             inputs=[batch_state, storage_dir],
             outputs=[batch_export_file, batch_export_path],
+        )
+        export_batch_word_btn.click(
+            fn=export_batch_word_report,
+            inputs=[batch_state, storage_dir],
+            outputs=[batch_word_file, batch_word_path],
         )
         export_word_btn.click(
             fn=export_word_report,
@@ -2894,6 +3177,26 @@ def build_app() -> gr.Blocks:
             fn=load_case_record,
             inputs=[case_select, storage_dir],
             outputs=case_detail,
+        )
+        refresh_history_btn.click(
+            fn=refresh_history_records,
+            inputs=storage_dir,
+            outputs=[history_select, history_table, history_feedback],
+        )
+        history_select.change(
+            fn=load_history_record,
+            inputs=[history_select, storage_dir],
+            outputs=history_detail,
+        )
+        delete_history_btn.click(
+            fn=delete_selected_history_record,
+            inputs=[history_select, storage_dir],
+            outputs=[history_select, history_table, history_detail, history_feedback],
+        )
+        clear_history_btn.click(
+            fn=clear_all_history_records,
+            inputs=storage_dir,
+            outputs=[history_select, history_table, history_detail, history_feedback],
         )
 
     return demo

@@ -38,18 +38,23 @@ DEFAULT_AI_BASE_URL = "https://api.deepseek.com/v1"
 DEFAULT_AI_MODEL = "deepseek-chat"
 DEFAULT_AI_KEY_ENV = "DEEPSEEK_API_KEY"
 DEFAULT_AI_PROMPT = (
-    "你是牙科影像检测结果解释助手，服务对象可能是牙科医生、口腔科助理或普通用户。"
-    "你只能基于用户提供的 YOLO 检测结果文本生成辅助建议，不接收、不分析、不猜测牙片图片本身。"
-    "必须在建议开头包含原句：本结果仅供辅助参考，不能替代专业牙科医生诊断。"
-    "不要输出最终诊断，不要给处方，不要给具体药物剂量，不要建议自行用药，也不要使用“确诊、一定、必须治疗”等绝对表达。"
-    "请按检测类别、数量、置信度和检测框位置描述需要关注的区域，并把建议限制在复查确认、预约就医、携带原始影像和检测结果沟通、观察症状、保持口腔卫生、定期口腔检查等范围。"
-    "如果检测结果为空，请说明模型未检测到明确目标框，但仍建议结合症状、原始影像质量和专业牙科检查复核。"
-    "输出应简洁、分条、中文，不超过 260 字。"
+    "你是牙科影像检测结果解释助手。你只能基于用户提供的 YOLO 检测结果文本生成辅助建议，"
+    "不接收、不分析、不猜测牙片图片本身。不要输出最终诊断，不要给处方，不要给具体药物剂量，"
+    "不要建议自行用药，也不要使用“确诊、一定、必须治疗”等绝对表达。"
+    "请固定使用以下中文栏目输出：检测摘要、需要关注的位置、复查建议、注意事项、安全声明。"
+    "安全声明必须包含原句：本结果仅供辅助参考，不能替代专业牙科医生诊断。"
+    "如检测结果为空，请说明模型未检测到明确目标框，但仍需结合症状、原始影像质量和专业牙科检查复核。"
+    "输出不超过 300 字。"
 )
 CLASS_ADVICE = {
     "Caries": "疑似龋坏相关区域。建议关注该区域是否有冷热刺激痛、食物嵌塞或颜色改变，并预约牙科检查确认。",
     "Periapical Lesion": "疑似根尖周相关异常区域。建议结合疼痛、咬合不适、牙龈肿胀等症状，由牙科医生复查根尖区域。",
     "Impacted": "疑似阻生牙相关区域。建议关注局部清洁难度、反复发炎或邻牙受影响风险，并咨询牙科医生评估。",
+}
+CLASS_DISPLAY_NAMES = {
+    "Caries": "龋齿",
+    "Periapical Lesion": "根尖周病变",
+    "Impacted": "阻生牙",
 }
 
 
@@ -83,9 +88,12 @@ class AiSettings:
     auto_save: bool = True
     storage_dir: str = str(APP_HOME)
     custom_prompt: str = DEFAULT_AI_PROMPT
+    advice_style: str = "简洁版"
     model_mode: str = "单模型"
     enable_compare: bool = True
     show_summary: bool = False
+    save_history: bool = True
+    history_limit: int = 100
     model_dir: str = str(PROJECT_ROOT / "models")
     primary_model_path: str = str(
         PROJECT_ROOT
@@ -125,6 +133,10 @@ def report_dir(storage_dir: str | None = None) -> Path:
     return storage_root(storage_dir) / "reports"
 
 
+def history_dir(storage_dir: str | None = None) -> Path:
+    return storage_root(storage_dir) / "history"
+
+
 def ensure_app_dirs(storage_dir: str | None = None) -> Path:
     APP_HOME.mkdir(parents=True, exist_ok=True)
     root = storage_root(storage_dir)
@@ -133,6 +145,7 @@ def ensure_app_dirs(storage_dir: str | None = None) -> Path:
     export_dir(str(root)).mkdir(parents=True, exist_ok=True)
     case_dir(str(root)).mkdir(parents=True, exist_ok=True)
     report_dir(str(root)).mkdir(parents=True, exist_ok=True)
+    history_dir(str(root)).mkdir(parents=True, exist_ok=True)
     return root
 
 
@@ -169,13 +182,14 @@ def load_settings() -> AiSettings:
     # 类型校验：防止损坏的 settings.json 在模块导入阶段导致 Path(123) 等 TypeError
     _STRING_FIELDS = {
         "base_url", "model", "key_mode", "api_key",
-        "custom_prompt", "model_mode",
+        "custom_prompt", "advice_style", "model_mode",
     }
     _PATH_FIELDS = {
         "storage_dir", "model_dir",
         "primary_model_path", "compare_model_path",
     }
-    _BOOL_FIELDS = {"enabled", "save_api_key", "auto_save", "enable_compare", "show_summary"}
+    _BOOL_FIELDS = {"enabled", "save_api_key", "auto_save", "enable_compare", "show_summary", "save_history"}
+    _INT_FIELDS = {"history_limit"}
 
     filtered: dict[str, Any] = {}
     for key, value in data.items():
@@ -198,12 +212,19 @@ def load_settings() -> AiSettings:
             elif isinstance(value, (int, float)):
                 filtered[key] = bool(value)
             # 其他类型丢弃
+        elif key in _INT_FIELDS:
+            try:
+                filtered[key] = max(1, min(1000, int(value)))
+            except (TypeError, ValueError):
+                pass
         else:
             filtered[key] = value
     if filtered.get("key_mode") not in {"环境变量", "直接 Key 值"}:
         filtered.pop("key_mode", None)
     if filtered.get("model_mode") not in {"单模型", "对比模型"}:
         filtered.pop("model_mode", None)
+    if filtered.get("advice_style") not in {"简洁版", "医生版", "患者版"}:
+        filtered.pop("advice_style", None)
     return AiSettings(**{**defaults, **filtered})
 
 
@@ -271,7 +292,7 @@ def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) ->
         return
 
     if old_root == APP_HOME.resolve():
-        for child_name in ("conversations", "exports", "cases", "reports"):
+        for child_name in ("conversations", "exports", "cases", "reports", "history"):
             source = old_root / child_name
             if source.exists() and source.is_dir():
                 _move_contents(source, new_root / child_name)
@@ -453,9 +474,11 @@ def detection_prompt(
 def default_advice(detections: list[dict[str, Any]]) -> str:
     if not detections:
         return (
-            f"{SAFETY_NOTICE}\n\n"
-            "本次未检测到明确的目标病变框。若仍有疼痛、肿胀、冷热刺激痛或影像可疑区域，"
-            "建议携带原始牙片咨询专业牙科医生复核。日常请保持刷牙、牙线和定期口腔检查。"
+            "检测摘要：本次未检测到明确的目标病变框。\n\n"
+            "需要关注的位置：未形成可定位的检测框；若原始影像存在可疑区域，应以专业阅片为准。\n\n"
+            "复查建议：如仍有疼痛、肿胀、冷热刺激痛或影像质量较差，建议携带原始牙片咨询专业牙科医生复核。\n\n"
+            "注意事项：未检测到目标不代表不存在病变，本系统不提供治疗方案、处方或药物剂量建议。\n\n"
+            f"安全声明：{SAFETY_NOTICE}"
         )
 
     grouped: dict[str, list[dict[str, Any]]] = {}
@@ -463,7 +486,8 @@ def default_advice(detections: list[dict[str, Any]]) -> str:
         label = str(det.get("class", "未知区域"))
         grouped.setdefault(label, []).append(det)
 
-    sections = [SAFETY_NOTICE]
+    summary_lines = []
+    focus_lines = []
     for label, items in sorted(grouped.items()):
         confidences = []
         for item in items:
@@ -487,15 +511,19 @@ def default_advice(detections: list[dict[str, Any]]) -> str:
                 "检测到模型标记的可疑区域。建议结合原始影像、症状和医生检查进行复核。",
             ),
         )
-        sections.append(
-            f"{label}：{level}。共 {len(items)} 处，最高置信度约 {high_conf:.2f}。{advice}"
-        )
+        display = CLASS_DISPLAY_NAMES.get(normalized, label)
+        summary_lines.append(f"{display} {len(items)} 处，最高置信度约 {high_conf:.2f}，{level}。")
+        focus_lines.append(f"{display}：{advice}")
 
-    sections.append(
-        "请保留原始影像和检测结果，必要时携带给专业牙科医生复查。"
-        "本建议不构成最终诊断，不提供处方，也不提供具体药物剂量。"
+    return "\n\n".join(
+        [
+            "检测摘要：" + " ".join(summary_lines),
+            "需要关注的位置：" + " ".join(focus_lines),
+            "复查建议：请保留原始影像和检测结果，必要时携带给专业牙科医生复查确认。",
+            "注意事项：本建议不构成最终诊断，不提供治疗方案、处方或具体药物剂量。置信度不等同于疾病严重程度。",
+            f"安全声明：{SAFETY_NOTICE}",
+        ]
     )
-    return "\n\n".join(sections)
 
 
 def _normalize_messages(messages: Any) -> list[dict[str, str]]:

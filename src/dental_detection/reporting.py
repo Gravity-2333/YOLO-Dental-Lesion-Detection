@@ -7,6 +7,8 @@ from typing import Any
 
 from PIL import Image
 
+from .batch_summary import build_batch_summary
+from .model_info import legend_markdown
 from .result_levels import enrich_detection_row
 
 
@@ -128,13 +130,194 @@ def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
     document.add_heading("五、辅助建议", level=1)
     _add_paragraphs(document, data.advice)
 
-    document.add_heading("六、技术参数摘要", level=1)
+    document.add_heading("六、图例与类别说明", level=1)
+    _add_paragraphs(document, legend_markdown())
+
+    document.add_heading("七、技术参数摘要", level=1)
     document.add_paragraph(f"推理尺寸：{_summary_value(data.summary, '推理尺寸')}")
     document.add_paragraph(f"置信度阈值：{_summary_value(data.summary, '置信度阈值', 'conf')}")
     document.add_paragraph(f"IoU 阈值：{_summary_value(data.summary, 'IoU阈值', 'iou')}")
     document.add_paragraph(f"CLAHE 增强：{_yes_no(_summary_value(data.summary, 'CLAHE增强'))}")
     document.add_paragraph(f"运行设备：{_summary_value(data.summary, '运行设备')}")
     document.add_paragraph(f"模型名称：{data.model_name}")
+
+    document.save(output_path)
+    return output_path
+
+
+def _safe_name(name: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in "._- " else "_" for ch in str(name or "image")).strip() or "image"
+
+
+def _item_results(item: dict[str, Any]) -> list[dict[str, Any]]:
+    results = item.get("all_results")
+    if isinstance(results, list) and results:
+        return [result for result in results if isinstance(result, dict)]
+    result = item.get("result") or item
+    return [result] if isinstance(result, dict) else []
+
+
+def _primary_result(item: dict[str, Any]) -> dict[str, Any]:
+    result = item.get("result") or item
+    return result if isinstance(result, dict) else {}
+
+
+def _model_name(item: dict[str, Any]) -> str:
+    result = _primary_result(item)
+    if result.get("model"):
+        return str(result["model"])
+    summary = item.get("summary")
+    if isinstance(summary, dict):
+        model_results = summary.get("模型结果")
+        if isinstance(model_results, list) and model_results:
+            first = model_results[0]
+            if isinstance(first, dict) and first.get("模型"):
+                return str(first["模型"])
+        return str(summary.get("模型", "unknown"))
+    return "unknown"
+
+
+def _add_detection_table(document, detections: list[dict[str, Any]]) -> None:
+    headers = ["序号", "类别", "中文名称", "置信度", "关注等级", "x1", "y1", "x2", "y2"]
+    table = document.add_table(rows=1, cols=len(headers))
+    table.style = "Table Grid"
+    for cell, header in zip(table.rows[0].cells, headers):
+        cell.text = header
+    rows = [enrich_detection_row(det) for det in detections]
+    if not rows:
+        cells = table.add_row().cells
+        cells[0].text = "-"
+        cells[1].text = "未检测到目标框"
+        return
+    for index, row in enumerate(rows, start=1):
+        cells = table.add_row().cells
+        values = [
+            index,
+            row["class"],
+            row["中文名称"],
+            row["confidence"],
+            row["关注等级"],
+            row["x1"],
+            row["y1"],
+            row["x2"],
+            row["y2"],
+        ]
+        for cell, value in zip(cells, values):
+            cell.text = str(value)
+
+
+def export_batch_docx_report(
+    batch_state: list[dict[str, Any]],
+    batch_summary: dict[str, Any] | None,
+    output_dir: Path,
+) -> Path:
+    from docx import Document
+    from docx.shared import Inches
+
+    if not batch_state:
+        raise ValueError("批量结果为空，无法导出合并报告。")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "牙齿病变批量辅助识别报告.docx"
+    counter = 1
+    while output_path.exists():
+        output_path = output_dir / f"牙齿病变批量辅助识别报告_{counter:02d}.docx"
+        counter += 1
+
+    summary = batch_summary or build_batch_summary(batch_state)
+    document = Document()
+    document.add_heading("牙齿病变批量辅助识别报告", level=0)
+    notice = document.add_paragraph()
+    run = notice.add_run("本结果仅供辅助参考，不能替代专业牙科医生诊断。")
+    run.bold = True
+    document.add_paragraph(f"生成时间：{_summary_value(summary, '生成时间', default='') or ''}")
+    document.add_paragraph("报告类型：批量影像检测合并报告")
+
+    document.add_heading("一、批量检测总览", level=1)
+    for label in ["图片总数", "成功处理", "处理失败", "检测框总数", "平均置信度", "最高置信度", "涉及类别"]:
+        document.add_paragraph(f"{label}：{summary.get(label, '无' if label == '涉及类别' else 0)}")
+
+    document.add_heading("二、类别统计", level=1)
+    class_rows = summary.get("类别统计") or []
+    if class_rows:
+        table = document.add_table(rows=1, cols=6)
+        table.style = "Table Grid"
+        headers = ["类别", "中文名称", "检测框数量", "涉及图片数", "最高置信度", "平均置信度"]
+        for cell, header in zip(table.rows[0].cells, headers):
+            cell.text = header
+        for row in class_rows:
+            cells = table.add_row().cells
+            for cell, header in zip(cells, headers):
+                cell.text = str(row.get(header, ""))
+    else:
+        document.add_paragraph("暂无类别统计。")
+
+    document.add_heading("三、重点关注图片", level=1)
+    focus_rows = summary.get("重点关注图片") or []
+    if focus_rows:
+        table = document.add_table(rows=1, cols=6)
+        table.style = "Table Grid"
+        headers = ["排名", "图片名称", "最高类别", "最高置信度", "检测框数量", "关注等级"]
+        for cell, header in zip(table.rows[0].cells, headers):
+            cell.text = header
+        for row in focus_rows:
+            cells = table.add_row().cells
+            for cell, header in zip(cells, headers):
+                cell.text = str(row.get(header, ""))
+    else:
+        document.add_paragraph("暂无重点关注图片。")
+
+    document.add_heading("四、逐图检测结果", level=1)
+    with TemporaryDirectory() as temp_dir:
+        temp_root = Path(temp_dir)
+        for index, item in enumerate(batch_state, start=1):
+            result = _primary_result(item)
+            name = item.get("name") or item.get("image_name") or f"image_{index:03d}.png"
+            detections = result.get("detections", []) if isinstance(result, dict) else []
+            enriched = [enrich_detection_row(det) for det in detections or [] if isinstance(det, dict)]
+            confidences = []
+            for row in enriched:
+                try:
+                    confidences.append(float(row.get("confidence", 0) or 0))
+                except (TypeError, ValueError):
+                    pass
+            classes = sorted({row.get("中文名称", "") for row in enriched if row.get("中文名称")})
+
+            document.add_heading(f"{index}. {name}", level=2)
+            document.add_paragraph(f"使用模型：{_model_name(item)}")
+            document.add_paragraph(f"检测框数量：{len(enriched)}")
+            document.add_paragraph(f"涉及类别：{'、'.join(classes) if classes else '无'}")
+            document.add_paragraph(f"最高置信度：{max(confidences):.4f}" if confidences else "最高置信度：无")
+            quality_text = item.get("quality_text")
+            if quality_text:
+                document.add_paragraph("图像质量提示：")
+                _add_paragraphs(document, quality_text)
+            annotated = result.get("annotated") if isinstance(result, dict) else None
+            if annotated is not None:
+                document.add_paragraph("检测结果图")
+                image_path = _save_temp_image(annotated, temp_root, f"{index:03d}_{_safe_name(name)}.png")
+                document.add_picture(str(image_path), width=Inches(5.8))
+            _add_detection_table(document, detections)
+
+            advice = item.get("advice")
+            if advice:
+                document.add_paragraph("辅助建议：")
+                _add_paragraphs(document, advice)
+
+    document.add_heading("五、失败图片列表", level=1)
+    failed = summary.get("失败图片") or []
+    if failed:
+        for item in failed:
+            document.add_paragraph(f"- {item}")
+    else:
+        document.add_paragraph("无失败图片。")
+
+    document.add_heading("六、图例与类别说明", level=1)
+    _add_paragraphs(document, legend_markdown())
+
+    document.add_heading("七、安全声明", level=1)
+    document.add_paragraph("本系统不适用于最终诊断，不提供治疗方案，不提供药物建议。未检测到目标不代表不存在病变。")
+    document.add_paragraph("本结果仅供辅助参考，不能替代专业牙科医生诊断。")
 
     document.save(output_path)
     return output_path
