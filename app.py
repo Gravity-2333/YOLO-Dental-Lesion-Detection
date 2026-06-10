@@ -386,8 +386,14 @@ def apply_selected_model(selected_path: str, target: str):
         raise gr.Error(f"所选模型文件不存在：{model_path}")
     path = str(model_path)
     if target == "对比模型":
-        return gr.update(), gr.update(value=path), f"已填入对比模型：{path}"
-    return gr.update(value=path), gr.update(), f"已填入主模型：{path}"
+        return gr.update(), gr.update(value=path), gr.update(), gr.update(), f"已填入对比模型：{path}"
+    return (
+        gr.update(value=path),
+        gr.update(),
+        model_cards_html(_model_cards(path), path),
+        _current_model_info_markdown(path),
+        f"已填入主模型：{path}",
+    )
 
 
 def _model_cards(selected_path: str | None = None) -> list[dict[str, Any]]:
@@ -405,7 +411,21 @@ def _model_card_choices() -> list[tuple[str, str]]:
 def _current_model_info_markdown(selected_path: str | None = None) -> str:
     cards = _model_cards(selected_path)
     selected = next((card for card in cards if str(card.get("path")) == str(selected_path or "")), None)
-    return format_model_info_markdown(selected or cards[0])
+    if selected:
+        return format_model_info_markdown(selected)
+    if selected_path:
+        path = Path(selected_path).expanduser()
+        return format_model_info_markdown(
+            {
+                "name": _model_label_from_path(path),
+                "architecture": "自定义 YOLO 模型",
+                "role": "用户选择的模型文件",
+                "path": str(path),
+                "available": path.exists(),
+                "metrics": {},
+            }
+        )
+    return format_model_info_markdown(cards[0])
 
 
 def apply_model_card(selected_path: str):
@@ -582,6 +602,13 @@ def _advice_style_prompt(style: str) -> str:
         "医生版": "建议风格：医生版，保留类别名、置信度和必要的检测框信息，语言专业克制。",
         "患者版": "建议风格：患者版，使用易懂中文，少用技术术语，避免制造焦虑。",
     }.get(style, "")
+
+
+def _normalize_history_limit(value: Any) -> int:
+    try:
+        return max(1, min(1000, int(value or 100)))
+    except (TypeError, ValueError):
+        return 100
 
 
 def _conversation_from_advice(advice: str) -> list[dict[str, str]]:
@@ -1672,6 +1699,8 @@ def run_single_detection(
     storage_dir: str,
     custom_prompt: str,
     advice_style: str,
+    save_history: bool,
+    history_limit: int | float,
 ):
     if image is None:
         raise gr.Error("请先上传一张牙科影像。")
@@ -1741,9 +1770,8 @@ def run_single_detection(
             "summary": summary,
         }
     ]
-    saved_history_settings = load_settings()
-    if saved_history_settings.save_history:
-        append_history_records(batch_state, settings.storage_dir, saved_history_settings.history_limit)
+    if save_history:
+        append_history_records(batch_state, settings.storage_dir, _normalize_history_limit(history_limit))
     highres_image, crop_items, crop_text = _result_visual_outputs(primary)
     return (
         primary["original"],
@@ -1811,6 +1839,8 @@ def run_batch_detection(
     storage_dir: str,
     custom_prompt: str,
     advice_style: str,
+    save_history: bool,
+    history_limit: int | float,
 ):
     if not files:
         raise gr.Error("请先批量上传牙科影像。")
@@ -1897,9 +1927,8 @@ def run_batch_detection(
     chat_history = _conversation_from_advice(first["advice"])
     if settings.auto_save:
         save_conversation(chat_history, settings.storage_dir)
-    saved_history_settings = load_settings()
-    if saved_history_settings.save_history:
-        append_history_records(batch_state, settings.storage_dir, saved_history_settings.history_limit)
+    if save_history:
+        append_history_records(batch_state, settings.storage_dir, _normalize_history_limit(history_limit))
     highres_image, crop_items, crop_text = _result_visual_outputs(first["result"])
     return (
         first["result"]["original"],
@@ -2089,21 +2118,24 @@ def save_ui_settings(
         str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
     )
     settings.save_history = bool(save_history)
-    try:
-        settings.history_limit = max(1, min(1000, int(history_limit or 100)))
-    except (TypeError, ValueError):
-        settings.history_limit = 100
+    settings.history_limit = _normalize_history_limit(history_limit)
     path = save_settings(settings)
     _remember_allowed_file_root(settings.storage_dir)
     feedback = [f"设置已保存：{path}"]
     case_rows = list_case_records(settings.storage_dir)
     case_choices = _case_choices_from_rows(case_rows)
     case_message = "病例列表已同步到当前存储位置。" if case_choices else "当前存储位置暂无病例记录。"
+    history_table = history_rows(settings.storage_dir)
+    history_choices = _history_choices_from_rows(history_table)
+    history_message = "检测历史已同步到当前存储位置。" if history_choices else "当前存储位置暂无检测历史。"
     return (
         _toast("\n".join(feedback), "success"),
         gr.update(choices=case_choices, value=case_choices[0] if case_choices else None),
         _case_table(case_rows),
         case_message,
+        gr.update(choices=history_choices, value=history_choices[0] if history_choices else None),
+        _history_table_from_rows(history_table),
+        history_message,
     )
 
 
@@ -2908,6 +2940,8 @@ def build_app() -> gr.Blocks:
             storage_dir,
             custom_prompt,
             advice_style,
+            save_history,
+            history_limit,
         ]
         common_outputs = [
             original_output,
@@ -2974,6 +3008,8 @@ def build_app() -> gr.Blocks:
                 storage_dir,
                 custom_prompt,
                 advice_style,
+                save_history,
+                history_limit,
             ],
             outputs=common_outputs,
         )
@@ -3069,7 +3105,15 @@ def build_app() -> gr.Blocks:
                 save_history,
                 history_limit,
             ],
-            outputs=[settings_feedback, case_select, case_table, case_feedback],
+            outputs=[
+                settings_feedback,
+                case_select,
+                case_table,
+                case_feedback,
+                history_select,
+                history_table,
+                history_feedback,
+            ],
         )
         chat_btn.click(
             fn=continue_chat,
@@ -3126,7 +3170,7 @@ def build_app() -> gr.Blocks:
         apply_model_btn.click(
             fn=apply_selected_model,
             inputs=[model_file_select, model_apply_target],
-            outputs=[primary_model_path, compare_model_path, model_feedback],
+            outputs=[primary_model_path, compare_model_path, model_cards_view, model_info_markdown, model_feedback],
         )
         apply_model_card_btn.click(
             fn=apply_model_card,
