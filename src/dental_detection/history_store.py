@@ -102,7 +102,9 @@ def _write_records(records: list[dict[str, Any]], storage_dir: str | None = None
     ensure_history_dir(storage_dir)
     path = history_file(storage_dir)
     content = "\n".join(json.dumps(item, ensure_ascii=False) for item in records)
-    path.write_text(f"{content}\n" if content else "", encoding="utf-8")
+    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
+    tmp_path.write_text(f"{content}\n" if content else "", encoding="utf-8")
+    tmp_path.replace(path)
     return path
 
 

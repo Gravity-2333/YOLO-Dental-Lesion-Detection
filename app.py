@@ -1097,6 +1097,11 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                 export_root.rmdir()
         except OSError:
             pass
+    update_history_report_paths(
+        [str(item.get("name") or item.get("image_name") or "") for item in batch_state],
+        zip_path,
+        storage_dir,
+    )
     return _file_component_output(zip_path), f"已导出：{zip_path}"
 
 
@@ -1283,6 +1288,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
                 report_root.rmdir()
         except OSError:
             pass
+    update_history_report_paths([name], zip_path, storage_dir)
     return _file_component_output(zip_path), f"已导出单图报告：{zip_path}"
 
 
@@ -2117,6 +2123,7 @@ def save_ui_settings(
         auto_save,
         storage_dir,
         custom_prompt,
+        advice_style,
     )
     settings.enable_compare = bool(enable_compare)
     settings.advice_style = advice_style if advice_style in {"简洁版", "医生版", "患者版"} else "简洁版"
