@@ -61,6 +61,7 @@ STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
 MODEL_MODE_SINGLE = "单模型"
 MODEL_MODE_COMPARE = "对比模型"
 CASE_TABLE_COLUMNS = ["保存时间", "病例编号", "图片名称", "检测数量", "涉及类别", "关注等级", "最高置信度", "文件名"]
+COMMON_OUTPUT_QUALITY_INDEX = 11
 _EXTRA_ALLOWED_FILE_ROOTS: set[Path] = set()
 
 
@@ -1461,7 +1462,7 @@ def clear_outputs():
 
 def clear_outputs_with_quality(image):
     values = list(clear_outputs())
-    values[5] = assess_image_quality(image)
+    values[COMMON_OUTPUT_QUALITY_INDEX] = assess_image_quality(image)
     return tuple(values)
 
 
