@@ -8,7 +8,7 @@ from typing import Any
 
 from .assistant import SAFETY_NOTICE, case_dir, ensure_app_dirs, report_dir, storage_root
 from .model_info import legend_markdown
-from .result_levels import enrich_detection_row, get_class_display_name, parse_confidence
+from .result_levels import REGION_NOTICE, enrich_detection_row, get_class_display_name, parse_confidence
 
 
 def _case_trash_dir(storage_dir: str) -> Path:
@@ -201,7 +201,8 @@ def export_case_report(storage_dir: str, file_name: str) -> Path:
         document.add_paragraph(f"病例备注：{data.get('note')}")
 
     document.add_heading("检测框明细", level=1)
-    headers = ["序号", "类别", "中文名称", "置信度", "关注等级", "x1", "y1", "x2", "y2"]
+    document.add_paragraph(REGION_NOTICE)
+    headers = ["序号", "类别", "中文名称", "置信度", "关注等级", "图像区域", "x1", "y1", "x2", "y2"]
     table = document.add_table(rows=1, cols=len(headers))
     table.style = "Table Grid"
     for cell, header in zip(table.rows[0].cells, headers):
@@ -214,6 +215,7 @@ def export_case_report(storage_dir: str, file_name: str) -> Path:
                 row.get("中文名称", ""),
                 row.get("confidence", ""),
                 row.get("关注等级", ""),
+                row.get("图像区域", ""),
                 row.get("x1", ""),
                 row.get("y1", ""),
                 row.get("x2", ""),
@@ -222,7 +224,7 @@ def export_case_report(storage_dir: str, file_name: str) -> Path:
             for cell, value in zip(table.add_row().cells, values):
                 cell.text = str(value)
     else:
-        for cell, value in zip(table.add_row().cells, ["-", "无检测结果", "", "", "", "", "", "", ""]):
+        for cell, value in zip(table.add_row().cells, ["-", "无检测结果", "", "", "", "", "", "", "", ""]):
             cell.text = str(value)
 
     if data.get("quality_text"):

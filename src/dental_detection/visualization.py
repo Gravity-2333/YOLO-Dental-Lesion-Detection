@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from .assistant import ensure_app_dirs, export_dir
 from .result_levels import enrich_detection_row
@@ -27,6 +27,51 @@ def save_result_image(image: Image.Image, storage_dir: str, image_name: str) -> 
         counter += 1
     ImageOps.exif_transpose(image).convert("RGB").save(path)
     return path
+
+
+def draw_detections_with_filter(
+    image: Image.Image,
+    detections: list[dict[str, Any]],
+    visible_classes: list[str] | None = None,
+) -> Image.Image:
+    base = ImageOps.exif_transpose(image).convert("RGB")
+    allowed = None if visible_classes is None else {str(item).strip() for item in visible_classes if str(item).strip()}
+    annotated = base.copy()
+    draw = ImageDraw.Draw(annotated)
+    font = ImageFont.load_default()
+    colors = {
+        "龋齿": (235, 88, 60),
+        "根尖周病变": (32, 146, 230),
+        "阻生牙": (40, 170, 110),
+    }
+    width = max(2, round(min(base.size) / 300))
+
+    for detection in detections or []:
+        row = enrich_detection_row(detection, base.size)
+        display_name = str(row.get("中文名称") or row.get("class") or "未知类别")
+        if allowed is not None and display_name not in allowed and str(row.get("class") or "") not in allowed:
+            continue
+        try:
+            x1 = float(row["x1"])
+            y1 = float(row["y1"])
+            x2 = float(row["x2"])
+            y2 = float(row["y2"])
+        except (TypeError, ValueError):
+            continue
+        x1, x2 = sorted((max(0.0, min(base.width - 1, x1)), max(0.0, min(base.width - 1, x2))))
+        y1, y2 = sorted((max(0.0, min(base.height - 1, y1)), max(0.0, min(base.height - 1, y2))))
+        if x2 <= x1 or y2 <= y1:
+            continue
+        color = colors.get(display_name, (245, 174, 45))
+        draw.rectangle((x1, y1, x2, y2), outline=color, width=width)
+        text = f"{display_name} {row.get('confidence', '')}"
+        text_box = draw.textbbox((x1, y1), text, font=font)
+        text_w = text_box[2] - text_box[0]
+        text_h = text_box[3] - text_box[1]
+        label_y = max(0, y1 - text_h - 6)
+        draw.rectangle((x1, label_y, min(base.width - 1, x1 + text_w + 8), label_y + text_h + 6), fill=color)
+        draw.text((x1 + 4, label_y + 3), text, fill=(255, 255, 255), font=font)
+    return annotated
 
 
 def crop_detection_regions(
@@ -61,6 +106,7 @@ def crop_detection_regions(
         caption = (
             f"区域 {len(regions) + 1}：{row['中文名称']} | "
             f"置信度 {row['confidence']} | {row['关注等级']}"
+            f"{' | ' + row['图像区域'] if row.get('图像区域') else ''}"
         )
         regions.append(
             {

@@ -1468,3 +1468,30 @@ button[aria-disabled="true"] {
 
 /* 移除之前错误的居中对齐 - 这些规则导致了新的对齐问题 */
 /* .path-row button, .chat-input-row button 等规则已删除 */
+.guide-card {
+  margin-bottom: 14px;
+}
+
+.guide-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.guide-steps span {
+  border: 1px solid var(--soft-border);
+  border-radius: 8px;
+  background: var(--surface-bg);
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+  padding: 10px 12px;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .guide-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -56,6 +56,7 @@ from src.dental_detection.history_store import (
     load_history_record as load_history_record_data,
     update_history_report_paths,
 )
+from src.dental_detection.error_messages import friendly_error_message
 from src.dental_detection.image_quality import assess_image_quality_detail, format_quality_text
 from src.dental_detection.inference import Detection, run_inference
 from src.dental_detection.model_info import (
@@ -66,12 +67,14 @@ from src.dental_detection.model_info import (
 )
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.result_levels import enrich_detection_row
-from src.dental_detection.visualization import crop_detection_regions, save_result_image
+from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_result_image
 from ultralytics import YOLO
 
 MODEL_SOURCE = "YOLOv8m 原始结构"
-TABLE_COLUMNS = ["class", "中文名称", "confidence", "关注等级", "置信度解释", "x1", "y1", "x2", "y2"]
+TABLE_COLUMNS = ["class", "中文名称", "confidence", "关注等级", "图像区域", "置信度解释", "x1", "y1", "x2", "y2"]
 CSS_PATH = PROJECT_ROOT / "assets" / "workbench.css"
+EXAMPLE_DIR = PROJECT_ROOT / "assets" / "examples" / "dental"
+EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
 STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
 MODEL_MODE_SINGLE = "单模型"
 MODEL_MODE_COMPARE = "对比模型"
@@ -169,26 +172,44 @@ def _clear_file_output():
 
 def _empty_table() -> pd.DataFrame:
     return pd.DataFrame(
-        [{"class": "暂无检测结果", "中文名称": "", "confidence": "", "关注等级": "", "置信度解释": "", "x1": "", "y1": "", "x2": "", "y2": ""}],
+        [
+            {
+                "class": "暂无检测结果",
+                "中文名称": "",
+                "confidence": "",
+                "关注等级": "",
+                "图像区域": "",
+                "置信度解释": "",
+                "x1": "",
+                "y1": "",
+                "x2": "",
+                "y2": "",
+            }
+        ],
         columns=TABLE_COLUMNS,
     )
 
 
 def _table_from_detections(detections: list[Detection]) -> pd.DataFrame:
-    rows = _clean_detection_records(det.as_row() for det in detections)
+    rows = _clean_detection_records((det.as_row() for det in detections), image_size=None)
     return pd.DataFrame(rows, columns=TABLE_COLUMNS) if rows else _empty_table()
 
 
-def _records_from_detections(detections: list[Detection]) -> list[dict[str, Any]]:
-    return _clean_detection_records(det.as_row() for det in detections)
+def _table_from_records(records: list[dict[str, Any]]) -> pd.DataFrame:
+    rows = _clean_detection_records(records)
+    return pd.DataFrame(rows, columns=TABLE_COLUMNS) if rows else _empty_table()
 
 
-def _clean_detection_records(detections: Any) -> list[dict[str, Any]]:
+def _records_from_detections(detections: list[Detection], image_size: tuple[int, int] | None = None) -> list[dict[str, Any]]:
+    return _clean_detection_records((det.as_row() for det in detections), image_size=image_size)
+
+
+def _clean_detection_records(detections: Any, image_size: tuple[int, int] | None = None) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for det in detections or []:
         if not isinstance(det, dict):
             continue
-        row = enrich_detection_row(det)
+        row = enrich_detection_row(det, image_size)
         if all(value in {"", None} for value in row.values()):
             continue
         rows.append(row)
@@ -209,7 +230,7 @@ def _result_visual_outputs(result: dict[str, Any] | None) -> tuple[Any, list[tup
         return None, [], "暂无疑似区域局部图"
     annotated = result.get("annotated")
     original = result.get("original")
-    detections = _clean_detection_records(result.get("detections", []))
+    detections = _clean_detection_records(result.get("_visible_detections", result.get("detections", [])))
     regions = crop_detection_regions(original, detections)
     gallery = [(item["image"], item["caption"]) for item in regions]
     status = f"已生成 {len(gallery)} 个疑似区域局部图" if gallery else "暂无疑似区域局部图"
@@ -246,12 +267,12 @@ def _device(device_choice: str) -> tuple[str | int, bool]:
     cuda_available = torch.cuda.is_available()
     choice = str(device_choice or "cpu").strip().lower()
     if choice.startswith("cuda") and not cuda_available:
-        raise gr.Error("当前 Python 环境没有可用 CUDA。请使用 mamba 的 yolo 环境启动应用。")
+        raise _friendly_gr_error("CUDA not available", "推理设备不可用")
     if choice.startswith("cuda"):
         try:
             return int(choice.split(":", 1)[1]), cuda_available
         except (IndexError, ValueError):
-            raise gr.Error(f"推理设备参数无效：{device_choice}") from None
+            raise _friendly_gr_error(f"invalid CUDA device: {device_choice}", "推理设备不可用") from None
     if choice != "cpu":
         return "cpu", cuda_available
     return "cpu", cuda_available
@@ -280,30 +301,35 @@ def _bounded_float(value: Any, *, default: float, minimum: float, maximum: float
 def _detect_model_path(model_name: str, model_path: str | Path, image, use_clahe: bool, conf: float, iou: float, device):
     model_path = Path(model_path)
     if model_path.suffix.lower() not in _SUPPORTED_MODEL_SUFFIXES:
-        raise gr.Error(
-            f"模型文件后缀 '{model_path.suffix}' 不在支持列表中。"
-            f"支持的格式：{', '.join(sorted(_SUPPORTED_MODEL_SUFFIXES))}"
+        raise _friendly_gr_error(
+            f"unsupported model format {model_path.suffix}; supported: {', '.join(sorted(_SUPPORTED_MODEL_SUFFIXES))}",
+            "模型文件格式不支持",
         )
     if not model_path.exists():
-        raise gr.Error(f"模型文件不存在：{model_path}")
+        raise _friendly_gr_error(f"model file not found: {model_path}", "模型文件不存在")
     conf = _bounded_float(conf, default=0.25, minimum=0.01, maximum=0.99)
     iou = _bounded_float(iou, default=0.7, minimum=0.01, maximum=0.99)
-    original, model_input, annotated, detections, names = run_inference(
-        image=image,
-        model_path=model_path,
-        use_clahe=use_clahe,
-        conf=conf,
-        iou=iou,
-        imgsz=1280,
-        device=device,
-    )
+    try:
+        original, model_input, annotated, detections, names = run_inference(
+            image=image,
+            model_path=model_path,
+            use_clahe=use_clahe,
+            conf=conf,
+            iou=iou,
+            imgsz=1280,
+            device=device,
+        )
+    except Exception as exc:
+        raise _friendly_gr_error(exc, "推理失败") from exc
+    records = _records_from_detections(detections, model_input.size)
     return {
         "model": model_name,
         "original": original,
         "model_input": model_input,
         "annotated": annotated,
-        "detections": _records_from_detections(detections),
-        "table": _table_from_detections(detections),
+        "full_annotated": annotated,
+        "detections": records,
+        "table": _table_from_records(records),
         "class_names": {str(key): value for key, value in names.items()},
         "model_path": str(Path(model_path).resolve()),
     }
@@ -378,12 +404,9 @@ def apply_selected_model(selected_path: str, target: str):
         raise gr.Error("请先从模型文件下拉框选择一个支持的模型文件。")
     model_path = Path(selected_path).expanduser().resolve()
     if model_path.suffix.lower() not in _SUPPORTED_MODEL_SUFFIXES:
-        raise gr.Error(
-            f"所选文件后缀 '{model_path.suffix}' 不在支持列表中。"
-            f"支持的格式：{', '.join(sorted(_SUPPORTED_MODEL_SUFFIXES))}"
-        )
+        raise _friendly_gr_error(f"unsupported model format {model_path.suffix}", "模型文件格式不支持")
     if not model_path.exists():
-        raise gr.Error(f"所选模型文件不存在：{model_path}")
+        raise _friendly_gr_error(f"model file not found: {model_path}", "模型文件不存在")
     path = str(model_path)
     if target == "对比模型":
         return gr.update(), gr.update(value=path), gr.update(), gr.update(), f"已填入对比模型：{path}"
@@ -435,7 +458,7 @@ def apply_model_card(selected_path: str):
     if not card:
         raise gr.Error("所选模型卡片无效，请刷新页面后重试。")
     if not card.get("available"):
-        raise gr.Error(f"模型文件不存在：{card.get('path')}")
+        raise _friendly_gr_error(f"model file not found: {card.get('path')}", "模型文件不存在")
     path = str(Path(card["path"]).expanduser().resolve())
     return (
         gr.update(value=path),
@@ -724,6 +747,91 @@ def _toast(message: str, kind: str = "success") -> str:
     return f'<div class="app-toast app-toast-{kind}">{_html_escape(message).replace(chr(10), "<br>")}</div>'
 
 
+def _friendly_gr_error(exc: BaseException | str, context: str = "操作失败") -> gr.Error:
+    return gr.Error(friendly_error_message(exc, context))
+
+
+def _report_annotated_image(result: dict[str, Any]) -> Any:
+    return result.get("full_annotated") or result.get("annotated")
+
+
+def _visible_class_choices(result: dict[str, Any] | None) -> list[str]:
+    detections = _clean_detection_records((result or {}).get("detections", []))
+    choices: list[str] = []
+    for row in detections:
+        label = str(row.get("中文名称") or row.get("class") or "").strip()
+        if label and label not in choices:
+            choices.append(label)
+    return choices
+
+
+def _visible_class_update(result: dict[str, Any] | None):
+    choices = _visible_class_choices(result)
+    return gr.update(choices=choices, value=choices, interactive=bool(choices))
+
+
+def _load_example_metadata() -> list[dict[str, Any]]:
+    if not EXAMPLE_META_PATH.exists():
+        return []
+    try:
+        data = json.loads(EXAMPLE_META_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(data, list):
+        return []
+    items = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        file_name = Path(str(item.get("文件名") or "")).name
+        path = EXAMPLE_DIR / file_name
+        if file_name and path.exists():
+            items.append({**item, "path": path})
+    return items
+
+
+def _example_choices() -> list[tuple[str, str]]:
+    choices = []
+    for item in _load_example_metadata():
+        name = str(item.get("示例名称") or item.get("文件名") or item["path"].name)
+        expected = str(item.get("预期类别") or "").strip()
+        label = f"{name} | {expected}" if expected else name
+        choices.append((label, str(item["path"])))
+    return choices
+
+
+def _example_preview_text(path_text: str | None) -> str:
+    if not path_text:
+        return "选择示例后会在这里显示说明。"
+    target = Path(path_text)
+    for item in _load_example_metadata():
+        if item["path"] == target:
+            return "\n".join(
+                [
+                    f"示例名称：{item.get('示例名称', target.name)}",
+                    f"预期类别：{item.get('预期类别', '未标注')}",
+                    f"脱敏状态：{item.get('是否脱敏', '是')}",
+                    str(item.get("说明文本") or ""),
+                ]
+            ).strip()
+    return "未找到该示例说明。"
+
+
+def load_demo_example(path_text: str | None):
+    if not path_text:
+        raise gr.Error("请先选择一张示例图片。")
+    path = Path(path_text)
+    if path.parent.resolve() != EXAMPLE_DIR.resolve() or not path.exists():
+        raise gr.Error("示例图片不存在，请检查 assets/examples/dental 目录。")
+    try:
+        from PIL import Image
+
+        image = Image.open(path).convert("RGB")
+    except Exception as exc:
+        raise _friendly_gr_error(exc, "示例图片无法读取") from exc
+    return image, _example_preview_text(str(path))
+
+
 def _detections_html(detections: list[dict[str, Any]]) -> str:
     detections = _clean_detection_records(detections)
     if not detections:
@@ -952,7 +1060,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
 
             original_image = result.get("original") or result.get("original_image")
             input_image = result.get("model_input") or result.get("input_image")
-            annotated_image = result.get("annotated") or result.get("result_image")
+            annotated_image = _report_annotated_image(result) or result.get("result_image")
             if original_image is None or input_image is None or annotated_image is None:
                 raise gr.Error(f"{name} 的批量结果不完整，无法导出图片。")
 
@@ -1137,7 +1245,7 @@ def export_batch_word_report(batch_state: list[dict[str, Any]], storage_dir: str
     try:
         path = export_batch_docx_report(batch_state, overview, output_dir)
     except Exception as exc:
-        raise gr.Error(f"批量 Word 报告导出失败：{exc}") from exc
+        raise _friendly_gr_error(exc, "批量 Word 报告导出失败") from exc
     update_history_report_paths(
         [str(item.get("name") or item.get("image_name") or "") for item in batch_state],
         path,
@@ -1197,7 +1305,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
         # None 检查：与批量导出保持一致，防止缺少图片时 AttributeError
         original_img = result.get("original")
         input_img = result.get("model_input")
-        annotated_img = result.get("annotated")
+        annotated_img = _report_annotated_image(result)
         if original_img is None or input_img is None or annotated_img is None:
             raise gr.Error(f"{name} 的结果不完整（缺少图片数据），无法导出报告。")
         original_img.save(work_dir / image_files["original"])
@@ -1321,7 +1429,7 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
         summary_data = {}
 
     original_img = result.get("original")
-    annotated_img = result.get("annotated")
+    annotated_img = _report_annotated_image(result)
     if original_img is None or annotated_img is None:
         raise gr.Error(f"{name} 的结果不完整（缺少图片数据），无法导出 Word 报告。")
 
@@ -1545,6 +1653,7 @@ def _format_case_record(data: dict[str, Any] | None) -> str:
                 f"（{display_name}）"
                 f" | confidence={det.get('confidence', '-')}"
                 f" | 关注等级={attention}"
+                f" | 图像区域={det.get('图像区域', '') or '未计算'}"
                 f" | bbox=({det.get('x1', '-')}, {det.get('y1', '-')}, {det.get('x2', '-')}, {det.get('y2', '-')})"
             )
     else:
@@ -1623,6 +1732,7 @@ def _format_history_record(record: dict[str, Any] | None) -> str:
             lines.append(
                 f"{index}. {det.get('中文名称', det.get('class', '未知类别'))} "
                 f"confidence={det.get('confidence', '')} "
+                f"region={det.get('图像区域', '') or '未计算'} "
                 f"bbox=({det.get('x1', '')}, {det.get('y1', '')}, {det.get('x2', '')}, {det.get('y2', '')})"
             )
     else:
@@ -1681,6 +1791,7 @@ def clear_outputs():
         _clear_file_output(),
         "",
         gr.update(value="下载检测结果图", interactive=False),
+        gr.update(choices=[], value=[], interactive=False),
         _empty_table(),
         "",
         "等待上传图像",
@@ -1822,6 +1933,7 @@ def run_single_detection(
         _clear_file_output(),
         "",
         gr.update(value="下载检测结果图", interactive=True),
+        _visible_class_update(primary),
         primary["table"],
         advice,
         quality_text,
@@ -1915,7 +2027,7 @@ def run_batch_detection(
             advice = _build_advice(settings, result["detections"])
             quality_text, quality_level = _quality_payload(result["original"])
         except Exception as exc:
-            batch_errors.append(f"{file_name}: {exc}")
+            batch_errors.append(f"{file_name}: {friendly_error_message(exc, '图片处理失败').splitlines()[0]}")
             continue
         batch_state.append(
             {
@@ -1979,6 +2091,7 @@ def run_batch_detection(
         _clear_file_output(),
         "",
         gr.update(value="下载检测结果图", interactive=True),
+        _visible_class_update(first["result"]),
         first["result"]["table"],
         first["advice"],
         first.get("quality_text") or assess_image_quality(first["result"]["original"]),
@@ -2018,6 +2131,7 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
             _clear_file_output(),
             "",
             gr.update(value="下载检测结果图", interactive=False),
+            gr.update(choices=[], value=[], interactive=False),
             _empty_table(),
             "",
             "等待上传图像",
@@ -2052,6 +2166,7 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
         _clear_file_output(),
         "",
         gr.update(value="下载检测结果图", interactive=True),
+        _visible_class_update(item["result"]),
         item["result"]["table"],
         item["advice"],
         item.get("quality_text") or assess_image_quality(item["result"]["original"]),
@@ -2067,6 +2182,38 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
         "",
         gr.update(value="导出 ZIP 数据包", interactive=True),
         gr.update(value="保存病例", interactive=True),
+    )
+
+
+def update_detection_visibility(visible_classes: list[str], selected_name: str, batch_state: list[dict[str, Any]]):
+    if not batch_state:
+        return None, None, [], "暂无疑似区域局部图", [], _empty_table(), _clear_file_output(), ""
+    item = _current_item(batch_state, selected_name)
+    result = item.get("result") or item
+    base_image = result.get("model_input") or result.get("original")
+    if base_image is None:
+        raise gr.Error("当前结果缺少可重绘的图像，请重新检测。")
+    detections = _clean_detection_records(result.get("detections", []))
+    visible_set = {str(item).strip() for item in visible_classes or [] if str(item).strip()}
+    result["_visible_detections"] = [
+        row
+        for row in detections
+        if (str(row.get("中文名称") or "").strip() in visible_set or str(row.get("class") or "").strip() in visible_set)
+    ]
+    result["annotated"] = draw_detections_with_filter(base_image, detections, visible_classes or [])
+    highres_image, crop_items, crop_text = _result_visual_outputs(result)
+    table = result.get("table")
+    if not isinstance(table, pd.DataFrame):
+        table = _table_from_records(detections)
+    return (
+        result["annotated"],
+        highres_image,
+        crop_items,
+        crop_text,
+        batch_state,
+        table,
+        _clear_file_output(),
+        "",
     )
 
 
@@ -2108,7 +2255,7 @@ def test_ai_settings(
         _save_runtime_settings(settings)
         return result
     except Exception as exc:
-        return f"测试失败：{exc}"
+        return friendly_error_message(exc, "AI 接口测试失败")
 
 
 def save_ui_settings(
@@ -2379,6 +2526,23 @@ def build_app() -> gr.Blocks:
 
         with gr.Tabs(elem_classes=["main-tabs"]):
             with gr.Tab("检测工作台"):
+                with gr.Group(elem_classes=["section-card", "guide-card"]):
+                    gr.HTML(
+                        '<div class="guide-steps">'
+                        '<span>1. 上传影像</span>'
+                        '<span>2. 开始分析</span>'
+                        '<span>3. 查看结果</span>'
+                        '<span>4. 保存或导出</span>'
+                        '</div>'
+                    )
+                    with gr.Accordion("使用说明", open=False):
+                        gr.Markdown(
+                            "支持 PNG、JPG、JPEG、BMP、WEBP、TIF、TIFF 格式图片。\n\n"
+                            "置信度表示模型对检测框的把握程度，不等同于疾病严重程度。\n\n"
+                            "CLAHE 适合低对比度牙片；如果图像本身清晰，可保持关闭。\n\n"
+                            "报告默认导出完整检测结果；界面中的类别显示开关只影响当前查看和结果图下载。\n\n"
+                            f"{SAFETY_NOTICE}"
+                        )
                 with gr.Row(elem_classes=["workbench-grid"]):
                     with gr.Column(scale=4, elem_classes=["control-panel"]):
                         with gr.Group(elem_classes=["section-card", "upload-card"]):
@@ -2402,6 +2566,22 @@ def build_app() -> gr.Blocks:
                                         variant="primary",
                                         elem_classes=["primary-action"],
                                     )
+                                    with gr.Accordion("示例图片", open=False):
+                                        example_select = gr.Dropdown(
+                                            label="选择脱敏示例",
+                                            choices=_example_choices(),
+                                            value=None,
+                                        )
+                                        load_example_btn = gr.Button(
+                                            "加载示例",
+                                            elem_classes=["secondary-action", "compact-button"],
+                                        )
+                                        example_info = gr.Textbox(
+                                            label="示例说明",
+                                            value="选择示例后会在这里显示说明。",
+                                            interactive=False,
+                                            lines=4,
+                                        )
                                 with gr.Tab("批量分析"):
                                     gr.HTML(
                                         '<div class="section-heading"><h2>批量上传</h2>'
@@ -2547,6 +2727,13 @@ def build_app() -> gr.Blocks:
                                 result_image_file = gr.File(label="检测结果图 PNG", visible=False)
                         with gr.Group(elem_classes=["section-card", "result-table-card"]):
                             gr.HTML(legend_html())
+                            visible_class_filter = gr.CheckboxGroup(
+                                label="显示类别",
+                                choices=[],
+                                value=[],
+                                interactive=False,
+                                elem_classes=["compact-control"],
+                            )
                             det_table = gr.Dataframe(
                                 value=_empty_table(),
                                 headers=TABLE_COLUMNS,
@@ -2999,6 +3186,7 @@ def build_app() -> gr.Blocks:
             result_image_file,
             result_image_path,
             download_result_btn,
+            visible_class_filter,
             det_table,
             advice_box,
             quality_box,
@@ -3027,6 +3215,7 @@ def build_app() -> gr.Blocks:
 
         image.change(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
         batch_files.change(fn=clear_outputs, outputs=common_outputs)
+        load_example_btn.click(fn=load_demo_example, inputs=example_select, outputs=[image, example_info])
         run_btn.click(fn=run_single_detection, inputs=[image, *common_inputs], outputs=common_outputs)
         batch_btn.click(
             fn=run_batch_detection,
@@ -3072,6 +3261,7 @@ def build_app() -> gr.Blocks:
                 result_image_file,
                 result_image_path,
                 download_result_btn,
+                visible_class_filter,
                 det_table,
                 advice_box,
                 quality_box,
@@ -3087,6 +3277,20 @@ def build_app() -> gr.Blocks:
                 report_path,
                 export_report_btn,
                 save_case_btn,
+            ],
+        )
+        visible_class_filter.change(
+            fn=update_detection_visibility,
+            inputs=[visible_class_filter, batch_select, batch_state],
+            outputs=[
+                result_output,
+                highres_result_output,
+                crop_gallery,
+                crop_status,
+                batch_state,
+                det_table,
+                result_image_file,
+                result_image_path,
             ],
         )
         ai_enabled.change(fn=toggle_ai_settings, inputs=ai_enabled, outputs=ai_group)

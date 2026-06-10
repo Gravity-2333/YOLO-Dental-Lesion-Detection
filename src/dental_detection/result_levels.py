@@ -10,6 +10,8 @@ CLASS_DISPLAY_NAMES = {
     "Impacted": "阻生牙",
 }
 
+REGION_NOTICE = "区域提示仅根据图像中检测框位置粗略计算，不等同于专业牙位编号。"
+
 
 def normalize_class_name(name: str) -> str:
     token = re.sub(r"[^a-z0-9]+", " ", str(name).casefold()).strip()
@@ -60,7 +62,35 @@ def get_confidence_description(confidence: Any) -> str:
     return "模型把握较低，仅作为提示，不应作为诊断依据。"
 
 
-def enrich_detection_row(det: dict[str, Any]) -> dict[str, Any]:
+def estimate_image_region(det: dict[str, Any], image_size: tuple[int, int] | None = None) -> str:
+    existing = str(det.get("图像区域") or det.get("image_region") or "").strip()
+    if existing:
+        return existing
+    try:
+        x1 = float(det.get("x1"))
+        y1 = float(det.get("y1"))
+        x2 = float(det.get("x2"))
+        y2 = float(det.get("y2"))
+    except (TypeError, ValueError):
+        return ""
+    if x2 <= x1 or y2 <= y1:
+        return ""
+    width, height = image_size or (None, None)
+    try:
+        width = float(width or det.get("image_width") or det.get("width") or 0)
+        height = float(height or det.get("image_height") or det.get("height") or 0)
+    except (TypeError, ValueError):
+        return ""
+    if width <= 0 or height <= 0:
+        return ""
+    center_x = (x1 + x2) / 2
+    center_y = (y1 + y2) / 2
+    horizontal = "图像左侧" if center_x < width / 3 else "图像右侧" if center_x > width * 2 / 3 else "图像中部"
+    vertical = "上方" if center_y < height / 2 else "下方"
+    return f"{horizontal}{vertical}区域"
+
+
+def enrich_detection_row(det: dict[str, Any], image_size: tuple[int, int] | None = None) -> dict[str, Any]:
     label = str(det.get("class", "未知类别") or "未知类别")
     confidence = det.get("confidence", "")
     return {
@@ -69,6 +99,7 @@ def enrich_detection_row(det: dict[str, Any]) -> dict[str, Any]:
         "confidence": confidence,
         "关注等级": get_confidence_level(confidence),
         "置信度解释": get_confidence_description(confidence),
+        "图像区域": estimate_image_region(det, image_size),
         "x1": det.get("x1", ""),
         "y1": det.get("y1", ""),
         "x2": det.get("x2", ""),

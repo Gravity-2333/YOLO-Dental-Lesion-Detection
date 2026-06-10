@@ -9,7 +9,7 @@ from PIL import Image
 
 from .batch_summary import build_batch_summary
 from .model_info import legend_markdown
-from .result_levels import enrich_detection_row
+from .result_levels import REGION_NOTICE, enrich_detection_row
 
 
 @dataclass
@@ -103,7 +103,8 @@ def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
         )
 
     document.add_heading("三、检测框明细", level=1)
-    headers = ["序号", "类别", "中文名称", "置信度", "关注等级", "x1", "y1", "x2", "y2"]
+    document.add_paragraph(REGION_NOTICE)
+    headers = ["序号", "类别", "中文名称", "置信度", "关注等级", "图像区域", "x1", "y1", "x2", "y2"]
     table = document.add_table(rows=1, cols=len(headers))
     table.style = "Table Grid"
     for cell, header in zip(table.rows[0].cells, headers):
@@ -116,6 +117,7 @@ def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
             row["中文名称"],
             row["confidence"],
             row["关注等级"],
+            row.get("图像区域", ""),
             row["x1"],
             row["y1"],
             row["x2"],
@@ -178,7 +180,8 @@ def _model_name(item: dict[str, Any]) -> str:
 
 
 def _add_detection_table(document, detections: list[dict[str, Any]]) -> None:
-    headers = ["序号", "类别", "中文名称", "置信度", "关注等级", "x1", "y1", "x2", "y2"]
+    document.add_paragraph(REGION_NOTICE)
+    headers = ["序号", "类别", "中文名称", "置信度", "关注等级", "图像区域", "x1", "y1", "x2", "y2"]
     table = document.add_table(rows=1, cols=len(headers))
     table.style = "Table Grid"
     for cell, header in zip(table.rows[0].cells, headers):
@@ -197,6 +200,7 @@ def _add_detection_table(document, detections: list[dict[str, Any]]) -> None:
             row["中文名称"],
             row["confidence"],
             row["关注等级"],
+            row.get("图像区域", ""),
             row["x1"],
             row["y1"],
             row["x2"],
@@ -292,7 +296,7 @@ def export_batch_docx_report(
             if quality_text:
                 document.add_paragraph("图像质量提示：")
                 _add_paragraphs(document, quality_text)
-            annotated = result.get("annotated") if isinstance(result, dict) else None
+            annotated = (result.get("full_annotated") or result.get("annotated")) if isinstance(result, dict) else None
             if annotated is not None:
                 document.add_paragraph("检测结果图")
                 image_path = _save_temp_image(annotated, temp_root, f"{index:03d}_{_safe_name(name)}.png")
