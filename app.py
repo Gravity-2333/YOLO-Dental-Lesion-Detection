@@ -38,6 +38,13 @@ from src.dental_detection.assistant import (
     DEFAULT_AI_KEY_ENV,
     DEFAULT_AI_MODEL,
 )
+from src.dental_detection.case_store import (
+    export_case_report,
+    list_case_records,
+    load_case_record as load_case_record_data,
+    move_case_to_trash,
+    search_case_records,
+)
 from src.dental_detection.config import DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJECT_ROOT
 from src.dental_detection.batch_summary import build_batch_summary
 from src.dental_detection.image_quality import assess_image_quality_detail, format_quality_text
@@ -53,6 +60,7 @@ CSS_PATH = PROJECT_ROOT / "assets" / "workbench.css"
 STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
 MODEL_MODE_SINGLE = "单模型"
 MODEL_MODE_COMPARE = "对比模型"
+CASE_TABLE_COLUMNS = ["保存时间", "病例编号", "图片名称", "检测数量", "涉及类别", "关注等级", "最高置信度", "文件名"]
 _EXTRA_ALLOWED_FILE_ROOTS: set[Path] = set()
 
 
@@ -575,18 +583,27 @@ def _current_item(batch_state: list[dict[str, Any]], selected_name: str | None =
 
 
 def _case_choices(storage_dir: str) -> list[str]:
-    ensure_app_dirs(storage_dir)
     choices = []
-    for path in sorted(case_dir(storage_dir).glob("case_*.json"), reverse=True):
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        title = _short_choice_text(data.get("case_id") or path.stem)
-        image_name = _short_choice_text(data.get("image_name") or "未命名图片")
-        created_at = _short_choice_text(data.get("created_at") or "", 32)
-        choices.append(f"{created_at} | {title} | {image_name} | {path.name}")
+    for row in list_case_records(storage_dir):
+        title = _short_choice_text(row.get("病例编号") or row.get("文件名"))
+        image_name = _short_choice_text(row.get("图片名称") or "未命名图片")
+        created_at = _short_choice_text(row.get("保存时间") or "", 32)
+        choices.append(f"{created_at} | {title} | {image_name} | {row.get('文件名')}")
     return choices
+
+
+def _case_table(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    visible_rows = [{key: row.get(key, "") for key in CASE_TABLE_COLUMNS} for row in rows]
+    return pd.DataFrame(visible_rows, columns=CASE_TABLE_COLUMNS)
+
+
+def _case_choices_from_rows(rows: list[dict[str, Any]]) -> list[str]:
+    return [
+        f"{_short_choice_text(row.get('保存时间') or '', 32)} | "
+        f"{_short_choice_text(row.get('病例编号') or row.get('文件名'))} | "
+        f"{_short_choice_text(row.get('图片名称') or '未命名图片')} | {row.get('文件名')}"
+        for row in rows
+    ]
 
 
 def _write_text(path: Path, content: str) -> None:
@@ -1237,20 +1254,80 @@ def save_case_record(
         "safety_notice": SAFETY_NOTICE,
     }
     _write_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
-    choices = _case_choices(storage_dir)
+    rows = list_case_records(storage_dir)
+    choices = _case_choices_from_rows(rows)
     # 精确匹配：choices 格式为 "created_at | case_id | image_name | filename.json"
     selected = next(
         (choice for choice in choices if choice.split("|")[-1].strip() == path.name),
         choices[0] if choices else None,
     )
-    return f"病例记录已保存：{path}", gr.update(choices=choices, value=selected), _format_case_record(payload)
+    return (
+        f"病例记录已保存：{path}",
+        gr.update(choices=choices, value=selected),
+        _case_table(rows),
+        _format_case_record(payload),
+    )
 
 
 def refresh_case_records(storage_dir: str):
-    choices = _case_choices(storage_dir)
-    return gr.update(choices=choices, value=choices[0] if choices else None), (
+    rows = list_case_records(storage_dir)
+    choices = _case_choices_from_rows(rows)
+    return gr.update(choices=choices, value=choices[0] if choices else None), _case_table(rows), (
         "已刷新病例记录。" if choices else "暂无病例记录。"
     )
+
+
+def search_case_records_ui(
+    keyword: str,
+    class_filter: str,
+    level_filter: str,
+    date_from: str,
+    date_to: str,
+    storage_dir: str,
+):
+    rows = search_case_records(storage_dir, keyword, class_filter, level_filter, date_from, date_to)
+    choices = _case_choices_from_rows(rows)
+    selected = choices[0] if choices else None
+    message = f"已筛选到 {len(rows)} 条病例记录。" if rows else "未找到匹配病例记录。"
+    return gr.update(choices=choices, value=selected), _case_table(rows), message
+
+
+def delete_selected_case_record(
+    choice: str,
+    keyword: str,
+    class_filter: str,
+    level_filter: str,
+    date_from: str,
+    date_to: str,
+    storage_dir: str,
+):
+    if not choice:
+        raise gr.Error("请先选择要移入回收站的病例记录。")
+    file_name = choice.split("|")[-1].strip()
+    try:
+        trash_path = move_case_to_trash(storage_dir, file_name)
+    except (OSError, ValueError, FileNotFoundError) as exc:
+        raise gr.Error(str(exc)) from exc
+    rows = search_case_records(storage_dir, keyword, class_filter, level_filter, date_from, date_to)
+    choices = _case_choices_from_rows(rows)
+    return (
+        gr.update(choices=choices, value=choices[0] if choices else None),
+        _case_table(rows),
+        f"病例已移入回收站：{trash_path}",
+        _format_case_record(None),
+    )
+
+
+def export_selected_case_record(choice: str, storage_dir: str):
+    if not choice:
+        raise gr.Error("请先选择要导出的病例记录。")
+    file_name = choice.split("|")[-1].strip()
+    try:
+        path = export_case_report(storage_dir, file_name)
+    except (OSError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
+        raise gr.Error(str(exc)) from exc
+    _remember_allowed_file_root(path.parent)
+    return _file_component_output(path), f"已导出病例报告：{path}"
 
 
 def _format_summary_value(key: str, value: Any) -> list[str]:
@@ -1341,19 +1418,9 @@ def load_case_record(choice: str, storage_dir: str):
     file_name = choice.split("|")[-1].strip()
     if Path(file_name).name != file_name or not file_name.startswith("case_") or not file_name.endswith(".json"):
         return _format_case_record({"错误": "病例选择无效，请刷新病例列表后重试。"})
-    path = case_dir(storage_dir) / file_name
     try:
-        case_root = case_dir(storage_dir).resolve()
-        resolved_path = path.resolve()
-    except OSError as exc:
-        return _format_case_record({"错误": str(exc)})
-    if resolved_path.parent != case_root:
-        return _format_case_record({"错误": "病例选择无效，请刷新病例列表后重试。"})
-    if not path.exists():
-        return _format_case_record({"错误": f"病例文件不存在：{path}"})
-    try:
-        return _format_case_record(json.loads(resolved_path.read_text(encoding="utf-8")))
-    except (OSError, json.JSONDecodeError) as exc:
+        return _format_case_record(load_case_record_data(storage_dir, file_name))
+    except (OSError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
         return _format_case_record({"错误": str(exc)})
 
 
@@ -1821,11 +1888,13 @@ def save_ui_settings(
     path = save_settings(settings)
     _remember_allowed_file_root(settings.storage_dir)
     feedback = [f"设置已保存：{path}"]
-    case_choices = _case_choices(settings.storage_dir)
+    case_rows = list_case_records(settings.storage_dir)
+    case_choices = _case_choices_from_rows(case_rows)
     case_message = "病例列表已同步到当前存储位置。" if case_choices else "当前存储位置暂无病例记录。"
     return (
         _toast("\n".join(feedback), "success"),
         gr.update(choices=case_choices, value=case_choices[0] if case_choices else None),
+        _case_table(case_rows),
         case_message,
     )
 
@@ -1987,6 +2056,7 @@ def build_app() -> gr.Blocks:
     env_key_value, direct_key_value = _api_key_inputs(saved)
     model_choices = _scan_model_files(saved.model_dir)
     model_choice_values = {value for _, value in model_choices}
+    initial_case_rows = list_case_records(saved.storage_dir)
     saved_primary_model_path = _model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH))
     selected_model_choice = (
         saved_primary_model_path
@@ -2292,7 +2362,41 @@ def build_app() -> gr.Blocks:
                         gr.Markdown("病例记录仅保存检测摘要、检测框和建议，不自动保存原始牙片图片。")
                 with gr.Group(elem_classes=["section-card", "case-card"]):
                     gr.HTML('<div class="section-heading"><h2>已保存病例</h2><p>选择记录后查看结构化详情。</p></div>')
-                    case_select = gr.Dropdown(label="已保存病例", choices=_case_choices(saved.storage_dir))
+                    with gr.Row(elem_classes=["compact-row"]):
+                        case_keyword = gr.Textbox(label="搜索病例", placeholder="病例编号、图片名称、备注、类别或建议")
+                        case_class_filter = gr.Dropdown(
+                            label="类别筛选",
+                            choices=["全部", "龋齿", "根尖周病变", "阻生牙", "无检测结果"],
+                            value="全部",
+                        )
+                        case_level_filter = gr.Dropdown(
+                            label="关注等级筛选",
+                            choices=["全部", "重点关注", "建议复查", "低置信度参考", "无检测结果"],
+                            value="全部",
+                        )
+                    with gr.Row(elem_classes=["compact-row"]):
+                        case_date_from = gr.Textbox(label="开始日期", placeholder="YYYY-MM-DD")
+                        case_date_to = gr.Textbox(label="结束日期", placeholder="YYYY-MM-DD")
+                    with gr.Row(elem_classes=["compact-row"]):
+                        search_case_btn = gr.Button("搜索/筛选", elem_classes=["secondary-action", "compact-button"])
+                        delete_case_btn = gr.Button("移入回收站", elem_classes=["secondary-action", "compact-button"])
+                        export_case_btn = gr.Button("导出病例报告", elem_classes=["secondary-action", "compact-button"])
+                    case_select = gr.Dropdown(label="已保存病例", choices=_case_choices_from_rows(initial_case_rows))
+                    case_table = gr.Dataframe(
+                        value=_case_table(initial_case_rows),
+                        headers=CASE_TABLE_COLUMNS,
+                        label="病例列表",
+                        wrap=False,
+                        interactive=False,
+                    )
+                    case_report_file = gr.File(label="病例报告 Word", visible=False)
+                    case_report_path = gr.Textbox(
+                        label="病例报告路径",
+                        interactive=False,
+                        lines=1,
+                        max_lines=1,
+                        elem_classes=["path-output"],
+                    )
                     case_detail = gr.Textbox(
                         value=_format_case_record(None),
                         label="病例详情",
@@ -2667,7 +2771,7 @@ def build_app() -> gr.Blocks:
                 primary_model_path,
                 compare_model_path,
             ],
-            outputs=[settings_feedback, case_select, case_feedback],
+            outputs=[settings_feedback, case_select, case_table, case_feedback],
         )
         chat_btn.click(
             fn=continue_chat,
@@ -2755,12 +2859,35 @@ def build_app() -> gr.Blocks:
         save_case_btn.click(
             fn=save_case_record,
             inputs=[batch_state, batch_select, case_id, case_note, storage_dir],
-            outputs=[case_feedback, case_select, case_detail],
+            outputs=[case_feedback, case_select, case_table, case_detail],
         )
         refresh_case_btn.click(
             fn=refresh_case_records,
             inputs=storage_dir,
-            outputs=[case_select, case_feedback],
+            outputs=[case_select, case_table, case_feedback],
+        )
+        search_case_btn.click(
+            fn=search_case_records_ui,
+            inputs=[case_keyword, case_class_filter, case_level_filter, case_date_from, case_date_to, storage_dir],
+            outputs=[case_select, case_table, case_feedback],
+        )
+        delete_case_btn.click(
+            fn=delete_selected_case_record,
+            inputs=[
+                case_select,
+                case_keyword,
+                case_class_filter,
+                case_level_filter,
+                case_date_from,
+                case_date_to,
+                storage_dir,
+            ],
+            outputs=[case_select, case_table, case_feedback, case_detail],
+        )
+        export_case_btn.click(
+            fn=export_selected_case_record,
+            inputs=[case_select, storage_dir],
+            outputs=[case_report_file, case_report_path],
         )
         case_select.change(
             fn=load_case_record,
