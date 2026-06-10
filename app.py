@@ -1044,10 +1044,17 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     table {{ border-collapse: collapse; width: 100%; margin: 12px 0 20px; }}
     th, td {{ border: 1px solid #d7dde8; padding: 8px; text-align: left; }}
     th {{ background: #eff4fb; }}
+    .result-legend {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0 22px; }}
+    .legend-item {{ border: 1px solid #d7dde8; border-radius: 6px; padding: 10px; }}
+    .legend-swatch {{ display: inline-block; width: 12px; height: 12px; border-radius: 999px; margin-right: 6px; vertical-align: middle; }}
+    .legend-item strong {{ margin-right: 6px; }}
+    .legend-item span:last-child {{ display: block; color: #5d6b82; font-size: 13px; margin-top: 4px; line-height: 1.5; }}
   </style>
 </head>
 <body>
   <h1>批量检测总览</h1>
+  <h2>图例与类别说明</h2>
+  {legend_html()}
   {_batch_overview_html(batch_overview)}
 </body>
 </html>
@@ -1250,6 +1257,11 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     th, td {{ border: 1px solid #d7dde8; padding: 8px; text-align: left; }}
     th {{ background: #eff4fb; }}
     pre {{ white-space: pre-wrap; background: #f6f8fb; padding: 12px; border-radius: 6px; }}
+    .result-legend {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0 22px; }}
+    .legend-item {{ border: 1px solid #d7dde8; border-radius: 6px; padding: 10px; }}
+    .legend-swatch {{ display: inline-block; width: 12px; height: 12px; border-radius: 999px; margin-right: 6px; vertical-align: middle; }}
+    .legend-item strong {{ margin-right: 6px; }}
+    .legend-item span:last-child {{ display: block; color: #5d6b82; font-size: 13px; margin-top: 4px; line-height: 1.5; }}
   </style>
 </head>
 <body>
@@ -1262,6 +1274,8 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     <figure><img src="{image_files['input']}"><figcaption>实际送入模型的图</figcaption></figure>
     <figure><img src="{image_files['result']}"><figcaption>检测结果图</figcaption></figure>
   </div>
+  <h2>图例与类别说明</h2>
+  {legend_html()}
   <h2>检测框</h2>
   {_model_detections_html(all_results)}
   <h2>辅助建议</h2>
