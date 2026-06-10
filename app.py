@@ -1568,13 +1568,20 @@ def _format_history_record(record: dict[str, Any] | None) -> str:
     if not record:
         return "请选择一条检测历史。"
     detections = record.get("detections") or []
+    classes = record.get("classes")
+    if isinstance(classes, str):
+        class_text = classes.strip() or "无"
+    elif isinstance(classes, (list, tuple, set)):
+        class_text = "、".join(str(item).strip() for item in classes if str(item).strip()) or "无"
+    else:
+        class_text = "无"
     lines = [
         f"检测时间：{record.get('created_at', '')}",
         f"图片名称：{record.get('image_name', '')}",
         f"模型：{record.get('model', '')}",
         f"CLAHE 增强：{'是' if record.get('use_clahe') else '否'}",
         f"检测数量：{record.get('detection_count', 0)}",
-        f"涉及类别：{'、'.join(record.get('classes') or []) or '无'}",
+        f"涉及类别：{class_text}",
         f"最高置信度：{record.get('max_confidence', '') or '无'}",
         f"关注等级：{record.get('level', '')}",
         f"报告路径：{record.get('report_path', '') or '暂无'}",
@@ -1599,9 +1606,11 @@ def _format_history_record(record: dict[str, Any] | None) -> str:
 def refresh_history_records(storage_dir: str):
     rows = history_rows(storage_dir)
     choices = _history_choices_from_rows(rows)
+    selected = choices[0] if choices else None
     return (
-        gr.update(choices=choices, value=choices[0] if choices else None),
+        gr.update(choices=choices, value=selected),
         _history_table_from_rows(rows),
+        load_history_record(selected, storage_dir) if selected else _format_history_record(None),
         "历史记录已刷新。" if choices else "暂无检测历史。",
     )
 
@@ -1613,10 +1622,10 @@ def load_history_record(choice: str, storage_dir: str) -> str:
 def delete_selected_history_record(choice: str, storage_dir: str):
     record_id = _history_id(choice)
     if not record_id:
-        history_select, table, message = refresh_history_records(storage_dir)
+        history_select, table, detail, message = refresh_history_records(storage_dir)
         return history_select, table, "请选择要删除的历史记录。", message
     deleted = delete_history_record(record_id, storage_dir)
-    history_select, table, message = refresh_history_records(storage_dir)
+    history_select, table, _, message = refresh_history_records(storage_dir)
     detail = "已删除所选历史记录。" if deleted else "未找到所选历史记录，请刷新后重试。"
     return history_select, table, detail, message
 
@@ -2044,6 +2053,7 @@ def test_ai_settings(
     auto_save: bool,
     storage_dir: str,
     custom_prompt: str,
+    advice_style: str,
 ):
     settings = _ai_settings(
         ai_enabled,
@@ -2058,6 +2068,7 @@ def test_ai_settings(
         auto_save,
         storage_dir,
         custom_prompt,
+        advice_style,
     )
     if not settings.enabled:
         return "AI 功能未开启。开启后可测试接口。"
@@ -2127,14 +2138,16 @@ def save_ui_settings(
     case_message = "病例列表已同步到当前存储位置。" if case_choices else "当前存储位置暂无病例记录。"
     history_table = history_rows(settings.storage_dir)
     history_choices = _history_choices_from_rows(history_table)
+    history_selected = history_choices[0] if history_choices else None
     history_message = "检测历史已同步到当前存储位置。" if history_choices else "当前存储位置暂无检测历史。"
     return (
         _toast("\n".join(feedback), "success"),
         gr.update(choices=case_choices, value=case_choices[0] if case_choices else None),
         _case_table(case_rows),
         case_message,
-        gr.update(choices=history_choices, value=history_choices[0] if history_choices else None),
+        gr.update(choices=history_choices, value=history_selected),
         _history_table_from_rows(history_table),
+        load_history_record(history_selected, settings.storage_dir) if history_selected else _format_history_record(None),
         history_message,
     )
 
@@ -3077,6 +3090,7 @@ def build_app() -> gr.Blocks:
                 auto_save,
                 storage_dir,
                 custom_prompt,
+                advice_style,
             ],
             outputs=test_result,
         )
@@ -3112,6 +3126,7 @@ def build_app() -> gr.Blocks:
                 case_feedback,
                 history_select,
                 history_table,
+                history_detail,
                 history_feedback,
             ],
         )
@@ -3251,7 +3266,7 @@ def build_app() -> gr.Blocks:
         refresh_history_btn.click(
             fn=refresh_history_records,
             inputs=storage_dir,
-            outputs=[history_select, history_table, history_feedback],
+            outputs=[history_select, history_table, history_detail, history_feedback],
         )
         history_select.change(
             fn=load_history_record,

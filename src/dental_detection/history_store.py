@@ -128,6 +128,15 @@ def list_history_records(storage_dir: str | None = None) -> list[dict[str, Any]]
     return list(reversed(_load_raw_records(storage_dir)))
 
 
+def _classes_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip() or "无"
+    if isinstance(value, (list, tuple, set)):
+        classes = [str(item).strip() for item in value if str(item).strip()]
+        return "、".join(classes) if classes else "无"
+    return "无"
+
+
 def history_rows(storage_dir: str | None = None) -> list[dict[str, Any]]:
     rows = []
     for item in list_history_records(storage_dir):
@@ -136,7 +145,7 @@ def history_rows(storage_dir: str | None = None) -> list[dict[str, Any]]:
                 "检测时间": item.get("created_at", ""),
                 "图片名称": item.get("image_name", ""),
                 "检测数量": item.get("detection_count", 0),
-                "涉及类别": "、".join(item.get("classes") or []) or "无",
+                "涉及类别": _classes_text(item.get("classes")),
                 "最高置信度": item.get("max_confidence", ""),
                 "关注等级": item.get("level", ""),
                 "模型": item.get("model", ""),
