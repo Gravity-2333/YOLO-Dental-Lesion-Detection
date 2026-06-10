@@ -3219,7 +3219,12 @@ def build_app() -> gr.Blocks:
 
         image.change(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
         batch_files.change(fn=clear_outputs, outputs=common_outputs)
-        load_example_btn.click(fn=load_demo_example, inputs=example_select, outputs=[image, example_info])
+        example_select.change(fn=_example_preview_text, inputs=example_select, outputs=example_info)
+        load_example_btn.click(fn=load_demo_example, inputs=example_select, outputs=[image, example_info]).then(
+            fn=clear_outputs_with_quality,
+            inputs=image,
+            outputs=common_outputs,
+        )
         run_btn.click(fn=run_single_detection, inputs=[image, *common_inputs], outputs=common_outputs)
         batch_btn.click(
             fn=run_batch_detection,
