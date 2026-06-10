@@ -40,11 +40,15 @@ def build_batch_summary(batch_state: list[dict[str, Any]], batch_errors: list[st
     class_stats: dict[str, dict[str, Any]] = {}
     image_rows = []
     no_detection_images = []
+    poor_quality_images = []
     total_boxes = 0
     confidences = []
 
     for item in batch_state or []:
         image_name = item.get("name") or item.get("image_name") or "未命名图片"
+        quality_level = str(item.get("quality_level") or "")
+        if quality_level == "较差":
+            poor_quality_images.append(image_name)
         image_detections = []
         for result in _iter_model_results(item):
             for det in _clean_detections(result.get("detections", [])):
@@ -124,4 +128,5 @@ def build_batch_summary(batch_state: list[dict[str, Any]], batch_errors: list[st
         "重点关注图片": focus_rows[:10],
         "失败图片": errors,
         "无检测结果图片": no_detection_images,
+        "质量较差图片": poor_quality_images,
     }

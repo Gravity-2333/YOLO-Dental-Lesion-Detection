@@ -570,6 +570,15 @@ textarea[aria-label="对比模型路径"] {
   border: 1px solid var(--soft-border) !important;
 }
 
+.highres-result-card {
+  max-height: 460px !important;
+}
+
+.gradio-container [aria-label="疑似区域局部图"] {
+  background: var(--input-muted-bg) !important;
+  border-color: var(--soft-border) !important;
+}
+
 .upload-input .image-container,
 .result-card .image-container {
   min-height: 100% !important;

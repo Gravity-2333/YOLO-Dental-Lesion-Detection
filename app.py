@@ -15,7 +15,6 @@ import zipfile
 import gradio as gr
 import pandas as pd
 import torch
-from PIL import ImageOps, ImageStat
 
 from src.dental_detection.assistant import (
     APP_HOME,
@@ -41,9 +40,11 @@ from src.dental_detection.assistant import (
 )
 from src.dental_detection.config import DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJECT_ROOT
 from src.dental_detection.batch_summary import build_batch_summary
+from src.dental_detection.image_quality import assess_image_quality_detail, format_quality_text
 from src.dental_detection.inference import Detection, run_inference
 from src.dental_detection.reporting import SingleReportData, export_single_docx_report
 from src.dental_detection.result_levels import enrich_detection_row
+from src.dental_detection.visualization import crop_detection_regions, save_result_image
 from ultralytics import YOLO
 
 MODEL_SOURCE = "YOLOv8m 原始结构"
@@ -173,34 +174,32 @@ def _clean_detection_records(detections: Any) -> list[dict[str, Any]]:
 def assess_image_quality(image) -> str:
     if image is None:
         return "等待上传图像"
-    pil_image = ImageOps.exif_transpose(image).convert("RGB")
-    width, height = pil_image.size
-    gray = pil_image.convert("L")
-    stat = ImageStat.Stat(gray)
-    brightness = float(stat.mean[0])
-    contrast = float(stat.stddev[0])
-    ratio = max(width, height) / max(1, min(width, height))
+    try:
+        return format_quality_text(assess_image_quality_detail(image))
+    except Exception as exc:
+        return f"图像质量提示：质量评估失败，请确认图像格式是否正常。\n错误信息：{exc}"
 
-    notes = [
-        f"图像尺寸：{width} x {height}",
-        f"平均亮度：{brightness:.1f}",
-        f"对比度估计：{contrast:.1f}",
-    ]
-    warnings = []
-    if min(width, height) < 512:
-        warnings.append("分辨率偏低，细小病变区域可能不稳定。")
-    if brightness < 45:
-        warnings.append("图像整体偏暗，建议确认牙片曝光或阅片窗宽窗位。")
-    elif brightness > 220:
-        warnings.append("图像整体偏亮，建议确认牙片曝光或显示设置。")
-    if contrast < 28:
-        warnings.append("对比度偏低，可尝试勾选 CLAHE 增强后推理进行辅助对照。")
-    if ratio > 4:
-        warnings.append("宽高比非常极端，建议确认是否上传了完整牙片而不是过窄裁剪。")
 
-    if warnings:
-        return "\n".join(["图像质量提示：", *notes, *[f"- {item}" for item in warnings]])
-    return "\n".join(["图像质量提示：当前未发现明显输入质量风险。", *notes])
+def _result_visual_outputs(result: dict[str, Any] | None) -> tuple[Any, list[tuple[Any, str]], str]:
+    if not isinstance(result, dict):
+        return None, [], "暂无疑似区域局部图"
+    annotated = result.get("annotated")
+    original = result.get("original")
+    detections = _clean_detection_records(result.get("detections", []))
+    regions = crop_detection_regions(original, detections)
+    gallery = [(item["image"], item["caption"]) for item in regions]
+    status = f"已生成 {len(gallery)} 个疑似区域局部图" if gallery else "暂无疑似区域局部图"
+    return annotated, gallery, status
+
+
+def _quality_payload(image) -> tuple[str, str]:
+    if image is None:
+        return "等待上传图像", "未知"
+    try:
+        detail = assess_image_quality_detail(image)
+        return format_quality_text(detail), detail.quality_level
+    except Exception as exc:
+        return f"图像质量提示：质量评估失败，请确认图像格式是否正常。\n错误信息：{exc}", "未知"
 
 
 def _device_choices() -> list[tuple[str, str]]:
@@ -663,6 +662,7 @@ def _batch_overview_html(overview: dict[str, Any]) -> str:
     )
     failed_rows = [{"失败图片": item} for item in overview.get("失败图片", [])]
     empty_rows = [{"无检测结果图片": item} for item in overview.get("无检测结果图片", [])]
+    poor_quality_rows = [{"质量较差图片": item} for item in overview.get("质量较差图片", [])]
     return f"""
 <section class="batch-overview-panel">
   <div class="overview-stats">{stat_html}</div>
@@ -673,6 +673,7 @@ def _batch_overview_html(overview: dict[str, Any]) -> str:
   {_html_table(overview.get("重点关注图片", []), ["排名", "图片名称", "最高类别", "最高置信度", "检测框数量", "关注等级"], "暂无重点关注图片")}
   <details><summary>失败图片：{len(failed_rows)} 张</summary>{_html_table(failed_rows, ["失败图片"], "无失败图片")}</details>
   <details><summary>无检测结果图片：{len(empty_rows)} 张</summary>{_html_table(empty_rows, ["无检测结果图片"], "无未检出图片")}</details>
+  <details><summary>质量较差图片：{len(poor_quality_rows)} 张</summary>{_html_table(poor_quality_rows, ["质量较差图片"], "暂无质量较差图片")}</details>
 </section>
 """
 
@@ -695,6 +696,10 @@ def _batch_overview_csv_text(overview: dict[str, Any]) -> str:
     writer.writerow(focus_columns)
     for row in overview.get("重点关注图片", []):
         writer.writerow([row.get(column, "") for column in focus_columns])
+    writer.writerow([])
+    writer.writerow(["质量较差图片"])
+    for image_name in overview.get("质量较差图片", []):
+        writer.writerow([image_name])
     return buffer.getvalue()
 
 
@@ -795,6 +800,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     first_summary = batch_state[0].get("summary", {})
     first_summary = first_summary if isinstance(first_summary, dict) else {}
     first_model_results = first_summary.get("模型结果") if isinstance(first_summary, dict) else []
+    first_model_results = first_model_results if isinstance(first_model_results, list) else []
     model_names = [
         str(item.get("模型"))
         for item in first_model_results
@@ -878,6 +884,8 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                     "models": model_json_items,
                     "suggestion_type": suggestion_type,
                     "suggestion": advice,
+                    "quality_text": item.get("quality_text", ""),
+                    "quality_level": item.get("quality_level", ""),
                     "detections": primary_detections,
                     "image_files": {
                         "original": f"images/{stem}_original.png",
@@ -954,6 +962,10 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
         )
         (work_dir / "no_detection_images.txt").write_text(
             "\n".join(str(item) for item in batch_overview.get("无检测结果图片", [])) + "\n",
+            encoding="utf-8",
+        )
+        (work_dir / "poor_quality_images.txt").write_text(
+            "\n".join(str(item) for item in batch_overview.get("质量较差图片", [])) + "\n",
             encoding="utf-8",
         )
         (work_dir / "summary.txt").write_text(
@@ -1183,6 +1195,18 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
     return _file_component_output(path), f"已导出 Word 报告：{path}"
 
 
+def download_result_image(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
+    item = _current_item(batch_state, selected_name)
+    result = item.get("result") or item
+    image = result.get("annotated")
+    if image is None:
+        raise gr.Error("当前没有可下载的检测结果图。")
+    name = item.get("name") or item.get("image_name") or "当前单图"
+    path = save_result_image(image, storage_dir, name)
+    _remember_allowed_file_root(path.parent)
+    return _file_component_output(path), f"已生成检测结果图：{path}"
+
+
 def save_case_record(
     batch_state: list[dict[str, Any]],
     selected_name: str,
@@ -1206,6 +1230,8 @@ def save_case_record(
         "image_name": item.get("name") or "当前单图",
         "summary": item.get("summary", {}),
         "detections": _clean_detection_records(result.get("detections", [])),
+        "quality_text": item.get("quality_text") or assess_image_quality(result.get("original")),
+        "quality_level": item.get("quality_level", ""),
         "suggestion_type": item.get("suggestion_type", "default"),
         "suggestion": item.get("advice", ""),
         "safety_notice": SAFETY_NOTICE,
@@ -1296,6 +1322,10 @@ def _format_case_record(data: dict[str, Any] | None) -> str:
     else:
         lines.append("- 未检测到病变框")
 
+    quality_text = data.get("quality_text")
+    if quality_text:
+        lines.extend(["", "图像质量提示：", str(quality_text)])
+
     suggestion = data.get("suggestion")
     if suggestion:
         lines.extend(["", "辅助建议：", suggestion])
@@ -1332,6 +1362,12 @@ def clear_outputs():
         None,
         None,
         None,
+        None,
+        [],
+        "暂无疑似区域局部图",
+        _clear_file_output(),
+        "",
+        gr.update(value="下载检测结果图", interactive=False),
         _empty_table(),
         "",
         "等待上传图像",
@@ -1420,6 +1456,7 @@ def run_single_detection(
     chat_history = _conversation_from_advice(advice)
     if settings.auto_save:
         save_conversation(chat_history, settings.storage_dir)
+    quality_text, quality_level = _quality_payload(primary["original"])
 
     summary = {
         "运行设备": _device_label(device),
@@ -1447,16 +1484,25 @@ def run_single_detection(
             "all_results": all_results,
             "advice": advice,
             "suggestion_type": _suggestion_type(settings.enabled),
+            "quality_text": quality_text,
+            "quality_level": quality_level,
             "summary": summary,
         }
     ]
+    highres_image, crop_items, crop_text = _result_visual_outputs(primary)
     return (
         primary["original"],
         primary["model_input"],
         primary["annotated"],
+        highres_image,
+        crop_items,
+        crop_text,
+        _clear_file_output(),
+        "",
+        gr.update(value="下载检测结果图", interactive=True),
         primary["table"],
         advice,
-        assess_image_quality(primary["original"]),
+        quality_text,
         gr.update(value=summary, visible=show_summary),
         gr.update(value="", visible=False),
         batch_state,
@@ -1538,6 +1584,7 @@ def run_batch_detection(
             ]
             result = all_results[0]
             advice = _build_advice(settings, result["detections"])
+            quality_text, quality_level = _quality_payload(result["original"])
         except Exception as exc:
             batch_errors.append(f"{file_name}: {exc}")
             continue
@@ -1549,6 +1596,8 @@ def run_batch_detection(
                 "all_results": all_results,
                 "advice": advice,
                 "suggestion_type": _suggestion_type(settings.enabled),
+                "quality_text": quality_text,
+                "quality_level": quality_level,
                 "summary": {
                     "文件": file_name,
                     "模型模式": model_mode if enable_compare else MODEL_MODE_SINGLE,
@@ -1588,13 +1637,20 @@ def run_batch_detection(
     chat_history = _conversation_from_advice(first["advice"])
     if settings.auto_save:
         save_conversation(chat_history, settings.storage_dir)
+    highres_image, crop_items, crop_text = _result_visual_outputs(first["result"])
     return (
         first["result"]["original"],
         first["result"]["model_input"],
         first["result"]["annotated"],
+        highres_image,
+        crop_items,
+        crop_text,
+        _clear_file_output(),
+        "",
+        gr.update(value="下载检测结果图", interactive=True),
         first["result"]["table"],
         first["advice"],
-        assess_image_quality(first["result"]["original"]),
+        first.get("quality_text") or assess_image_quality(first["result"]["original"]),
         gr.update(value=first["summary"], visible=show_summary),
         gr.update(value=_batch_overview_html(overview), visible=True),
         batch_state,
@@ -1622,6 +1678,12 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
             None,
             None,
             None,
+            None,
+            [],
+            "暂无疑似区域局部图",
+            _clear_file_output(),
+            "",
+            gr.update(value="下载检测结果图", interactive=False),
             _empty_table(),
             "",
             "等待上传图像",
@@ -1645,13 +1707,20 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
     if item is None:
         raise gr.Error("当前选择的结果已失效，请重新选择图片。")
     chat_history = _conversation_from_advice(item["advice"])
+    highres_image, crop_items, crop_text = _result_visual_outputs(item["result"])
     return (
         item["result"]["original"],
         item["result"]["model_input"],
         item["result"]["annotated"],
+        highres_image,
+        crop_items,
+        crop_text,
+        _clear_file_output(),
+        "",
+        gr.update(value="下载检测结果图", interactive=True),
         item["result"]["table"],
         item["advice"],
-        assess_image_quality(item["result"]["original"]),
+        item.get("quality_text") or assess_image_quality(item["result"]["original"]),
         gr.update(value=item["summary"], visible=show_summary),
         chat_history,
         chat_history,
@@ -2066,6 +2135,39 @@ def build_app() -> gr.Blocks:
                                     placeholder="完成检测后显示",
                                     elem_classes=["result-card"],
                                 )
+                        with gr.Accordion("查看高清结果与疑似区域", open=False):
+                            highres_result_output = gr.Image(
+                                type="pil",
+                                label="高清结果图",
+                                height=420,
+                                interactive=False,
+                                elem_classes=["result-card", "highres-result-card"],
+                            )
+                            crop_status = gr.Markdown("暂无疑似区域局部图")
+                            crop_gallery = gr.Gallery(
+                                label="疑似区域局部图",
+                                columns=3,
+                                rows=1,
+                                height=220,
+                                allow_preview=True,
+                                object_fit="contain",
+                            )
+                            with gr.Row(elem_classes=["path-row"]):
+                                result_image_path = gr.Textbox(
+                                    label="检测结果图路径",
+                                    interactive=False,
+                                    lines=1,
+                                    max_lines=1,
+                                    scale=8,
+                                    elem_classes=["path-output"],
+                                )
+                                download_result_btn = gr.Button(
+                                    "下载检测结果图",
+                                    interactive=False,
+                                    elem_classes=["secondary-action"],
+                                    scale=2,
+                                )
+                                result_image_file = gr.File(label="检测结果图 PNG", visible=False)
                         with gr.Group(elem_classes=["section-card", "result-table-card"]):
                             det_table = gr.Dataframe(
                                 value=_empty_table(),
@@ -2416,6 +2518,12 @@ def build_app() -> gr.Blocks:
             original_output,
             model_input_output,
             result_output,
+            highres_result_output,
+            crop_gallery,
+            crop_status,
+            result_image_file,
+            result_image_path,
+            download_result_btn,
             det_table,
             advice_box,
             quality_box,
@@ -2477,6 +2585,12 @@ def build_app() -> gr.Blocks:
                 original_output,
                 model_input_output,
                 result_output,
+                highres_result_output,
+                crop_gallery,
+                crop_status,
+                result_image_file,
+                result_image_path,
+                download_result_btn,
                 det_table,
                 advice_box,
                 quality_box,
@@ -2627,6 +2741,11 @@ def build_app() -> gr.Blocks:
             fn=export_word_report,
             inputs=[batch_state, batch_select, storage_dir],
             outputs=[word_report_file, word_report_path],
+        )
+        download_result_btn.click(
+            fn=download_result_image,
+            inputs=[batch_state, batch_select, storage_dir],
+            outputs=[result_image_file, result_image_path],
         )
         export_report_btn.click(
             fn=export_single_report,
