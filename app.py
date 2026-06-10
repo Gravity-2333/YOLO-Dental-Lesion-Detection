@@ -727,8 +727,26 @@ def _case_detail_from_choice(choice: str | None, storage_dir: str) -> str:
     return load_case_record(choice, storage_dir)
 
 
+def _validate_case_date_filters(date_from: str, date_to: str) -> tuple[str, str]:
+    start = str(date_from or "").strip()
+    end = str(date_to or "").strip()
+    for label, value in [("开始日期", start), ("结束日期", end)]:
+        if not value:
+            continue
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            raise gr.Error(f"{label}格式应为 YYYY-MM-DD，例如 2026-06-10。") from None
+    if start and end and start > end:
+        raise gr.Error("开始日期不能晚于结束日期，请调整筛选条件。")
+    return start, end
+
+
 def _write_text(path: Path, content: str) -> None:
-    path.write_text(content, encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.tmp")
+    tmp_path.write_text(content, encoding="utf-8")
+    tmp_path.replace(path)
 
 
 def _html_escape(value: Any) -> str:
@@ -1544,6 +1562,7 @@ def search_case_records_ui(
     date_to: str,
     storage_dir: str,
 ):
+    date_from, date_to = _validate_case_date_filters(date_from, date_to)
     rows = search_case_records(storage_dir, keyword, class_filter, level_filter, date_from, date_to)
     choices = _case_choices_from_rows(rows)
     selected = choices[0] if choices else None
@@ -1562,6 +1581,7 @@ def delete_selected_case_record(
 ):
     if not choice:
         raise gr.Error("请先选择要移入回收站的病例记录。")
+    date_from, date_to = _validate_case_date_filters(date_from, date_to)
     file_name = choice.split("|")[-1].strip()
     try:
         trash_path = move_case_to_trash(storage_dir, file_name)
