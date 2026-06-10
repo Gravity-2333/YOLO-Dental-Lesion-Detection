@@ -13,6 +13,12 @@ def friendly_error_message(exc: BaseException | str, context: str = "操作失�
             "可能原因：显卡驱动、CUDA 环境或 PyTorch GPU 版本未正确启用。\n\n"
             "建议处理：先在推理设备中选择 CPU；如果需要 GPU，请检查显卡驱动和 yolo 环境。"
         )
+    if "model" in text or "模型" in context or Path(raw).suffix == ".pt":
+        return (
+            f"{context}：模型文件无法加载。\n\n"
+            "可能原因：模型路径不正确、文件不是 YOLO 权重，或权重文件已损坏。\n\n"
+            "建议处理：进入设置页重新选择 .pt 模型文件，并点击测试模型。"
+        )
     if "no such file" in text or "not found" in text or "不存在" in text:
         return (
             f"{context}：相关文件不存在。\n\n"
@@ -36,12 +42,6 @@ def friendly_error_message(exc: BaseException | str, context: str = "操作失�
             f"{context}：图片无法读取或格式不受支持。\n\n"
             "可能原因：图片文件损坏、格式异常，或文件后缀与真实内容不一致。\n\n"
             "建议处理：换用 PNG、JPG、JPEG、BMP、WEBP、TIF 或 TIFF 格式图片后重试。"
-        )
-    if "model" in text or Path(raw).suffix == ".pt":
-        return (
-            f"{context}：模型文件无法加载。\n\n"
-            "可能原因：模型路径不正确、文件不是 YOLO 权重，或权重文件已损坏。\n\n"
-            "建议处理：进入设置页重新选择 .pt 模型文件，并点击测试模型。"
         )
     return (
         f"{context}。\n\n"

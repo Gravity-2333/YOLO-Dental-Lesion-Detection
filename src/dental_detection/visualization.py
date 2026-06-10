@@ -20,10 +20,10 @@ def save_result_image(image: Image.Image, storage_dir: str, image_name: str) -> 
     output_dir = export_dir(str(storage_root)) / "result_images"
     output_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = output_dir / f"{stamp}_{_safe_stem(image_name)}_检测结果.png"
+    path = output_dir / f"检测结果图_{_safe_stem(image_name)}_{stamp}.png"
     counter = 1
     while path.exists():
-        path = output_dir / f"{stamp}_{_safe_stem(image_name)}_检测结果_{counter:02d}.png"
+        path = output_dir / f"检测结果图_{_safe_stem(image_name)}_{stamp}_{counter:02d}.png"
         counter += 1
     ImageOps.exif_transpose(image).convert("RGB").save(path)
     return path

@@ -79,7 +79,7 @@ STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
 MODEL_MODE_SINGLE = "单模型"
 MODEL_MODE_COMPARE = "对比模型"
 CASE_TABLE_COLUMNS = ["保存时间", "病例编号", "图片名称", "检测数量", "涉及类别", "关注等级", "最高置信度", "文件名"]
-COMMON_OUTPUT_QUALITY_INDEX = 11
+COMMON_OUTPUT_QUALITY_INDEX = 12
 _EXTRA_ALLOWED_FILE_ROOTS: set[Path] = set()
 
 
@@ -2155,21 +2155,25 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
     if item is None:
         raise gr.Error("当前选择的结果已失效，请重新选择图片。")
     chat_history = _conversation_from_advice(item["advice"])
-    highres_image, crop_items, crop_text = _result_visual_outputs(item["result"])
+    result = item["result"]
+    result.pop("_visible_detections", None)
+    if result.get("full_annotated") is not None:
+        result["annotated"] = result["full_annotated"]
+    highres_image, crop_items, crop_text = _result_visual_outputs(result)
     return (
-        item["result"]["original"],
-        item["result"]["model_input"],
-        item["result"]["annotated"],
+        result["original"],
+        result["model_input"],
+        result["annotated"],
         highres_image,
         crop_items,
         crop_text,
         _clear_file_output(),
         "",
         gr.update(value="下载检测结果图", interactive=True),
-        _visible_class_update(item["result"]),
-        item["result"]["table"],
+        _visible_class_update(result),
+        result["table"],
         item["advice"],
-        item.get("quality_text") or assess_image_quality(item["result"]["original"]),
+        item.get("quality_text") or assess_image_quality(result["original"]),
         gr.update(value=item["summary"], visible=show_summary),
         chat_history,
         chat_history,
