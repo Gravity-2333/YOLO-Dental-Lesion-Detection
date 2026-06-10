@@ -4,6 +4,7 @@ import argparse
 from collections import Counter
 import csv
 from datetime import datetime
+import io
 import json
 from pathlib import Path
 import re
@@ -634,6 +635,69 @@ def _model_detections_html(results: list[dict[str, Any]]) -> str:
     return "".join(sections)
 
 
+def _html_table(rows: list[dict[str, Any]], columns: list[str], empty_text: str) -> str:
+    if not rows:
+        return f"<p class=\"empty-note\">{_html_escape(empty_text)}</p>"
+    headers = "".join(f"<th>{_html_escape(column)}</th>" for column in columns)
+    body = []
+    for row in rows:
+        cells = "".join(f"<td>{_html_escape(row.get(column, ''))}</td>" for column in columns)
+        body.append(f"<tr>{cells}</tr>")
+    return f"<table><thead><tr>{headers}</tr></thead><tbody>{''.join(body)}</tbody></table>"
+
+
+def _batch_overview_html(overview: dict[str, Any]) -> str:
+    if not overview:
+        return ""
+    stat_items = [
+        ("图片总数", overview.get("图片总数", 0)),
+        ("成功处理", overview.get("成功处理", 0)),
+        ("处理失败", overview.get("处理失败", 0)),
+        ("检测框总数", overview.get("检测框总数", 0)),
+        ("平均置信度", overview.get("平均置信度", 0)),
+        ("最高置信度", overview.get("最高置信度", 0)),
+    ]
+    stat_html = "".join(
+        f"<div class=\"overview-stat\"><span>{_html_escape(label)}</span><strong>{_html_escape(value)}</strong></div>"
+        for label, value in stat_items
+    )
+    failed_rows = [{"失败图片": item} for item in overview.get("失败图片", [])]
+    empty_rows = [{"无检测结果图片": item} for item in overview.get("无检测结果图片", [])]
+    return f"""
+<section class="batch-overview-panel">
+  <div class="overview-stats">{stat_html}</div>
+  <p class="overview-classes">涉及类别：{_html_escape(overview.get("涉及类别", "无"))}</p>
+  <h3>类别统计</h3>
+  {_html_table(overview.get("类别统计", []), ["类别", "中文名称", "检测框数量", "涉及图片数", "最高置信度", "平均置信度"], "暂无类别统计")}
+  <h3>重点关注图片</h3>
+  {_html_table(overview.get("重点关注图片", []), ["排名", "图片名称", "最高类别", "最高置信度", "检测框数量", "关注等级"], "暂无重点关注图片")}
+  <details><summary>失败图片：{len(failed_rows)} 张</summary>{_html_table(failed_rows, ["失败图片"], "无失败图片")}</details>
+  <details><summary>无检测结果图片：{len(empty_rows)} 张</summary>{_html_table(empty_rows, ["无检测结果图片"], "无未检出图片")}</details>
+</section>
+"""
+
+
+def _batch_overview_csv_text(overview: dict[str, Any]) -> str:
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["批量检测总览"])
+    for label in ["图片总数", "成功处理", "处理失败", "检测框总数", "平均置信度", "最高置信度", "涉及类别"]:
+        writer.writerow([label, overview.get(label, "无" if label == "涉及类别" else 0)])
+    writer.writerow([])
+    writer.writerow(["类别统计"])
+    class_columns = ["类别", "中文名称", "检测框数量", "涉及图片数", "最高置信度", "平均置信度"]
+    writer.writerow(class_columns)
+    for row in overview.get("类别统计", []):
+        writer.writerow([row.get(column, "") for column in class_columns])
+    writer.writerow([])
+    writer.writerow(["重点关注图片"])
+    focus_columns = ["排名", "图片名称", "最高类别", "最高置信度", "检测框数量", "关注等级"]
+    writer.writerow(focus_columns)
+    for row in overview.get("重点关注图片", []):
+        writer.writerow([row.get(column, "") for column in focus_columns])
+    return buffer.getvalue()
+
+
 def _unique_report_paths(storage_dir: str, stamp: str) -> tuple[Path, Path]:
     base = report_dir(storage_dir)
     root = base / f"single_report_{stamp}"
@@ -840,6 +904,39 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             json.dumps(batch_overview, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        (work_dir / "批量检测总览.json").write_text(
+            json.dumps(batch_overview, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        (work_dir / "批量检测总览.csv").write_text(
+            _batch_overview_csv_text(batch_overview),
+            encoding="utf-8-sig",
+        )
+        (work_dir / "批量检测总览.html").write_text(
+            f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>批量检测总览</title>
+  <style>
+    body {{ font-family: "Microsoft YaHei", Arial, sans-serif; margin: 28px; color: #172033; }}
+    .overview-stats {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }}
+    .overview-stat {{ border: 1px solid #d7dde8; padding: 10px; border-radius: 6px; }}
+    .overview-stat span {{ display: block; color: #5d6b82; font-size: 13px; }}
+    .overview-stat strong {{ display: block; font-size: 20px; margin-top: 4px; }}
+    table {{ border-collapse: collapse; width: 100%; margin: 12px 0 20px; }}
+    th, td {{ border: 1px solid #d7dde8; padding: 8px; text-align: left; }}
+    th {{ background: #eff4fb; }}
+  </style>
+</head>
+<body>
+  <h1>批量检测总览</h1>
+  {_batch_overview_html(batch_overview)}
+</body>
+</html>
+""",
+            encoding="utf-8",
+        )
         with (work_dir / "class_stats.csv").open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.DictWriter(
                 handle,
@@ -848,7 +945,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             writer.writeheader()
             writer.writerows(batch_overview.get("类别统计", []))
         with (work_dir / "focus_images.csv").open("w", encoding="utf-8-sig", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=["排名", "图片名称", "最高类别", "最高置信度", "检测框数量", "关注等级"])
+            writer = csv.DictWriter(handle, fieldnames=["排名", "图片名称", "最高类别", "原始类别", "最高置信度", "检测框数量", "关注等级"])
             writer.writeheader()
             writer.writerows(batch_overview.get("重点关注图片", []))
         (work_dir / "failed_images.txt").write_text(
@@ -1239,7 +1336,7 @@ def clear_outputs():
         "",
         "等待上传图像",
         gr.update(value={}, visible=False),  # summary: 同时重置可见性
-        gr.update(value={}, visible=False),
+        gr.update(value="", visible=False),
         [],
         gr.update(choices=[], value=None),
         gr.update(),       # chatbot: 保留对话，不静默清空
@@ -1361,7 +1458,7 @@ def run_single_detection(
         advice,
         assess_image_quality(primary["original"]),
         gr.update(value=summary, visible=show_summary),
-        gr.update(value={}, visible=False),
+        gr.update(value="", visible=False),
         batch_state,
         gr.update(choices=["当前单图"], value="当前单图"),
         chat_history,
@@ -1499,7 +1596,7 @@ def run_batch_detection(
         first["advice"],
         assess_image_quality(first["result"]["original"]),
         gr.update(value=first["summary"], visible=show_summary),
-        gr.update(value=overview, visible=True),
+        gr.update(value=_batch_overview_html(overview), visible=True),
         batch_state,
         gr.update(choices=choices, value=choices[0]),
         chat_history,
@@ -1904,7 +2001,7 @@ def build_app() -> gr.Blocks:
                                         max_lines=1,
                                         elem_classes=["path-output"],
                                     )
-                                    batch_overview = gr.JSON(label="批量分析总览", visible=False)
+                                    batch_overview = gr.HTML(visible=False)
 
                         with gr.Group(elem_classes=["section-card", "panel-card"]):
                             gr.HTML('<div class="section-heading"><h2>推理设置</h2></div>')

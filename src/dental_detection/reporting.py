@@ -43,6 +43,12 @@ def _summary_value(summary: dict[str, Any], *names: str, default: str = "-") -> 
     return default
 
 
+def _yes_no(value: Any) -> str:
+    if isinstance(value, bool):
+        return "是" if value else "否"
+    return str(value)
+
+
 def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
     from docx import Document
     from docx.shared import Inches
@@ -126,7 +132,7 @@ def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
     document.add_paragraph(f"推理尺寸：{_summary_value(data.summary, '推理尺寸')}")
     document.add_paragraph(f"置信度阈值：{_summary_value(data.summary, '置信度阈值', 'conf')}")
     document.add_paragraph(f"IoU 阈值：{_summary_value(data.summary, 'IoU阈值', 'iou')}")
-    document.add_paragraph(f"CLAHE 增强：{_summary_value(data.summary, 'CLAHE增强')}")
+    document.add_paragraph(f"CLAHE 增强：{_yes_no(_summary_value(data.summary, 'CLAHE增强'))}")
     document.add_paragraph(f"运行设备：{_summary_value(data.summary, '运行设备')}")
     document.add_paragraph(f"模型名称：{data.model_name}")
 

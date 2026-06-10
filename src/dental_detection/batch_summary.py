@@ -30,6 +30,11 @@ def _clean_detections(detections: Any) -> list[dict[str, Any]]:
     return rows
 
 
+def _sort_confidence(value: Any) -> float:
+    confidence = parse_confidence(value)
+    return confidence if confidence is not None else 0.0
+
+
 def build_batch_summary(batch_state: list[dict[str, Any]], batch_errors: list[str] | None = None) -> dict[str, Any]:
     errors = list(batch_errors or [])
     class_stats: dict[str, dict[str, Any]] = {}
@@ -67,16 +72,18 @@ def build_batch_summary(batch_state: list[dict[str, Any]], batch_errors: list[st
                     stat["置信度列表"].append(confidence)
 
         if image_detections:
-            scored = [
-                (parse_confidence(det.get("confidence")) or 0.0, str(det.get("class", "未知类别") or "未知类别"))
-                for det in image_detections
-            ]
-            highest_confidence, highest_class = max(scored, key=lambda pair: pair[0])
+            scored = []
+            for det in image_detections:
+                confidence = parse_confidence(det.get("confidence"))
+                label = str(det.get("class", "未知类别") or "未知类别")
+                scored.append((confidence if confidence is not None else 0.0, confidence, label))
+            _, highest_confidence, highest_class = max(scored, key=lambda pair: pair[0])
             image_rows.append(
                 {
                     "图片名称": image_name,
-                    "最高类别": highest_class,
-                    "最高置信度": round(highest_confidence, 4),
+                    "最高类别": get_class_display_name(highest_class),
+                    "原始类别": highest_class,
+                    "最高置信度": round(highest_confidence, 4) if highest_confidence is not None else "未知",
                     "检测框数量": len(image_detections),
                     "关注等级": get_confidence_level(highest_confidence),
                 }
@@ -100,7 +107,7 @@ def build_batch_summary(batch_state: list[dict[str, Any]], batch_errors: list[st
     class_rows.sort(key=lambda row: (-row["检测框数量"], row["类别"]))
     focus_rows = sorted(
         image_rows,
-        key=lambda row: (-float(row["最高置信度"]), -int(row["检测框数量"]), row["图片名称"]),
+        key=lambda row: (-_sort_confidence(row["最高置信度"]), -int(row["检测框数量"]), row["图片名称"]),
     )
     for index, row in enumerate(focus_rows, start=1):
         row["排名"] = index
