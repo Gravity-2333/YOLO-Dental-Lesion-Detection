@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .assistant import SAFETY_NOTICE, case_dir, ensure_app_dirs, report_dir, storage_root
+from .model_info import legend_markdown
 from .result_levels import enrich_detection_row, get_class_display_name, parse_confidence
 
 
@@ -233,6 +234,10 @@ def export_case_report(storage_dir: str, file_name: str) -> Path:
         document.add_heading("辅助建议", level=1)
         for line in str(data.get("suggestion")).splitlines():
             document.add_paragraph(line)
+
+    document.add_heading("图例与类别说明", level=1)
+    for line in legend_markdown().splitlines():
+        document.add_paragraph(line)
 
     document.save(output_path)
     return output_path

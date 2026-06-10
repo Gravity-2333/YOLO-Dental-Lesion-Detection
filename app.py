@@ -698,6 +698,12 @@ def _case_choices_from_rows(rows: list[dict[str, Any]]) -> list[str]:
     ]
 
 
+def _case_detail_from_choice(choice: str | None, storage_dir: str) -> str:
+    if not choice:
+        return _format_case_record(None)
+    return load_case_record(choice, storage_dir)
+
+
 def _write_text(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
@@ -1413,8 +1419,12 @@ def save_case_record(
 def refresh_case_records(storage_dir: str):
     rows = list_case_records(storage_dir)
     choices = _case_choices_from_rows(rows)
-    return gr.update(choices=choices, value=choices[0] if choices else None), _case_table(rows), (
-        "已刷新病例记录。" if choices else "暂无病例记录。"
+    selected = choices[0] if choices else None
+    return (
+        gr.update(choices=choices, value=selected),
+        _case_table(rows),
+        _case_detail_from_choice(selected, storage_dir),
+        "已刷新病例记录。" if choices else "暂无病例记录。",
     )
 
 
@@ -1430,7 +1440,7 @@ def search_case_records_ui(
     choices = _case_choices_from_rows(rows)
     selected = choices[0] if choices else None
     message = f"已筛选到 {len(rows)} 条病例记录。" if rows else "未找到匹配病例记录。"
-    return gr.update(choices=choices, value=selected), _case_table(rows), message
+    return gr.update(choices=choices, value=selected), _case_table(rows), _case_detail_from_choice(selected, storage_dir), message
 
 
 def delete_selected_case_record(
@@ -2156,6 +2166,7 @@ def save_ui_settings(
     feedback = [f"设置已保存：{path}"]
     case_rows = list_case_records(settings.storage_dir)
     case_choices = _case_choices_from_rows(case_rows)
+    case_selected = case_choices[0] if case_choices else None
     case_message = "病例列表已同步到当前存储位置。" if case_choices else "当前存储位置暂无病例记录。"
     history_table = history_rows(settings.storage_dir)
     history_choices = _history_choices_from_rows(history_table)
@@ -2163,8 +2174,9 @@ def save_ui_settings(
     history_message = "检测历史已同步到当前存储位置。" if history_choices else "当前存储位置暂无检测历史。"
     return (
         _toast("\n".join(feedback), "success"),
-        gr.update(choices=case_choices, value=case_choices[0] if case_choices else None),
+        gr.update(choices=case_choices, value=case_selected),
         _case_table(case_rows),
+        _case_detail_from_choice(case_selected, settings.storage_dir),
         case_message,
         gr.update(choices=history_choices, value=history_selected),
         _history_table_from_rows(history_table),
@@ -3144,6 +3156,7 @@ def build_app() -> gr.Blocks:
                 settings_feedback,
                 case_select,
                 case_table,
+                case_detail,
                 case_feedback,
                 history_select,
                 history_table,
@@ -3254,12 +3267,12 @@ def build_app() -> gr.Blocks:
         refresh_case_btn.click(
             fn=refresh_case_records,
             inputs=storage_dir,
-            outputs=[case_select, case_table, case_feedback],
+            outputs=[case_select, case_table, case_detail, case_feedback],
         )
         search_case_btn.click(
             fn=search_case_records_ui,
             inputs=[case_keyword, case_class_filter, case_level_filter, case_date_from, case_date_to, storage_dir],
-            outputs=[case_select, case_table, case_feedback],
+            outputs=[case_select, case_table, case_detail, case_feedback],
         )
         delete_case_btn.click(
             fn=delete_selected_case_record,
