@@ -54,6 +54,7 @@ from src.dental_detection.history_store import (
     delete_history_record,
     history_rows,
     load_history_record as load_history_record_data,
+    update_history_report_paths,
 )
 from src.dental_detection.image_quality import assess_image_quality_detail, format_quality_text
 from src.dental_detection.inference import Detection, run_inference
@@ -503,6 +504,7 @@ def _ai_settings(
     auto_save: bool,
     storage_dir: str,
     custom_prompt: str,
+    advice_style: str = "简洁版",
 ) -> AiSettings:
     if key_mode == "环境变量":
         api_key = (env_api_key or "").strip() or DEFAULT_AI_KEY_ENV
@@ -518,6 +520,7 @@ def _ai_settings(
         auto_save=auto_save,
         storage_dir=(storage_dir or "").strip() or str(ensure_app_dirs()),
         custom_prompt=(custom_prompt or "").strip() or DEFAULT_AI_PROMPT,
+        advice_style=advice_style if advice_style in {"简洁版", "医生版", "患者版"} else "简洁版",
     )
 
 
@@ -558,12 +561,7 @@ def _api_key_inputs(saved: AiSettings) -> tuple[str, str]:
 def _build_advice(settings: AiSettings, detections: list[dict[str, Any]]) -> str:
     if not settings.enabled:
         return default_advice(detections)
-    style = load_settings().advice_style
-    style_prompt = {
-        "简洁版": "建议风格：简洁版，重点明确，避免冗长。",
-        "医生版": "建议风格：医生版，保留类别名、置信度和必要的检测框信息，语言专业克制。",
-        "患者版": "建议风格：患者版，使用易懂中文，少用技术术语，避免制造焦虑。",
-    }.get(style, "")
+    style_prompt = _advice_style_prompt(settings.advice_style)
     prompt = settings.custom_prompt
     if style_prompt:
         prompt = f"{prompt}\n{style_prompt}"
@@ -576,6 +574,14 @@ def _build_advice(settings: AiSettings, detections: list[dict[str, Any]]) -> str
         )
     except Exception as exc:
         return f"{default_advice(detections)}\n\nAI 建议生成失败：{exc}"
+
+
+def _advice_style_prompt(style: str) -> str:
+    return {
+        "简洁版": "建议风格：简洁版，重点明确，避免冗长。",
+        "医生版": "建议风格：医生版，保留类别名、置信度和必要的检测框信息，语言专业克制。",
+        "患者版": "建议风格：患者版，使用易懂中文，少用技术术语，避免制造焦虑。",
+    }.get(style, "")
 
 
 def _conversation_from_advice(advice: str) -> list[dict[str, str]]:
@@ -1087,6 +1093,11 @@ def export_batch_word_report(batch_state: list[dict[str, Any]], storage_dir: str
         path = export_batch_docx_report(batch_state, overview, output_dir)
     except Exception as exc:
         raise gr.Error(f"批量 Word 报告导出失败：{exc}") from exc
+    update_history_report_paths(
+        [str(item.get("name") or item.get("image_name") or "") for item in batch_state],
+        path,
+        storage_dir,
+    )
     return _file_component_output(path), f"已导出批量 Word 报告：{path}"
 
 
@@ -1291,6 +1302,7 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
         safety_notice=SAFETY_NOTICE,
     )
     path = export_single_docx_report(report_data, output_dir)
+    update_history_report_paths([name], path, storage_dir)
     return _file_component_output(path), f"已导出 Word 报告：{path}"
 
 
@@ -1659,6 +1671,7 @@ def run_single_detection(
     auto_save: bool,
     storage_dir: str,
     custom_prompt: str,
+    advice_style: str,
 ):
     if image is None:
         raise gr.Error("请先上传一张牙科影像。")
@@ -1689,6 +1702,7 @@ def run_single_detection(
         auto_save,
         storage_dir,
         custom_prompt,
+        advice_style,
     )
     advice = _build_advice(settings, primary["detections"])
     chat_history = _conversation_from_advice(advice)
@@ -1796,6 +1810,7 @@ def run_batch_detection(
     auto_save: bool,
     storage_dir: str,
     custom_prompt: str,
+    advice_style: str,
 ):
     if not files:
         raise gr.Error("请先批量上传牙科影像。")
@@ -1814,6 +1829,7 @@ def run_batch_detection(
         auto_save,
         storage_dir,
         custom_prompt,
+        advice_style,
     )
     selected_models = _configured_models(model_mode if enable_compare else MODEL_MODE_SINGLE, primary_model_path, compare_model_path)
     batch_state: list[dict[str, Any]] = []
@@ -2106,6 +2122,7 @@ def continue_chat(
     auto_save: bool,
     storage_dir: str,
     custom_prompt: str,
+    advice_style: str,
 ):
     user_message = (message or "").strip()
     if not user_message:
@@ -2123,6 +2140,7 @@ def continue_chat(
         auto_save,
         storage_dir,
         custom_prompt,
+        advice_style,
     )
     history = _normalize_chat_history(history)
     user_entry = {"role": "user", "content": user_message}
@@ -2137,7 +2155,11 @@ def continue_chat(
         )
     else:
         try:
-            messages = [{"role": "system", "content": settings.custom_prompt}, *history, user_entry]
+            style_prompt = _advice_style_prompt(settings.advice_style)
+            system_prompt = settings.custom_prompt
+            if style_prompt:
+                system_prompt = f"{system_prompt}\n{style_prompt}"
+            messages = [{"role": "system", "content": system_prompt}, *history, user_entry]
             answer = chat_completion(settings, messages, temperature=0.2, max_tokens=500)
         except Exception as exc:
             answer = f"AI 回复失败：{exc}"
@@ -2885,6 +2907,7 @@ def build_app() -> gr.Blocks:
             auto_save,
             storage_dir,
             custom_prompt,
+            advice_style,
         ]
         common_outputs = [
             original_output,
@@ -2950,6 +2973,7 @@ def build_app() -> gr.Blocks:
                 auto_save,
                 storage_dir,
                 custom_prompt,
+                advice_style,
             ],
             outputs=common_outputs,
         )
@@ -3064,6 +3088,7 @@ def build_app() -> gr.Blocks:
                 auto_save,
                 storage_dir,
                 custom_prompt,
+                advice_style,
             ],
             outputs=[chatbot, chat_state, chat_input, export_file, export_path],
         )
@@ -3084,6 +3109,7 @@ def build_app() -> gr.Blocks:
                 auto_save,
                 storage_dir,
                 custom_prompt,
+                advice_style,
             ],
             outputs=[chatbot, chat_state, chat_input, export_file, export_path],
         )

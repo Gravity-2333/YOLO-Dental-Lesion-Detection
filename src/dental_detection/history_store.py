@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime
 import json
 from pathlib import Path
@@ -81,7 +82,11 @@ def _load_raw_records(storage_dir: str | None = None) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     records = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    for line in lines:
         if not line.strip():
             continue
         try:
@@ -110,7 +115,10 @@ def append_history_records(
         return _write_records(_load_raw_records(storage_dir), storage_dir)
     records = _load_raw_records(storage_dir)
     records.extend(build_history_record(item) for item in batch_state)
-    keep = max(1, int(limit or 100))
+    try:
+        keep = max(1, int(limit or 100))
+    except (TypeError, ValueError):
+        keep = 100
     if len(records) > keep:
         records = records[-keep:]
     return _write_records(records, storage_dir)
@@ -160,3 +168,28 @@ def delete_history_record(record_id: str, storage_dir: str | None = None) -> boo
 
 def clear_history_records(storage_dir: str | None = None) -> Path:
     return _write_records([], storage_dir)
+
+
+def update_history_report_paths(
+    image_names: list[str],
+    report_path: str | Path,
+    storage_dir: str | None = None,
+) -> int:
+    names = [str(name or "").strip() for name in image_names if str(name or "").strip()]
+    if not names:
+        return 0
+    records = _load_raw_records(storage_dir)
+    changed = 0
+    remaining = Counter(names)
+    path_text = str(report_path)
+    for item in reversed(records):
+        image_name = str(item.get("image_name") or "").strip()
+        if remaining.get(image_name, 0) > 0:
+            item["report_path"] = path_text
+            remaining[image_name] -= 1
+            changed += 1
+        if not any(remaining.values()):
+            break
+    if changed:
+        _write_records(records, storage_dir)
+    return changed
