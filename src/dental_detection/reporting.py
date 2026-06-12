@@ -51,6 +51,22 @@ def _yes_no(value: Any) -> str:
     return str(value)
 
 
+def _image_size(image: Any) -> tuple[int, int] | None:
+    size = getattr(image, "size", None)
+    if isinstance(size, tuple) and len(size) == 2:
+        try:
+            return int(size[0]), int(size[1])
+        except (TypeError, ValueError):
+            return None
+    shape = getattr(image, "shape", None)
+    if shape is not None and len(shape) >= 2:
+        try:
+            return int(shape[1]), int(shape[0])
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
     from docx import Document
     from docx.shared import Inches
@@ -88,7 +104,8 @@ def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
             document.add_picture(str(image_path), width=Inches(5.8))
 
     document.add_heading("二、检测摘要", level=1)
-    enriched = [enrich_detection_row(det) for det in data.detections]
+    detection_image_size = _image_size(data.model_input_image) or _image_size(data.original_image)
+    enriched = [enrich_detection_row(det, detection_image_size) for det in data.detections]
     if enriched:
         document.add_paragraph(f"本次共检测到 {len(enriched)} 个疑似目标区域。")
         counts: dict[str, int] = {}
@@ -186,14 +203,14 @@ def _model_name(item: dict[str, Any]) -> str:
     return "unknown"
 
 
-def _add_detection_table(document, detections: list[dict[str, Any]]) -> None:
+def _add_detection_table(document, detections: list[dict[str, Any]], image_size: tuple[int, int] | None = None) -> None:
     document.add_paragraph(REGION_NOTICE)
     headers = ["序号", "类别", "中文名称", "置信度", "关注等级", "图像区域", "x1", "y1", "x2", "y2"]
     table = document.add_table(rows=1, cols=len(headers))
     table.style = "Table Grid"
     for cell, header in zip(table.rows[0].cells, headers):
         cell.text = header
-    rows = [enrich_detection_row(det) for det in detections]
+    rows = [enrich_detection_row(det, image_size) for det in detections]
     if not rows:
         cells = table.add_row().cells
         cells[0].text = "-"
@@ -308,7 +325,8 @@ def export_batch_docx_report(
                 document.add_paragraph("检测结果图")
                 image_path = _save_temp_image(annotated, temp_root, f"{index:03d}_{_safe_name(name)}.png")
                 document.add_picture(str(image_path), width=Inches(5.8))
-            _add_detection_table(document, detections)
+            image_size = _image_size(result.get("model_input")) or _image_size(result.get("original")) or _image_size(annotated)
+            _add_detection_table(document, detections, image_size)
 
             advice = item.get("advice")
             if advice:

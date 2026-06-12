@@ -99,7 +99,7 @@ def crop_detection_regions(
     width, height = pil_image.size
     regions: list[dict[str, Any]] = []
     for index, detection in enumerate(detections or [], start=1):
-        row = enrich_detection_row(detection)
+        row = enrich_detection_row(detection, pil_image.size)
         try:
             x1 = float(row["x1"])
             y1 = float(row["y1"])
