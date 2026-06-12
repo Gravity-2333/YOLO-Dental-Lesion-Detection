@@ -10,6 +10,7 @@ from PIL import Image
 from .batch_summary import build_batch_summary
 from .model_info import legend_markdown
 from .result_levels import REGION_NOTICE, enrich_detection_row
+from .visualization import save_png_image
 
 
 @dataclass
@@ -34,8 +35,7 @@ def _add_paragraphs(document, text: str) -> None:
 
 def _save_temp_image(image: Image.Image, root: Path, name: str) -> Path:
     path = root / name
-    image.convert("RGB").save(path)
-    return path
+    return save_png_image(image, path)
 
 
 def _summary_value(summary: dict[str, Any], *names: str, default: str = "-") -> Any:
@@ -162,6 +162,13 @@ def _item_results(item: dict[str, Any]) -> list[dict[str, Any]]:
 def _primary_result(item: dict[str, Any]) -> dict[str, Any]:
     result = item.get("result") or item
     return result if isinstance(result, dict) else {}
+
+
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
 
 
 def _model_name(item: dict[str, Any]) -> str:
@@ -296,7 +303,7 @@ def export_batch_docx_report(
             if quality_text:
                 document.add_paragraph("图像质量提示：")
                 _add_paragraphs(document, quality_text)
-            annotated = (result.get("full_annotated") or result.get("annotated")) if isinstance(result, dict) else None
+            annotated = _first_present(result.get("full_annotated"), result.get("annotated")) if isinstance(result, dict) else None
             if annotated is not None:
                 document.add_paragraph("检测结果图")
                 image_path = _save_temp_image(annotated, temp_root, f"{index:03d}_{_safe_name(name)}.png")

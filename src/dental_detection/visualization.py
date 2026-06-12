@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from .assistant import ensure_app_dirs, export_dir
@@ -13,6 +14,19 @@ from .result_levels import enrich_detection_row
 def _safe_stem(name: str) -> str:
     safe = "".join("_" if char in '<>:"/\\|?*\x00' else char for char in str(name or "image")).strip(" ._")
     return (Path(safe).stem or "image")[:80].rstrip(" ._") or "image"
+
+
+def as_rgb_image(image: Any) -> Image.Image:
+    if isinstance(image, Image.Image):
+        return ImageOps.exif_transpose(image).convert("RGB")
+    return Image.fromarray(np.asarray(image)).convert("RGB")
+
+
+def save_png_image(image: Any, path: str | Path) -> Path:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    as_rgb_image(image).save(output_path)
+    return output_path
 
 
 def save_result_image(image: Image.Image, storage_dir: str, image_name: str) -> Path:
@@ -25,7 +39,7 @@ def save_result_image(image: Image.Image, storage_dir: str, image_name: str) -> 
     while path.exists():
         path = output_dir / f"检测结果图_{_safe_stem(image_name)}_{stamp}_{counter:02d}.png"
         counter += 1
-    ImageOps.exif_transpose(image).convert("RGB").save(path)
+    save_png_image(image, path)
     return path
 
 
@@ -34,7 +48,7 @@ def draw_detections_with_filter(
     detections: list[dict[str, Any]],
     visible_classes: list[str] | None = None,
 ) -> Image.Image:
-    base = ImageOps.exif_transpose(image).convert("RGB")
+    base = as_rgb_image(image)
     allowed = None if visible_classes is None else {str(item).strip() for item in visible_classes if str(item).strip()}
     annotated = base.copy()
     draw = ImageDraw.Draw(annotated)
@@ -81,7 +95,7 @@ def crop_detection_regions(
 ) -> list[dict[str, Any]]:
     if image is None:
         return []
-    pil_image = ImageOps.exif_transpose(image).convert("RGB")
+    pil_image = as_rgb_image(image)
     width, height = pil_image.size
     regions: list[dict[str, Any]] = []
     for index, detection in enumerate(detections or [], start=1):

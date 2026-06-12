@@ -67,7 +67,7 @@ from src.dental_detection.model_info import (
 )
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.result_levels import enrich_detection_row
-from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_result_image
+from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from ultralytics import YOLO
 
 MODEL_SOURCE = "YOLOv8m 原始结构"
@@ -769,8 +769,15 @@ def _friendly_gr_error(exc: BaseException | str, context: str = "操作失败") 
     return gr.Error(friendly_error_message(exc, context))
 
 
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 def _report_annotated_image(result: dict[str, Any]) -> Any:
-    return result.get("full_annotated") or result.get("annotated")
+    return _first_present(result.get("full_annotated"), result.get("annotated"))
 
 
 def _visible_class_choices(result: dict[str, Any] | None) -> list[str]:
@@ -1076,15 +1083,15 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             suggestion_type = item.get("suggestion_type", "default")
             advice = item.get("advice") or item.get("suggestion") or ""
 
-            original_image = result.get("original") or result.get("original_image")
-            input_image = result.get("model_input") or result.get("input_image")
-            annotated_image = _report_annotated_image(result) or result.get("result_image")
+            original_image = _first_present(result.get("original"), result.get("original_image"))
+            input_image = _first_present(result.get("model_input"), result.get("input_image"))
+            annotated_image = _first_present(_report_annotated_image(result), result.get("result_image"))
             if original_image is None or input_image is None or annotated_image is None:
                 raise gr.Error(f"{name} 的批量结果不完整，无法导出图片。")
 
-            original_image.save(images_dir / f"{stem}_original.png")
-            input_image.save(images_dir / f"{stem}_input.png")
-            annotated_image.save(images_dir / f"{stem}_result.png")
+            save_png_image(original_image, images_dir / f"{stem}_original.png")
+            save_png_image(input_image, images_dir / f"{stem}_input.png")
+            save_png_image(annotated_image, images_dir / f"{stem}_result.png")
             (suggestions_dir / f"{stem}.txt").write_text(advice, encoding="utf-8")
 
             model_json_items = []
@@ -1326,9 +1333,9 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
         annotated_img = _report_annotated_image(result)
         if original_img is None or input_img is None or annotated_img is None:
             raise gr.Error(f"{name} 的结果不完整（缺少图片数据），无法导出报告。")
-        original_img.save(work_dir / image_files["original"])
-        input_img.save(work_dir / image_files["input"])
-        annotated_img.save(work_dir / image_files["result"])
+        save_png_image(original_img, work_dir / image_files["original"])
+        save_png_image(input_img, work_dir / image_files["input"])
+        save_png_image(annotated_img, work_dir / image_files["result"])
 
         csv_path = work_dir / "detections.csv"
         with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
@@ -2214,7 +2221,7 @@ def update_detection_visibility(visible_classes: list[str], selected_name: str, 
         return None, None, [], "暂无疑似区域局部图", [], _empty_table(), _clear_file_output(), ""
     item = _current_item(batch_state, selected_name)
     result = item.get("result") or item
-    base_image = result.get("model_input") or result.get("original")
+    base_image = _first_present(result.get("model_input"), result.get("original"))
     if base_image is None:
         raise gr.Error("当前结果缺少可重绘的图像，请重新检测。")
     detections = _clean_detection_records(result.get("detections", []))
