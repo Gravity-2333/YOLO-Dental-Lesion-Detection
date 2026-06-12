@@ -346,8 +346,11 @@ _MAX_MODEL_SCAN_DEPTH = 8    # 最大递归深度
 
 
 def _scan_model_files(model_dir: str | Path) -> list[tuple[str, str]]:
-    root = Path(model_dir or PROJECT_ROOT / "models").expanduser()
-    if not root.exists() or not root.is_dir():
+    try:
+        root = Path(model_dir or PROJECT_ROOT / "models").expanduser()
+        if not root.exists() or not root.is_dir():
+            return []
+    except (OSError, RuntimeError, ValueError):
         return []
     files = []
     pending: list[tuple[Path, int]] = [(root, 0)]
@@ -374,7 +377,10 @@ def _scan_model_files(model_dir: str | Path) -> list[tuple[str, str]]:
 
 def _model_path_or_default(path: str, fallback: str) -> str:
     value = str(path or "").strip()
-    return str(Path(value).expanduser().resolve()) if value else str(Path(fallback).resolve())
+    try:
+        return str(Path(value).expanduser().resolve()) if value else str(Path(fallback).resolve())
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise _friendly_gr_error(exc, "模型路径无效") from exc
 
 
 def _configured_models(model_mode: str, primary_model_path: str, compare_model_path: str) -> list[tuple[str, Path]]:

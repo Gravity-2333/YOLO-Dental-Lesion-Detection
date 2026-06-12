@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -83,12 +84,15 @@ def format_model_info_markdown(model_info: dict[str, Any]) -> str:
         ("gflops", "GFLOPs"),
     ]:
         if key in metrics:
-            metric_lines.append(f"- {label}：{metrics[key]}")
+            metric_lines.append(f"- {label}：{escape(str(metrics[key]))}")
     metric_text = "\n".join(metric_lines) if metric_lines else "- 暂无指标摘要"
-    return f"""## 当前模型：{model_info.get("name", "未知模型")}
+    name = escape(str(model_info.get("name", "未知模型")))
+    architecture = escape(str(model_info.get("architecture", "YOLOv8 目标检测模型")))
+    role = escape(str(model_info.get("role", "牙齿病变区域辅助识别")))
+    return f"""## 当前模型：{name}
 
-- 模型类型：{model_info.get("architecture", "YOLOv8 目标检测模型")}
-- 模型定位：{model_info.get("role", "牙齿病变区域辅助识别")}
+- 模型类型：{architecture}
+- 模型定位：{role}
 - 可识别类别：{"、".join(CLASS_DISPLAY_NAMES.values())}
 - 模型状态：{"可用" if model_info.get("available") else "模型文件未找到"}
 
@@ -123,17 +127,22 @@ def model_cards_html(cards: list[dict[str, Any]], selected_path: str | None = No
     for card in cards:
         selected = str(selected_path or "") == str(card.get("path") or "")
         status_class = "available" if card.get("available") else "missing"
+        title = escape(str(card.get("title", "")))
+        name = escape(str(card.get("name", "")))
+        description = escape(str(card.get("description", "")))
+        classes = escape(str(card.get("classes", "")))
+        architecture = escape(str(card.get("architecture", "")))
         chunks.append(
             f"""
 <div class="model-info-card {'selected' if selected else ''}">
   <div class="model-card-top">
-    <span class="model-card-title">{card.get('title', '')}</span>
+    <span class="model-card-title">{title}</span>
     <span class="model-card-tag {status_class}">{'可用' if card.get('available') else '缺失'}</span>
   </div>
-  <strong>{card.get('name', '')}</strong>
-  <p>{card.get('description', '')}</p>
-  <div class="model-card-meta">类别：{card.get('classes', '')}</div>
-  <div class="model-card-meta">结构：{card.get('architecture', '')}</div>
+  <strong>{name}</strong>
+  <p>{description}</p>
+  <div class="model-card-meta">类别：{classes}</div>
+  <div class="model-card-meta">结构：{architecture}</div>
 </div>
 """
         )
