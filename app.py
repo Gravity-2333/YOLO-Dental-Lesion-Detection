@@ -1092,7 +1092,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             save_png_image(original_image, images_dir / f"{stem}_original.png")
             save_png_image(input_image, images_dir / f"{stem}_input.png")
             save_png_image(annotated_image, images_dir / f"{stem}_result.png")
-            (suggestions_dir / f"{stem}.txt").write_text(advice, encoding="utf-8")
+            _write_text(suggestions_dir / f"{stem}.txt", advice)
 
             model_json_items = []
             for model_result in all_results:
@@ -1152,23 +1152,24 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             writer.writeheader()
             writer.writerows(csv_rows)
 
-        (work_dir / "detections.json").write_text(
+        _write_text(
+            work_dir / "detections.json",
             json.dumps({"export": export_info, "overview": batch_overview, "items": json_items}, ensure_ascii=False, indent=2),
-            encoding="utf-8",
         )
-        (work_dir / "batch_overview.json").write_text(
+        _write_text(
+            work_dir / "batch_overview.json",
             json.dumps(batch_overview, ensure_ascii=False, indent=2),
-            encoding="utf-8",
         )
-        (work_dir / "批量检测总览.json").write_text(
+        _write_text(
+            work_dir / "批量检测总览.json",
             json.dumps(batch_overview, ensure_ascii=False, indent=2),
-            encoding="utf-8",
         )
-        (work_dir / "批量检测总览.csv").write_text(
+        _write_text(
+            work_dir / "批量检测总览.csv",
             _batch_overview_csv_text(batch_overview),
-            encoding="utf-8-sig",
         )
-        (work_dir / "批量检测总览.html").write_text(
+        _write_text(
+            work_dir / "批量检测总览.html",
             f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -1198,7 +1199,6 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
 </body>
 </html>
 """,
-            encoding="utf-8",
         )
         with (work_dir / "class_stats.csv").open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.DictWriter(
@@ -1211,21 +1211,21 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             writer = csv.DictWriter(handle, fieldnames=["排名", "图片名称", "最高类别", "原始类别", "最高置信度", "检测框数量", "关注等级"])
             writer.writeheader()
             writer.writerows(batch_overview.get("重点关注图片", []))
-        (work_dir / "failed_images.txt").write_text(
+        _write_text(
+            work_dir / "failed_images.txt",
             "\n".join(str(item) for item in batch_overview.get("失败图片", [])) + "\n",
-            encoding="utf-8",
         )
-        (work_dir / "no_detection_images.txt").write_text(
+        _write_text(
+            work_dir / "no_detection_images.txt",
             "\n".join(str(item) for item in batch_overview.get("无检测结果图片", [])) + "\n",
-            encoding="utf-8",
         )
-        (work_dir / "poor_quality_images.txt").write_text(
+        _write_text(
+            work_dir / "poor_quality_images.txt",
             "\n".join(str(item) for item in batch_overview.get("质量较差图片", [])) + "\n",
-            encoding="utf-8",
         )
-        (work_dir / "summary.txt").write_text(
+        _write_text(
+            work_dir / "summary.txt",
             "\n".join(_summary_lines(batch_state, export_info)) + "\n",
-            encoding="utf-8",
         )
 
         with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
