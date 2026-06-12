@@ -562,5 +562,7 @@ def save_conversation(messages: list[dict[str, str]], storage_dir: str | None = 
         "safety_notice": SAFETY_NOTICE,
         "messages": _normalize_messages(messages),
     }
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path = path.with_name(f".{path.name}.tmp")
+    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path.replace(path)
     return path

@@ -170,11 +170,11 @@ def _clear_file_output():
     return gr.update(value=None, visible=False)
 
 
-def _empty_table() -> pd.DataFrame:
+def _empty_table(message: str = "暂无检测结果") -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
-                "class": "暂无检测结果",
+                "class": message,
                 "中文名称": "",
                 "confidence": "",
                 "关注等级": "",
@@ -742,10 +742,10 @@ def _validate_case_date_filters(date_from: str, date_to: str) -> tuple[str, str]
     return start, end
 
 
-def _write_text(path: Path, content: str) -> None:
+def _write_text(path: Path, content: str, encoding: str = "utf-8") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(f".{path.name}.tmp")
-    tmp_path.write_text(content, encoding="utf-8")
+    tmp_path.write_text(content, encoding=encoding)
     tmp_path.replace(path)
 
 
@@ -1167,6 +1167,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
         _write_text(
             work_dir / "批量检测总览.csv",
             _batch_overview_csv_text(batch_overview),
+            encoding="utf-8-sig",
         )
         _write_text(
             work_dir / "批量检测总览.html",
@@ -2225,17 +2226,19 @@ def update_detection_visibility(visible_classes: list[str], selected_name: str, 
     if base_image is None:
         raise gr.Error("当前结果缺少可重绘的图像，请重新检测。")
     detections = _clean_detection_records(result.get("detections", []))
-    visible_set = {str(item).strip() for item in visible_classes or [] if str(item).strip()}
-    result["_visible_detections"] = [
-        row
-        for row in detections
-        if (str(row.get("中文名称") or "").strip() in visible_set or str(row.get("class") or "").strip() in visible_set)
-    ]
-    result["annotated"] = draw_detections_with_filter(base_image, detections, visible_classes or [])
+    visible_set = None if visible_classes is None else {str(item).strip() for item in visible_classes if str(item).strip()}
+    if visible_set is None:
+        result["_visible_detections"] = detections
+    else:
+        result["_visible_detections"] = [
+            row
+            for row in detections
+            if (str(row.get("中文名称") or "").strip() in visible_set or str(row.get("class") or "").strip() in visible_set)
+        ]
+    result["annotated"] = draw_detections_with_filter(base_image, detections, visible_classes)
     highres_image, crop_items, crop_text = _result_visual_outputs(result)
-    table = result.get("table")
-    if not isinstance(table, pd.DataFrame):
-        table = _table_from_records(detections)
+    table_rows = result["_visible_detections"] if visible_classes is not None else detections
+    table = _table_from_records(table_rows) if table_rows else _empty_table("当前筛选无可见检测框")
     return (
         result["annotated"],
         highres_image,
