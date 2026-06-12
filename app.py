@@ -383,6 +383,13 @@ def _model_path_or_default(path: str, fallback: str) -> str:
         raise _friendly_gr_error(exc, "模型路径无效") from exc
 
 
+def _model_dir_or_default(path: str | Path | None) -> str:
+    try:
+        return str(Path(path or PROJECT_ROOT / "models").expanduser().resolve())
+    except (OSError, RuntimeError, ValueError):
+        return str((PROJECT_ROOT / "models").resolve())
+
+
 def _configured_models(model_mode: str, primary_model_path: str, compare_model_path: str) -> list[tuple[str, Path]]:
     primary = Path(_model_path_or_default(primary_model_path, str(DEFAULT_MODEL_PATH)))
     models = [(_model_label_from_path(primary), primary)]
@@ -408,7 +415,10 @@ def refresh_model_choices(model_dir: str, current_value: str | None = None):
 def apply_selected_model(selected_path: str, target: str):
     if not selected_path:
         raise gr.Error("请先从模型文件下拉框选择一个支持的模型文件。")
-    model_path = Path(selected_path).expanduser().resolve()
+    try:
+        model_path = Path(selected_path).expanduser().resolve()
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise _friendly_gr_error(exc, "模型路径无效") from exc
     if model_path.suffix.lower() not in _SUPPORTED_MODEL_SUFFIXES:
         raise _friendly_gr_error(f"unsupported model format {model_path.suffix}", "模型文件格式不支持")
     if not model_path.exists():
@@ -443,14 +453,19 @@ def _current_model_info_markdown(selected_path: str | None = None) -> str:
     if selected:
         return format_model_info_markdown(selected)
     if selected_path:
-        path = Path(selected_path).expanduser()
+        try:
+            path = Path(selected_path).expanduser()
+            available = path.exists()
+        except (OSError, RuntimeError, ValueError):
+            path = Path("invalid_model_path")
+            available = False
         return format_model_info_markdown(
             {
                 "name": _model_label_from_path(path),
                 "architecture": "自定义 YOLO 模型",
                 "role": "用户选择的模型文件",
                 "path": str(path),
-                "available": path.exists(),
+                "available": available,
                 "metrics": {},
             }
         )
@@ -589,7 +604,7 @@ def _save_runtime_settings(
     settings.enable_compare = saved.enable_compare
     settings.show_summary = saved.show_summary
     settings.model_mode = (model_mode or saved.model_mode) if settings.enable_compare else MODEL_MODE_SINGLE
-    settings.model_dir = str(Path(model_dir or saved.model_dir or PROJECT_ROOT / "models").expanduser().resolve())
+    settings.model_dir = _model_dir_or_default(model_dir or saved.model_dir)
     settings.primary_model_path = _model_path_or_default(
         primary_model_path or saved.primary_model_path,
         str(DEFAULT_MODEL_PATH),
@@ -852,7 +867,12 @@ def load_demo_example(path_text: str | None):
     if not path_text:
         raise gr.Error("请先选择一张示例图片。")
     path = Path(path_text)
-    if path.parent.resolve() != EXAMPLE_DIR.resolve() or not path.exists():
+    try:
+        in_example_dir = path.parent.resolve() == EXAMPLE_DIR.resolve()
+        exists = path.exists()
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise _friendly_gr_error(exc, "示例图片路径无效") from exc
+    if not in_example_dir or not exists:
         raise gr.Error("示例图片不存在，请检查 assets/examples/dental 目录。")
     try:
         from PIL import Image
@@ -2340,7 +2360,7 @@ def save_ui_settings(
     settings.advice_style = advice_style if advice_style in {"简洁版", "医生版", "患者版"} else "简洁版"
     settings.show_summary = bool(show_summary)
     settings.model_mode = (model_mode or MODEL_MODE_SINGLE) if settings.enable_compare else MODEL_MODE_SINGLE
-    settings.model_dir = str(Path(model_dir or PROJECT_ROOT / "models").expanduser().resolve())
+    settings.model_dir = _model_dir_or_default(model_dir)
     settings.primary_model_path = _model_path_or_default(primary_model_path, str(DEFAULT_MODEL_PATH))
     settings.compare_model_path = _model_path_or_default(
         compare_model_path,
@@ -3000,7 +3020,7 @@ def build_app() -> gr.Blocks:
                             with gr.Accordion("高级模型路径设置", open=False):
                                 with gr.Row(elem_classes=["path-row"]):
                                     model_dir = gr.Textbox(
-                                        value=str(Path(saved.model_dir).expanduser().resolve()),
+                                        value=_model_dir_or_default(saved.model_dir),
                                         label="模型目录",
                                         lines=1,
                                         max_lines=1,
