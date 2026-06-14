@@ -288,9 +288,15 @@ def _device(device_choice: str) -> tuple[str | int, bool]:
         raise _friendly_gr_error("CUDA not available", "推理设备不可用")
     if choice.startswith("cuda"):
         try:
-            return int(choice.split(":", 1)[1]), cuda_available
+            index = int(choice.split(":", 1)[1]) if ":" in choice else 0
         except (IndexError, ValueError):
             raise _friendly_gr_error(f"invalid CUDA device: {device_choice}", "推理设备不可用") from None
+        if index < 0 or index >= torch.cuda.device_count():
+            raise _friendly_gr_error(
+                f"invalid CUDA device index: {device_choice}; available count: {torch.cuda.device_count()}",
+                "推理设备不可用",
+            )
+        return index, cuda_available
     if choice != "cpu":
         return "cpu", cuda_available
     return "cpu", cuda_available
