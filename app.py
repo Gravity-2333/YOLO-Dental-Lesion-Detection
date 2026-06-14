@@ -156,6 +156,15 @@ def _remember_allowed_file_root(path: str | Path | None) -> None:
         _sync_gradio_allowed_paths()
 
 
+def _ensure_storage_root(storage_dir: str | None, context: str = "存储目录不可用") -> Path:
+    try:
+        root = ensure_app_dirs(storage_dir)
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        raise _friendly_gr_error(exc, context) from exc
+    _remember_allowed_file_root(root)
+    return root
+
+
 def _can_return_file(path: str | Path | None) -> bool:
     if not path:
         return False
@@ -594,7 +603,7 @@ def _ai_settings(
         api_key=(api_key or "").strip(),
         save_api_key=save_key,
         auto_save=auto_save,
-        storage_dir=(storage_dir or "").strip() or str(ensure_app_dirs()),
+        storage_dir=(storage_dir or "").strip() or str(APP_HOME),
         custom_prompt=(custom_prompt or "").strip() or DEFAULT_AI_PROMPT,
         advice_style=advice_style if advice_style in {"简洁版", "医生版", "患者版"} else "简洁版",
     )
@@ -1073,8 +1082,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
         batch_errors = []
     batch_overview = build_batch_summary(batch_state, batch_errors)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    storage_root = ensure_app_dirs(storage_dir)
-    _remember_allowed_file_root(storage_root)
+    _ensure_storage_root(storage_dir)
     export_root, zip_path = _unique_batch_export_paths(storage_dir, stamp)
     export_root.mkdir(parents=True, exist_ok=True)
     work_dir = export_root / "payload"
@@ -1298,8 +1306,7 @@ def export_batch_word_report(batch_state: list[dict[str, Any]], storage_dir: str
         batch_errors = []
     overview = build_batch_summary(batch_state, batch_errors)
     overview["生成时间"] = datetime.now().isoformat(timespec="seconds")
-    storage_root = ensure_app_dirs(storage_dir)
-    _remember_allowed_file_root(storage_root)
+    _ensure_storage_root(storage_dir)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = report_dir(storage_dir) / f"batch_word_report_{stamp}"
     counter = 1
@@ -1323,8 +1330,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     result = item.get("result") or item
     all_results = _item_results(item)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    storage_root = ensure_app_dirs(storage_dir)
-    _remember_allowed_file_root(storage_root)
+    _ensure_storage_root(storage_dir)
     report_root, zip_path = _unique_report_paths(storage_dir, stamp)
     report_root.mkdir(parents=True, exist_ok=True)
     work_dir = report_root / "payload"
@@ -1504,8 +1510,7 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
     if not model_name:
         model_name = summary_data.get("模型", "unknown")
 
-    storage_root = ensure_app_dirs(storage_dir)
-    _remember_allowed_file_root(storage_root)
+    _ensure_storage_root(storage_dir)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = report_dir(storage_dir) / f"word_report_{stamp}_{_safe_stem(name)}"
     counter = 1
@@ -1526,7 +1531,10 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
         summary=summary_data,
         safety_notice=SAFETY_NOTICE,
     )
-    path = export_single_docx_report(report_data, output_dir)
+    try:
+        path = export_single_docx_report(report_data, output_dir)
+    except Exception as exc:
+        raise _friendly_gr_error(exc, "Word 报告导出失败") from exc
     update_history_report_paths([name], path, storage_dir)
     return _file_component_output(path), f"已导出 Word 报告：{path}"
 
@@ -1538,7 +1546,11 @@ def download_result_image(batch_state: list[dict[str, Any]], selected_name: str,
     if image is None:
         raise gr.Error("当前没有可下载的检测结果图。")
     name = item.get("name") or item.get("image_name") or "当前单图"
-    path = save_result_image(image, storage_dir, name)
+    _ensure_storage_root(storage_dir)
+    try:
+        path = save_result_image(image, storage_dir, name)
+    except Exception as exc:
+        raise _friendly_gr_error(exc, "检测结果图保存失败") from exc
     _remember_allowed_file_root(path.parent)
     return _file_component_output(path), f"已生成检测结果图：{path}"
 
@@ -1552,7 +1564,7 @@ def save_case_record(
 ):
     item = _current_item(batch_state, selected_name)
     result = item.get("result") or item
-    ensure_app_dirs(storage_dir)
+    _ensure_storage_root(storage_dir)
     now = datetime.now()
     stamp = now.strftime("%Y%m%d_%H%M%S_%f")
     case_id_text = str(case_id or "").strip()
@@ -2380,8 +2392,11 @@ def save_ui_settings(
     )
     settings.save_history = bool(save_history)
     settings.history_limit = _normalize_history_limit(history_limit)
-    path = save_settings(settings)
-    _remember_allowed_file_root(settings.storage_dir)
+    try:
+        path = save_settings(settings)
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        raise _friendly_gr_error(exc, "设置保存失败") from exc
+    _ensure_storage_root(settings.storage_dir)
     feedback = [f"设置已保存：{path}"]
     case_rows = list_case_records(settings.storage_dir)
     case_choices = _case_choices_from_rows(case_rows)
@@ -2476,8 +2491,7 @@ def export_chat(history: list[dict[str, str]], storage_dir: str):
     history = _normalize_chat_history(history)
     if not history:
         raise gr.Error("当前没有可导出的对话记录。")
-    storage_root = ensure_app_dirs(storage_dir)
-    _remember_allowed_file_root(storage_root)
+    _ensure_storage_root(storage_dir)
     path = save_conversation(history, storage_dir)
     return _file_component_output(path), f"已导出：{path}"
 
@@ -2566,7 +2580,11 @@ def _with_current_defaults(saved: AiSettings, *, config_exists: bool = False) ->
 
 def build_app() -> gr.Blocks:
     saved = _with_current_defaults(load_settings(), config_exists=CONFIG_PATH.exists())
-    ensure_app_dirs(saved.storage_dir)
+    try:
+        _ensure_storage_root(saved.storage_dir)
+    except gr.Error:
+        saved.storage_dir = str(APP_HOME)
+        _ensure_storage_root(saved.storage_dir)
     env_key_value, direct_key_value = _api_key_inputs(saved)
     model_choices = _scan_model_files(saved.model_dir)
     model_choice_values = {value for _, value in model_choices}
