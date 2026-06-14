@@ -83,6 +83,21 @@ COMMON_OUTPUT_QUALITY_INDEX = 12
 _EXTRA_ALLOWED_FILE_ROOTS: set[Path] = set()
 
 
+def _safe_existing_root(path: str | Path | None) -> Path | None:
+    if not path:
+        return None
+    try:
+        root = Path(path).expanduser().resolve()
+    except (OSError, TypeError, ValueError, RuntimeError):
+        return None
+    try:
+        if not root.exists():
+            return None
+        return root.parent if root.is_file() else root
+    except OSError:
+        return None
+
+
 def _load_workbench_css() -> str:
     if CSS_PATH.exists():
         return CSS_PATH.read_text(encoding="utf-8")
@@ -100,7 +115,7 @@ def _workbench_theme():
 def _allowed_file_roots() -> list[Path]:
     # 动态读取当前设置中的 storage_dir，确保更换存储目录后导出下载入口仍然可用
     try:
-        current_storage = Path(load_settings().storage_dir).expanduser()
+        current_storage = _safe_existing_root(load_settings().storage_dir)
     except Exception:
         current_storage = None
     roots = [
@@ -109,14 +124,13 @@ def _allowed_file_roots() -> list[Path]:
         PROJECT_ROOT / "outputs",
         *_EXTRA_ALLOWED_FILE_ROOTS,
     ]
-    if current_storage and current_storage.exists():
+    if current_storage:
         roots.append(current_storage)
     resolved: list[Path] = []
     for root in roots:
-        if root.exists():
-            path = root.resolve()
-            if path not in resolved:
-                resolved.append(path)
+        path = _safe_existing_root(root)
+        if path and path not in resolved:
+            resolved.append(path)
     return resolved
 
 
@@ -136,13 +150,8 @@ def _sync_gradio_allowed_paths() -> None:
 
 
 def _remember_allowed_file_root(path: str | Path | None) -> None:
-    if not path:
-        return
-    try:
-        root = Path(path).expanduser().resolve()
-    except (OSError, RuntimeError):
-        return
-    if root.exists():
+    root = _safe_existing_root(path)
+    if root is not None:
         _EXTRA_ALLOWED_FILE_ROOTS.add(root)
         _sync_gradio_allowed_paths()
 
@@ -525,7 +534,10 @@ def choose_model_dir(model_dir: str, current_value: str | None = None):
     selected = _choose_directory_dialog("选择模型目录", model_dir or PROJECT_ROOT / "models")
     if not selected:
         return gr.update(), gr.update(), "未选择模型目录。"
-    path = str(Path(selected).expanduser().resolve())
+    root = _safe_existing_root(selected)
+    if root is None:
+        return gr.update(), gr.update(), "选择的模型目录不可访问，请手动检查路径后重试。"
+    path = str(root)
     choices = _scan_model_files(path)
     value = current_value if current_value and any(current_value == c[1] for c in choices) else None
     value = value or (choices[0][1] if choices else None)
@@ -2527,7 +2539,10 @@ def choose_storage_dir(storage_dir: str):
     selected = _choose_directory_dialog("选择数据存储目录", storage_dir or APP_HOME)
     if not selected:
         return gr.update(), _toast("未选择新的数据存储目录。")
-    path = str(Path(selected).expanduser().resolve())
+    root = _safe_existing_root(selected)
+    if root is None:
+        return gr.update(), _toast("选择的数据存储目录不可访问，请手动检查路径后重试。", "error")
+    path = str(root)
     return gr.update(value=path), _toast(f"已选择数据存储目录：{path}。保存设置后生效。")
 
 
