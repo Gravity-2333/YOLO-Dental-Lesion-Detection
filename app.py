@@ -1601,6 +1601,7 @@ def save_case_record(
 
 
 def refresh_case_records(storage_dir: str):
+    _ensure_storage_root(storage_dir)
     rows = list_case_records(storage_dir)
     choices = _case_choices_from_rows(rows)
     selected = choices[0] if choices else None
@@ -1620,6 +1621,7 @@ def search_case_records_ui(
     date_to: str,
     storage_dir: str,
 ):
+    _ensure_storage_root(storage_dir)
     date_from, date_to = _validate_case_date_filters(date_from, date_to)
     rows = search_case_records(storage_dir, keyword, class_filter, level_filter, date_from, date_to)
     choices = _case_choices_from_rows(rows)
@@ -1639,6 +1641,7 @@ def delete_selected_case_record(
 ):
     if not choice:
         raise gr.Error("请先选择要移入回收站的病例记录。")
+    _ensure_storage_root(storage_dir)
     date_from, date_to = _validate_case_date_filters(date_from, date_to)
     file_name = choice.split("|")[-1].strip()
     try:
@@ -1658,6 +1661,7 @@ def delete_selected_case_record(
 def export_selected_case_record(choice: str, storage_dir: str):
     if not choice:
         raise gr.Error("请先选择要导出的病例记录。")
+    _ensure_storage_root(storage_dir)
     file_name = choice.split("|")[-1].strip()
     try:
         path = export_case_report(storage_dir, file_name)
@@ -1753,6 +1757,10 @@ def _format_case_record(data: dict[str, Any] | None) -> str:
 def load_case_record(choice: str, storage_dir: str):
     if not choice:
         return _format_case_record({"提示": "暂无病例详情。选择已保存病例后，会在这里显示检测摘要、检测框和辅助建议。"})
+    try:
+        _ensure_storage_root(storage_dir)
+    except gr.Error as exc:
+        return _format_case_record({"错误": str(exc)})
     file_name = choice.split("|")[-1].strip()
     if Path(file_name).name != file_name or not file_name.startswith("case_") or not file_name.endswith(".json"):
         return _format_case_record({"错误": "病例选择无效，请刷新病例列表后重试。"})
@@ -1822,6 +1830,7 @@ def _format_history_record(record: dict[str, Any] | None) -> str:
 
 
 def refresh_history_records(storage_dir: str):
+    _ensure_storage_root(storage_dir)
     rows = history_rows(storage_dir)
     choices = _history_choices_from_rows(rows)
     selected = choices[0] if choices else None
@@ -1834,10 +1843,15 @@ def refresh_history_records(storage_dir: str):
 
 
 def load_history_record(choice: str, storage_dir: str) -> str:
+    try:
+        _ensure_storage_root(storage_dir)
+    except gr.Error as exc:
+        return str(exc)
     return _format_history_record(load_history_record_data(_history_id(choice), storage_dir))
 
 
 def delete_selected_history_record(choice: str, storage_dir: str):
+    _ensure_storage_root(storage_dir)
     record_id = _history_id(choice)
     if not record_id:
         history_select, table, detail, message = refresh_history_records(storage_dir)
@@ -1849,6 +1863,7 @@ def delete_selected_history_record(choice: str, storage_dir: str):
 
 
 def clear_all_history_records(storage_dir: str):
+    _ensure_storage_root(storage_dir)
     clear_history_records(storage_dir)
     return (
         gr.update(choices=[], value=None),
