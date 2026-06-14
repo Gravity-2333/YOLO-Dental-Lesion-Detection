@@ -228,9 +228,10 @@ def load_settings() -> AiSettings:
     return AiSettings(**{**defaults, **filtered})
 
 
-def save_settings(settings: AiSettings) -> Path:
+def save_settings(settings: AiSettings, *, migrate_data: bool = True) -> Path:
     previous = load_settings() if CONFIG_PATH.exists() else AiSettings()
-    migrate_storage(previous.storage_dir, settings.storage_dir)
+    if migrate_data:
+        migrate_storage(previous.storage_dir, settings.storage_dir)
     ensure_app_dirs(settings.storage_dir)
     data = settings.__dict__.copy()
     if settings.key_mode == "直接 Key 值" and not settings.save_api_key:

@@ -634,7 +634,7 @@ def _save_runtime_settings(
         compare_model_path or saved.compare_model_path,
         str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
     )
-    return save_settings(settings)
+    return save_settings(settings, migrate_data=persist_storage)
 
 
 def _api_key_inputs(saved: AiSettings) -> tuple[str, str]:
