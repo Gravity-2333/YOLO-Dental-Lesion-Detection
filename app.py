@@ -680,6 +680,24 @@ def _conversation_from_advice(advice: str) -> list[dict[str, str]]:
     return [{"role": "assistant", "content": advice}]
 
 
+def _auto_save_conversation(history: list[dict[str, str]], storage_dir: str) -> str:
+    try:
+        save_conversation(history, storage_dir)
+    except Exception as exc:
+        message = friendly_error_message(exc, "自动保存对话失败")
+        return f"自动保存对话失败，检测或回复结果已保留。\n{message}"
+    return ""
+
+
+def _auto_append_history(batch_state: list[dict[str, Any]], storage_dir: str, history_limit: int | float) -> str:
+    try:
+        append_history_records(batch_state, storage_dir, _normalize_history_limit(history_limit))
+    except Exception as exc:
+        message = friendly_error_message(exc, "自动保存检测历史失败")
+        return f"自动保存检测历史失败，检测结果已保留。\n{message}"
+    return ""
+
+
 def _normalize_chat_history(history: Any) -> list[dict[str, str]]:
     normalized: list[dict[str, str]] = []
     for item in history or []:
@@ -1978,8 +1996,12 @@ def run_single_detection(
     )
     advice = _build_advice(settings, primary["detections"])
     chat_history = _conversation_from_advice(advice)
+    auto_save_warning = ""
     if settings.auto_save:
-        save_conversation(chat_history, settings.storage_dir)
+        auto_save_warning = _auto_save_conversation(chat_history, settings.storage_dir)
+        if auto_save_warning:
+            advice = f"{advice}\n\n{auto_save_warning}"
+            chat_history = _conversation_from_advice(advice)
     quality_text, quality_level = _quality_payload(primary["original"])
 
     summary = {
@@ -2014,7 +2036,11 @@ def run_single_detection(
         }
     ]
     if save_history:
-        append_history_records(batch_state, settings.storage_dir, _normalize_history_limit(history_limit))
+        history_warning = _auto_append_history(batch_state, settings.storage_dir, history_limit)
+        if history_warning:
+            advice = f"{advice}\n\n{history_warning}"
+            chat_history = _conversation_from_advice(advice)
+            batch_state[0]["advice"] = advice
     highres_image, crop_items, crop_text = _result_visual_outputs(primary)
     return (
         primary["original"],
@@ -2169,10 +2195,17 @@ def run_batch_detection(
     first["batch_errors"] = batch_errors
     overview = build_batch_summary(batch_state, batch_errors)
     chat_history = _conversation_from_advice(first["advice"])
+    auto_save_warning = ""
     if settings.auto_save:
-        save_conversation(chat_history, settings.storage_dir)
+        auto_save_warning = _auto_save_conversation(chat_history, settings.storage_dir)
+        if auto_save_warning:
+            first["advice"] = f"{first['advice']}\n\n{auto_save_warning}"
+            chat_history = _conversation_from_advice(first["advice"])
     if save_history:
-        append_history_records(batch_state, settings.storage_dir, _normalize_history_limit(history_limit))
+        history_warning = _auto_append_history(batch_state, settings.storage_dir, history_limit)
+        if history_warning:
+            first["advice"] = f"{first['advice']}\n\n{history_warning}"
+            chat_history = _conversation_from_advice(first["advice"])
     highres_image, crop_items, crop_text = _result_visual_outputs(first["result"])
     return (
         first["result"]["original"],
@@ -2498,7 +2531,10 @@ def continue_chat(
             history.append({"role": "assistant", "content": "AI 未返回有效内容，请重试或检查接口配置。"})
             clear_input = False
     if settings.auto_save:
-        save_conversation(history, settings.storage_dir)
+        auto_save_warning = _auto_save_conversation(history, settings.storage_dir)
+        if auto_save_warning:
+            history.append({"role": "assistant", "content": auto_save_warning})
+            clear_input = False
     return history, history, "" if clear_input else user_message, _clear_file_output(), ""
 
 
