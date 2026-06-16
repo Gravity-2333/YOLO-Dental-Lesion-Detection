@@ -19,6 +19,9 @@ def _safe_stem(name: str) -> str:
 def as_rgb_image(image: Any) -> Image.Image:
     if isinstance(image, Image.Image):
         return ImageOps.exif_transpose(image).convert("RGB")
+    if isinstance(image, (str, Path)):
+        with Image.open(image) as img:
+            return ImageOps.exif_transpose(img).convert("RGB")
     return Image.fromarray(np.asarray(image)).convert("RGB")
 
 
