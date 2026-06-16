@@ -4,7 +4,6 @@ import argparse
 from collections import Counter
 import csv
 from datetime import datetime
-import io
 import json
 from pathlib import Path
 import re
@@ -47,6 +46,7 @@ from src.dental_detection.case_store import (
 )
 from src.dental_detection.config import DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJECT_ROOT
 from src.dental_detection.batch_summary import build_batch_summary
+from src.dental_detection.batch_overview_view import batch_overview_csv_text, batch_overview_html
 from src.dental_detection.history_store import (
     HISTORY_TABLE_COLUMNS,
     append_history_records,
@@ -975,75 +975,6 @@ def _model_detections_html(results: list[dict[str, Any]]) -> str:
     return "".join(sections)
 
 
-def _html_table(rows: list[dict[str, Any]], columns: list[str], empty_text: str) -> str:
-    if not rows:
-        return f"<p class=\"empty-note\">{_html_escape(empty_text)}</p>"
-    headers = "".join(f"<th>{_html_escape(column)}</th>" for column in columns)
-    body = []
-    for row in rows:
-        cells = "".join(f"<td>{_html_escape(row.get(column, ''))}</td>" for column in columns)
-        body.append(f"<tr>{cells}</tr>")
-    return f"<table><thead><tr>{headers}</tr></thead><tbody>{''.join(body)}</tbody></table>"
-
-
-def _batch_overview_html(overview: dict[str, Any]) -> str:
-    if not overview:
-        return ""
-    stat_items = [
-        ("图片总数", overview.get("图片总数", 0)),
-        ("成功处理", overview.get("成功处理", 0)),
-        ("处理失败", overview.get("处理失败", 0)),
-        ("检测框总数", overview.get("检测框总数", 0)),
-        ("平均置信度", overview.get("平均置信度", 0)),
-        ("最高置信度", overview.get("最高置信度", 0)),
-    ]
-    stat_html = "".join(
-        f"<div class=\"overview-stat\"><span>{_html_escape(label)}</span><strong>{_html_escape(value)}</strong></div>"
-        for label, value in stat_items
-    )
-    failed_rows = [{"失败图片": item} for item in overview.get("失败图片", [])]
-    empty_rows = [{"无检测结果图片": item} for item in overview.get("无检测结果图片", [])]
-    poor_quality_rows = [{"质量较差图片": item} for item in overview.get("质量较差图片", [])]
-    return f"""
-<section class="batch-overview-panel">
-  <div class="overview-stats">{stat_html}</div>
-  <p class="overview-classes">涉及类别：{_html_escape(overview.get("涉及类别", "无"))}</p>
-  <h3>类别统计</h3>
-  {_html_table(overview.get("类别统计", []), ["类别", "中文名称", "检测框数量", "涉及图片数", "最高置信度", "平均置信度"], "暂无类别统计")}
-  <h3>重点关注图片</h3>
-  {_html_table(overview.get("重点关注图片", []), ["排名", "图片名称", "最高类别", "最高置信度", "检测框数量", "关注等级"], "暂无重点关注图片")}
-  <details><summary>失败图片：{len(failed_rows)} 张</summary>{_html_table(failed_rows, ["失败图片"], "无失败图片")}</details>
-  <details><summary>无检测结果图片：{len(empty_rows)} 张</summary>{_html_table(empty_rows, ["无检测结果图片"], "无未检出图片")}</details>
-  <details><summary>质量较差图片：{len(poor_quality_rows)} 张</summary>{_html_table(poor_quality_rows, ["质量较差图片"], "暂无质量较差图片")}</details>
-</section>
-"""
-
-
-def _batch_overview_csv_text(overview: dict[str, Any]) -> str:
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(["批量检测总览"])
-    for label in ["图片总数", "成功处理", "处理失败", "检测框总数", "平均置信度", "最高置信度", "涉及类别"]:
-        writer.writerow([label, overview.get(label, "无" if label == "涉及类别" else 0)])
-    writer.writerow([])
-    writer.writerow(["类别统计"])
-    class_columns = ["类别", "中文名称", "检测框数量", "涉及图片数", "最高置信度", "平均置信度"]
-    writer.writerow(class_columns)
-    for row in overview.get("类别统计", []):
-        writer.writerow([row.get(column, "") for column in class_columns])
-    writer.writerow([])
-    writer.writerow(["重点关注图片"])
-    focus_columns = ["排名", "图片名称", "最高类别", "最高置信度", "检测框数量", "关注等级"]
-    writer.writerow(focus_columns)
-    for row in overview.get("重点关注图片", []):
-        writer.writerow([row.get(column, "") for column in focus_columns])
-    writer.writerow([])
-    writer.writerow(["质量较差图片"])
-    for image_name in overview.get("质量较差图片", []):
-        writer.writerow([image_name])
-    return buffer.getvalue()
-
-
 def _unique_report_paths(storage_dir: str, stamp: str) -> tuple[Path, Path]:
     base = report_dir(storage_dir)
     root = base / f"single_report_{stamp}"
@@ -1270,7 +1201,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
         )
         _write_text(
             work_dir / "批量检测总览.csv",
-            _batch_overview_csv_text(batch_overview),
+            batch_overview_csv_text(batch_overview),
             encoding="utf-8-sig",
         )
         _write_text(
@@ -1300,7 +1231,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
   <h1>批量检测总览</h1>
   <h2>图例与类别说明</h2>
   {legend_html()}
-  {_batch_overview_html(batch_overview)}
+  {batch_overview_html(batch_overview)}
 </body>
 </html>
 """,
@@ -2268,7 +2199,7 @@ def run_batch_detection(
         first["advice"],
         first.get("quality_text") or assess_image_quality(first["result"]["original"]),
         gr.update(value=first["summary"], visible=show_summary),
-        gr.update(value=_batch_overview_html(overview), visible=True),
+        gr.update(value=batch_overview_html(overview), visible=True),
         batch_state,
         gr.update(choices=choices, value=choices[0]),
         chat_history,
