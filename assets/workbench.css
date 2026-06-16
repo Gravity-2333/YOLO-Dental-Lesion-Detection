@@ -625,16 +625,6 @@ button[aria-disabled="true"] {
   margin-bottom: 0 !important;
 }
 
-.settings-card .path-row button,
-.settings-card .model-row button {
-  transform: translateY(-10px) !important;
-}
-
-.settings-card .path-row button:hover,
-.settings-card .model-row button:hover {
-  transform: translateY(-11px) !important;
-}
-
 .path-output textarea,
 textarea[aria-label="报告路径"],
 textarea[aria-label="导出路径"],
@@ -1180,6 +1170,8 @@ footer,
 
   .control-panel {
     max-width: none;
+    min-width: 0 !important;
+    width: 100% !important;
   }
 
   .compact-button button,
@@ -1192,12 +1184,6 @@ footer,
     min-width: 100% !important;
   }
 
-  .settings-card .path-row button,
-  .settings-card .path-row button:hover,
-  .settings-card .model-row button,
-  .settings-card .model-row button:hover {
-    transform: none !important;
-  }
 }
 
 @media (max-width: 640px) {
@@ -1457,6 +1443,24 @@ button[aria-disabled="true"] {
 /* 下拉框容器 */
 .gradio-container .dropdown {
   min-width: 0 !important;
+}
+
+.gradio-container .dropdown input,
+.gradio-container .dropdown .single-select,
+.gradio-container .dropdown [data-testid="dropdown-input"],
+.gradio-container .dropdown [role="combobox"] {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  padding-right: 48px !important;
+}
+
+.gradio-container .dropdown .wrap,
+.gradio-container .dropdown .container,
+.gradio-container .dropdown .input-container {
+  min-width: 0 !important;
+  max-width: 100% !important;
 }
 
 /* 下拉框选项容器 */
