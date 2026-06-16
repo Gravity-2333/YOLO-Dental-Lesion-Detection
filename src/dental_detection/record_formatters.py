@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+from typing import Any
+
+from .assistant import SAFETY_NOTICE
+from .result_levels import enrich_detection_row
+
+
+def _clean_detection_records(detections: Any) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for det in detections or []:
+        if isinstance(det, dict):
+            row = enrich_detection_row(det)
+            if not all(value in {"", None} for value in row.values()):
+                rows.append(row)
+    return rows
+
+
+def _format_summary_value(key: str, value: Any) -> list[str]:
+    if key == "模型结果" and isinstance(value, list):
+        lines = ["- 模型结果:"]
+        for index, item in enumerate(value, start=1):
+            if isinstance(item, dict):
+                model = item.get("模型") or item.get("model") or f"模型 {index}"
+                count = item.get("检测数量", item.get("count", "-"))
+                path = item.get("路径") or item.get("模型路径") or item.get("model_path")
+                line = f"  {index}. {model} | 检测数量={count}"
+                if path:
+                    line += f" | 路径={path}"
+                lines.append(line)
+            else:
+                lines.append(f"  {index}. {item}")
+        return lines
+    if isinstance(value, dict):
+        lines = [f"- {key}:"]
+        lines.extend(f"  {sub_key}: {sub_value}" for sub_key, sub_value in value.items())
+        return lines
+    if isinstance(value, list):
+        lines = [f"- {key}:"]
+        lines.extend(f"  {index}. {item}" for index, item in enumerate(value, start=1))
+        return lines
+    return [f"- {key}: {value}"]
+
+
+def format_case_record(data: dict[str, Any] | None) -> str:
+    if not data:
+        return "暂无病例详情。选择已保存病例后，会在这里显示检测摘要、检测框和辅助建议。"
+    if "错误" in data:
+        return str(data["错误"])
+    if "提示" in data:
+        return str(data["提示"])
+
+    summary = data.get("summary") or {}
+    detections = _clean_detection_records(data.get("detections") or [])
+    lines = [
+        f"病例编号：{data.get('case_id') or '未填写'}",
+        f"保存时间：{data.get('created_at') or '-'}",
+        f"图片名称：{data.get('image_name') or '-'}",
+        f"建议来源：{data.get('suggestion_type') or 'default'}",
+    ]
+    note = data.get("note")
+    if note:
+        lines.append(f"病例备注：{note}")
+    report_path = data.get("report_path") or data.get("word_report_path") or data.get("zip_report_path")
+    if report_path:
+        lines.append(f"报告路径：{report_path}")
+
+    lines.extend(["", "检测摘要："])
+    if summary:
+        for key, value in summary.items():
+            lines.extend(_format_summary_value(str(key), value))
+    else:
+        lines.append("- 暂无摘要信息")
+
+    lines.extend(["", f"检测框：共 {len(detections)} 个"])
+    if detections:
+        for index, det in enumerate(detections, start=1):
+            display_name = det.get("中文名称") or det.get("class", "-")
+            attention = det.get("关注等级") or "-"
+            lines.append(
+                "- "
+                f"{index}. {det.get('class', '-')}"
+                f"（{display_name}）"
+                f" | confidence={det.get('confidence', '-')}"
+                f" | 关注等级={attention}"
+                f" | 图像区域={det.get('图像区域', '') or '未计算'}"
+                f" | bbox=({det.get('x1', '-')}, {det.get('y1', '-')}, {det.get('x2', '-')}, {det.get('y2', '-')})"
+            )
+    else:
+        lines.append("- 未检测到病变框")
+
+    quality_text = data.get("quality_text")
+    if quality_text:
+        lines.extend(["", "图像质量提示：", str(quality_text)])
+
+    suggestion = data.get("suggestion")
+    if suggestion:
+        lines.extend(["", "辅助建议：", suggestion])
+    notice = data.get("safety_notice") or SAFETY_NOTICE
+    if notice:
+        lines.extend(["", notice])
+    return "\n".join(lines)
+
+
+def format_history_record(record: dict[str, Any] | None) -> str:
+    if not record:
+        return "请选择一条检测历史。"
+    detections = record.get("detections") or []
+    classes = record.get("classes")
+    if isinstance(classes, str):
+        class_text = classes.strip() or "无"
+    elif isinstance(classes, (list, tuple, set)):
+        class_text = "、".join(str(item).strip() for item in classes if str(item).strip()) or "无"
+    else:
+        class_text = "无"
+    lines = [
+        f"检测时间：{record.get('created_at', '')}",
+        f"图片名称：{record.get('image_name', '')}",
+        f"模型：{record.get('model', '')}",
+        f"CLAHE 增强：{'是' if record.get('use_clahe') else '否'}",
+        f"检测数量：{record.get('detection_count', 0)}",
+        f"涉及类别：{class_text}",
+        f"最高置信度：{record.get('max_confidence', '') or '无'}",
+        f"关注等级：{record.get('level', '')}",
+        f"报告路径：{record.get('report_path', '') or '暂无'}",
+        "",
+        "检测框明细：",
+    ]
+    if detections:
+        for index, det in enumerate(detections, start=1):
+            lines.append(
+                f"{index}. {det.get('中文名称', det.get('class', '未知类别'))} "
+                f"confidence={det.get('confidence', '')} "
+                f"region={det.get('图像区域', '') or '未计算'} "
+                f"bbox=({det.get('x1', '')}, {det.get('y1', '')}, {det.get('x2', '')}, {det.get('y2', '')})"
+            )
+    else:
+        lines.append("无检测框。")
+    advice = str(record.get("advice") or "").strip()
+    if advice:
+        lines.extend(["", "辅助建议：", advice])
+    return "\n".join(lines)

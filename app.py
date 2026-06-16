@@ -66,6 +66,7 @@ from src.dental_detection.model_info import (
     model_cards_html,
 )
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
+from src.dental_detection.record_formatters import format_case_record, format_history_record
 from src.dental_detection.result_levels import enrich_detection_row
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from ultralytics import YOLO
@@ -811,7 +812,7 @@ def _case_choices_from_rows(rows: list[dict[str, Any]]) -> list[str]:
 
 def _case_detail_from_choice(choice: str | None, storage_dir: str) -> str:
     if not choice:
-        return _format_case_record(None)
+        return format_case_record(None)
     return load_case_record(choice, storage_dir)
 
 
@@ -1586,7 +1587,7 @@ def save_case_record(
         f"病例记录已保存：{path}",
         gr.update(choices=choices, value=selected),
         _case_table(rows),
-        _format_case_record(payload),
+        format_case_record(payload),
     )
 
 
@@ -1644,7 +1645,7 @@ def delete_selected_case_record(
         gr.update(choices=choices, value=choices[0] if choices else None),
         _case_table(rows),
         f"病例已移入回收站：{trash_path}",
-        _format_case_record(None),
+        format_case_record(None),
     )
 
 
@@ -1661,106 +1662,20 @@ def export_selected_case_record(choice: str, storage_dir: str):
     return _file_component_output(path), f"已导出病例报告：{path}"
 
 
-def _format_summary_value(key: str, value: Any) -> list[str]:
-    if key == "模型结果" and isinstance(value, list):
-        lines = ["- 模型结果:"]
-        for index, item in enumerate(value, start=1):
-            if isinstance(item, dict):
-                model = item.get("模型") or item.get("model") or f"模型 {index}"
-                count = item.get("检测数量", item.get("count", "-"))
-                path = item.get("路径") or item.get("模型路径") or item.get("model_path")
-                line = f"  {index}. {model} | 检测数量={count}"
-                if path:
-                    line += f" | 路径={path}"
-                lines.append(line)
-            else:
-                lines.append(f"  {index}. {item}")
-        return lines
-    if isinstance(value, dict):
-        lines = [f"- {key}:"]
-        lines.extend(f"  {sub_key}: {sub_value}" for sub_key, sub_value in value.items())
-        return lines
-    if isinstance(value, list):
-        lines = [f"- {key}:"]
-        lines.extend(f"  {index}. {item}" for index, item in enumerate(value, start=1))
-        return lines
-    return [f"- {key}: {value}"]
-
-
-def _format_case_record(data: dict[str, Any] | None) -> str:
-    if not data:
-        return "暂无病例详情。选择已保存病例后，会在这里显示检测摘要、检测框和辅助建议。"
-    if "错误" in data:
-        return str(data["错误"])
-    if "提示" in data:
-        return str(data["提示"])
-
-    summary = data.get("summary") or {}
-    detections = _clean_detection_records(data.get("detections") or [])
-    lines = [
-        f"病例编号：{data.get('case_id') or '未填写'}",
-        f"保存时间：{data.get('created_at') or '-'}",
-        f"图片名称：{data.get('image_name') or '-'}",
-        f"建议来源：{data.get('suggestion_type') or 'default'}",
-    ]
-    note = data.get("note")
-    if note:
-        lines.append(f"病例备注：{note}")
-    report_path = data.get("report_path") or data.get("word_report_path") or data.get("zip_report_path")
-    if report_path:
-        lines.append(f"报告路径：{report_path}")
-
-    lines.extend(["", "检测摘要："])
-    if summary:
-        for key, value in summary.items():
-            lines.extend(_format_summary_value(str(key), value))
-    else:
-        lines.append("- 暂无摘要信息")
-
-    lines.extend(["", f"检测框：共 {len(detections)} 个"])
-    if detections:
-        for index, det in enumerate(detections, start=1):
-            display_name = det.get("中文名称") or det.get("class", "-")
-            attention = det.get("关注等级") or "-"
-            lines.append(
-                "- "
-                f"{index}. {det.get('class', '-')}"
-                f"（{display_name}）"
-                f" | confidence={det.get('confidence', '-')}"
-                f" | 关注等级={attention}"
-                f" | 图像区域={det.get('图像区域', '') or '未计算'}"
-                f" | bbox=({det.get('x1', '-')}, {det.get('y1', '-')}, {det.get('x2', '-')}, {det.get('y2', '-')})"
-            )
-    else:
-        lines.append("- 未检测到病变框")
-
-    quality_text = data.get("quality_text")
-    if quality_text:
-        lines.extend(["", "图像质量提示：", str(quality_text)])
-
-    suggestion = data.get("suggestion")
-    if suggestion:
-        lines.extend(["", "辅助建议：", suggestion])
-    notice = data.get("safety_notice") or SAFETY_NOTICE
-    if notice:
-        lines.extend(["", notice])
-    return "\n".join(lines)
-
-
 def load_case_record(choice: str, storage_dir: str):
     if not choice:
-        return _format_case_record({"提示": "暂无病例详情。选择已保存病例后，会在这里显示检测摘要、检测框和辅助建议。"})
+        return format_case_record({"提示": "暂无病例详情。选择已保存病例后，会在这里显示检测摘要、检测框和辅助建议。"})
     try:
         _ensure_storage_root(storage_dir)
     except gr.Error as exc:
-        return _format_case_record({"错误": str(exc)})
+        return format_case_record({"错误": str(exc)})
     file_name = choice.split("|")[-1].strip()
     if Path(file_name).name != file_name or not file_name.startswith("case_") or not file_name.endswith(".json"):
-        return _format_case_record({"错误": "病例选择无效，请刷新病例列表后重试。"})
+        return format_case_record({"错误": "病例选择无效，请刷新病例列表后重试。"})
     try:
-        return _format_case_record(load_case_record_data(storage_dir, file_name))
+        return format_case_record(load_case_record_data(storage_dir, file_name))
     except (OSError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
-        return _format_case_record({"错误": str(exc)})
+        return format_case_record({"错误": str(exc)})
 
 
 def _history_table_from_rows(rows: list[dict[str, Any]]) -> pd.DataFrame:
@@ -1782,46 +1697,6 @@ def _history_id(choice: str) -> str:
     return str(choice or "").split("|")[-1].strip()
 
 
-def _format_history_record(record: dict[str, Any] | None) -> str:
-    if not record:
-        return "请选择一条检测历史。"
-    detections = record.get("detections") or []
-    classes = record.get("classes")
-    if isinstance(classes, str):
-        class_text = classes.strip() or "无"
-    elif isinstance(classes, (list, tuple, set)):
-        class_text = "、".join(str(item).strip() for item in classes if str(item).strip()) or "无"
-    else:
-        class_text = "无"
-    lines = [
-        f"检测时间：{record.get('created_at', '')}",
-        f"图片名称：{record.get('image_name', '')}",
-        f"模型：{record.get('model', '')}",
-        f"CLAHE 增强：{'是' if record.get('use_clahe') else '否'}",
-        f"检测数量：{record.get('detection_count', 0)}",
-        f"涉及类别：{class_text}",
-        f"最高置信度：{record.get('max_confidence', '') or '无'}",
-        f"关注等级：{record.get('level', '')}",
-        f"报告路径：{record.get('report_path', '') or '暂无'}",
-        "",
-        "检测框明细：",
-    ]
-    if detections:
-        for index, det in enumerate(detections, start=1):
-            lines.append(
-                f"{index}. {det.get('中文名称', det.get('class', '未知类别'))} "
-                f"confidence={det.get('confidence', '')} "
-                f"region={det.get('图像区域', '') or '未计算'} "
-                f"bbox=({det.get('x1', '')}, {det.get('y1', '')}, {det.get('x2', '')}, {det.get('y2', '')})"
-            )
-    else:
-        lines.append("无检测框。")
-    advice = str(record.get("advice") or "").strip()
-    if advice:
-        lines.extend(["", "辅助建议：", advice])
-    return "\n".join(lines)
-
-
 def refresh_history_records(storage_dir: str):
     _ensure_storage_root(storage_dir)
     rows = history_rows(storage_dir)
@@ -1830,7 +1705,7 @@ def refresh_history_records(storage_dir: str):
     return (
         gr.update(choices=choices, value=selected),
         _history_table_from_rows(rows),
-        load_history_record(selected, storage_dir) if selected else _format_history_record(None),
+        load_history_record(selected, storage_dir) if selected else format_history_record(None),
         "历史记录已刷新。" if choices else "暂无检测历史。",
     )
 
@@ -1840,7 +1715,7 @@ def load_history_record(choice: str, storage_dir: str) -> str:
         _ensure_storage_root(storage_dir)
     except gr.Error as exc:
         return str(exc)
-    return _format_history_record(load_history_record_data(_history_id(choice), storage_dir))
+    return format_history_record(load_history_record_data(_history_id(choice), storage_dir))
 
 
 def delete_selected_history_record(choice: str, storage_dir: str):
@@ -2439,7 +2314,7 @@ def save_ui_settings(
         case_message,
         gr.update(choices=history_choices, value=history_selected),
         _history_table_from_rows(history_table),
-        load_history_record(history_selected, settings.storage_dir) if history_selected else _format_history_record(None),
+        load_history_record(history_selected, settings.storage_dir) if history_selected else format_history_record(None),
         history_message,
     )
 
@@ -3014,7 +2889,7 @@ def build_app() -> gr.Blocks:
                         elem_classes=["path-output"],
                     )
                     case_detail = gr.Textbox(
-                        value=_format_case_record(None),
+                        value=format_case_record(None),
                         label="病例详情",
                         interactive=False,
                         lines=14,
@@ -3043,7 +2918,7 @@ def build_app() -> gr.Blocks:
                         interactive=False,
                     )
                     history_detail = gr.Textbox(
-                        value=_format_history_record(None),
+                        value=format_history_record(None),
                         label="历史详情",
                         interactive=False,
                         lines=14,
