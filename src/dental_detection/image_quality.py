@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import cv2
@@ -26,7 +27,12 @@ class ImageQualityResult:
 def _as_rgb_image(image: Any) -> Image.Image:
     if image is None:
         raise ValueError("image is required")
-    return ImageOps.exif_transpose(image).convert("RGB")
+    if isinstance(image, Image.Image):
+        return ImageOps.exif_transpose(image).convert("RGB")
+    if isinstance(image, (str, Path)):
+        with Image.open(image) as img:
+            return ImageOps.exif_transpose(img).convert("RGB")
+    return ImageOps.exif_transpose(Image.fromarray(np.asarray(image))).convert("RGB")
 
 
 def assess_image_quality_detail(image: Image.Image) -> ImageQualityResult:
