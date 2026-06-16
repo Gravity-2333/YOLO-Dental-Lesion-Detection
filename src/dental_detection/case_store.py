@@ -199,6 +199,9 @@ def export_case_report(storage_dir: str, file_name: str) -> Path:
     document.add_paragraph(f"图片名称：{data.get('image_name', '-')}")
     if data.get("note"):
         document.add_paragraph(f"病例备注：{data.get('note')}")
+    report_path = data.get("report_path") or data.get("word_report_path") or data.get("zip_report_path")
+    if report_path:
+        document.add_paragraph(f"关联报告路径：{report_path}")
 
     document.add_heading("检测框明细", level=1)
     document.add_paragraph(REGION_NOTICE)
