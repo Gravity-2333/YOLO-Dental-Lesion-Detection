@@ -396,7 +396,14 @@ def _scan_model_files(model_dir: str | Path) -> list[tuple[str, str]]:
                         break
             except OSError:
                 continue
-    return [(f"{_model_label_from_path(path)}  |  {path}", str(path.resolve())) for path in files]
+    choices = []
+    for path in files:
+        try:
+            resolved = path.resolve()
+        except (OSError, RuntimeError, ValueError):
+            continue
+        choices.append((f"{_model_label_from_path(path)}  |  {path}", str(resolved)))
+    return choices
 
 
 def _model_path_or_default(path: str, fallback: str) -> str:
@@ -421,6 +428,17 @@ def _configured_models(model_mode: str, primary_model_path: str, compare_model_p
         compare = Path(_model_path_or_default(compare_model_path, str(MODEL_REGISTRY[MODEL_SOURCE]["path"])))
         models.append((_model_label_from_path(compare), compare))
     return models
+
+
+def _validate_model_files(models: list[tuple[str, Path]]) -> None:
+    for role, path in models:
+        if path.suffix.lower() not in _SUPPORTED_MODEL_SUFFIXES:
+            raise _friendly_gr_error(
+                f"{role}: unsupported model format {path.suffix}; supported: {', '.join(sorted(_SUPPORTED_MODEL_SUFFIXES))}",
+                "模型文件格式不支持",
+            )
+        if not path.exists():
+            raise _friendly_gr_error(f"{role}: model file not found: {path}", "模型文件不存在")
 
 
 def refresh_model_choices(model_dir: str, current_value: str | None = None):
@@ -565,7 +583,11 @@ def choose_model_dir(model_dir: str, current_value: str | None = None):
 
 def test_model_file(primary_model_path: str, compare_model_path: str, model_mode: str):
     messages = []
-    for role, path in _configured_models(model_mode, primary_model_path, compare_model_path):
+    try:
+        models = _configured_models(model_mode, primary_model_path, compare_model_path)
+    except Exception as exc:
+        return friendly_error_message(exc, "模型路径无效")
+    for role, path in models:
         if not path.exists():
             messages.append(f"{role}：文件不存在，路径为 {path}")
             continue
@@ -1974,6 +1996,7 @@ def run_single_detection(
 
     device, cuda_available = _device(device_choice)
     selected_models = _configured_models(model_mode if enable_compare else MODEL_MODE_SINGLE, primary_model_path, compare_model_path)
+    _validate_model_files(selected_models)
 
     primary = None
     all_results = []
@@ -2138,6 +2161,7 @@ def run_batch_detection(
         advice_style,
     )
     selected_models = _configured_models(model_mode if enable_compare else MODEL_MODE_SINGLE, primary_model_path, compare_model_path)
+    _validate_model_files(selected_models)
     batch_state: list[dict[str, Any]] = []
     batch_errors: list[str] = []
     for index, file_obj in enumerate(files, start=1):
