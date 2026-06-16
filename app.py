@@ -1351,7 +1351,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     image_names = [str(item.get("name") or item.get("image_name") or "") for item in batch_state]
     _sync_report_path(batch_state, image_names, zip_path, "zip_report_path")
     update_history_report_paths(image_names, zip_path, storage_dir)
-    return _file_component_output(zip_path), f"已导出：{zip_path}"
+    return _file_component_output(zip_path), f"已导出：{zip_path}", batch_state
 
 
 def export_batch_word_report(batch_state: list[dict[str, Any]], storage_dir: str):
@@ -1376,7 +1376,7 @@ def export_batch_word_report(batch_state: list[dict[str, Any]], storage_dir: str
     image_names = [str(item.get("name") or item.get("image_name") or "") for item in batch_state]
     _sync_report_path(batch_state, image_names, path, "word_report_path")
     update_history_report_paths(image_names, path, storage_dir)
-    return _file_component_output(path), f"已导出批量 Word 报告：{path}"
+    return _file_component_output(path), f"已导出批量 Word 报告：{path}", batch_state
 
 
 def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
@@ -1542,7 +1542,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
             pass
     _sync_report_path(batch_state, [name], zip_path, "zip_report_path")
     update_history_report_paths([name], zip_path, storage_dir)
-    return _file_component_output(zip_path), f"已导出单图报告：{zip_path}"
+    return _file_component_output(zip_path), f"已导出单图报告：{zip_path}", batch_state
 
 
 def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
@@ -1592,7 +1592,7 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
         raise _friendly_gr_error(exc, "Word 报告导出失败") from exc
     _sync_report_path(batch_state, [name], path, "word_report_path")
     update_history_report_paths([name], path, storage_dir)
-    return _file_component_output(path), f"已导出 Word 报告：{path}"
+    return _file_component_output(path), f"已导出 Word 报告：{path}", batch_state
 
 
 def download_result_image(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
@@ -3636,17 +3636,17 @@ def build_app() -> gr.Blocks:
         export_batch_btn.click(
             fn=export_batch_results,
             inputs=[batch_state, storage_dir],
-            outputs=[batch_export_file, batch_export_path],
+            outputs=[batch_export_file, batch_export_path, batch_state],
         )
         export_batch_word_btn.click(
             fn=export_batch_word_report,
             inputs=[batch_state, storage_dir],
-            outputs=[batch_word_file, batch_word_path],
+            outputs=[batch_word_file, batch_word_path, batch_state],
         )
         export_word_btn.click(
             fn=export_word_report,
             inputs=[batch_state, batch_select, storage_dir],
-            outputs=[word_report_file, word_report_path],
+            outputs=[word_report_file, word_report_path, batch_state],
         )
         download_result_btn.click(
             fn=download_result_image,
@@ -3656,7 +3656,7 @@ def build_app() -> gr.Blocks:
         export_report_btn.click(
             fn=export_single_report,
             inputs=[batch_state, batch_select, storage_dir],
-            outputs=[report_file, report_path],
+            outputs=[report_file, report_path, batch_state],
         )
         save_case_btn.click(
             fn=save_case_record,
