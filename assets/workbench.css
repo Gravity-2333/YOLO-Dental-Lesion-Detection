@@ -388,6 +388,8 @@ body,
   grid-area: title;
   font-size: 0.88rem;
   color: #0f172a;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .legend-item span:last-child {
@@ -395,6 +397,8 @@ body,
   color: var(--text-muted);
   font-size: 0.82rem;
   line-height: 1.45;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 button.primary,
@@ -418,6 +422,7 @@ button.secondary,
 button[disabled],
 button[aria-disabled="true"] {
   border-radius: var(--radius-sm) !important;
+  white-space: nowrap !important;
 }
 
 button.primary:hover,
@@ -521,7 +526,11 @@ button[aria-disabled="true"] {
   row-gap: 8px !important;
 }
 
-.export-toolbar .path-row,
+.export-toolbar .path-row {
+  grid-template-columns: minmax(0, 1fr) 152px !important;
+  align-items: end !important;
+}
+
 .chat-card .path-row {
   grid-template-columns: minmax(0, 1fr) 120px !important;
   align-items: end !important;
@@ -535,11 +544,18 @@ button[aria-disabled="true"] {
   min-width: 0 !important;
 }
 
-.chat-card .path-row button,
-.export-toolbar .path-row button {
+.chat-card .path-row button {
   width: 120px !important;
   min-width: 120px !important;
   max-width: 120px !important;
+}
+
+.export-toolbar .path-row button {
+  width: 152px !important;
+  min-width: 152px !important;
+  max-width: 152px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 
 .model-row {
@@ -1497,5 +1513,12 @@ button[aria-disabled="true"] {
 @media (max-width: 760px) {
   .guide-steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .guide-steps span {
+    font-size: 12px;
+    padding-left: 8px;
+    padding-right: 8px;
+    white-space: nowrap;
   }
 }
