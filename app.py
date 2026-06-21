@@ -65,6 +65,12 @@ from src.dental_detection.model_info import (
     legend_html,
     model_cards_html,
 )
+from src.dental_detection.model_files import (
+    SUPPORTED_MODEL_SUFFIXES,
+    model_label_from_path,
+    scan_model_files,
+    supported_suffix_text,
+)
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.record_formatters import format_case_record, format_history_record
 from src.dental_detection.result_levels import enrich_detection_row
@@ -312,9 +318,6 @@ def _detect_model(model_name: str, image, use_clahe: bool, conf: float, iou: flo
     return _detect_model_path(model_name, model_info["path"], image, use_clahe, conf, iou, device)
 
 
-_SUPPORTED_MODEL_SUFFIXES = {".pt", ".onnx", ".engine", ".mlmodel", ".mlpackage", ".torchscript"}
-
-
 def _bounded_float(value: Any, *, default: float, minimum: float, maximum: float) -> float:
     try:
         number = float(value)
@@ -325,9 +328,9 @@ def _bounded_float(value: Any, *, default: float, minimum: float, maximum: float
 
 def _detect_model_path(model_name: str, model_path: str | Path, image, use_clahe: bool, conf: float, iou: float, device):
     model_path = Path(model_path)
-    if model_path.suffix.lower() not in _SUPPORTED_MODEL_SUFFIXES:
+    if model_path.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
         raise _friendly_gr_error(
-            f"unsupported model format {model_path.suffix}; supported: {', '.join(sorted(_SUPPORTED_MODEL_SUFFIXES))}",
+            f"unsupported model format {model_path.suffix}; supported: {', '.join(sorted(SUPPORTED_MODEL_SUFFIXES))}",
             "模型文件格式不支持",
         )
     if not model_path.exists():
@@ -360,53 +363,6 @@ def _detect_model_path(model_name: str, model_path: str | Path, image, use_clahe
     }
 
 
-def _model_label_from_path(path: str | Path) -> str:
-    model_path = Path(path)
-    parent = model_path.parent.parent.name if model_path.parent.name == "weights" else model_path.parent.name
-    return f"{parent} / {model_path.name}"
-
-
-_MAX_MODEL_FILES = 500       # 单次扫描最多列出的模型文件数
-_MAX_MODEL_SCAN_DEPTH = 8    # 最大递归深度
-
-
-def _scan_model_files(model_dir: str | Path) -> list[tuple[str, str]]:
-    try:
-        root = Path(model_dir or PROJECT_ROOT / "models").expanduser()
-        if not root.exists() or not root.is_dir():
-            return []
-    except (OSError, RuntimeError, ValueError):
-        return []
-    files = []
-    pending: list[tuple[Path, int]] = [(root, 0)]
-    while pending and len(files) < _MAX_MODEL_FILES:
-        current, depth = pending.pop(0)
-        if depth > _MAX_MODEL_SCAN_DEPTH:
-            continue
-        try:
-            children = sorted(current.iterdir(), key=lambda item: str(item).lower())
-        except OSError:
-            continue
-        for child in children:
-            try:
-                if child.is_dir():
-                    pending.append((child, depth + 1))
-                elif child.is_file() and child.suffix.lower() in _SUPPORTED_MODEL_SUFFIXES:
-                    files.append(child)
-                    if len(files) >= _MAX_MODEL_FILES:
-                        break
-            except OSError:
-                continue
-    choices = []
-    for path in files:
-        try:
-            resolved = path.resolve()
-        except (OSError, RuntimeError, ValueError):
-            continue
-        choices.append((f"{_model_label_from_path(path)}  |  {path}", str(resolved)))
-    return choices
-
-
 def _model_path_or_default(path: str, fallback: str) -> str:
     value = str(path or "").strip()
     try:
@@ -424,18 +380,18 @@ def _model_dir_or_default(path: str | Path | None) -> str:
 
 def _configured_models(model_mode: str, primary_model_path: str, compare_model_path: str) -> list[tuple[str, Path]]:
     primary = Path(_model_path_or_default(primary_model_path, str(DEFAULT_MODEL_PATH)))
-    models = [(_model_label_from_path(primary), primary)]
+    models = [(model_label_from_path(primary), primary)]
     if model_mode == MODEL_MODE_COMPARE:
         compare = Path(_model_path_or_default(compare_model_path, str(MODEL_REGISTRY[MODEL_SOURCE]["path"])))
-        models.append((_model_label_from_path(compare), compare))
+        models.append((model_label_from_path(compare), compare))
     return models
 
 
 def _validate_model_files(models: list[tuple[str, Path]]) -> None:
     for role, path in models:
-        if path.suffix.lower() not in _SUPPORTED_MODEL_SUFFIXES:
+        if path.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
             raise _friendly_gr_error(
-                f"{role}: unsupported model format {path.suffix}; supported: {', '.join(sorted(_SUPPORTED_MODEL_SUFFIXES))}",
+                f"{role}: unsupported model format {path.suffix}; supported: {', '.join(sorted(SUPPORTED_MODEL_SUFFIXES))}",
                 "模型文件格式不支持",
             )
         if not path.exists():
@@ -443,14 +399,14 @@ def _validate_model_files(models: list[tuple[str, Path]]) -> None:
 
 
 def refresh_model_choices(model_dir: str, current_value: str | None = None):
-    choices = _scan_model_files(model_dir)
+    choices = scan_model_files(model_dir)
     # 保留用户已选模型，仅当原模型不在新列表中时才回退第一个
     value = current_value
     if value and not any(value == c[1] for c in choices):
         value = choices[0][1] if choices else None
     if not value:
         value = choices[0][1] if choices else None
-    suffixes = "、".join(sorted(_SUPPORTED_MODEL_SUFFIXES))
+    suffixes = supported_suffix_text()
     message = f"已扫描到 {len(choices)} 个模型文件。" if choices else f"当前目录未发现支持的模型文件（{suffixes}），请确认路径。"
     return gr.update(choices=choices, value=value), message
 
@@ -462,7 +418,7 @@ def apply_selected_model(selected_path: str, target: str):
         model_path = Path(selected_path).expanduser().resolve()
     except (OSError, RuntimeError, ValueError) as exc:
         raise _friendly_gr_error(exc, "模型路径无效") from exc
-    if model_path.suffix.lower() not in _SUPPORTED_MODEL_SUFFIXES:
+    if model_path.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
         raise _friendly_gr_error(f"unsupported model format {model_path.suffix}", "模型文件格式不支持")
     if not model_path.exists():
         raise _friendly_gr_error(f"model file not found: {model_path}", "模型文件不存在")
@@ -504,7 +460,7 @@ def _current_model_info_markdown(selected_path: str | None = None) -> str:
             available = False
         return format_model_info_markdown(
             {
-                "name": _model_label_from_path(path),
+                "name": model_label_from_path(path),
                 "architecture": "自定义 YOLO 模型",
                 "role": "用户选择的模型文件",
                 "path": str(path),
@@ -572,10 +528,10 @@ def choose_model_dir(model_dir: str, current_value: str | None = None):
     if root is None:
         return gr.update(), gr.update(), "选择的模型目录不可访问，请手动检查路径后重试。"
     path = str(root)
-    choices = _scan_model_files(path)
+    choices = scan_model_files(path)
     value = current_value if current_value and any(current_value == c[1] for c in choices) else None
     value = value or (choices[0][1] if choices else None)
-    suffixes = "、".join(sorted(_SUPPORTED_MODEL_SUFFIXES))
+    suffixes = supported_suffix_text()
     message = f"已选择模型目录：{path}。扫描到 {len(choices)} 个模型文件。"
     if not choices:
         message += f" 请确认该目录或其子目录中存在支持的模型文件（{suffixes}）。"
@@ -592,7 +548,7 @@ def test_model_file(primary_model_path: str, compare_model_path: str, model_mode
         if not path.exists():
             messages.append(f"{role}：文件不存在，路径为 {path}")
             continue
-        if path.suffix.lower() not in _SUPPORTED_MODEL_SUFFIXES:
+        if path.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
             messages.append(f"{role}：文件后缀不在支持列表中，当前路径为 {path}")
             continue
         try:
@@ -2489,7 +2445,7 @@ def build_app() -> gr.Blocks:
         saved.storage_dir = str(APP_HOME)
         _ensure_storage_root(saved.storage_dir)
     env_key_value, direct_key_value = _api_key_inputs(saved)
-    model_choices = _scan_model_files(saved.model_dir)
+    model_choices = scan_model_files(saved.model_dir)
     model_choice_values = {value for _, value in model_choices}
     initial_case_rows = list_case_records(saved.storage_dir)
     initial_history_rows = history_rows(saved.storage_dir)
