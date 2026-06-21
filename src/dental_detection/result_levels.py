@@ -73,6 +73,8 @@ def estimate_image_region(det: dict[str, Any], image_size: tuple[int, int] | Non
         y2 = float(det.get("y2"))
     except (TypeError, ValueError):
         return ""
+    x1, x2 = sorted((x1, x2))
+    y1, y2 = sorted((y1, y2))
     if x2 <= x1 or y2 <= y1:
         return ""
     width, height = image_size or (None, None)

@@ -57,7 +57,7 @@ def _normalized_rgb_image(image: Image.Image | np.ndarray | str | Path) -> Image
     pixels = w * h
     if pixels > MAX_IMAGE_PIXELS:
         scale = (MAX_IMAGE_PIXELS / pixels) ** 0.5
-        new_w, new_h = int(w * scale), int(h * scale)
+        new_w, new_h = max(1, int(w * scale)), max(1, int(h * scale))
         pil_image = pil_image.resize((new_w, new_h), Image.LANCZOS)
     return pil_image
 
