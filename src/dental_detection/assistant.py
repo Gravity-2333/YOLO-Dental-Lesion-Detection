@@ -33,6 +33,7 @@ def _resolve_app_home() -> Path:
 APP_HOME = _resolve_app_home()
 CONFIG_PATH = APP_HOME / "settings.json"
 CONVERSATION_DIR = APP_HOME / "conversations"
+APP_DATA_DIR_NAMES = ("conversations", "exports", "cases", "reports", "history")
 SAFETY_NOTICE = "本结果仅供辅助参考，不能替代专业牙科医生诊断。"
 DEFAULT_AI_BASE_URL = "https://api.deepseek.com/v1"
 DEFAULT_AI_MODEL = "deepseek-chat"
@@ -264,10 +265,29 @@ def _move_contents(source: Path, target: Path) -> None:
             shutil.move(str(child), str(target / f"{child.stem}_{suffix}{child.suffix}"))
 
 
+def _move_app_data_dirs(old_root: Path, new_root: Path) -> None:
+    for child_name in APP_DATA_DIR_NAMES:
+        source = old_root / child_name
+        if not source.exists() or not source.is_dir():
+            continue
+        try:
+            source_resolved = source.resolve()
+        except OSError:
+            continue
+        if source_resolved == new_root or new_root in source_resolved.parents:
+            continue
+        _move_contents(source, new_root / child_name)
+        if _is_empty_dir(source):
+            source.rmdir()
+
+
 def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) -> None:
     old_root = storage_root(old_storage_dir).resolve()
     new_root = storage_root(new_storage_dir).resolve()
     if old_root == new_root or not old_root.exists() or not old_root.is_dir():
+        return
+    if old_root == APP_HOME.resolve():
+        _move_app_data_dirs(old_root, new_root)
         return
     if old_root in new_root.parents:
         # 新目录位于旧目录内部时，不能整体移动旧目录；只迁移旧目录下的内容，
@@ -290,15 +310,6 @@ def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) ->
             else:
                 suffix = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
                 shutil.move(str(child), str(new_root / f"{child.stem}_{suffix}{child.suffix}"))
-        return
-
-    if old_root == APP_HOME.resolve():
-        for child_name in ("conversations", "exports", "cases", "reports", "history"):
-            source = old_root / child_name
-            if source.exists() and source.is_dir():
-                _move_contents(source, new_root / child_name)
-                if _is_empty_dir(source):
-                    source.rmdir()
         return
 
     if old_root.name == "conversations":

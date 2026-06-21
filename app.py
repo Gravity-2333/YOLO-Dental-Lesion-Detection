@@ -1599,11 +1599,12 @@ def delete_selected_case_record(
         raise gr.Error(str(exc)) from exc
     rows = search_case_records(storage_dir, keyword, class_filter, level_filter, date_from, date_to)
     choices = _case_choices_from_rows(rows)
+    selected = choices[0] if choices else None
     return (
-        gr.update(choices=choices, value=choices[0] if choices else None),
+        gr.update(choices=choices, value=selected),
         _case_table(rows),
         f"病例已移入回收站：{trash_path}",
-        format_case_record(None),
+        _case_detail_from_choice(selected, storage_dir),
     )
 
 
@@ -1683,9 +1684,9 @@ def delete_selected_history_record(choice: str, storage_dir: str):
         history_select, table, detail, message = refresh_history_records(storage_dir)
         return history_select, table, "请选择要删除的历史记录。", message
     deleted = delete_history_record(record_id, storage_dir)
-    history_select, table, _, message = refresh_history_records(storage_dir)
-    detail = "已删除所选历史记录。" if deleted else "未找到所选历史记录，请刷新后重试。"
-    return history_select, table, detail, message
+    history_select, table, detail, message = refresh_history_records(storage_dir)
+    feedback = "已删除所选历史记录。" if deleted else "未找到所选历史记录，请刷新后重试。"
+    return history_select, table, detail, feedback or message
 
 
 def clear_all_history_records(storage_dir: str):
