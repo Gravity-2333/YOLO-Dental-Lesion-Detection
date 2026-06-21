@@ -2415,7 +2415,7 @@ def sync_model_mode(model_mode: str):
 
 
 def default_storage_dir():
-    return str(APP_HOME), _toast(f"已恢复默认数据目录：{APP_HOME}")
+    return str(APP_HOME), _toast(f"已恢复默认数据目录：{APP_HOME}。保存设置后生效。")
 
 
 def choose_storage_dir(storage_dir: str):
