@@ -609,6 +609,8 @@ def _save_runtime_settings(
         settings.storage_dir = saved.storage_dir
     settings.enable_compare = saved.enable_compare
     settings.show_summary = saved.show_summary
+    settings.save_history = saved.save_history
+    settings.history_limit = saved.history_limit
     settings.model_mode = (model_mode or saved.model_mode) if settings.enable_compare else MODEL_MODE_SINGLE
     settings.model_dir = _model_dir_or_default(model_dir or saved.model_dir)
     settings.primary_model_path = _model_path_or_default(
