@@ -33,7 +33,7 @@ def _resolve_app_home() -> Path:
 APP_HOME = _resolve_app_home()
 CONFIG_PATH = APP_HOME / "settings.json"
 CONVERSATION_DIR = APP_HOME / "conversations"
-APP_DATA_DIR_NAMES = ("conversations", "exports", "cases", "reports", "history")
+APP_DATA_DIR_NAMES = ("conversations", "exports", "cases", "cases_trash", "reports", "history")
 SAFETY_NOTICE = "本结果仅供辅助参考，不能替代专业牙科医生诊断。"
 DEFAULT_AI_BASE_URL = "https://api.deepseek.com/v1"
 DEFAULT_AI_MODEL = "deepseek-chat"
@@ -281,19 +281,34 @@ def _move_app_data_dirs(old_root: Path, new_root: Path) -> None:
             source.rmdir()
 
 
+def _managed_data_target(source: Path, new_root: Path) -> Path | None:
+    name = source.name
+    if name not in APP_DATA_DIR_NAMES:
+        return None
+    return new_root / name
+
+
 def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) -> None:
     old_root = storage_root(old_storage_dir).resolve()
     new_root = storage_root(new_storage_dir).resolve()
     if old_root == new_root or not old_root.exists() or not old_root.is_dir():
         return
+    direct_target = _managed_data_target(old_root, new_root)
+    if direct_target is not None:
+        _move_contents(old_root, direct_target)
+        if _is_empty_dir(old_root):
+            old_root.rmdir()
+        return
     if old_root == APP_HOME.resolve():
         _move_app_data_dirs(old_root, new_root)
         return
     if old_root in new_root.parents:
-        # 新目录位于旧目录内部时，不能整体移动旧目录；只迁移旧目录下的内容，
-        # 并跳过新目录自身，避免形成递归移动。
+        # 新目录位于旧目录内部时，只迁移项目管理的数据目录，并跳过新目录自身。
         new_root.mkdir(parents=True, exist_ok=True)
-        for child in list(old_root.iterdir()):
+        for child_name in APP_DATA_DIR_NAMES:
+            child = old_root / child_name
+            if not child.exists() or not child.is_dir():
+                continue
             try:
                 child_resolved = child.resolve()
             except OSError:
@@ -312,22 +327,10 @@ def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) ->
                 shutil.move(str(child), str(new_root / f"{child.stem}_{suffix}{child.suffix}"))
         return
 
-    if old_root.name == "conversations":
-        _move_contents(old_root, conversation_dir(str(new_root)))
-        if _is_empty_dir(old_root):
-            old_root.rmdir()
-        return
-
-    if old_root.name == "exports":
-        _move_contents(old_root, export_dir(str(new_root)))
-        if _is_empty_dir(old_root):
-            old_root.rmdir()
-        return
-
     if _is_empty_dir(old_root):
         old_root.rmdir()
         return
-    _move_contents(old_root, new_root)
+    _move_app_data_dirs(old_root, new_root)
     if _is_empty_dir(old_root):
         old_root.rmdir()
 
