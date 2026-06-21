@@ -1141,6 +1141,32 @@ footer,
     flex-direction: column !important;
   }
 
+  .workbench-grid {
+    padding: 12px !important;
+    overflow: hidden !important;
+  }
+
+  .workbench-grid > .column,
+  .workbench-grid > .control-panel,
+  .workbench-grid > .result-panel,
+  .result-panel,
+  .result-panel > .block,
+  .result-panel > .form,
+  .result-panel .image-grid,
+  .result-panel .insight-grid,
+  .result-panel .export-toolbar {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .image-grid,
+  .insight-grid {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
   .model-card-grid,
   .result-legend {
     grid-template-columns: 1fr !important;
