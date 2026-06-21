@@ -1,21 +1,10 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from .assistant import SAFETY_NOTICE
 from .result_levels import enrich_detection_row
-
-
-def _text_value(value: Any, fallback: str = "") -> str:
-    if value is None or value == "":
-        return fallback
-    if isinstance(value, (dict, list, tuple, set)):
-        try:
-            return json.dumps(value, ensure_ascii=False)
-        except (TypeError, ValueError):
-            return str(value)
-    return str(value)
+from .text_utils import text_value
 
 
 def _clean_detection_records(detections: Any) -> list[dict[str, Any]]:
@@ -65,14 +54,14 @@ def format_case_record(data: dict[str, Any] | None) -> str:
     summary = data.get("summary") or {}
     detections = _clean_detection_records(data.get("detections") or [])
     lines = [
-        f"病例编号：{_text_value(data.get('case_id'), '未填写')}",
-        f"保存时间：{_text_value(data.get('created_at'), '-')}",
-        f"图片名称：{_text_value(data.get('image_name'), '-')}",
-        f"建议来源：{_text_value(data.get('suggestion_type'), 'default')}",
+        f"病例编号：{text_value(data.get('case_id'), '未填写')}",
+        f"保存时间：{text_value(data.get('created_at'), '-')}",
+        f"图片名称：{text_value(data.get('image_name'), '-')}",
+        f"建议来源：{text_value(data.get('suggestion_type'), 'default')}",
     ]
     note = data.get("note")
     if note:
-        lines.append(f"病例备注：{_text_value(note)}")
+        lines.append(f"病例备注：{text_value(note)}")
     report_path = data.get("report_path") or data.get("word_report_path") or data.get("zip_report_path")
     if report_path:
         lines.append(f"报告路径：{report_path}")
@@ -122,19 +111,19 @@ def format_history_record(record: dict[str, Any] | None) -> str:
     if isinstance(classes, str):
         class_text = classes.strip() or "无"
     elif isinstance(classes, (list, tuple, set)):
-        class_text = "、".join(str(item).strip() for item in classes if str(item).strip()) or "无"
+        class_text = "、".join(text_value(item).strip() for item in classes if text_value(item).strip()) or "无"
     else:
         class_text = "无"
     lines = [
-        f"检测时间：{record.get('created_at', '')}",
-        f"图片名称：{record.get('image_name', '')}",
-        f"模型：{record.get('model', '')}",
+        f"检测时间：{text_value(record.get('created_at'))}",
+        f"图片名称：{text_value(record.get('image_name'))}",
+        f"模型：{text_value(record.get('model'))}",
         f"CLAHE 增强：{'是' if record.get('use_clahe') else '否'}",
-        f"检测数量：{record.get('detection_count', 0)}",
+        f"检测数量：{text_value(record.get('detection_count'), '0')}",
         f"涉及类别：{class_text}",
-        f"最高置信度：{record.get('max_confidence', '') or '无'}",
-        f"关注等级：{record.get('level', '')}",
-        f"报告路径：{record.get('report_path', '') or '暂无'}",
+        f"最高置信度：{text_value(record.get('max_confidence'), '无')}",
+        f"关注等级：{text_value(record.get('level'))}",
+        f"报告路径：{text_value(record.get('report_path'), '暂无')}",
         "",
         "检测框明细：",
     ]
@@ -148,7 +137,7 @@ def format_history_record(record: dict[str, Any] | None) -> str:
             )
     else:
         lines.append("无检测框。")
-    advice = str(record.get("advice") or "").strip()
+    advice = text_value(record.get("advice")).strip()
     if advice:
         lines.extend(["", "辅助建议：", advice])
     return "\n".join(lines)

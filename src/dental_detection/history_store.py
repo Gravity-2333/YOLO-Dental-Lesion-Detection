@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from .assistant import ensure_app_dirs, storage_root
 from .result_levels import enrich_detection_row, get_confidence_level, parse_confidence
+from .text_utils import text_value
 
 HISTORY_FILE_NAME = "检测历史.jsonl"
 HISTORY_TABLE_COLUMNS = ["检测时间", "图片名称", "检测数量", "涉及类别", "最高置信度", "关注等级", "模型", "记录ID"]
@@ -134,7 +135,7 @@ def _classes_text(value: Any) -> str:
     if isinstance(value, str):
         return value.strip() or "无"
     if isinstance(value, (list, tuple, set)):
-        classes = [str(item).strip() for item in value if str(item).strip()]
+        classes = [text_value(item).strip() for item in value if text_value(item).strip()]
         return "、".join(classes) if classes else "无"
     return "无"
 
@@ -144,14 +145,14 @@ def history_rows(storage_dir: str | None = None) -> list[dict[str, Any]]:
     for item in list_history_records(storage_dir):
         rows.append(
             {
-                "检测时间": item.get("created_at", ""),
-                "图片名称": item.get("image_name", ""),
-                "检测数量": item.get("detection_count", 0),
+                "检测时间": text_value(item.get("created_at")),
+                "图片名称": text_value(item.get("image_name")),
+                "检测数量": text_value(item.get("detection_count"), "0"),
                 "涉及类别": _classes_text(item.get("classes")),
-                "最高置信度": item.get("max_confidence", ""),
-                "关注等级": item.get("level", ""),
-                "模型": item.get("model", ""),
-                "记录ID": item.get("id", ""),
+                "最高置信度": text_value(item.get("max_confidence")),
+                "关注等级": text_value(item.get("level")),
+                "模型": text_value(item.get("model")),
+                "记录ID": text_value(item.get("id")),
             }
         )
     return rows
@@ -162,7 +163,7 @@ def load_history_record(record_id: str, storage_dir: str | None = None) -> dict[
     if not wanted:
         return None
     for item in _load_raw_records(storage_dir):
-        if item.get("id") == wanted:
+        if text_value(item.get("id")).strip() == wanted:
             return item
     return None
 
@@ -170,7 +171,7 @@ def load_history_record(record_id: str, storage_dir: str | None = None) -> dict[
 def delete_history_record(record_id: str, storage_dir: str | None = None) -> bool:
     wanted = str(record_id or "").strip()
     records = _load_raw_records(storage_dir)
-    kept = [item for item in records if item.get("id") != wanted]
+    kept = [item for item in records if text_value(item.get("id")).strip() != wanted]
     if len(kept) == len(records):
         return False
     _write_records(kept, storage_dir)
