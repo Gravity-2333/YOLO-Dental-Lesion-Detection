@@ -1,9 +1,21 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from .assistant import SAFETY_NOTICE
 from .result_levels import enrich_detection_row
+
+
+def _text_value(value: Any, fallback: str = "") -> str:
+    if value is None or value == "":
+        return fallback
+    if isinstance(value, (dict, list, tuple, set)):
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return str(value)
+    return str(value)
 
 
 def _clean_detection_records(detections: Any) -> list[dict[str, Any]]:
@@ -53,14 +65,14 @@ def format_case_record(data: dict[str, Any] | None) -> str:
     summary = data.get("summary") or {}
     detections = _clean_detection_records(data.get("detections") or [])
     lines = [
-        f"病例编号：{data.get('case_id') or '未填写'}",
-        f"保存时间：{data.get('created_at') or '-'}",
-        f"图片名称：{data.get('image_name') or '-'}",
-        f"建议来源：{data.get('suggestion_type') or 'default'}",
+        f"病例编号：{_text_value(data.get('case_id'), '未填写')}",
+        f"保存时间：{_text_value(data.get('created_at'), '-')}",
+        f"图片名称：{_text_value(data.get('image_name'), '-')}",
+        f"建议来源：{_text_value(data.get('suggestion_type'), 'default')}",
     ]
     note = data.get("note")
     if note:
-        lines.append(f"病例备注：{note}")
+        lines.append(f"病例备注：{_text_value(note)}")
     report_path = data.get("report_path") or data.get("word_report_path") or data.get("zip_report_path")
     if report_path:
         lines.append(f"报告路径：{report_path}")

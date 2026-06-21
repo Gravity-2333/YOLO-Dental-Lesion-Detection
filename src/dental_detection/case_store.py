@@ -11,6 +11,17 @@ from .model_info import legend_markdown
 from .result_levels import REGION_NOTICE, enrich_detection_row, get_class_display_name, parse_confidence
 
 
+def _text_value(value: Any, fallback: str = "") -> str:
+    if value is None or value == "":
+        return fallback
+    if isinstance(value, (dict, list, tuple, set)):
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return str(value)
+    return str(value)
+
+
 def _case_trash_dir(storage_dir: str) -> Path:
     return storage_root(storage_dir) / "cases_trash"
 
@@ -60,9 +71,9 @@ def _row_from_case(path: Path, data: dict[str, Any]) -> dict[str, Any]:
     classes = _case_classes(detections)
     levels = _case_levels(detections)
     return {
-        "保存时间": data.get("created_at", ""),
-        "病例编号": data.get("case_id", "未填写"),
-        "图片名称": data.get("image_name", ""),
+        "保存时间": _text_value(data.get("created_at")),
+        "病例编号": _text_value(data.get("case_id"), "未填写"),
+        "图片名称": _text_value(data.get("image_name")),
         "检测数量": len(detections),
         "涉及类别": "、".join(classes) if classes else "无检测结果",
         "关注等级": "、".join(levels) if levels else "无检测结果",
