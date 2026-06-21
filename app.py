@@ -80,6 +80,7 @@ from ultralytics import YOLO
 MODEL_SOURCE = "YOLOv8m 原始结构"
 TABLE_COLUMNS = ["class", "中文名称", "confidence", "关注等级", "图像区域", "置信度解释", "x1", "y1", "x2", "y2"]
 CSS_PATH = PROJECT_ROOT / "assets" / "workbench.css"
+JS_PATH = PROJECT_ROOT / "assets" / "workbench.js"
 EXAMPLE_DIR = PROJECT_ROOT / "assets" / "examples" / "dental"
 EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
 STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
@@ -108,6 +109,12 @@ def _safe_existing_root(path: str | Path | None) -> Path | None:
 def _load_workbench_css() -> str:
     if CSS_PATH.exists():
         return CSS_PATH.read_text(encoding="utf-8")
+    return ""
+
+
+def _load_workbench_js() -> str:
+    if JS_PATH.exists():
+        return JS_PATH.read_text(encoding="utf-8")
     return ""
 
 
@@ -3530,5 +3537,6 @@ if __name__ == "__main__":
         share=args.share,
         theme=_workbench_theme(),
         css=_load_workbench_css(),
+        js=_load_workbench_js(),
         allowed_paths=[str(root) for root in _allowed_file_roots()],
     )
