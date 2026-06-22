@@ -1575,6 +1575,8 @@ def save_case_record(
         gr.update(choices=choices, value=selected),
         _case_table(rows),
         format_case_record(payload),
+        _clear_file_output(),
+        "",
     )
 
 
@@ -1588,6 +1590,8 @@ def refresh_case_records(storage_dir: str):
         _case_table(rows),
         _case_detail_from_choice(selected, storage_dir),
         "已刷新病例记录。" if choices else "暂无病例记录。",
+        _clear_file_output(),
+        "",
     )
 
 
@@ -1605,7 +1609,14 @@ def search_case_records_ui(
     choices = _case_choices_from_rows(rows)
     selected = choices[0] if choices else None
     message = f"已筛选到 {len(rows)} 条病例记录。" if rows else "未找到匹配病例记录。"
-    return gr.update(choices=choices, value=selected), _case_table(rows), _case_detail_from_choice(selected, storage_dir), message
+    return (
+        gr.update(choices=choices, value=selected),
+        _case_table(rows),
+        _case_detail_from_choice(selected, storage_dir),
+        message,
+        _clear_file_output(),
+        "",
+    )
 
 
 def delete_selected_case_record(
@@ -1634,6 +1645,8 @@ def delete_selected_case_record(
         _case_table(rows),
         f"病例已移入回收站：{trash_path}",
         _case_detail_from_choice(selected, storage_dir),
+        _clear_file_output(),
+        "",
     )
 
 
@@ -1664,6 +1677,10 @@ def load_case_record(choice: str, storage_dir: str):
         return format_case_record(load_case_record_data(storage_dir, file_name))
     except (OSError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
         return format_case_record({"错误": str(exc)})
+
+
+def load_case_record_and_clear_export(choice: str, storage_dir: str):
+    return load_case_record(choice, storage_dir), _clear_file_output(), ""
 
 
 def _history_table_from_rows(rows: list[dict[str, Any]]) -> pd.DataFrame:
@@ -2301,6 +2318,8 @@ def save_ui_settings(
         _history_table_from_rows(history_table),
         load_history_record(history_selected, settings.storage_dir) if history_selected else format_history_record(None),
         history_message,
+        _clear_file_output(),
+        "",
     )
 
 
@@ -3352,6 +3371,8 @@ def build_app() -> gr.Blocks:
                 history_table,
                 history_detail,
                 history_feedback,
+                case_report_file,
+                case_report_path,
             ],
         )
         chat_btn.click(
@@ -3452,17 +3473,17 @@ def build_app() -> gr.Blocks:
         save_case_btn.click(
             fn=save_case_record,
             inputs=[batch_state, batch_select, case_id, case_note, storage_dir],
-            outputs=[case_feedback, case_select, case_table, case_detail],
+            outputs=[case_feedback, case_select, case_table, case_detail, case_report_file, case_report_path],
         )
         refresh_case_btn.click(
             fn=refresh_case_records,
             inputs=storage_dir,
-            outputs=[case_select, case_table, case_detail, case_feedback],
+            outputs=[case_select, case_table, case_detail, case_feedback, case_report_file, case_report_path],
         )
         search_case_btn.click(
             fn=search_case_records_ui,
             inputs=[case_keyword, case_class_filter, case_level_filter, case_date_from, case_date_to, storage_dir],
-            outputs=[case_select, case_table, case_detail, case_feedback],
+            outputs=[case_select, case_table, case_detail, case_feedback, case_report_file, case_report_path],
         )
         delete_case_btn.click(
             fn=delete_selected_case_record,
@@ -3475,7 +3496,7 @@ def build_app() -> gr.Blocks:
                 case_date_to,
                 storage_dir,
             ],
-            outputs=[case_select, case_table, case_feedback, case_detail],
+            outputs=[case_select, case_table, case_feedback, case_detail, case_report_file, case_report_path],
         )
         export_case_btn.click(
             fn=export_selected_case_record,
@@ -3483,9 +3504,9 @@ def build_app() -> gr.Blocks:
             outputs=[case_report_file, case_report_path],
         )
         case_select.change(
-            fn=load_case_record,
+            fn=load_case_record_and_clear_export,
             inputs=[case_select, storage_dir],
-            outputs=case_detail,
+            outputs=[case_detail, case_report_file, case_report_path],
         )
         refresh_history_btn.click(
             fn=refresh_history_records,
