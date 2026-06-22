@@ -59,6 +59,10 @@ def format_case_record(data: dict[str, Any] | None) -> str:
         f"图片名称：{text_value(data.get('image_name'), '-')}",
         f"建议来源：{text_value(data.get('suggestion_type'), 'default')}",
     ]
+    display_name = text_value(data.get("display_name")).strip()
+    image_name = text_value(data.get("image_name")).strip()
+    if display_name and display_name != image_name:
+        lines.insert(3, f"列表显示名：{display_name}")
     note = data.get("note")
     if note:
         lines.append(f"病例备注：{text_value(note)}")
@@ -127,6 +131,10 @@ def format_history_record(record: dict[str, Any] | None) -> str:
         "",
         "检测框明细：",
     ]
+    display_name = text_value(record.get("display_name")).strip()
+    image_name = text_value(record.get("image_name")).strip()
+    if display_name and display_name != image_name:
+        lines.insert(2, f"列表显示名：{display_name}")
     if detections:
         for index, det in enumerate(detections, start=1):
             lines.append(

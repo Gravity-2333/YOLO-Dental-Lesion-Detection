@@ -154,10 +154,11 @@ def _classes_text(value: Any) -> str:
 def history_rows(storage_dir: str | None = None) -> list[dict[str, Any]]:
     rows = []
     for item in list_history_records(storage_dir):
+        display_name = text_value(item.get("display_name") or item.get("image_name"))
         rows.append(
             {
                 "检测时间": text_value(item.get("created_at")),
-                "图片名称": text_value(item.get("image_name")),
+                "图片名称": display_name,
                 "检测数量": text_value(item.get("detection_count"), "0"),
                 "涉及类别": _classes_text(item.get("classes")),
                 "最高置信度": text_value(item.get("max_confidence")),

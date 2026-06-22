@@ -1544,6 +1544,7 @@ def save_case_record(
         "case_id": case_id_text or "未填写",
         "note": case_note_text,
         "image_name": item.get("name") or "当前单图",
+        "display_name": _item_display_name(item, item.get("name") or "当前单图"),
         "summary": item.get("summary", {}),
         "detections": _clean_detection_records(result.get("detections", [])),
         "quality_text": item.get("quality_text") or assess_image_quality(result.get("original")),

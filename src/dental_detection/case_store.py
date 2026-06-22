@@ -63,7 +63,7 @@ def _row_from_case(path: Path, data: dict[str, Any]) -> dict[str, Any]:
     return {
         "保存时间": text_value(data.get("created_at")),
         "病例编号": text_value(data.get("case_id"), "未填写"),
-        "图片名称": text_value(data.get("image_name")),
+        "图片名称": text_value(data.get("display_name") or data.get("image_name")),
         "检测数量": len(detections),
         "涉及类别": "、".join(classes) if classes else "无检测结果",
         "关注等级": "、".join(levels) if levels else "无检测结果",
