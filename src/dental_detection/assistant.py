@@ -12,6 +12,8 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .config import PROJECT_ROOT
+from .result_levels import parse_confidence
+from .text_utils import json_safe_value
 
 APP_DIR_NAME = "YOLO-Dental-Lesion-Detection"
 
@@ -469,10 +471,26 @@ def test_chat_completion(settings: AiSettings) -> str:
     return f"测试成功：{content}"
 
 
+def _prompt_safe_detections(detections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows = json_safe_value(detections)
+    if not isinstance(rows, list):
+        return []
+    safe_rows: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        item = dict(row)
+        if "confidence" in item:
+            confidence = parse_confidence(item.get("confidence"))
+            item["confidence"] = round(confidence, 4) if confidence is not None else ""
+        safe_rows.append(item)
+    return safe_rows
+
+
 def detection_prompt(
     detections: list[dict[str, Any]], custom_prompt: str | None = None
 ) -> list[dict[str, str]]:
-    summary = json.dumps(detections, ensure_ascii=False, indent=2)
+    summary = json.dumps(_prompt_safe_detections(detections), ensure_ascii=False, indent=2, allow_nan=False)
     system_prompt = (custom_prompt or "").strip() or DEFAULT_AI_PROMPT
     return [
         {
@@ -506,17 +524,22 @@ def default_advice(detections: list[dict[str, Any]]) -> str:
     for label, items in sorted(grouped.items()):
         confidences = []
         for item in items:
-            try:
-                confidences.append(float(item.get("confidence", 0) or 0))
-            except (TypeError, ValueError):
-                confidences.append(0.0)
-        high_conf = max(confidences)
-        if high_conf >= 0.70:
+            confidence = parse_confidence(item.get("confidence"))
+            if confidence is not None:
+                confidences.append(confidence)
+        high_conf = max(confidences) if confidences else None
+        if high_conf is None:
+            level = "置信度未知，仅供参考"
+            confidence_text = "未知"
+        elif high_conf >= 0.70:
             level = "重点关注"
+            confidence_text = f"{high_conf:.2f}"
         elif high_conf >= 0.40:
             level = "建议复查确认"
+            confidence_text = f"{high_conf:.2f}"
         else:
             level = "低置信度，仅供参考"
+            confidence_text = f"{high_conf:.2f}"
 
         normalized = _normalize_class_name(label)
         advice = CLASS_ADVICE.get(
@@ -527,7 +550,7 @@ def default_advice(detections: list[dict[str, Any]]) -> str:
             ),
         )
         display = CLASS_DISPLAY_NAMES.get(normalized, label)
-        summary_lines.append(f"{display} {len(items)} 处，最高置信度约 {high_conf:.2f}，{level}。")
+        summary_lines.append(f"{display} {len(items)} 处，最高置信度约 {confidence_text}，{level}。")
         focus_lines.append(f"{display}：{advice}")
 
     return "\n\n".join(
