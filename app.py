@@ -384,9 +384,10 @@ def _model_path_or_default(path: str, fallback: str) -> str:
 
 def _model_dir_or_default(path: str | Path | None) -> str:
     try:
-        return str(Path(path or PROJECT_ROOT / "models").expanduser().resolve())
+        target = Path(path or PROJECT_ROOT / "models").expanduser().resolve()
     except (OSError, RuntimeError, ValueError):
         return str((PROJECT_ROOT / "models").resolve())
+    return str(target.parent if target.is_file() else target)
 
 
 def _configured_models(model_mode: str, primary_model_path: str, compare_model_path: str) -> list[tuple[str, Path]]:
