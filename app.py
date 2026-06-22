@@ -977,6 +977,17 @@ def _item_results(item: dict[str, Any]) -> list[dict[str, Any]]:
     return [result] if isinstance(result, dict) else []
 
 
+def _advice_detections(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        model_name = text_value(result.get("model"), "unknown")
+        for det in _clean_detection_records(result.get("detections", [])):
+            rows.append({**det, "model": model_name, "模型": model_name})
+    return rows
+
+
 def _model_result_records(item: dict[str, Any]) -> list[dict[str, Any]]:
     rows = []
     for result in _item_results(item):
@@ -1897,7 +1908,7 @@ def run_single_detection(
         custom_prompt,
         advice_style,
     )
-    advice = _build_advice(settings, primary["detections"])
+    advice = _build_advice(settings, _advice_detections(all_results))
     chat_history = _conversation_from_advice(advice)
     auto_save_warning = ""
     if settings.auto_save:
@@ -2047,7 +2058,7 @@ def run_batch_detection(
                 for model_name, model_path in selected_models
             ]
             result = all_results[0]
-            advice = _build_advice(settings, result["detections"])
+            advice = _build_advice(settings, _advice_detections(all_results))
             quality_text, quality_level = _quality_payload(result["original"])
         except Exception as exc:
             batch_errors.append(f"{file_name}: {friendly_error_message(exc, '图片处理失败').splitlines()[0]}")

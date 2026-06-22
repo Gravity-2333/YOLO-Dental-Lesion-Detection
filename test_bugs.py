@@ -480,5 +480,28 @@ except Exception as e:
     print(f"✗ 百分号置信度和中文字段兼容测试失败: {e}")
     sys.exit(1)
 
+print("\n测试17: 检查对比模型建议覆盖副模型检测框...")
+try:
+    from app import _advice_detections
+    from src.dental_detection.assistant import default_advice
+
+    merged = _advice_detections(
+        [
+            {"model": "model-a", "detections": []},
+            {
+                "model": "model-b",
+                "detections": [{"class": "Impacted", "confidence": 0.82, "x1": 1, "y1": 2, "x2": 20, "y2": 30}],
+            },
+        ]
+    )
+    assert len(merged) == 1, "建议输入应包含副模型独有检测框"
+    assert merged[0]["model"] == "model-b" and merged[0]["模型"] == "model-b", "建议输入应保留检测框来源模型"
+    advice = default_advice(merged)
+    assert "阻生牙" in advice, "默认建议应覆盖副模型检出的类别"
+    print("✓ 对比模型建议覆盖副模型检测框正常")
+except Exception as e:
+    print(f"✗ 对比模型建议覆盖副模型检测框测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
