@@ -53,10 +53,11 @@ def json_safe_value(value: Any) -> Any:
 
 
 def text_value(value: Any, fallback: str = "") -> str:
-    if value is None:
+    safe = json_safe_value(value)
+    if safe is None:
         return fallback
-    if isinstance(value, str):
-        return value if value else fallback
-    if isinstance(value, (dict, list, tuple, set)):
-        return json.dumps(json_safe_value(value), ensure_ascii=False, allow_nan=False)
-    return str(value)
+    if isinstance(safe, str):
+        return safe if safe else fallback
+    if isinstance(safe, (dict, list, tuple, set)):
+        return json.dumps(safe, ensure_ascii=False, allow_nan=False)
+    return str(safe)
