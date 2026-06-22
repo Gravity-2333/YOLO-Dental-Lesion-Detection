@@ -2375,6 +2375,7 @@ def export_chat(history: list[dict[str, str]], storage_dir: str):
         raise gr.Error("当前没有可导出的对话记录。")
     _ensure_storage_root(storage_dir)
     path = save_conversation(history, storage_dir)
+    _remember_allowed_file_root(path.parent)
     return _file_component_output(path), f"已导出：{path}"
 
 
