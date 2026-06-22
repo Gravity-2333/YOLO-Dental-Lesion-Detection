@@ -75,6 +75,7 @@ from src.dental_detection.model_files import (
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.record_formatters import format_case_record, format_history_record
 from src.dental_detection.result_levels import enrich_detection_row
+from src.dental_detection.text_utils import json_safe_value
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from ultralytics import YOLO
 
@@ -245,7 +246,7 @@ def _clean_detection_records(detections: Any, image_size: tuple[int, int] | None
         row = enrich_detection_row(det, image_size)
         if all(value in {"", None} for value in row.values()):
             continue
-        rows.append(row)
+        rows.append(json_safe_value(row))
     return rows
 
 
@@ -746,8 +747,11 @@ def _current_item(batch_state: list[dict[str, Any]], selected_name: str | None =
     if not batch_state:
         raise gr.Error("当前没有可用的检测结果。")
     if selected_name:
+        selected_text = str(selected_name).strip()
         for item in batch_state:
-            if item.get("display_name") == selected_name or item.get("name") == selected_name:
+            display_name = str(item.get("display_name") or "").strip()
+            item_name = str(item.get("name") or "").strip()
+            if display_name == selected_text or item_name == selected_text:
                 return item
         # 有选中名称但未匹配到任何项 → 抛出明确错误，不静默回退
         raise gr.Error("当前选择的结果已失效，请重新选择图片。")
@@ -1543,7 +1547,7 @@ def save_case_record(
         "suggestion": item.get("advice", ""),
         "safety_notice": SAFETY_NOTICE,
     }
-    _write_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
+    _write_text(path, json.dumps(json_safe_value(payload), ensure_ascii=False, indent=2, allow_nan=False))
     rows = list_case_records(storage_dir)
     choices = _case_choices_from_rows(rows)
     # 精确匹配：choices 格式为 "created_at | case_id | image_name | filename.json"

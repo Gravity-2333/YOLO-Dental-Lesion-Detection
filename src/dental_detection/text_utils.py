@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from typing import Any
 
 
@@ -33,11 +34,22 @@ def _json_safe(value: Any, seen: set[int] | None = None) -> Any:
             return sorted((_json_safe(item, seen) for item in value), key=str)
         finally:
             seen.discard(marker)
+    if hasattr(value, "item") and not isinstance(value, (str, bytes, bytearray)):
+        try:
+            return _json_safe(value.item(), seen)
+        except (AttributeError, TypeError, ValueError):
+            pass
+    if isinstance(value, float) and not math.isfinite(value):
+        return ""
     try:
-        json.dumps(value, ensure_ascii=False)
+        json.dumps(value, ensure_ascii=False, allow_nan=False)
         return value
     except (TypeError, ValueError):
         return str(value)
+
+
+def json_safe_value(value: Any) -> Any:
+    return _json_safe(value)
 
 
 def text_value(value: Any, fallback: str = "") -> str:
@@ -46,5 +58,5 @@ def text_value(value: Any, fallback: str = "") -> str:
     if isinstance(value, str):
         return value if value else fallback
     if isinstance(value, (dict, list, tuple, set)):
-        return json.dumps(_json_safe(value), ensure_ascii=False)
+        return json.dumps(json_safe_value(value), ensure_ascii=False, allow_nan=False)
     return str(value)

@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from .assistant import ensure_app_dirs, storage_root
 from .result_levels import enrich_detection_row, get_confidence_level, parse_confidence
-from .text_utils import text_value
+from .text_utils import json_safe_value, text_value
 
 HISTORY_FILE_NAME = "检测历史.jsonl"
 HISTORY_TABLE_COLUMNS = ["检测时间", "图片名称", "检测数量", "涉及类别", "最高置信度", "关注等级", "模型", "记录ID"]
@@ -102,7 +102,7 @@ def _load_raw_records(storage_dir: str | None = None) -> list[dict[str, Any]]:
 def _write_records(records: list[dict[str, Any]], storage_dir: str | None = None) -> Path:
     ensure_history_dir(storage_dir)
     path = history_file(storage_dir)
-    content = "\n".join(json.dumps(item, ensure_ascii=False) for item in records)
+    content = "\n".join(json.dumps(json_safe_value(item), ensure_ascii=False, allow_nan=False) for item in records)
     tmp_path = path.with_suffix(f"{path.suffix}.tmp")
     tmp_path.write_text(f"{content}\n" if content else "", encoding="utf-8")
     tmp_path.replace(path)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 from typing import Any
 
@@ -37,6 +38,8 @@ def parse_confidence(value: Any) -> float | None:
         number = float(value)
     except (TypeError, ValueError):
         return None
+    if not math.isfinite(number):
+        return None
     return max(0.0, min(1.0, number))
 
 
@@ -73,6 +76,8 @@ def estimate_image_region(det: dict[str, Any], image_size: tuple[int, int] | Non
         y2 = float(det.get("y2"))
     except (TypeError, ValueError):
         return ""
+    if not all(math.isfinite(value) for value in (x1, y1, x2, y2)):
+        return ""
     x1, x2 = sorted((x1, x2))
     y1, y2 = sorted((y1, y2))
     if x2 <= x1 or y2 <= y1:
@@ -83,7 +88,7 @@ def estimate_image_region(det: dict[str, Any], image_size: tuple[int, int] | Non
         height = float(height or det.get("image_height") or det.get("height") or 0)
     except (TypeError, ValueError):
         return ""
-    if width <= 0 or height <= 0:
+    if not math.isfinite(width) or not math.isfinite(height) or width <= 0 or height <= 0:
         return ""
     center_x = (x1 + x2) / 2
     center_y = (y1 + y2) / 2
