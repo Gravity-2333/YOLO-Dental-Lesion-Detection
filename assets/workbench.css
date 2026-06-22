@@ -633,6 +633,12 @@ button[aria-disabled="true"] {
   max-width: 132px !important;
 }
 
+.path-row > .secondary-action,
+.model-row > .secondary-action,
+.chat-input-row > .primary-action {
+  margin-bottom: 10px !important;
+}
+
 .path-row > .form,
 .path-row > .block {
   min-width: 0 !important;
@@ -1222,6 +1228,12 @@ footer,
     width: 100% !important;
     min-width: 100% !important;
     max-width: none !important;
+  }
+
+  .path-row > .secondary-action,
+  .model-row > .secondary-action,
+  .chat-input-row > .primary-action {
+    margin-bottom: 0 !important;
   }
 
   .card-heading {

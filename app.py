@@ -743,15 +743,22 @@ def _short_choice_text(value: Any, max_length: int = 48) -> str:
     return text if len(text) <= max_length else f"{text[: max_length - 1]}…"
 
 
+def _matches_item_name(item: dict[str, Any], selected_name: Any) -> bool:
+    selected_text = str(selected_name or "").strip()
+    if not selected_text:
+        return False
+    return any(
+        str(item.get(field) or "").strip() == selected_text
+        for field in ("display_name", "name", "image_name")
+    )
+
+
 def _current_item(batch_state: list[dict[str, Any]], selected_name: str | None = None) -> dict[str, Any]:
     if not batch_state:
         raise gr.Error("当前没有可用的检测结果。")
     if selected_name:
-        selected_text = str(selected_name).strip()
         for item in batch_state:
-            display_name = str(item.get("display_name") or "").strip()
-            item_name = str(item.get("name") or "").strip()
-            if display_name == selected_text or item_name == selected_text:
+            if _matches_item_name(item, selected_name):
                 return item
         # 有选中名称但未匹配到任何项 → 抛出明确错误，不静默回退
         raise gr.Error("当前选择的结果已失效，请重新选择图片。")
@@ -2107,10 +2114,7 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
             gr.update(value="导出 ZIP 数据包", interactive=False),
             gr.update(value="完成检测后可保存", interactive=False),
         )
-    item = next(
-        (row for row in batch_state if row.get("display_name") == name or row.get("name") == name),
-        None,
-    )
+    item = next((row for row in batch_state if _matches_item_name(row, name)), None)
     if item is None:
         raise gr.Error("当前选择的结果已失效，请重新选择图片。")
     chat_history = _conversation_from_advice(item["advice"])
