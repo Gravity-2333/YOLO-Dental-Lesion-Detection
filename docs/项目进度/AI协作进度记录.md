@@ -19,6 +19,20 @@
 - Dataset contains 664 `.png` images, 664 `.txt` YOLO labels, and is about 2.59 GB.
 - Added `yolov8_dental/` to `.gitignore` because the raw dental image dataset is too large for normal Git history and may require privacy/licensing review before sharing.
 - Keep dataset metadata/templates in the repository, but store raw images and labels locally or with a dataset-specific storage solution such as Git LFS, DVC, release assets, or controlled cloud storage.
+- Updated local ignored `yolov8_dental/dental_yolo.yaml` to use relative `path: yolov8_dental` instead of a machine-specific absolute path.
+
+### Git Workflow Notes
+
+- Added `docs/协作规范/版本控制协作规范.md` to record the preferred AI collaboration rule:
+  document each meaningful change, stage only relevant files when useful, and commit/push only at key milestones instead of after every small edit.
+
+### Project Material Review
+
+- Reviewed local `docs/产教融合、科教融汇 材料.pdf`.
+- Confirmed the current project maps to the 科教融汇 implementation table item:
+  `面向正畸系统融合图卷积的仿生力学变形预测方法研究 / 基于yolo的牙齿病变目标区域识别`.
+- The material indicates process requirements such as weekly reports, mid-term progress reporting, final project report/defense, and possible graduation design alignment.
+- Added `docs/*.pdf` to `.gitignore` because the PDF contains institutional process material and student-related information that should not be pushed to a public GitHub repository without review.
 
 ### Completed
 
@@ -32,7 +46,7 @@
   - Old COCO smoke-test `best.pt` moved under `experiments/legacy_coco_smoke/`.
   - Historical YOLO smoke-test outputs moved to `experiments/legacy_coco_smoke/`.
   - Example image moved to `assets/examples/`.
-  - Legacy directory listing moved to `docs/legacy_tree.txt`.
+  - Legacy directory listing moved to `docs/归档资料/旧版目录树.txt`.
 - Added a Gradio prototype in `app.py`.
 - Added reusable inference code in `src/dental_detection/`.
 - Added model checking utility in `scripts/check_model.py`.
@@ -74,7 +88,7 @@ PR body:
 - 新增 `src/dental_detection/` 推理模块，将模型加载、预测解析和标注绘制从界面代码中拆分出来。
 - 整理项目结构，将牙科检测模型、预训练权重、历史实验输出、示例图片、文档和脚本分目录管理。
 - 新增 `scripts/check_model.py`，用于快速检查 YOLO 权重是否能被 Ultralytics 正常加载。
-- 新增 `docs/AI_PROGRESS.md`，记录 AI 后续协作过程、模型检查结果和项目进展。
+- 新增 `docs/项目进度/AI协作进度记录.md`，记录 AI 后续协作过程、模型检查结果和项目进展。
 - 新增 `data/dental_lesion.yaml` 数据集配置模板和 `requirements.txt` 依赖说明。
 
 ## 验证

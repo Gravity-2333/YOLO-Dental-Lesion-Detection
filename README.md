@@ -105,7 +105,13 @@ python scripts/check_model.py
 ```text
 assets/examples/              示例图片
 data/                         数据集配置和本地数据占位
-docs/AI_PROGRESS.md           AI 协作进度记录
+docs/文档索引.md              项目文档索引
+docs/项目进度/                AI 协作进度、任务总结和优化变更日志
+docs/修复记录/                Bug 清单、修复记录和完整修复总结
+docs/界面优化/                前端界面、按钮对齐、字体和下拉框优化记录
+docs/数据集审计/              数据集审计报告和摘要
+docs/协作规范/                Git、分支和协作规范
+docs/归档资料/                旧版目录树和历史资料
 experiments/                  历史训练或试跑输出
 models/dental_detect_12/      当前牙科检测模型及训练结果
 models/final_candidates/      YOLOv8m 最终候选模型权重和训练记录

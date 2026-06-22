@@ -14,6 +14,7 @@ yolov8_dental/
 outputs/
 *.log
 docs/*.pdf
+docs/**/*.pdf
 local_samples/
 private_samples/
 *.dcm
