@@ -523,7 +523,7 @@ button[aria-disabled="true"] {
 .path-row,
 .compact-row,
 .chat-input-row {
-  align-items: end !important;
+  align-items: center !important;
   gap: 10px !important;
   overflow: hidden !important;
 }
@@ -535,25 +535,25 @@ button[aria-disabled="true"] {
 .compact-row > .secondary-action,
 .compact-row > .primary-action,
 .compact-row > button {
-  align-self: end !important;
+  align-self: center !important;
 }
 
 .path-row {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 44px 132px !important;
-  align-items: end !important;
+  align-items: center !important;
   column-gap: 12px !important;
   row-gap: 8px !important;
 }
 
 .export-toolbar .path-row {
   grid-template-columns: minmax(0, 1fr) 152px !important;
-  align-items: end !important;
+  align-items: center !important;
 }
 
 .chat-card .path-row {
   grid-template-columns: minmax(0, 1fr) 120px !important;
-  align-items: end !important;
+  align-items: center !important;
 }
 
 .chat-card .path-row > .block,
@@ -582,7 +582,7 @@ button[aria-disabled="true"] {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 132px !important;
   gap: 10px !important;
-  align-items: end !important;
+  align-items: center !important;
   overflow: hidden !important;
 }
 
@@ -597,12 +597,14 @@ button[aria-disabled="true"] {
 .model-row input,
 .model-row select,
 .gradio-container .dropdown input,
-.gradio-container .dropdown .single-select {
+.gradio-container .dropdown .single-select,
+.gradio-container .dropdown [role="combobox"],
+.gradio-container .dropdown [data-testid="dropdown-input"] {
   min-width: 0 !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
-  padding-right: 42px !important;
+  padding-right: 48px !important;
 }
 
 .model-row .secondary-action,
@@ -615,7 +617,7 @@ button[aria-disabled="true"] {
 .chat-input-row {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 112px !important;
-  align-items: end !important;
+  align-items: center !important;
   gap: 10px !important;
 }
 
@@ -631,12 +633,6 @@ button[aria-disabled="true"] {
   width: 132px !important;
   min-width: 132px !important;
   max-width: 132px !important;
-}
-
-.path-row > .secondary-action,
-.model-row > .secondary-action,
-.chat-input-row > .primary-action {
-  margin-bottom: 10px !important;
 }
 
 .path-row > .form,
@@ -1544,8 +1540,8 @@ button[aria-disabled="true"] {
 }
 
 
-/* 移除之前错误的居中对齐 - 这些规则导致了新的对齐问题 */
-/* .path-row button, .chat-input-row button 等规则已删除 */
+/* 工具行统一使用容器级居中对齐，避免按钮与输入框产生上下偏移 */
+/* 避免恢复局部底部对齐或额外下边距这类覆盖 */
 .guide-card {
   margin-bottom: 14px;
 }
