@@ -3414,7 +3414,7 @@ def build_app() -> gr.Blocks:
         )
         test_model_btn.click(
             fn=test_model_file,
-            inputs=[primary_model_path, compare_model_path, model_mode],
+            inputs=[primary_model_path, compare_model_path, settings_model_mode],
             outputs=model_feedback,
         )
         default_storage_btn.click(fn=default_storage_dir, outputs=[storage_dir, settings_feedback])
