@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import math
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +82,8 @@ def draw_detections_with_filter(
             y2 = float(row["y2"])
         except (TypeError, ValueError):
             continue
+        if not all(math.isfinite(value) for value in (x1, y1, x2, y2)):
+            continue
         x1, x2 = sorted((max(0.0, min(base.width - 1, x1)), max(0.0, min(base.width - 1, x2))))
         y1, y2 = sorted((max(0.0, min(base.height - 1, y1)), max(0.0, min(base.height - 1, y2))))
         if x2 <= x1 or y2 <= y1:
@@ -115,6 +118,8 @@ def crop_detection_regions(
             x2 = float(row["x2"])
             y2 = float(row["y2"])
         except (TypeError, ValueError):
+            continue
+        if not all(math.isfinite(value) for value in (x1, y1, x2, y2)):
             continue
         x1, x2 = sorted((x1, x2))
         y1, y2 = sorted((y1, y2))
