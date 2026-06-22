@@ -22,7 +22,17 @@ def supported_suffix_text() -> str:
 def scan_model_files(model_dir: str | Path) -> list[tuple[str, str]]:
     try:
         root = Path(model_dir or PROJECT_ROOT / "models").expanduser()
-        if not root.exists() or not root.is_dir():
+        if not root.exists():
+            return []
+        if root.is_file():
+            if root.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
+                return []
+            try:
+                resolved = root.resolve()
+            except (OSError, RuntimeError, ValueError):
+                return []
+            return [(f"{model_label_from_path(root)}  |  {root}", str(resolved))]
+        if not root.is_dir():
             return []
     except (OSError, RuntimeError, ValueError):
         return []
