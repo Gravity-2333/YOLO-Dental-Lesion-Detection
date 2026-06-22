@@ -207,6 +207,10 @@ def _file_component_output(path: str | Path | None):
     return gr.update(value=file_path, visible=bool(file_path))
 
 
+def _path_text(path: Any) -> str:
+    return str(path or "") if path else ""
+
+
 def _clear_file_output():
     return gr.update(value=None, visible=False)
 
@@ -2150,6 +2154,8 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
     if result.get("full_annotated") is not None:
         result["annotated"] = result["full_annotated"]
     highres_image, crop_items, crop_text = _result_visual_outputs(result)
+    word_path = _path_text(item.get("word_report_path"))
+    zip_path = _path_text(item.get("zip_report_path"))
     return (
         result["original"],
         result["model_input"],
@@ -2169,11 +2175,11 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
         chat_history,
         _clear_file_output(),
         "",
-        _clear_file_output(),
-        "",
+        _file_component_output(word_path),
+        word_path,
         gr.update(value="导出 Word 报告", interactive=True),
-        _clear_file_output(),
-        "",
+        _file_component_output(zip_path),
+        zip_path,
         gr.update(value="导出 ZIP 数据包", interactive=True),
         gr.update(value="保存病例", interactive=True),
     )

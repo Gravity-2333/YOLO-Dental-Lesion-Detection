@@ -306,5 +306,35 @@ except Exception as e:
     print(f"✗ 对比模式重复模型测试失败: {e}")
     sys.exit(1)
 
+print("\n测试13: 检查切换图片保留已导出报告路径...")
+try:
+    from PIL import Image
+    from app import select_batch_item
+
+    image = Image.new("RGB", (80, 60), "white")
+    item = {
+        "name": "keep-path.png",
+        "display_name": "001 - keep-path.png",
+        "result": {
+            "original": image,
+            "model_input": image,
+            "annotated": image,
+            "table": [],
+            "detections": [],
+        },
+        "advice": "测试建议",
+        "quality_text": "测试质量",
+        "summary": {},
+        "word_report_path": r"C:\tmp\report.docx",
+        "zip_report_path": r"C:\tmp\report.zip",
+    }
+    outputs = select_batch_item("001 - keep-path.png", [item], False)
+    assert outputs[19] == r"C:\tmp\report.docx", "切换图片后应保留 Word 报告路径"
+    assert outputs[22] == r"C:\tmp\report.zip", "切换图片后应保留 ZIP 报告路径"
+    print("✓ 切换图片保留报告路径正常")
+except Exception as e:
+    print(f"✗ 切换图片报告路径测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
