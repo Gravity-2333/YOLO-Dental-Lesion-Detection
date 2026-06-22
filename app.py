@@ -402,6 +402,8 @@ def _configured_models(model_mode: str, primary_model_path: str, compare_model_p
     models = [(model_label_from_path(primary), primary)]
     if model_mode == MODEL_MODE_COMPARE:
         compare = Path(_model_path_or_default(compare_model_path, str(MODEL_REGISTRY[MODEL_SOURCE]["path"])))
+        if primary == compare:
+            raise gr.Error("对比模型不能与主模型使用同一个权重文件，请选择另一个模型后再运行对比。")
         models.append((model_label_from_path(compare), compare))
     return models
 
@@ -952,6 +954,24 @@ def _item_results(item: dict[str, Any]) -> list[dict[str, Any]]:
     return [result] if isinstance(result, dict) else []
 
 
+def _model_result_records(item: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = []
+    for result in _item_results(item):
+        model_name = text_value(result.get("model"), "unknown")
+        detections = []
+        for det in _clean_detection_records(result.get("detections", [])):
+            detections.append({**det, "模型": model_name})
+        rows.append(
+            {
+                "model": model_name,
+                "model_path": text_value(result.get("model_path")),
+                "detection_count": len(detections),
+                "detections": detections,
+            }
+        )
+    return rows
+
+
 def _report_match_key(value: Any) -> str:
     if isinstance(value, dict):
         return str(value.get("display_name") or value.get("name") or value.get("image_name") or "").strip()
@@ -1497,6 +1517,14 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
         quality_text=assess_image_quality(original_img),
         summary=summary_data,
         safety_notice=SAFETY_NOTICE,
+        model_results=[
+            {
+                "model": model_result.get("model", "unknown"),
+                "model_path": model_result.get("model_path", ""),
+                "detections": _clean_detection_records(model_result.get("detections", [])),
+            }
+            for model_result in _item_results(item)
+        ],
     )
     try:
         path = export_single_docx_report(report_data, output_dir)
@@ -1546,6 +1574,7 @@ def save_case_record(
         "image_name": item.get("name") or "当前单图",
         "display_name": _item_display_name(item, item.get("name") or "当前单图"),
         "summary": item.get("summary", {}),
+        "model_results": _model_result_records(item),
         "detections": _clean_detection_records(result.get("detections", [])),
         "quality_text": item.get("quality_text") or assess_image_quality(result.get("original")),
         "quality_level": item.get("quality_level", ""),

@@ -45,7 +45,8 @@ def build_batch_summary(batch_state: list[dict[str, Any]], batch_errors: list[st
     confidences = []
 
     for item in batch_state or []:
-        image_name = item.get("name") or item.get("image_name") or "未命名图片"
+        raw_image_name = item.get("name") or item.get("image_name") or "未命名图片"
+        image_name = item.get("display_name") or raw_image_name
         quality_level = str(item.get("quality_level") or "")
         if quality_level == "较差":
             poor_quality_images.append(image_name)

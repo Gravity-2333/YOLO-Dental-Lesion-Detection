@@ -29,6 +29,21 @@ def _read_case_file(path: Path) -> dict[str, Any]:
 
 
 def _case_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
+    model_results = data.get("model_results")
+    if isinstance(model_results, list) and model_results:
+        rows = []
+        for result in model_results:
+            if not isinstance(result, dict):
+                continue
+            model_name = result.get("model") or result.get("模型")
+            for det in result.get("detections") or []:
+                if not isinstance(det, dict):
+                    continue
+                row = enrich_detection_row(det)
+                if model_name:
+                    row["模型"] = str(model_name)
+                rows.append(row)
+        return rows
     return [enrich_detection_row(det) for det in data.get("detections") or [] if isinstance(det, dict)]
 
 
@@ -206,7 +221,7 @@ def export_case_report(storage_dir: str, file_name: str) -> Path:
 
     document.add_heading("检测框明细", level=1)
     document.add_paragraph(REGION_NOTICE)
-    headers = ["序号", "类别", "中文名称", "置信度", "关注等级", "图像区域", "x1", "y1", "x2", "y2"]
+    headers = ["序号", "模型", "类别", "中文名称", "置信度", "关注等级", "图像区域", "x1", "y1", "x2", "y2"]
     table = document.add_table(rows=1, cols=len(headers))
     table.style = "Table Grid"
     for cell, header in zip(table.rows[0].cells, headers):
@@ -215,6 +230,7 @@ def export_case_report(storage_dir: str, file_name: str) -> Path:
         for index, row in enumerate(detections, start=1):
             values = [
                 index,
+                row.get("模型", ""),
                 row.get("class", ""),
                 row.get("中文名称", ""),
                 row.get("confidence", ""),
@@ -228,7 +244,7 @@ def export_case_report(storage_dir: str, file_name: str) -> Path:
             for cell, value in zip(table.add_row().cells, values):
                 cell.text = str(value)
     else:
-        for cell, value in zip(table.add_row().cells, ["-", "无检测结果", "", "", "", "", "", "", "", ""]):
+        for cell, value in zip(table.add_row().cells, ["-", "", "无检测结果", "", "", "", "", "", "", "", ""]):
             cell.text = str(value)
 
     if data.get("quality_text"):

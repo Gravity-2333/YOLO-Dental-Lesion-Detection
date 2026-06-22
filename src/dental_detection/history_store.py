@@ -34,7 +34,41 @@ def _clean_rows(detections: Any) -> list[dict[str, Any]]:
     rows = []
     for det in detections or []:
         if isinstance(det, dict):
-            rows.append(enrich_detection_row(det))
+            row = enrich_detection_row(det)
+            model_name = det.get("model") or det.get("模型")
+            if model_name:
+                row["模型"] = text_value(model_name)
+            rows.append(row)
+    return rows
+
+
+def _item_model_results(item: dict[str, Any]) -> list[dict[str, Any]]:
+    results = item.get("all_results")
+    if isinstance(results, list) and results:
+        return [result for result in results if isinstance(result, dict)]
+    result = item.get("result") or item
+    return [result] if isinstance(result, dict) else []
+
+
+def _history_model_rows(item: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = []
+    for result in _item_model_results(item):
+        model_name = text_value(result.get("model"), "unknown")
+        detections = []
+        for det in result.get("detections") or []:
+            if not isinstance(det, dict):
+                continue
+            enriched = enrich_detection_row(det)
+            enriched["模型"] = model_name
+            detections.append(enriched)
+        rows.append(
+            {
+                "model": model_name,
+                "model_path": text_value(result.get("model_path")),
+                "detection_count": len(detections),
+                "detections": detections,
+            }
+        )
     return rows
 
 
@@ -65,7 +99,13 @@ def build_history_record(item: dict[str, Any]) -> dict[str, Any]:
     result = result if isinstance(result, dict) else {}
     summary = item.get("summary")
     summary = summary if isinstance(summary, dict) else {}
-    rows = _clean_rows(result.get("detections", []))
+    model_results = _history_model_rows(item)
+    if model_results:
+        rows = [row for model in model_results for row in model.get("detections", []) if isinstance(row, dict)]
+        model_names = [row["model"] for row in model_results if row.get("model")]
+    else:
+        rows = _clean_rows(result.get("detections", []))
+        model_names = [_model_name(item, result, summary)]
     confidences = [parse_confidence(row.get("confidence")) for row in rows]
     confidence_values = [value for value in confidences if value is not None]
     max_confidence = max(confidence_values) if confidence_values else None
@@ -79,9 +119,10 @@ def build_history_record(item: dict[str, Any]) -> dict[str, Any]:
         "classes": classes,
         "max_confidence": round(max_confidence, 4) if max_confidence is not None else "",
         "level": get_confidence_level(max_confidence) if max_confidence is not None else "无检测结果",
-        "model": _model_name(item, result, summary),
+        "model": "、".join(dict.fromkeys(model_names)) if model_names else _model_name(item, result, summary),
         "use_clahe": bool(summary.get("CLAHE增强", False)),
         "report_path": str(item.get("word_report_path") or item.get("report_path") or ""),
+        "model_results": model_results,
         "detections": rows,
         "quality_level": item.get("quality_level", ""),
         "quality_text": item.get("quality_text", ""),

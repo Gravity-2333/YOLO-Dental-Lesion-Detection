@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -26,6 +26,7 @@ class SingleReportData:
     quality_text: str
     summary: dict[str, Any]
     safety_notice: str
+    model_results: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _add_paragraphs(document, text: str) -> None:
@@ -86,7 +87,9 @@ def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
 
     document.add_paragraph(f"生成时间：{data.created_at}")
     document.add_paragraph(f"图片名称：{data.image_name}")
-    document.add_paragraph(f"使用模型：{data.model_name}")
+    model_groups = _single_report_model_results(data)
+    model_names = [item["model"] for item in model_groups if item.get("model")]
+    document.add_paragraph(f"使用模型：{'、'.join(dict.fromkeys(model_names)) if model_names else data.model_name}")
     document.add_paragraph("报告类型：单张影像检测报告")
 
     document.add_heading("一、影像与检测结果", level=1)
@@ -105,9 +108,17 @@ def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
 
     document.add_heading("二、检测摘要", level=1)
     detection_image_size = _image_size(data.model_input_image) or _image_size(data.original_image)
-    enriched = [enrich_detection_row(det, detection_image_size) for det in data.detections]
+    enriched = []
+    for group in model_groups:
+        model_name = group.get("model", "")
+        for det in group.get("detections", []):
+            row = enrich_detection_row(det, detection_image_size)
+            row["模型"] = model_name
+            enriched.append(row)
     if enriched:
         document.add_paragraph(f"本次共检测到 {len(enriched)} 个疑似目标区域。")
+        if len(model_groups) > 1:
+            document.add_paragraph(f"模型结果组数：{len(model_groups)}")
         counts: dict[str, int] = {}
         for row in enriched:
             display_name = row["中文名称"]
@@ -121,26 +132,31 @@ def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
 
     document.add_heading("三、检测框明细", level=1)
     document.add_paragraph(REGION_NOTICE)
-    headers = ["序号", "类别", "中文名称", "置信度", "关注等级", "图像区域", "x1", "y1", "x2", "y2"]
+    headers = ["序号", "模型", "类别", "中文名称", "置信度", "关注等级", "图像区域", "x1", "y1", "x2", "y2"]
     table = document.add_table(rows=1, cols=len(headers))
     table.style = "Table Grid"
     for cell, header in zip(table.rows[0].cells, headers):
         cell.text = header
-    for index, row in enumerate(enriched, start=1):
-        cells = table.add_row().cells
-        values = [
-            index,
-            row["class"],
-            row["中文名称"],
-            row["confidence"],
-            row["关注等级"],
-            row.get("图像区域", ""),
-            row["x1"],
-            row["y1"],
-            row["x2"],
-            row["y2"],
-        ]
-        for cell, value in zip(cells, values):
+    if enriched:
+        for index, row in enumerate(enriched, start=1):
+            cells = table.add_row().cells
+            values = [
+                index,
+                row.get("模型", ""),
+                row["class"],
+                row["中文名称"],
+                row["confidence"],
+                row["关注等级"],
+                row.get("图像区域", ""),
+                row["x1"],
+                row["y1"],
+                row["x2"],
+                row["y2"],
+            ]
+            for cell, value in zip(cells, values):
+                cell.text = str(value)
+    else:
+        for cell, value in zip(table.add_row().cells, ["-", "", "未检测到目标框", "", "", "", "", "", "", "", ""]):
             cell.text = str(value)
 
     document.add_heading("四、图像质量提示", level=1)
@@ -158,7 +174,7 @@ def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
     document.add_paragraph(f"IoU 阈值：{_summary_value(data.summary, 'IoU阈值', 'iou')}")
     document.add_paragraph(f"CLAHE 增强：{_yes_no(_summary_value(data.summary, 'CLAHE增强'))}")
     document.add_paragraph(f"运行设备：{_summary_value(data.summary, '运行设备')}")
-    document.add_paragraph(f"模型名称：{data.model_name}")
+    document.add_paragraph(f"模型名称：{'、'.join(dict.fromkeys(model_names)) if model_names else data.model_name}")
 
     document.save(output_path)
     return output_path
@@ -201,6 +217,24 @@ def _model_name(item: dict[str, Any]) -> str:
                 return str(first["模型"])
         return str(summary.get("模型", "unknown"))
     return "unknown"
+
+
+def _single_report_model_results(data: SingleReportData) -> list[dict[str, Any]]:
+    if data.model_results:
+        rows = []
+        for index, item in enumerate(data.model_results, start=1):
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                {
+                    "model": str(item.get("model") or item.get("模型") or f"模型 {index}"),
+                    "model_path": str(item.get("model_path") or item.get("路径") or item.get("模型路径") or ""),
+                    "detections": [det for det in item.get("detections", []) if isinstance(det, dict)],
+                }
+            )
+        if rows:
+            return rows
+    return [{"model": data.model_name, "model_path": "", "detections": data.detections}]
 
 
 def _add_detection_table(document, detections: list[dict[str, Any]], image_size: tuple[int, int] | None = None) -> None:
@@ -300,9 +334,16 @@ def export_batch_docx_report(
         temp_root = Path(temp_dir)
         for index, item in enumerate(batch_state, start=1):
             result = _primary_result(item)
+            item_results = _item_results(item)
             name = item.get("name") or item.get("image_name") or f"image_{index:03d}.png"
+            result_detections = [
+                det
+                for model_result in item_results
+                for det in (model_result.get("detections", []) if isinstance(model_result, dict) else [])
+                if isinstance(det, dict)
+            ]
             detections = result.get("detections", []) if isinstance(result, dict) else []
-            enriched = [enrich_detection_row(det) for det in detections or [] if isinstance(det, dict)]
+            enriched = [enrich_detection_row(det) for det in result_detections]
             confidences = []
             for row in enriched:
                 confidence = parse_confidence(row.get("confidence"))
@@ -315,6 +356,8 @@ def export_batch_docx_report(
             document.add_paragraph(f"检测框数量：{len(enriched)}")
             document.add_paragraph(f"涉及类别：{'、'.join(classes) if classes else '无'}")
             document.add_paragraph(f"最高置信度：{max(confidences):.4f}" if confidences else "最高置信度：无")
+            if len(item_results) > 1:
+                document.add_paragraph(f"模型结果组数：{len(item_results)}")
             quality_text = item.get("quality_text")
             if quality_text:
                 document.add_paragraph("图像质量提示：")
@@ -325,7 +368,14 @@ def export_batch_docx_report(
                 image_path = _save_temp_image(annotated, temp_root, f"{index:03d}_{_safe_name(name)}.png")
                 document.add_picture(str(image_path), width=Inches(5.8))
             image_size = _image_size(result.get("model_input")) or _image_size(result.get("original")) or _image_size(annotated)
-            _add_detection_table(document, detections, image_size)
+            if len(item_results) > 1:
+                for model_index, model_result in enumerate(item_results, start=1):
+                    model_name = model_result.get("model", f"模型 {model_index}") if isinstance(model_result, dict) else f"模型 {model_index}"
+                    model_detections = model_result.get("detections", []) if isinstance(model_result, dict) else []
+                    document.add_paragraph(f"模型 {model_index}：{model_name}")
+                    _add_detection_table(document, model_detections, image_size)
+            else:
+                _add_detection_table(document, detections, image_size)
 
             advice = item.get("advice")
             if advice:
