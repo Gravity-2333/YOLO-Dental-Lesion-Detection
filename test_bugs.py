@@ -432,5 +432,53 @@ except Exception as e:
     print(f"✗ 历史记录ZIP报告路径测试失败: {e}")
     sys.exit(1)
 
+print("\n测试16: 检查历史/病例兼容百分号置信度和中文字段...")
+try:
+    from src.dental_detection.result_levels import enrich_detection_row, parse_confidence
+
+    assert parse_confidence("81%") == 0.81, "百分号置信度应转换为0-1小数"
+    assert parse_confidence(81) == 0.81, "0-100置信度数值应转换为0-1小数"
+    enriched = enrich_detection_row({"类别": "Periapical_Lesion", "置信度": "76%", "x1": 1, "y1": 2, "x2": 20, "y2": 30})
+    assert enriched["class"] == "Periapical_Lesion", "中文类别字段应被识别"
+    assert enriched["confidence"] == 0.76, "中文置信度字段应被识别"
+    assert enriched["关注等级"] == "重点关注", "百分号置信度应参与关注等级判断"
+
+    with TemporaryDirectory() as temp_dir:
+        legacy_item = {
+            "name": "legacy.png",
+            "result": {
+                "model": "legacy-model",
+                "detections": [
+                    {"类别": "Caries", "置信度": "81%", "x1": 1, "y1": 2, "x2": 20, "y2": 30},
+                ],
+            },
+        }
+        append_history_records([legacy_item], temp_dir, 100)
+        rows = history_rows(temp_dir)
+        assert rows[0]["最高置信度"] == "0.81", "历史表应正确显示百分号置信度"
+        assert rows[0]["关注等级"] == "重点关注", "历史表应正确计算百分号关注等级"
+
+        ensure_app_dirs(temp_dir)
+        case_path = case_dir(temp_dir) / "case_20260622_legacy.json"
+        case_path.write_text(
+            json.dumps(
+                {
+                    "created_at": "2026-06-22T00:00:00",
+                    "case_id": "legacy-case",
+                    "image_name": "legacy.png",
+                    "detections": [{"类别": "Impacted", "置信度": 76, "x1": 1, "y1": 2, "x2": 20, "y2": 30}],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        case_rows = list_case_records(temp_dir)
+        assert case_rows[0]["最高置信度"] == 0.76, "病例列表应正确统计0-100置信度"
+        assert case_rows[0]["关注等级"] == "重点关注", "病例列表应正确计算0-100关注等级"
+    print("✓ 百分号置信度和中文字段兼容正常")
+except Exception as e:
+    print(f"✗ 百分号置信度和中文字段兼容测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

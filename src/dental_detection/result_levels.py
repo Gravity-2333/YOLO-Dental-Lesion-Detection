@@ -34,12 +34,22 @@ def get_class_display_name(name: str) -> str:
 
 
 def parse_confidence(value: Any) -> float | None:
+    percent_value = False
+    if isinstance(value, str):
+        text = value.strip()
+        if text.endswith("%"):
+            percent_value = True
+            value = text[:-1].strip()
+        else:
+            value = text
     try:
         number = float(value)
     except (TypeError, ValueError):
         return None
     if not math.isfinite(number):
         return None
+    if percent_value or number > 1:
+        number = number / 100
     return max(0.0, min(1.0, number))
 
 
@@ -103,8 +113,8 @@ def estimate_image_region(det: dict[str, Any], image_size: tuple[int, int] | Non
 
 
 def enrich_detection_row(det: dict[str, Any], image_size: tuple[int, int] | None = None) -> dict[str, Any]:
-    label = str(det.get("class", "未知类别") or "未知类别")
-    confidence = det.get("confidence", "")
+    label = str(det.get("class") or det.get("类别") or det.get("label") or det.get("name") or "未知类别")
+    confidence = det.get("confidence", det.get("置信度", ""))
     return {
         "class": label,
         "中文名称": get_class_display_name(label),
