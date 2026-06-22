@@ -43,6 +43,11 @@ def parse_confidence(value: Any) -> float | None:
     return max(0.0, min(1.0, number))
 
 
+def display_confidence(value: Any) -> float | str:
+    confidence = parse_confidence(value)
+    return round(confidence, 4) if confidence is not None else ""
+
+
 def get_confidence_level(confidence: Any) -> str:
     value = parse_confidence(confidence)
     if value is None:
@@ -103,7 +108,7 @@ def enrich_detection_row(det: dict[str, Any], image_size: tuple[int, int] | None
     return {
         "class": label,
         "中文名称": get_class_display_name(label),
-        "confidence": confidence,
+        "confidence": display_confidence(confidence),
         "关注等级": get_confidence_level(confidence),
         "置信度解释": get_confidence_description(confidence),
         "图像区域": estimate_image_region(det, image_size),
