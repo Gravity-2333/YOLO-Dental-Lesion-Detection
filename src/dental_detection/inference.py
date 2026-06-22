@@ -11,6 +11,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from .config import CUSTOM_ULTRALYTICS_PATH
+from .visualization import as_rgb_image
 
 if CUSTOM_ULTRALYTICS_PATH.exists():
     sys.path.insert(0, str(CUSTOM_ULTRALYTICS_PATH))
@@ -44,13 +45,7 @@ MAX_IMAGE_PIXELS = 8000 * 8000  # 最大像素数，超过此值先等比例缩�
 
 def _normalized_rgb_image(image: Image.Image | np.ndarray | str | Path) -> Image.Image:
     """Normalize user input for YOLO without changing aspect ratio."""
-    if isinstance(image, Image.Image):
-        pil_image = ImageOps.exif_transpose(image).convert("RGB")
-    elif isinstance(image, (str, Path)):
-        with Image.open(image) as img:
-            pil_image = ImageOps.exif_transpose(img).convert("RGB")
-    else:
-        pil_image = ImageOps.exif_transpose(Image.fromarray(np.asarray(image))).convert("RGB")
+    pil_image = as_rgb_image(image)
 
     # 超大图像先等比例缩放，避免内存暴涨
     w, h = pil_image.size
