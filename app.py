@@ -75,7 +75,7 @@ from src.dental_detection.model_files import (
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.record_formatters import format_case_record, format_history_record
 from src.dental_detection.result_levels import enrich_detection_row
-from src.dental_detection.text_utils import json_safe_value
+from src.dental_detection.text_utils import json_safe_value, text_value
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from ultralytics import YOLO
 
@@ -1162,15 +1162,20 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
 
         _write_text(
             work_dir / "detections.json",
-            json.dumps({"export": export_info, "overview": batch_overview, "items": json_items}, ensure_ascii=False, indent=2),
+            json.dumps(
+                json_safe_value({"export": export_info, "overview": batch_overview, "items": json_items}),
+                ensure_ascii=False,
+                indent=2,
+                allow_nan=False,
+            ),
         )
         _write_text(
             work_dir / "batch_overview.json",
-            json.dumps(batch_overview, ensure_ascii=False, indent=2),
+            json.dumps(json_safe_value(batch_overview), ensure_ascii=False, indent=2, allow_nan=False),
         )
         _write_text(
             work_dir / "批量检测总览.json",
-            json.dumps(batch_overview, ensure_ascii=False, indent=2),
+            json.dumps(json_safe_value(batch_overview), ensure_ascii=False, indent=2, allow_nan=False),
         )
         _write_text(
             work_dir / "批量检测总览.csv",
@@ -1308,7 +1313,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
         for model_result in all_results
     ]
     total_detections = sum(len(model_item["detections"]) for model_item in model_items)
-    summary_data = item.get("summary", {})
+    summary_data = json_safe_value(item.get("summary", {}))
     # 优先取 result 顶层 model（批量检测），其次取 summary["模型结果"][0]["模型"]（单图检测）
     model_name = result.get("model")
     if not model_name:
@@ -1319,9 +1324,9 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
 
     export_info = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "image_name": name,
-        "model": model_name,
-        "suggestion_type": item.get("suggestion_type", "default"),
+        "image_name": str(name),
+        "model": json_safe_value(model_name),
+        "suggestion_type": text_value(item.get("suggestion_type", "default"), "default"),
         "safety_notice": SAFETY_NOTICE,
     }
     try:
@@ -1356,15 +1361,18 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
         _write_text(
             work_dir / "detections.json",
             json.dumps(
-                {
+                json_safe_value(
+                    {
                     "report": export_info,
                     "summary": summary_data,
                     "models": model_items,
                     "detections": detections,
                     "image_files": image_files,
-                },
+                    }
+                ),
                 ensure_ascii=False,
                 indent=2,
+                allow_nan=False,
             ),
         )
         _write_text(work_dir / "suggestion.txt", advice)
@@ -1423,7 +1431,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
   <h2>辅助建议</h2>
   <pre>{_html_escape(advice)}</pre>
   <h2>参数摘要</h2>
-  <pre>{_html_escape(json.dumps(summary_data, ensure_ascii=False, indent=2))}</pre>
+  <pre>{_html_escape(json.dumps(summary_data, ensure_ascii=False, indent=2, allow_nan=False))}</pre>
 </body>
 </html>
 """
