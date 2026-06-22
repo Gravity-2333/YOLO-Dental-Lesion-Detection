@@ -18,6 +18,7 @@ try:
     from src.dental_detection.history_store import append_history_records, history_rows, load_history_record
     from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
     from src.dental_detection.batch_summary import build_batch_summary
+    from src.dental_detection.record_formatters import format_case_record
     print("✓ 模块导入成功")
 except Exception as e:
     print(f"✗ 模块导入失败: {e}")
@@ -197,6 +198,8 @@ try:
         assert case_rows[0]["检测数量"] == 2, "病例列表应统计两个模型的检测框"
         loaded_case = load_case_record(temp_dir, case_rows[0]["文件名"])
         assert len(loaded_case["model_results"]) == 2, "病例记录应保留模型结果明细"
+        case_detail = format_case_record(loaded_case)
+        assert "model-b" in case_detail and "Impacted" in case_detail, "病例详情文本应显示副模型检测框"
 
         report_path = export_batch_docx_report(batch_state, None, Path(temp_dir) / "reports")
         doc_text = "\n".join(
@@ -257,7 +260,7 @@ except Exception as e:
 
 print("\n测试12: 检查对比模式禁止重复模型...")
 try:
-    from app import MODEL_MODE_COMPARE, _configured_models
+    from app import MODEL_MODE_COMPARE, _configured_models, save_ui_settings, test_model_file
 
     try:
         _configured_models(MODEL_MODE_COMPARE, str(DEFAULT_MODEL_PATH), str(DEFAULT_MODEL_PATH))
@@ -265,6 +268,39 @@ try:
         assert "同一个权重文件" in str(exc), "重复模型应提示用户选择另一个模型"
     else:
         raise AssertionError("对比模式不应允许主模型和对比模型指向同一文件")
+
+    message = test_model_file(str(DEFAULT_MODEL_PATH), str(DEFAULT_MODEL_PATH), MODEL_MODE_COMPARE)
+    assert "同一个权重文件" in message, "测试模型按钮应直接提示重复模型，而不是泛化为加载失败"
+
+    with TemporaryDirectory() as temp_dir:
+        try:
+            save_ui_settings(
+                False,
+                "https://api.deepseek.com/v1",
+                "deepseek-chat",
+                "环境变量",
+                "DEEPSEEK_API_KEY",
+                "",
+                "",
+                False,
+                False,
+                True,
+                temp_dir,
+                "",
+                "简洁版",
+                True,
+                False,
+                MODEL_MODE_COMPARE,
+                "models",
+                str(DEFAULT_MODEL_PATH),
+                str(DEFAULT_MODEL_PATH),
+                True,
+                100,
+            )
+        except Exception as exc:
+            assert "同一个权重文件" in str(exc), "保存设置也应拦截重复模型配置"
+        else:
+            raise AssertionError("保存设置不应接受重复模型对比配置")
     print("✓ 对比模式重复模型拦截正常")
 except Exception as e:
     print(f"✗ 对比模式重复模型测试失败: {e}")

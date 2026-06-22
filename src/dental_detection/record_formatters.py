@@ -20,6 +20,31 @@ def _clean_detection_records(detections: Any) -> list[dict[str, Any]]:
     return rows
 
 
+def _model_result_detections(model_results: Any) -> list[dict[str, Any]]:
+    if not isinstance(model_results, list) or not model_results:
+        return []
+    rows: list[dict[str, Any]] = []
+    for item in model_results:
+        if not isinstance(item, dict):
+            continue
+        model = item.get("model") or item.get("模型")
+        for det in item.get("detections") or []:
+            if not isinstance(det, dict):
+                continue
+            row = dict(det)
+            if model and not row.get("模型"):
+                row["模型"] = model
+            rows.append(row)
+    return _clean_detection_records(rows)
+
+
+def _record_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
+    model_rows = _model_result_detections(data.get("model_results"))
+    if model_rows:
+        return model_rows
+    return _clean_detection_records(data.get("detections") or [])
+
+
 def _format_model_results(model_results: Any) -> list[str]:
     if not isinstance(model_results, list) or not model_results:
         return []
@@ -72,7 +97,7 @@ def format_case_record(data: dict[str, Any] | None) -> str:
         return str(data["提示"])
 
     summary = data.get("summary") or {}
-    detections = _clean_detection_records(data.get("detections") or [])
+    detections = _record_detections(data)
     lines = [
         f"病例编号：{text_value(data.get('case_id'), '未填写')}",
         f"保存时间：{text_value(data.get('created_at'), '-')}",

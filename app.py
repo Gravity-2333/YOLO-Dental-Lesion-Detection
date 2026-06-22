@@ -408,6 +408,10 @@ def _configured_models(model_mode: str, primary_model_path: str, compare_model_p
     return models
 
 
+def _validate_compare_model_selection(model_mode: str, primary_model_path: str, compare_model_path: str) -> None:
+    _configured_models(model_mode, primary_model_path, compare_model_path)
+
+
 def _validate_model_files(models: list[tuple[str, Path]]) -> None:
     for role, path in models:
         if path.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
@@ -563,6 +567,8 @@ def test_model_file(primary_model_path: str, compare_model_path: str, model_mode
     messages = []
     try:
         models = _configured_models(model_mode, primary_model_path, compare_model_path)
+    except gr.Error as exc:
+        return str(exc)
     except Exception as exc:
         return friendly_error_message(exc, "模型路径无效")
     for role, path in models:
@@ -2296,6 +2302,8 @@ def save_ui_settings(
         compare_model_path,
         str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
     )
+    if settings.enable_compare:
+        _validate_compare_model_selection(settings.model_mode, settings.primary_model_path, settings.compare_model_path)
     settings.save_history = bool(save_history)
     settings.history_limit = _normalize_history_limit(history_limit)
     try:
