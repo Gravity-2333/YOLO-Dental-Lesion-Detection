@@ -946,6 +946,19 @@ def _model_detections_html(results: list[dict[str, Any]]) -> str:
     return "".join(sections)
 
 
+def _model_result_images_html(model_items: list[dict[str, Any]]) -> str:
+    image_items = []
+    for item in model_items:
+        model = _html_escape(item.get("model", "unknown"))
+        image_files = item.get("image_files") if isinstance(item.get("image_files"), dict) else {}
+        result_file = image_files.get("result") if image_files else ""
+        if result_file:
+            image_items.append(f'<figure><img src="{_html_escape(result_file)}"><figcaption>{model}</figcaption></figure>')
+    if not image_items:
+        return ""
+    return '<div class="grid">' + "".join(image_items) + "</div>"
+
+
 def _unique_report_paths(storage_dir: str, stamp: str) -> tuple[Path, Path]:
     base = report_dir(storage_dir)
     root = base / f"single_report_{stamp}"
@@ -1129,14 +1142,21 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             _write_text(suggestions_dir / f"{stem}.txt", advice)
 
             model_json_items = []
-            for model_result in all_results:
+            for model_index, model_result in enumerate(all_results, start=1):
                 model_name = model_result.get("model", item.get("model", "unknown"))
                 detections = _clean_detection_records(model_result.get("detections", []))
+                model_image_files = {}
+                model_annotated = _report_annotated_image(model_result)
+                if model_annotated is not None:
+                    model_result_file = f"images/{stem}_model_{model_index:02d}_{_safe_stem(model_name)}_result.png"
+                    save_png_image(model_annotated, work_dir / model_result_file)
+                    model_image_files["result"] = model_result_file
                 model_json_items.append(
                     {
                         "model": model_name,
                         "model_path": model_result.get("model_path", ""),
                         "detections": detections,
+                        "image_files": model_image_files,
                     }
                 )
                 if detections:
@@ -1332,15 +1352,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     stem = _safe_stem(name)
     advice = item.get("advice") or ""
     detections = _clean_detection_records(result.get("detections", []))
-    model_items = [
-        {
-            "model": model_result.get("model", "unknown"),
-            "model_path": model_result.get("model_path", ""),
-            "detections": _clean_detection_records(model_result.get("detections", [])),
-        }
-        for model_result in all_results
-    ]
-    total_detections = sum(len(model_item["detections"]) for model_item in model_items)
+    model_items = []
     summary_data = json_safe_value(item.get("summary", {}))
     # 优先取 result 顶层 model（批量检测），其次取 summary["模型结果"][0]["模型"]（单图检测）
     model_name = result.get("model")
@@ -1373,6 +1385,24 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
         save_png_image(original_img, work_dir / image_files["original"])
         save_png_image(input_img, work_dir / image_files["input"])
         save_png_image(annotated_img, work_dir / image_files["result"])
+        for model_index, model_result in enumerate(all_results, start=1):
+            model = model_result.get("model", "unknown")
+            model_detections = _clean_detection_records(model_result.get("detections", []))
+            model_image_files = {}
+            model_annotated = _report_annotated_image(model_result)
+            if model_annotated is not None:
+                model_result_file = f"images/{stem}_model_{model_index:02d}_{_safe_stem(model)}_result.png"
+                save_png_image(model_annotated, work_dir / model_result_file)
+                model_image_files["result"] = model_result_file
+            model_items.append(
+                {
+                    "model": model,
+                    "model_path": model_result.get("model_path", ""),
+                    "detections": model_detections,
+                    "image_files": model_image_files,
+                }
+            )
+        total_detections = sum(len(model_item["detections"]) for model_item in model_items)
 
         csv_path = work_dir / "detections.csv"
         with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
@@ -1456,6 +1486,8 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
   </div>
   <h2>图例与类别说明</h2>
   {legend_html()}
+  <h2>分模型结果图</h2>
+  {_model_result_images_html(model_items)}
   <h2>检测框</h2>
   {_model_detections_html(all_results)}
   <h2>辅助建议</h2>

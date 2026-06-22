@@ -1,6 +1,7 @@
 """测试脚本 - 检查潜在的bug和边界条件"""
 import sys
 import json
+import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -334,6 +335,61 @@ try:
     print("✓ 切换图片保留报告路径正常")
 except Exception as e:
     print(f"✗ 切换图片报告路径测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试14: 检查对比模型ZIP导出包含分模型结果图...")
+try:
+    from PIL import Image
+    from app import export_batch_results, export_single_report
+
+    image = Image.new("RGB", (80, 60), "white")
+    model_a = {
+        "model": "model-a",
+        "model_path": "a.pt",
+        "detections": [{"class": "Caries", "confidence": 0.81, "x1": 1, "y1": 2, "x2": 20, "y2": 30}],
+        "original": image,
+        "model_input": image,
+        "annotated": image,
+        "full_annotated": image,
+    }
+    model_b = {
+        "model": "model-b",
+        "model_path": "b.pt",
+        "detections": [{"class": "Impacted", "confidence": 0.76, "x1": 10, "y1": 12, "x2": 40, "y2": 50}],
+        "original": image,
+        "model_input": image,
+        "annotated": image,
+        "full_annotated": image,
+    }
+    batch_state = [
+        {
+            "name": "compare.png",
+            "display_name": "001 - compare.png",
+            "result": model_a,
+            "all_results": [model_a, model_b],
+            "advice": "测试建议",
+            "quality_text": "测试质量",
+            "quality_level": "良好",
+            "summary": {"模型模式": "对比模型"},
+        }
+    ]
+    with TemporaryDirectory() as temp_dir:
+        _, _, single_state = export_single_report(batch_state, "001 - compare.png", temp_dir)
+        single_zip = Path(single_state[0]["zip_report_path"])
+        with zipfile.ZipFile(single_zip) as archive:
+            names = archive.namelist()
+        assert any("model_01" in name and name.endswith("_result.png") for name in names), "单图ZIP应包含主模型结果图"
+        assert any("model_02" in name and name.endswith("_result.png") for name in names), "单图ZIP应包含副模型结果图"
+
+        _, _, batch_state = export_batch_results(batch_state, temp_dir)
+        batch_zip = Path(batch_state[0]["zip_report_path"])
+        with zipfile.ZipFile(batch_zip) as archive:
+            names = archive.namelist()
+        assert any("model_01" in name and name.endswith("_result.png") for name in names), "批量ZIP应包含主模型结果图"
+        assert any("model_02" in name and name.endswith("_result.png") for name in names), "批量ZIP应包含副模型结果图"
+    print("✓ 对比模型ZIP分模型结果图正常")
+except Exception as e:
+    print(f"✗ 对比模型ZIP分模型结果图测试失败: {e}")
     sys.exit(1)
 
 print("\n" + "="*60)
