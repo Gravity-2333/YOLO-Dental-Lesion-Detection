@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import cv2
 import numpy as np
-from PIL import Image, ImageOps, ImageStat
+from PIL import Image, ImageStat
+
+from .visualization import as_rgb_image
 
 
 @dataclass
@@ -27,12 +28,7 @@ class ImageQualityResult:
 def _as_rgb_image(image: Any) -> Image.Image:
     if image is None:
         raise ValueError("image is required")
-    if isinstance(image, Image.Image):
-        return ImageOps.exif_transpose(image).convert("RGB")
-    if isinstance(image, (str, Path)):
-        with Image.open(image) as img:
-            return ImageOps.exif_transpose(img).convert("RGB")
-    return ImageOps.exif_transpose(Image.fromarray(np.asarray(image))).convert("RGB")
+    return as_rgb_image(image)
 
 
 def assess_image_quality_detail(image: Image.Image) -> ImageQualityResult:
