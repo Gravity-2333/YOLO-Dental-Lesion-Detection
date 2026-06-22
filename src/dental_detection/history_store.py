@@ -50,6 +50,16 @@ def _model_name(item: dict[str, Any], result: dict[str, Any], summary: dict[str,
     return str(summary.get("模型", "unknown"))
 
 
+def _record_match_key(item: dict[str, Any]) -> str:
+    return str(item.get("display_name") or item.get("image_name") or "").strip()
+
+
+def _source_match_key(source: Any) -> str:
+    if isinstance(source, dict):
+        return str(source.get("display_name") or source.get("name") or source.get("image_name") or "").strip()
+    return str(source or "").strip()
+
+
 def build_history_record(item: dict[str, Any]) -> dict[str, Any]:
     result = item.get("result") or item
     result = result if isinstance(result, dict) else {}
@@ -64,6 +74,7 @@ def build_history_record(item: dict[str, Any]) -> dict[str, Any]:
         "id": uuid4().hex,
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "image_name": item.get("name") or item.get("image_name") or "未命名图片",
+        "display_name": item.get("display_name") or item.get("name") or item.get("image_name") or "未命名图片",
         "detection_count": len(rows),
         "classes": classes,
         "max_confidence": round(max_confidence, 4) if max_confidence is not None else "",
@@ -183,11 +194,11 @@ def clear_history_records(storage_dir: str | None = None) -> Path:
 
 
 def update_history_report_paths(
-    image_names: list[str],
+    image_names: list[Any],
     report_path: str | Path,
     storage_dir: str | None = None,
 ) -> int:
-    names = [str(name or "").strip() for name in image_names if str(name or "").strip()]
+    names = [_source_match_key(name) for name in image_names if _source_match_key(name)]
     if not names:
         return 0
     records = _load_raw_records(storage_dir)
@@ -195,10 +206,10 @@ def update_history_report_paths(
     remaining = Counter(names)
     path_text = str(report_path)
     for item in reversed(records):
-        image_name = str(item.get("image_name") or "").strip()
-        if remaining.get(image_name, 0) > 0:
+        match_key = _record_match_key(item)
+        if remaining.get(match_key, 0) > 0:
             item["report_path"] = path_text
-            remaining[image_name] -= 1
+            remaining[match_key] -= 1
             changed += 1
         if not any(remaining.values()):
             break

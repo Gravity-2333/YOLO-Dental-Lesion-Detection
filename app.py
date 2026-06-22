@@ -974,14 +974,19 @@ def _item_results(item: dict[str, Any]) -> list[dict[str, Any]]:
     return [result] if isinstance(result, dict) else []
 
 
-def _sync_report_path(batch_state: list[dict[str, Any]], image_names: list[str], path: str | Path, field: str) -> None:
-    names = {str(name or "").strip() for name in image_names if str(name or "").strip()}
-    if not names:
+def _report_match_key(value: Any) -> str:
+    if isinstance(value, dict):
+        return str(value.get("display_name") or value.get("name") or value.get("image_name") or "").strip()
+    return str(value or "").strip()
+
+
+def _sync_report_path(batch_state: list[dict[str, Any]], image_refs: list[Any], path: str | Path, field: str) -> None:
+    match_keys = {_report_match_key(ref) for ref in image_refs if _report_match_key(ref)}
+    if not match_keys:
         return
     path_text = str(path)
     for item in batch_state or []:
-        item_name = str(item.get("name") or item.get("image_name") or "").strip()
-        if item_name in names:
+        if _report_match_key(item) in match_keys:
             item[field] = path_text
             item["report_path"] = path_text
 
@@ -1265,9 +1270,8 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                 export_root.rmdir()
         except OSError:
             pass
-    image_names = [str(item.get("name") or item.get("image_name") or "") for item in batch_state]
-    _sync_report_path(batch_state, image_names, zip_path, "zip_report_path")
-    update_history_report_paths(image_names, zip_path, storage_dir)
+    _sync_report_path(batch_state, batch_state, zip_path, "zip_report_path")
+    update_history_report_paths(batch_state, zip_path, storage_dir)
     return _file_component_output(zip_path), f"已导出：{zip_path}", batch_state
 
 
@@ -1290,9 +1294,8 @@ def export_batch_word_report(batch_state: list[dict[str, Any]], storage_dir: str
         path = export_batch_docx_report(batch_state, overview, output_dir)
     except Exception as exc:
         raise _friendly_gr_error(exc, "批量 Word 报告导出失败") from exc
-    image_names = [str(item.get("name") or item.get("image_name") or "") for item in batch_state]
-    _sync_report_path(batch_state, image_names, path, "word_report_path")
-    update_history_report_paths(image_names, path, storage_dir)
+    _sync_report_path(batch_state, batch_state, path, "word_report_path")
+    update_history_report_paths(batch_state, path, storage_dir)
     return _file_component_output(path), f"已导出批量 Word 报告：{path}", batch_state
 
 
@@ -1460,8 +1463,8 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
                 report_root.rmdir()
         except OSError:
             pass
-    _sync_report_path(batch_state, [name], zip_path, "zip_report_path")
-    update_history_report_paths([name], zip_path, storage_dir)
+    _sync_report_path(batch_state, [item], zip_path, "zip_report_path")
+    update_history_report_paths([item], zip_path, storage_dir)
     return _file_component_output(zip_path), f"已导出单图报告：{zip_path}", batch_state
 
 
@@ -1510,8 +1513,8 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
         path = export_single_docx_report(report_data, output_dir)
     except Exception as exc:
         raise _friendly_gr_error(exc, "Word 报告导出失败") from exc
-    _sync_report_path(batch_state, [name], path, "word_report_path")
-    update_history_report_paths([name], path, storage_dir)
+    _sync_report_path(batch_state, [item], path, "word_report_path")
+    update_history_report_paths([item], path, storage_dir)
     return _file_component_output(path), f"已导出 Word 报告：{path}", batch_state
 
 
