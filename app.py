@@ -980,6 +980,10 @@ def _report_match_key(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _item_display_name(item: dict[str, Any], fallback: str = "") -> str:
+    return str(item.get("display_name") or item.get("name") or item.get("image_name") or fallback).strip()
+
+
 def _sync_report_path(batch_state: list[dict[str, Any]], image_refs: list[Any], path: str | Path, field: str) -> None:
     match_keys = {_report_match_key(ref) for ref in image_refs if _report_match_key(ref)}
     if not match_keys:
@@ -1097,6 +1101,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
 
         for index, item in enumerate(batch_state, start=1):
             name = item.get("name") or item.get("image_name") or f"image_{index:03d}.png"
+            display_name = _item_display_name(item, str(name))
             stem = f"{index:03d}_{_safe_stem(name)}"
             result = item.get("result") or item
             all_results = _item_results(item)
@@ -1131,6 +1136,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                         csv_rows.append(
                             {
                                 "image_name": name,
+                                "display_name": display_name,
                                 "model": model_name,
                                 **{key: det.get(key, "") for key in TABLE_COLUMNS},
                                 "suggestion_type": suggestion_type,
@@ -1140,6 +1146,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                     csv_rows.append(
                         {
                             "image_name": name,
+                            "display_name": display_name,
                             "model": model_name,
                             **{key: "" for key in TABLE_COLUMNS},
                             "suggestion_type": suggestion_type,
@@ -1149,6 +1156,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             json_items.append(
                 {
                     "image_name": name,
+                    "display_name": display_name,
                     "model": result.get("model", item.get("model", "unknown")),
                     "models": model_json_items,
                     "suggestion_type": suggestion_type,
@@ -1168,7 +1176,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
         with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.DictWriter(
                 handle,
-                fieldnames=["image_name", "model", *TABLE_COLUMNS, "suggestion_type"],
+                fieldnames=["image_name", "display_name", "model", *TABLE_COLUMNS, "suggestion_type"],
             )
             writer.writeheader()
             writer.writerows(csv_rows)
@@ -1312,6 +1320,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     images_dir.mkdir(parents=True, exist_ok=True)
 
     name = item.get("name") or item.get("image_name") or "当前单图"
+    display_name = _item_display_name(item, str(name))
     stem = _safe_stem(name)
     advice = item.get("advice") or ""
     detections = _clean_detection_records(result.get("detections", []))
@@ -1336,6 +1345,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     export_info = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "image_name": str(name),
+        "display_name": display_name,
         "model": json_safe_value(model_name),
         "suggestion_type": text_value(item.get("suggestion_type", "default"), "default"),
         "safety_notice": SAFETY_NOTICE,
@@ -1394,6 +1404,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
                     "YOLO Dental Lesion Detection Single Report",
                     f"生成时间: {export_info['created_at']}",
                     f"图片名称: {name}",
+                    f"列表显示名: {display_name}",
                     f"模型: {export_info['model']}",
                     f"建议类型: {export_info['suggestion_type']}",
                     f"主模型检测框数量: {len(detections)}",
@@ -1429,7 +1440,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
   <h1>牙齿病变辅助检测报告</h1>
   <p class="notice">{_html_escape(SAFETY_NOTICE)}</p>
   <p>生成时间：{_html_escape(export_info['created_at'])}</p>
-  <p>图片名称：{_html_escape(name)}；模型：{_html_escape(export_info['model'])}</p>
+  <p>图片名称：{_html_escape(name)}；列表显示名：{_html_escape(display_name)}；模型：{_html_escape(export_info['model'])}</p>
   <div class="grid">
     <figure><img src="{image_files['original']}"><figcaption>原始上传图</figcaption></figure>
     <figure><img src="{image_files['input']}"><figcaption>实际送入模型的图</figcaption></figure>
