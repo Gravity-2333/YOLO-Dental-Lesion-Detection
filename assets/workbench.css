@@ -523,7 +523,7 @@ button[aria-disabled="true"] {
 .path-row,
 .compact-row,
 .chat-input-row {
-  align-items: center !important;
+  align-items: end !important;
   gap: 10px !important;
   overflow: hidden !important;
 }
@@ -541,19 +541,19 @@ button[aria-disabled="true"] {
 .path-row {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 44px 132px !important;
-  align-items: center !important;
+  align-items: end !important;
   column-gap: 12px !important;
   row-gap: 8px !important;
 }
 
 .export-toolbar .path-row {
   grid-template-columns: minmax(0, 1fr) 152px !important;
-  align-items: center !important;
+  align-items: end !important;
 }
 
 .chat-card .path-row {
   grid-template-columns: minmax(0, 1fr) 120px !important;
-  align-items: center !important;
+  align-items: end !important;
 }
 
 .chat-card .path-row > .block,
@@ -582,7 +582,7 @@ button[aria-disabled="true"] {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 132px !important;
   gap: 10px !important;
-  align-items: center !important;
+  align-items: end !important;
   overflow: hidden !important;
 }
 
@@ -617,7 +617,7 @@ button[aria-disabled="true"] {
 .chat-input-row {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 112px !important;
-  align-items: center !important;
+  align-items: end !important;
   gap: 10px !important;
 }
 
@@ -638,6 +638,12 @@ button[aria-disabled="true"] {
 .path-row > .form,
 .path-row > .block {
   min-width: 0 !important;
+}
+
+.path-row > .secondary-action,
+.model-row > .secondary-action,
+.chat-input-row > .primary-action {
+  margin-bottom: 10px !important;
 }
 
 .path-row textarea,
@@ -1159,8 +1165,11 @@ footer,
   .path-row,
   .model-row,
   .chat-input-row {
-    display: flex !important;
-    flex-direction: column !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: stretch !important;
+    row-gap: 10px !important;
+    overflow: visible !important;
   }
 
   .workbench-grid {
@@ -1197,7 +1206,7 @@ footer,
   .path-row > *,
   .model-row > *,
   .chat-input-row > * {
-    flex: 1 1 100% !important;
+    flex: 1 1 auto !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: none !important;
@@ -1540,8 +1549,7 @@ button[aria-disabled="true"] {
 }
 
 
-/* 工具行统一使用容器级居中对齐，避免按钮与输入框产生上下偏移 */
-/* 避免恢复局部底部对齐或额外下边距这类覆盖 */
+/* 工具行按输入框本体底部对齐，按钮保留 10px 补偿以避开 Gradio 标签外壳 */
 .guide-card {
   margin-bottom: 14px;
 }
