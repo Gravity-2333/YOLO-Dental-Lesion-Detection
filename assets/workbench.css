@@ -110,7 +110,7 @@ body,
 }
 
 .tabs button[role="tab"] {
-  border-radius: 0 !important;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0 !important;
   color: #334155 !important;
   font-weight: 600 !important;
 }
