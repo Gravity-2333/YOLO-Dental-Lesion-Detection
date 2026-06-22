@@ -5,6 +5,7 @@ from collections import Counter
 import csv
 from datetime import datetime
 import json
+import math
 from pathlib import Path
 import re
 import shutil
@@ -329,6 +330,8 @@ def _bounded_float(value: Any, *, default: float, minimum: float, maximum: float
     try:
         number = float(value)
     except (TypeError, ValueError):
+        number = default
+    if not math.isfinite(number):
         number = default
     return max(minimum, min(maximum, number))
 

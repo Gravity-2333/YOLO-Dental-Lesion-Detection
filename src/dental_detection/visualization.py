@@ -22,7 +22,13 @@ def as_rgb_image(image: Any) -> Image.Image:
     if isinstance(image, (str, Path)):
         with Image.open(image) as img:
             return ImageOps.exif_transpose(img).convert("RGB")
-    return Image.fromarray(np.asarray(image)).convert("RGB")
+    array = np.asarray(image)
+    if np.issubdtype(array.dtype, np.floating):
+        array = np.nan_to_num(array, nan=0.0, posinf=255.0, neginf=0.0)
+        if array.size and float(np.nanmax(array)) <= 1.0:
+            array = array * 255.0
+        array = np.clip(array, 0, 255).astype(np.uint8)
+    return Image.fromarray(array).convert("RGB")
 
 
 def save_png_image(image: Any, path: str | Path) -> Path:
