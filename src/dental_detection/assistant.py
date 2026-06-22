@@ -252,7 +252,16 @@ def _is_empty_dir(path: Path) -> bool:
     return path.exists() and path.is_dir() and not any(path.iterdir())
 
 
+def _same_resolved_path(left: Path, right: Path) -> bool:
+    try:
+        return left.resolve() == right.resolve()
+    except (OSError, RuntimeError):
+        return False
+
+
 def _move_contents(source: Path, target: Path) -> None:
+    if _same_resolved_path(source, target):
+        return
     target.mkdir(parents=True, exist_ok=True)
     for child in source.iterdir():
         destination = target / child.name
@@ -297,6 +306,8 @@ def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) ->
         return
     direct_target = _managed_data_target(old_root, new_root)
     if direct_target is not None:
+        if _same_resolved_path(old_root, direct_target):
+            return
         _move_contents(old_root, direct_target)
         if _is_empty_dir(old_root):
             old_root.rmdir()
