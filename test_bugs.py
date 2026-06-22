@@ -157,8 +157,24 @@ try:
     image = Image.new("RGB", (80, 60), "white")
     detections_a = [{"class": "Caries", "confidence": 0.81, "x1": 1, "y1": 2, "x2": 20, "y2": 30}]
     detections_b = [{"class": "Impacted", "confidence": 0.76, "x1": 10, "y1": 12, "x2": 40, "y2": 50}]
-    model_a = {"model": "model-a", "model_path": "a.pt", "detections": detections_a, "original": image, "model_input": image, "annotated": image}
-    model_b = {"model": "model-b", "model_path": "b.pt", "detections": detections_b, "original": image, "model_input": image, "annotated": image}
+    model_a = {
+        "model": "model-a",
+        "model_path": "a.pt",
+        "detections": detections_a,
+        "original": image,
+        "model_input": image,
+        "annotated": image,
+        "full_annotated": image,
+    }
+    model_b = {
+        "model": "model-b",
+        "model_path": "b.pt",
+        "detections": detections_b,
+        "original": image,
+        "model_input": image,
+        "annotated": image,
+        "full_annotated": image,
+    }
     batch_state = [
         {
             "name": "compare.png",
@@ -207,6 +223,7 @@ try:
             paragraph.text for paragraph in Document(report_path).paragraphs
         )
         assert "model-a" in doc_text and "model-b" in doc_text, "批量Word报告应写入两个模型名称"
+        assert len(Document(report_path).inline_shapes) >= 3, "批量Word报告应包含主结果图和分模型结果图"
 
         single_report_path = export_single_docx_report(
             SingleReportData(
@@ -222,8 +239,8 @@ try:
                 summary={},
                 safety_notice="测试声明",
                 model_results=[
-                    {"model": "model-a", "model_path": "a.pt", "detections": detections_a},
-                    {"model": "model-b", "model_path": "b.pt", "detections": detections_b},
+                    {"model": "model-a", "model_path": "a.pt", "detections": detections_a, "annotated": image},
+                    {"model": "model-b", "model_path": "b.pt", "detections": detections_b, "annotated": image},
                 ],
             ),
             Path(temp_dir) / "single_reports",
@@ -232,6 +249,7 @@ try:
             cell.text for table in Document(single_report_path).tables for row in table.rows for cell in row.cells
         )
         assert "model-a" in single_doc_text and "model-b" in single_doc_text, "单图Word报告应保留两个模型明细"
+        assert len(Document(single_report_path).inline_shapes) >= 5, "单图Word报告应包含每个模型的结果图"
     print("✓ 对比模型结果追溯正常")
 except Exception as e:
     print(f"✗ 对比模型追溯测试失败: {e}")
@@ -390,6 +408,28 @@ try:
     print("✓ 对比模型ZIP分模型结果图正常")
 except Exception as e:
     print(f"✗ 对比模型ZIP分模型结果图测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试15: 检查历史记录保留ZIP报告路径...")
+try:
+    from src.dental_detection.record_formatters import format_history_record
+
+    with TemporaryDirectory() as temp_dir:
+        item = {
+            "name": "zip-only.png",
+            "display_name": "001 - zip-only.png",
+            "result": {"model": "model-a", "detections": []},
+            "zip_report_path": r"C:\tmp\zip-only-report.zip",
+        }
+        append_history_records([item], temp_dir, 100)
+        rows = history_rows(temp_dir)
+        record = load_history_record(rows[0]["记录ID"], temp_dir)
+        assert record["report_path"] == r"C:\tmp\zip-only-report.zip", "历史记录应在没有Word路径时保留ZIP报告路径"
+        detail = format_history_record(record)
+        assert r"C:\tmp\zip-only-report.zip" in detail, "历史详情应显示ZIP报告路径"
+    print("✓ 历史记录ZIP报告路径正常")
+except Exception as e:
+    print(f"✗ 历史记录ZIP报告路径测试失败: {e}")
     sys.exit(1)
 
 print("\n" + "="*60)

@@ -1564,6 +1564,7 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
                 "model": model_result.get("model", "unknown"),
                 "model_path": model_result.get("model_path", ""),
                 "detections": _clean_detection_records(model_result.get("detections", [])),
+                "annotated": _report_annotated_image(model_result),
             }
             for model_result in _item_results(item)
         ],

@@ -105,6 +105,15 @@ def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
             document.add_paragraph(caption)
             image_path = _save_temp_image(image, temp_root, file_name)
             document.add_picture(str(image_path), width=Inches(5.8))
+        if len(model_groups) > 1:
+            for index, group in enumerate(model_groups, start=1):
+                image = group.get("annotated_image")
+                if image is None:
+                    continue
+                model_name = group.get("model") or f"模型 {index}"
+                document.add_paragraph(f"图 {index + 3} 分模型结果图：{model_name}")
+                image_path = _save_temp_image(image, temp_root, f"model_{index:02d}.png")
+                document.add_picture(str(image_path), width=Inches(5.8))
 
     document.add_heading("二、检测摘要", level=1)
     detection_image_size = _image_size(data.model_input_image) or _image_size(data.original_image)
@@ -204,6 +213,10 @@ def _first_present(*values: Any) -> Any:
     return None
 
 
+def _model_result_image(item: dict[str, Any]) -> Any:
+    return _first_present(item.get("full_annotated"), item.get("annotated"), item.get("result_image"))
+
+
 def _model_name(item: dict[str, Any]) -> str:
     result = _primary_result(item)
     if result.get("model"):
@@ -230,11 +243,12 @@ def _single_report_model_results(data: SingleReportData) -> list[dict[str, Any]]
                     "model": str(item.get("model") or item.get("模型") or f"模型 {index}"),
                     "model_path": str(item.get("model_path") or item.get("路径") or item.get("模型路径") or ""),
                     "detections": [det for det in item.get("detections", []) if isinstance(det, dict)],
+                    "annotated_image": _model_result_image(item),
                 }
             )
         if rows:
             return rows
-    return [{"model": data.model_name, "model_path": "", "detections": data.detections}]
+    return [{"model": data.model_name, "model_path": "", "detections": data.detections, "annotated_image": data.annotated_image}]
 
 
 def _add_detection_table(document, detections: list[dict[str, Any]], image_size: tuple[int, int] | None = None) -> None:
@@ -373,6 +387,14 @@ def export_batch_docx_report(
                     model_name = model_result.get("model", f"模型 {model_index}") if isinstance(model_result, dict) else f"模型 {model_index}"
                     model_detections = model_result.get("detections", []) if isinstance(model_result, dict) else []
                     document.add_paragraph(f"模型 {model_index}：{model_name}")
+                    model_image = _model_result_image(model_result) if isinstance(model_result, dict) else None
+                    if model_image is not None:
+                        image_path = _save_temp_image(
+                            model_image,
+                            temp_root,
+                            f"{index:03d}_model_{model_index:02d}_{_safe_name(name)}.png",
+                        )
+                        document.add_picture(str(image_path), width=Inches(5.8))
                     _add_detection_table(document, model_detections, image_size)
             else:
                 _add_detection_table(document, detections, image_size)

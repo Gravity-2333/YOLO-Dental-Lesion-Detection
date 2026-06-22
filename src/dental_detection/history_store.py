@@ -121,7 +121,7 @@ def build_history_record(item: dict[str, Any]) -> dict[str, Any]:
         "level": get_confidence_level(max_confidence) if max_confidence is not None else "无检测结果",
         "model": "、".join(dict.fromkeys(model_names)) if model_names else _model_name(item, result, summary),
         "use_clahe": bool(summary.get("CLAHE增强", False)),
-        "report_path": str(item.get("word_report_path") or item.get("report_path") or ""),
+        "report_path": str(item.get("word_report_path") or item.get("report_path") or item.get("zip_report_path") or ""),
         "model_results": model_results,
         "detections": rows,
         "quality_level": item.get("quality_level", ""),
