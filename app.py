@@ -49,7 +49,6 @@ from src.dental_detection.config import DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJ
 from src.dental_detection.batch_summary import build_batch_summary
 from src.dental_detection.batch_overview_view import batch_overview_csv_text, batch_overview_html
 from src.dental_detection.history_store import (
-    HISTORY_TABLE_COLUMNS,
     append_history_records,
     clear_history_records,
     delete_history_record,
@@ -74,6 +73,15 @@ from src.dental_detection.model_files import (
 )
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.record_formatters import format_case_record, format_history_record
+from src.dental_detection.record_views import (
+    CASE_TABLE_COLUMNS,
+    HISTORY_TABLE_COLUMNS,
+    case_choices_from_rows as _case_choices_from_rows,
+    case_table as _case_table,
+    history_choices_from_rows as _history_choices_from_rows,
+    history_id as _history_id,
+    history_table_from_rows as _history_table_from_rows,
+)
 from src.dental_detection.result_levels import enrich_detection_row
 from src.dental_detection.text_utils import json_safe_value, text_value
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
@@ -88,7 +96,6 @@ EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
 STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
 MODEL_MODE_SINGLE = "单模型"
 MODEL_MODE_COMPARE = "对比模型"
-CASE_TABLE_COLUMNS = ["保存时间", "病例编号", "图片名称", "检测数量", "涉及类别", "关注等级", "最高置信度", "文件名"]
 COMMON_OUTPUT_QUALITY_INDEX = 12
 _EXTRA_ALLOWED_FILE_ROOTS: set[Path] = set()
 
@@ -739,11 +746,6 @@ def _safe_stem(name: str) -> str:
     return safe[:120].rstrip(" ._") or "image"
 
 
-def _short_choice_text(value: Any, max_length: int = 48) -> str:
-    text = str(value or "").replace("|", "/").strip() or "-"
-    return text if len(text) <= max_length else f"{text[: max_length - 1]}…"
-
-
 def _matches_item_name(item: dict[str, Any], selected_name: Any) -> bool:
     selected_text = str(selected_name or "").strip()
     if not selected_text:
@@ -764,30 +766,6 @@ def _current_item(batch_state: list[dict[str, Any]], selected_name: str | None =
         # 有选中名称但未匹配到任何项 → 抛出明确错误，不静默回退
         raise gr.Error("当前选择的结果已失效，请重新选择图片。")
     return batch_state[0]
-
-
-def _case_choices(storage_dir: str) -> list[str]:
-    choices = []
-    for row in list_case_records(storage_dir):
-        title = _short_choice_text(row.get("病例编号") or row.get("文件名"))
-        image_name = _short_choice_text(row.get("图片名称") or "未命名图片")
-        created_at = _short_choice_text(row.get("保存时间") or "", 32)
-        choices.append(f"{created_at} | {title} | {image_name} | {row.get('文件名')}")
-    return choices
-
-
-def _case_table(rows: list[dict[str, Any]]) -> pd.DataFrame:
-    visible_rows = [{key: row.get(key, "") for key in CASE_TABLE_COLUMNS} for row in rows]
-    return pd.DataFrame(visible_rows, columns=CASE_TABLE_COLUMNS)
-
-
-def _case_choices_from_rows(rows: list[dict[str, Any]]) -> list[str]:
-    return [
-        f"{_short_choice_text(row.get('保存时间') or '', 32)} | "
-        f"{_short_choice_text(row.get('病例编号') or row.get('文件名'))} | "
-        f"{_short_choice_text(row.get('图片名称') or '未命名图片')} | {row.get('文件名')}"
-        for row in rows
-    ]
 
 
 def _case_detail_from_choice(choice: str | None, storage_dir: str) -> str:
@@ -1696,25 +1674,6 @@ def load_case_record(choice: str, storage_dir: str):
 
 def load_case_record_and_clear_export(choice: str, storage_dir: str):
     return load_case_record(choice, storage_dir), _clear_file_output(), ""
-
-
-def _history_table_from_rows(rows: list[dict[str, Any]]) -> pd.DataFrame:
-    return pd.DataFrame(rows, columns=HISTORY_TABLE_COLUMNS)
-
-
-def _history_choices_from_rows(rows: list[dict[str, Any]]) -> list[str]:
-    choices = []
-    for row in rows:
-        created_at = _short_choice_text(row.get("检测时间") or "", 32)
-        image_name = _short_choice_text(row.get("图片名称") or "未命名图片")
-        record_id = row.get("记录ID", "")
-        if record_id:
-            choices.append(f"{created_at} | {image_name} | {record_id}")
-    return choices
-
-
-def _history_id(choice: str) -> str:
-    return str(choice or "").split("|")[-1].strip()
 
 
 def refresh_history_records(storage_dir: str):
