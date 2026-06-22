@@ -9,7 +9,7 @@ from PIL import Image
 
 from .batch_summary import build_batch_summary
 from .model_info import legend_markdown
-from .result_levels import REGION_NOTICE, enrich_detection_row
+from .result_levels import REGION_NOTICE, enrich_detection_row, parse_confidence
 from .visualization import save_png_image
 
 
@@ -305,10 +305,9 @@ def export_batch_docx_report(
             enriched = [enrich_detection_row(det) for det in detections or [] if isinstance(det, dict)]
             confidences = []
             for row in enriched:
-                try:
-                    confidences.append(float(row.get("confidence", 0) or 0))
-                except (TypeError, ValueError):
-                    pass
+                confidence = parse_confidence(row.get("confidence"))
+                if confidence is not None:
+                    confidences.append(confidence)
             classes = sorted({row.get("中文名称", "") for row in enriched if row.get("中文名称")})
 
             document.add_heading(f"{index}. {name}", level=2)
