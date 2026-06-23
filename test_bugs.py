@@ -563,5 +563,25 @@ except Exception as e:
     print(f"✗ 不存在报告文件下载入口测试失败: {e}")
     sys.exit(1)
 
+print("\n测试20: 检查受管目录迁移到自身子目录不递归搬动新目录...")
+try:
+    from src.dental_detection.assistant import migrate_storage
+
+    with TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        old_cases = root / "cases"
+        old_cases.mkdir()
+        (old_cases / "case_legacy.json").write_text("{}", encoding="utf-8")
+        new_storage = old_cases / "nested_storage"
+        migrate_storage(str(old_cases), str(new_storage))
+        migrated_case = new_storage / "cases" / "case_legacy.json"
+        recursive_target = new_storage / "cases" / "nested_storage"
+        assert migrated_case.exists(), "旧 cases 根目录里的病例文件应迁入新存储目录的 cases 子目录"
+        assert not recursive_target.exists(), "迁移时不应把新存储目录再搬进自身子目录"
+    print("✓ 受管目录迁移到自身子目录正常")
+except Exception as e:
+    print(f"✗ 受管目录迁移测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

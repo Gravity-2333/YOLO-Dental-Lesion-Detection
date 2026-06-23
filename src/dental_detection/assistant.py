@@ -259,14 +259,25 @@ def _same_resolved_path(left: Path, right: Path) -> bool:
         return False
 
 
-def _move_contents(source: Path, target: Path) -> None:
+def _contains_path(parent: Path, child: Path) -> bool:
+    try:
+        parent_resolved = parent.resolve()
+        child_resolved = child.resolve()
+    except (OSError, RuntimeError):
+        return False
+    return parent_resolved == child_resolved or parent_resolved in child_resolved.parents
+
+
+def _move_contents(source: Path, target: Path, skip_roots: set[Path] | None = None) -> None:
     if _same_resolved_path(source, target):
         return
     target.mkdir(parents=True, exist_ok=True)
     for child in source.iterdir():
+        if skip_roots and any(_contains_path(skip_root, child) for skip_root in skip_roots):
+            continue
         destination = target / child.name
         if child.is_dir() and destination.exists() and destination.is_dir():
-            _move_contents(child, destination)
+            _move_contents(child, destination, skip_roots)
             if _is_empty_dir(child):
                 child.rmdir()
         elif not destination.exists():
@@ -308,7 +319,8 @@ def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) ->
     if direct_target is not None:
         if _same_resolved_path(old_root, direct_target):
             return
-        _move_contents(old_root, direct_target)
+        skip_roots = {new_root} if old_root in new_root.parents else None
+        _move_contents(old_root, direct_target, skip_roots)
         if _is_empty_dir(old_root):
             old_root.rmdir()
         return
