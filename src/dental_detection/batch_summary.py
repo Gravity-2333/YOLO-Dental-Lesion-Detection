@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Any
 
 from .result_levels import (
+    enrich_detection_row,
     get_class_display_name,
     get_confidence_level,
     parse_confidence,
@@ -26,7 +27,7 @@ def _clean_detections(detections: Any) -> list[dict[str, Any]]:
     rows = []
     for det in detections or []:
         if isinstance(det, dict):
-            rows.append(det)
+            rows.append(enrich_detection_row(det))
     return rows
 
 

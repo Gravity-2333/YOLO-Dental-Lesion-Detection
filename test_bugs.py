@@ -525,5 +525,43 @@ except Exception as e:
     print(f"✗ 对比模型建议覆盖副模型检测框测试失败: {e}")
     sys.exit(1)
 
+print("\n测试18: 检查批量摘要和默认建议兼容中文检测字段...")
+try:
+    chinese_detection = {"类别": "Periapical_Lesion", "置信度": "82%", "x1": 1, "y1": 2, "x2": 20, "y2": 30}
+    summary = build_batch_summary(
+        [
+            {
+                "name": "legacy-cn.png",
+                "display_name": "001 - legacy-cn.png",
+                "result": {"detections": [chinese_detection]},
+            }
+        ]
+    )
+    assert summary["检测框总数"] == 1, "中文字段检测框应参与批量统计"
+    assert summary["最高置信度"] == 0.82, "中文置信度字段应参与最高置信度统计"
+    assert summary["涉及类别"] == "根尖周病变", "中文字段类别应正确映射到显示名称"
+    assert summary["重点关注图片"][0]["原始类别"] == "Periapical_Lesion", "重点关注图片应保留规范类别"
+    advice = default_advice([chinese_detection])
+    assert "根尖周" in advice and "0.82" in advice, "默认建议应兼容中文类别和百分号置信度"
+    print("✓ 批量摘要和默认建议中文字段兼容正常")
+except Exception as e:
+    print(f"✗ 批量摘要和默认建议中文字段兼容测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试19: 检查不存在的历史报告文件不会显示为可下载文件...")
+try:
+    from app import _file_component_output, _remember_allowed_file_root
+
+    with TemporaryDirectory() as temp_dir:
+        missing_path = Path(temp_dir) / "missing-report.docx"
+        _remember_allowed_file_root(temp_dir)
+        output = _file_component_output(missing_path)
+        assert output["visible"] is False, "不存在的报告文件不应显示下载组件"
+        assert output["value"] is None, "不存在的报告文件不应作为 File 组件值"
+    print("✓ 不存在报告文件下载入口隐藏正常")
+except Exception as e:
+    print(f"✗ 不存在报告文件下载入口测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

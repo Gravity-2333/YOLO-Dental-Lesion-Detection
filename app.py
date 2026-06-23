@@ -195,6 +195,8 @@ def _can_return_file(path: str | Path | None) -> bool:
         target = Path(path).expanduser().resolve()
     except (OSError, TypeError, ValueError, RuntimeError):
         return False
+    if not target.is_file():
+        return False
     return any(target == root or root in target.parents for root in _allowed_file_roots())
 
 
