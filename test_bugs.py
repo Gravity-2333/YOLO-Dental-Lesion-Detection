@@ -52,6 +52,7 @@ for url, expected in test_urls:
         print(f"✓ {url} -> {normalized}")
     except Exception as e:
         print(f"✗ {url} 规范化失败: {e}")
+        sys.exit(1)
 
 # 测试4: 检查默认建议生成
 print("\n测试4: 检查默认建议生成...")
@@ -281,7 +282,8 @@ except Exception as e:
 
 print("\n测试12: 检查对比模式禁止重复模型...")
 try:
-    from app import MODEL_MODE_COMPARE, _configured_models, save_ui_settings, test_model_file
+    from app import MODEL_MODE_COMPARE, _configured_models, _with_current_defaults, save_ui_settings, test_model_file
+    from src.dental_detection.assistant import AiSettings, DEFAULT_AI_BASE_URL
 
     try:
         _configured_models(MODEL_MODE_COMPARE, str(DEFAULT_MODEL_PATH), str(DEFAULT_MODEL_PATH))
@@ -322,6 +324,24 @@ try:
             assert "同一个权重文件" in str(exc), "保存设置也应拦截重复模型配置"
         else:
             raise AssertionError("保存设置不应接受重复模型对比配置")
+
+    openai_settings = AiSettings(
+        base_url="https://api.openai.com/v1",
+        model="gpt-4o-mini",
+        key_mode="环境变量",
+        api_key="OPENAI_API_KEY",
+    )
+    preserved = _with_current_defaults(openai_settings, config_exists=True)
+    assert preserved.base_url == "https://api.openai.com/v1", "已保存的 OpenAI 配置不应被迁移为 DeepSeek"
+
+    old_default = AiSettings(
+        base_url="https://api.openai.com/v1",
+        model="gpt-4o-mini",
+        key_mode="环境变量",
+        api_key="OPENAI_API_KEY",
+    )
+    migrated = _with_current_defaults(old_default, config_exists=False)
+    assert migrated.base_url == DEFAULT_AI_BASE_URL, "首次运行旧默认配置应迁移为当前默认服务"
     print("✓ 对比模式重复模型拦截正常")
 except Exception as e:
     print(f"✗ 对比模式重复模型测试失败: {e}")
