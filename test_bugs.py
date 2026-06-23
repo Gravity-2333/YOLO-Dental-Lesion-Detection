@@ -38,15 +38,17 @@ except Exception as e:
 # 测试3: 检查URL规范化
 print("\n测试3: 检查URL规范化...")
 test_urls = [
-    "api.deepseek.com",
-    "https://api.openai.com/v1",
-    "http://localhost:8000",
-    "127.0.0.1:5000",
-    "https://api.example.com/v1/chat/completions",
+    ("api.deepseek.com", "https://api.deepseek.com/v1"),
+    ("https://api.openai.com/v1", "https://api.openai.com/v1"),
+    ("http://localhost:8000", "http://localhost:8000/v1"),
+    ("127.0.0.1:5000", "http://127.0.0.1:5000/v1"),
+    ("https://api.example.com/v1/chat/completions", "https://api.example.com/v1"),
+    ("https://api.example.com/openai/v1/chat/completions", "https://api.example.com/openai/v1"),
 ]
-for url in test_urls:
+for url, expected in test_urls:
     try:
         normalized = normalize_base_url(url)
+        assert normalized == expected, f"期望 {expected}，实际 {normalized}"
         print(f"✓ {url} -> {normalized}")
     except Exception as e:
         print(f"✗ {url} 规范化失败: {e}")

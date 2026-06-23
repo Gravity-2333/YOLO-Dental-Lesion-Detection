@@ -388,11 +388,8 @@ def normalize_base_url(base_url: str) -> str:
             pass
         value = f"{scheme}://{value}"
     lowered = value.lower()
-    for suffix in ("/v1/chat/completions", "/chat/completions"):
-        if lowered.endswith(suffix):
-            value = value[: -len(suffix)]
-            lowered = value.lower()
-            break
+    if lowered.endswith("/chat/completions"):
+        value = value[: -len("/chat/completions")]
     parsed = urlparse(value)
     if parsed.scheme and parsed.netloc and not parsed.path.strip("/"):
         value = f"{value}/v1"
