@@ -623,5 +623,27 @@ except Exception as e:
     print(f"✗ 模型缺失错误提示测试失败: {e}")
     sys.exit(1)
 
+print("\n测试23: 检查模型扫描包含 mlpackage 目录模型...")
+try:
+    from src.dental_detection.model_files import scan_model_files
+
+    with TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        package = root / "exported_model.mlpackage"
+        package.mkdir()
+        choices = scan_model_files(root)
+        assert any(Path(value).name == "exported_model.mlpackage" for _, value in choices), (
+            "扫描模型目录时应把 .mlpackage 目录作为可选模型"
+        )
+
+        direct_choices = scan_model_files(package)
+        assert len(direct_choices) == 1 and Path(direct_choices[0][1]).name == "exported_model.mlpackage", (
+            "直接选择 .mlpackage 目录时应返回该模型"
+        )
+    print("✓ mlpackage 目录模型扫描正常")
+except Exception as e:
+    print(f"✗ mlpackage 目录模型扫描测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
