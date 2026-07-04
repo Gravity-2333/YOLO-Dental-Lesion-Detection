@@ -1789,7 +1789,7 @@ def delete_selected_history_record(choice: str, storage_dir: str):
     record_id = _history_id(choice)
     if not record_id:
         history_select, table, detail, message = refresh_history_records(storage_dir)
-        return history_select, table, "请选择要删除的历史记录。", message
+        return history_select, table, detail, "请选择要删除的历史记录。"
     deleted = delete_history_record(record_id, storage_dir)
     history_select, table, detail, message = refresh_history_records(storage_dir)
     feedback = "已删除所选历史记录。" if deleted else "未找到所选历史记录，请刷新后重试。"

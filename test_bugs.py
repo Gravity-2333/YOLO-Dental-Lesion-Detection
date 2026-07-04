@@ -663,5 +663,18 @@ except Exception as e:
     print(f"✗ 示例图片加载测试失败: {e}")
     sys.exit(1)
 
+print("\n测试25: 检查未选择历史记录时删除提示不会覆盖详情...")
+try:
+    from app import delete_selected_history_record
+
+    with TemporaryDirectory() as temp_dir:
+        _, _, detail, feedback = delete_selected_history_record("", temp_dir)
+        assert "请选择一条检测历史" in detail, "未选择时历史详情应保持正常空状态"
+        assert "请选择要删除的历史记录" in feedback, "未选择删除应把提示放在反馈区域"
+    print("✓ 历史删除空选择提示正常")
+except Exception as e:
+    print(f"✗ 历史删除空选择提示测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
