@@ -449,6 +449,19 @@ try:
         assert record["report_path"] == r"C:\tmp\zip-only-report.zip", "历史记录应在没有Word路径时保留ZIP报告路径"
         detail = format_history_record(record)
         assert r"C:\tmp\zip-only-report.zip" in detail, "历史详情应显示ZIP报告路径"
+
+        latest_item = {
+            "name": "latest-report.png",
+            "display_name": "001 - latest-report.png",
+            "result": {"model": "model-a", "detections": []},
+            "word_report_path": r"C:\tmp\old-word-report.docx",
+            "zip_report_path": r"C:\tmp\latest-report.zip",
+            "report_path": r"C:\tmp\latest-report.zip",
+        }
+        append_history_records([latest_item], temp_dir, 100)
+        latest_rows = history_rows(temp_dir)
+        latest_record = load_history_record(latest_rows[0]["记录ID"], temp_dir)
+        assert latest_record["report_path"] == r"C:\tmp\latest-report.zip", "历史记录应优先保留最近一次导出的报告路径"
     print("✓ 历史记录ZIP报告路径正常")
 except Exception as e:
     print(f"✗ 历史记录ZIP报告路径测试失败: {e}")
