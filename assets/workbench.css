@@ -1164,7 +1164,9 @@ footer,
 
   .path-row,
   .model-row,
-  .chat-input-row {
+  .chat-input-row,
+  .export-toolbar .path-row,
+  .chat-card .path-row {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;
     align-items: stretch !important;
@@ -1217,7 +1219,11 @@ footer,
   .model-row .form,
   .model-row .block,
   .chat-input-row .form,
-  .chat-input-row .block {
+  .chat-input-row .block,
+  .export-toolbar .path-row .form,
+  .export-toolbar .path-row .block,
+  .chat-card .path-row .form,
+  .chat-card .path-row .block {
     width: 100% !important;
     max-width: none !important;
   }
@@ -1225,6 +1231,8 @@ footer,
   .row.path-row > button,
   .row.model-row > button,
   .row.chat-input-row > button,
+  .export-toolbar .path-row button,
+  .chat-card .path-row button,
   .path-row > button.secondary-action,
   .model-row > button.secondary-action,
   .chat-input-row > button.primary-action {
