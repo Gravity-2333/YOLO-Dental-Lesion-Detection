@@ -11,7 +11,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from .config import CUSTOM_ULTRALYTICS_PATH
-from .visualization import as_rgb_image
+from .visualization import as_rgb_image, label_box_layout
 
 if CUSTOM_ULTRALYTICS_PATH.exists():
     sys.path.insert(0, str(CUSTOM_ULTRALYTICS_PATH))
@@ -162,12 +162,16 @@ class DentalDetector:
             text_box = draw.textbbox((x1, y1), text, font=font)
             text_w = text_box[2] - text_box[0]
             text_h = text_box[3] - text_box[1]
-            label_y = max(0, y1 - text_h - 6)
-            draw.rectangle(
-                (x1, label_y, min(image.width - 1, x1 + text_w + 8), label_y + text_h + 6),
-                fill=color,
+            label_left, label_top, label_right, label_bottom, text_x, text_y = label_box_layout(
+                image.width,
+                image.height,
+                x1,
+                y1,
+                text_w,
+                text_h,
             )
-            draw.text((x1 + 4, label_y + 3), text, fill=(255, 255, 255), font=font)
+            draw.rectangle((label_left, label_top, label_right, label_bottom), fill=color)
+            draw.text((text_x, text_y), text, fill=(255, 255, 255), font=font)
 
         return annotated
 

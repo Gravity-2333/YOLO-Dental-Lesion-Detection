@@ -53,6 +53,40 @@ def save_result_image(image: Image.Image, storage_dir: str, image_name: str) -> 
     return path
 
 
+def label_box_layout(
+    image_width: int,
+    image_height: int,
+    anchor_x: float,
+    anchor_y: float,
+    text_width: int,
+    text_height: int,
+    *,
+    pad_x: int = 4,
+    pad_y: int = 3,
+    gap: int = 6,
+) -> tuple[int, int, int, int, int, int]:
+    """Return a label background and text origin clamped inside the image."""
+    box_width = max(1, int(text_width) + pad_x * 2)
+    box_height = max(1, int(text_height) + pad_y * 2)
+    max_left = max(0, int(image_width) - box_width)
+    left = max(0, min(max_left, int(round(anchor_x))))
+
+    above_top = int(round(anchor_y - box_height - gap))
+    below_top = int(round(anchor_y + gap))
+    if above_top >= 0:
+        top = above_top
+    elif below_top + box_height <= int(image_height):
+        top = below_top
+    else:
+        top = 0
+    max_top = max(0, int(image_height) - box_height)
+    top = max(0, min(max_top, top))
+
+    right = min(max(0, int(image_width) - 1), left + box_width)
+    bottom = min(max(0, int(image_height) - 1), top + box_height)
+    return left, top, right, bottom, left + pad_x, top + pad_y
+
+
 def draw_detections_with_filter(
     image: Image.Image,
     detections: list[dict[str, Any]],
@@ -94,9 +128,16 @@ def draw_detections_with_filter(
         text_box = draw.textbbox((x1, y1), text, font=font)
         text_w = text_box[2] - text_box[0]
         text_h = text_box[3] - text_box[1]
-        label_y = max(0, y1 - text_h - 6)
-        draw.rectangle((x1, label_y, min(base.width - 1, x1 + text_w + 8), label_y + text_h + 6), fill=color)
-        draw.text((x1 + 4, label_y + 3), text, fill=(255, 255, 255), font=font)
+        label_left, label_top, label_right, label_bottom, text_x, text_y = label_box_layout(
+            base.width,
+            base.height,
+            x1,
+            y1,
+            text_w,
+            text_h,
+        )
+        draw.rectangle((label_left, label_top, label_right, label_bottom), fill=color)
+        draw.text((text_x, text_y), text, fill=(255, 255, 255), font=font)
     return annotated
 
 

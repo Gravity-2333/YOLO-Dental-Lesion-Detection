@@ -583,5 +583,33 @@ except Exception as e:
     print(f"✗ 受管目录迁移测试失败: {e}")
     sys.exit(1)
 
+print("\n测试21: 检查检测框标签贴边时不会越出图像...")
+try:
+    from PIL import Image
+    from src.dental_detection.visualization import draw_detections_with_filter, label_box_layout
+
+    left, top, right, bottom, text_x, text_y = label_box_layout(
+        image_width=80,
+        image_height=60,
+        anchor_x=76,
+        anchor_y=4,
+        text_width=42,
+        text_height=12,
+    )
+    assert 0 <= left <= right <= 79, "标签背景应被限制在图像宽度内"
+    assert 0 <= top <= bottom <= 59, "标签背景应被限制在图像高度内"
+    assert text_x >= left and text_y >= top, "文字起点应位于标签背景内部"
+
+    image = Image.new("RGB", (80, 60), "white")
+    annotated = draw_detections_with_filter(
+        image,
+        [{"class": "Caries", "confidence": 0.91, "x1": 76, "y1": 4, "x2": 79, "y2": 30}],
+    )
+    assert annotated.size == image.size, "重绘结果不应改变图像尺寸"
+    print("✓ 检测框标签贴边布局正常")
+except Exception as e:
+    print(f"✗ 检测框标签贴边布局测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
