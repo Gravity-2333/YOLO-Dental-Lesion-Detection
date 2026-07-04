@@ -611,5 +611,17 @@ except Exception as e:
     print(f"✗ 检测框标签贴边布局测试失败: {e}")
     sys.exit(1)
 
+print("\n测试22: 检查模型文件不存在时优先提示路径缺失...")
+try:
+    from src.dental_detection.error_messages import friendly_error_message
+
+    message = friendly_error_message("model file not found: C:/missing/best.pt", "模型文件不存在")
+    assert "相关文件不存在" in message, "模型缺失应优先提示文件不存在，而不是泛化为加载失败"
+    assert "模型文件无法加载" not in message, "缺失文件不应被误判为权重损坏"
+    print("✓ 模型缺失错误提示正常")
+except Exception as e:
+    print(f"✗ 模型缺失错误提示测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
