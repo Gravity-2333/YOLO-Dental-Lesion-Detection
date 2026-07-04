@@ -1231,11 +1231,16 @@ footer,
   .row.path-row > button,
   .row.model-row > button,
   .row.chat-input-row > button,
+  .row.compact-row > button,
+  .row.settings-actions > button,
   .export-toolbar .path-row button,
   .chat-card .path-row button,
   .path-row > button.secondary-action,
   .model-row > button.secondary-action,
-  .chat-input-row > button.primary-action {
+  .chat-input-row > button.primary-action,
+  .compact-row > button.secondary-action,
+  .compact-row > button.primary-action,
+  .settings-actions > button.primary-action {
     flex: 1 1 100% !important;
     align-self: stretch !important;
     width: 100% !important;
