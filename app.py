@@ -915,9 +915,10 @@ def load_demo_example(path_text: str | None):
     if not in_example_dir or not exists:
         raise gr.Error("示例图片不存在，请检查 assets/examples/dental 目录。")
     try:
-        from PIL import Image
+        from PIL import Image, ImageOps
 
-        image = Image.open(path).convert("RGB")
+        with Image.open(path) as img:
+            image = ImageOps.exif_transpose(img).convert("RGB")
     except Exception as exc:
         raise _friendly_gr_error(exc, "示例图片无法读取") from exc
     return image, _example_preview_text(str(path))

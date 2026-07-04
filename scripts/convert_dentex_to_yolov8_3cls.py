@@ -182,8 +182,15 @@ def convert_test_split(source_root: Path, output_root: Path, report: dict) -> No
             continue
         used_images.add(file_name)
 
-        width = int(data.get("imageWidth") or Image.open(image_path).size[0])
-        height = int(data.get("imageHeight") or Image.open(image_path).size[1])
+        width = data.get("imageWidth")
+        height = data.get("imageHeight")
+        if not width or not height:
+            with Image.open(image_path) as img:
+                image_width, image_height = img.size
+            width = width or image_width
+            height = height or image_height
+        width = int(width)
+        height = int(height)
         boxes: list[YoloBox] = []
         shapes = data.get("shapes", [])
         stats["source_annotations"] += len(shapes)
@@ -299,7 +306,8 @@ def parse_label(path: Path):
 
 
 def draw_preview(image_path: Path, label_path: Path, out_path: Path):
-    image = ImageOps.exif_transpose(Image.open(image_path).convert("RGB"))
+    with Image.open(image_path) as img:
+        image = ImageOps.exif_transpose(img).convert("RGB")
     draw = ImageDraw.Draw(image)
     try:
         font = ImageFont.truetype("arial.ttf", max(14, image.width // 130))

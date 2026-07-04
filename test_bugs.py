@@ -645,5 +645,23 @@ except Exception as e:
     print(f"✗ mlpackage 目录模型扫描测试失败: {e}")
     sys.exit(1)
 
+print("\n测试24: 检查示例图片加载后不依赖未关闭文件句柄...")
+try:
+    from app import EXAMPLE_DIR, load_demo_example
+
+    example_path = next(EXAMPLE_DIR.glob("*.png"))
+    image, info = load_demo_example(str(example_path))
+    assert image.mode == "RGB", "示例图片应加载为 RGB"
+    assert image.size[0] > 0 and image.size[1] > 0, "示例图片尺寸应有效"
+    assert str(info).strip(), "示例图片应返回说明文本"
+    with TemporaryDirectory() as temp_dir:
+        output_path = Path(temp_dir) / "example_copy.png"
+        image.save(output_path)
+        assert output_path.exists(), "示例图片对象应可独立保存，不依赖打开的源文件"
+    print("✓ 示例图片加载句柄处理正常")
+except Exception as e:
+    print(f"✗ 示例图片加载测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
