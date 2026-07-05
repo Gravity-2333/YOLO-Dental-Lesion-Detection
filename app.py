@@ -2296,10 +2296,7 @@ def test_ai_settings(
     if not settings.enabled:
         return "AI 功能未开启。开启后可测试接口。"
     try:
-        result = test_chat_completion(settings)
-        # 测试成功才保存 AI 相关设置
-        _save_runtime_settings(settings)
-        return result
+        return test_chat_completion(settings)
     except Exception as exc:
         return friendly_error_message(exc, "AI 接口测试失败")
 

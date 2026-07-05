@@ -775,5 +775,59 @@ except Exception as e:
     print(f"✗ 空模型明细回退主结果测试失败: {e}")
     sys.exit(1)
 
+print("\n测试28: 检查测试AI接口不会保存配置...")
+try:
+    import app
+
+    original_test_chat = app.test_chat_completion
+    original_save_runtime = app._save_runtime_settings
+    try:
+        app.test_chat_completion = lambda settings: "测试成功：OK"
+
+        def fail_if_saved(*args, **kwargs):
+            raise AssertionError("测试接口不应保存运行时设置")
+
+        app._save_runtime_settings = fail_if_saved
+        result = app.test_ai_settings(
+            True,
+            "https://api.example.com/v1",
+            "example-model",
+            "直接 Key 值",
+            "EXAMPLE_API_KEY",
+            "sk-hidden",
+            "sk-visible",
+            True,
+            False,
+            True,
+            "E:/tmp/should-not-persist",
+            "测试 prompt",
+            "简洁版",
+        )
+        assert result == "测试成功：OK", "测试接口应返回测试结果"
+
+        disabled_result = app.test_ai_settings(
+            False,
+            "https://api.example.com/v1",
+            "example-model",
+            "直接 Key 值",
+            "EXAMPLE_API_KEY",
+            "sk-hidden",
+            "sk-visible",
+            True,
+            False,
+            True,
+            "E:/tmp/should-not-persist",
+            "测试 prompt",
+            "简洁版",
+        )
+        assert "AI 功能未开启" in disabled_result, "AI 关闭时应只提示，不保存配置"
+    finally:
+        app.test_chat_completion = original_test_chat
+        app._save_runtime_settings = original_save_runtime
+    print("✓ 测试AI接口不保存配置正常")
+except Exception as e:
+    print(f"✗ 测试AI接口保存隔离测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
