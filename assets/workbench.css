@@ -535,7 +535,7 @@ button[aria-disabled="true"] {
 .compact-row > .secondary-action,
 .compact-row > .primary-action,
 .compact-row > button {
-  align-self: center !important;
+  align-self: end !important;
 }
 
 .path-row {

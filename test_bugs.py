@@ -890,5 +890,20 @@ except Exception as e:
     print(f"✗ 下载结果图文件名清理测试失败: {e}")
     sys.exit(1)
 
+print("\n测试31: 检查紧凑工具行按钮底部对齐...")
+try:
+    css_text = (Path(__file__).parent / "assets" / "workbench.css").read_text(encoding="utf-8")
+    compact_rule = ".compact-row > .secondary-action,\n.compact-row > .primary-action,\n.compact-row > button"
+    assert compact_rule in css_text, "应保留 compact-row 按钮对齐规则"
+    rule_start = css_text.index(compact_rule)
+    rule_end = css_text.index("}", rule_start)
+    rule_body = css_text[rule_start:rule_end]
+    assert "align-self: end" in rule_body, "compact-row 内按钮应与输入框底部对齐"
+    assert "align-self: center" not in rule_body, "compact-row 内按钮不应垂直居中导致偏上"
+    print("✓ 紧凑工具行按钮底部对齐正常")
+except Exception as e:
+    print(f"✗ 紧凑工具行按钮对齐测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
