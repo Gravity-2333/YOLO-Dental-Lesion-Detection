@@ -43,7 +43,8 @@ def _case_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
                 if model_name:
                     row["模型"] = str(model_name)
                 rows.append(row)
-        return rows
+        if rows:
+            return rows
     return [enrich_detection_row(det) for det in data.get("detections") or [] if isinstance(det, dict)]
 
 

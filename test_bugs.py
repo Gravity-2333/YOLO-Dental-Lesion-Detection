@@ -515,7 +515,35 @@ except Exception as e:
     print(f"✗ 百分号置信度和中文字段兼容测试失败: {e}")
     sys.exit(1)
 
-print("\n测试17: 检查对比模型建议覆盖副模型检测框...")
+print("\n测试17: 检查病例记录兼容空模型明细回退顶层检测框...")
+try:
+    with TemporaryDirectory() as temp_dir:
+        ensure_app_dirs(temp_dir)
+        case_path = case_dir(temp_dir) / "case_20260705_fallback.json"
+        case_path.write_text(
+            json.dumps(
+                {
+                    "created_at": "2026-07-05T00:00:00",
+                    "case_id": "fallback-case",
+                    "image_name": "fallback.png",
+                    "model_results": [{"model": "legacy-model", "detections": []}],
+                    "detections": [{"class": "Caries", "confidence": 0.83, "x1": 1, "y1": 2, "x2": 20, "y2": 30}],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        case_rows = list_case_records(temp_dir)
+        assert case_rows[0]["检测数量"] == 1, "空模型明细不应掩盖顶层 detections"
+        loaded_case = load_case_record(temp_dir, case_rows[0]["文件名"])
+        detail = format_case_record(loaded_case)
+        assert "Caries" in detail and "龋齿" in detail, "病例详情应回退显示顶层检测框"
+    print("✓ 病例空模型明细兼容正常")
+except Exception as e:
+    print(f"✗ 病例空模型明细兼容测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试18: 检查对比模型建议覆盖副模型检测框...")
 try:
     from app import _advice_detections
     from src.dental_detection.assistant import default_advice
@@ -538,7 +566,7 @@ except Exception as e:
     print(f"✗ 对比模型建议覆盖副模型检测框测试失败: {e}")
     sys.exit(1)
 
-print("\n测试18: 检查批量摘要和默认建议兼容中文检测字段...")
+print("\n测试19: 检查批量摘要和默认建议兼容中文检测字段...")
 try:
     chinese_detection = {"类别": "Periapical_Lesion", "置信度": "82%", "x1": 1, "y1": 2, "x2": 20, "y2": 30}
     summary = build_batch_summary(
@@ -561,7 +589,7 @@ except Exception as e:
     print(f"✗ 批量摘要和默认建议中文字段兼容测试失败: {e}")
     sys.exit(1)
 
-print("\n测试19: 检查不存在的历史报告文件不会显示为可下载文件...")
+print("\n测试20: 检查不存在的历史报告文件不会显示为可下载文件...")
 try:
     from app import _file_component_output, _remember_allowed_file_root
 
@@ -576,7 +604,7 @@ except Exception as e:
     print(f"✗ 不存在报告文件下载入口测试失败: {e}")
     sys.exit(1)
 
-print("\n测试20: 检查受管目录迁移到自身子目录不递归搬动新目录...")
+print("\n测试21: 检查受管目录迁移到自身子目录不递归搬动新目录...")
 try:
     from src.dental_detection.assistant import migrate_storage
 
@@ -596,7 +624,7 @@ except Exception as e:
     print(f"✗ 受管目录迁移测试失败: {e}")
     sys.exit(1)
 
-print("\n测试21: 检查检测框标签贴边时不会越出图像...")
+print("\n测试22: 检查检测框标签贴边时不会越出图像...")
 try:
     from PIL import Image
     from src.dental_detection.visualization import draw_detections_with_filter, label_box_layout
@@ -624,7 +652,7 @@ except Exception as e:
     print(f"✗ 检测框标签贴边布局测试失败: {e}")
     sys.exit(1)
 
-print("\n测试22: 检查模型文件不存在时优先提示路径缺失...")
+print("\n测试23: 检查模型文件不存在时优先提示路径缺失...")
 try:
     from src.dental_detection.error_messages import friendly_error_message
 
@@ -636,7 +664,7 @@ except Exception as e:
     print(f"✗ 模型缺失错误提示测试失败: {e}")
     sys.exit(1)
 
-print("\n测试23: 检查模型扫描包含 mlpackage 目录模型...")
+print("\n测试24: 检查模型扫描包含 mlpackage 目录模型...")
 try:
     from src.dental_detection.model_files import scan_model_files
 
@@ -658,7 +686,7 @@ except Exception as e:
     print(f"✗ mlpackage 目录模型扫描测试失败: {e}")
     sys.exit(1)
 
-print("\n测试24: 检查示例图片加载后不依赖未关闭文件句柄...")
+print("\n测试25: 检查示例图片加载后不依赖未关闭文件句柄...")
 try:
     from app import EXAMPLE_DIR, load_demo_example
 
@@ -676,7 +704,7 @@ except Exception as e:
     print(f"✗ 示例图片加载测试失败: {e}")
     sys.exit(1)
 
-print("\n测试25: 检查未选择历史记录时删除提示不会覆盖详情...")
+print("\n测试26: 检查未选择历史记录时删除提示不会覆盖详情...")
 try:
     from app import delete_selected_history_record
 
