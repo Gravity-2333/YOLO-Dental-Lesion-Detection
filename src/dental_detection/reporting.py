@@ -10,6 +10,7 @@ from PIL import Image
 from .batch_summary import build_batch_summary
 from .model_info import legend_markdown
 from .result_levels import REGION_NOTICE, enrich_detection_row, parse_confidence
+from .result_items import item_model_results
 from .visualization import save_png_image
 
 
@@ -194,11 +195,7 @@ def _safe_name(name: str) -> str:
 
 
 def _item_results(item: dict[str, Any]) -> list[dict[str, Any]]:
-    results = item.get("all_results")
-    if isinstance(results, list) and results:
-        return [result for result in results if isinstance(result, dict)]
-    result = item.get("result") or item
-    return [result] if isinstance(result, dict) else []
+    return item_model_results(item)
 
 
 def _primary_result(item: dict[str, Any]) -> dict[str, Any]:

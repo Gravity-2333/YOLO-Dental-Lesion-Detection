@@ -83,6 +83,7 @@ from src.dental_detection.record_views import (
     history_table_from_rows as _history_table_from_rows,
 )
 from src.dental_detection.result_levels import enrich_detection_row
+from src.dental_detection.result_items import item_model_results
 from src.dental_detection.text_utils import json_safe_value, text_value
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from ultralytics import YOLO
@@ -973,11 +974,7 @@ def _unique_report_paths(storage_dir: str, stamp: str) -> tuple[Path, Path]:
 
 
 def _item_results(item: dict[str, Any]) -> list[dict[str, Any]]:
-    results = item.get("all_results")
-    if isinstance(results, list) and results:
-        return [result for result in results if isinstance(result, dict)]
-    result = item.get("result") or item
-    return [result] if isinstance(result, dict) else []
+    return item_model_results(item)
 
 
 def _advice_detections(results: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from .assistant import ensure_app_dirs, storage_root
 from .result_levels import enrich_detection_row, get_confidence_level, parse_confidence
+from .result_items import item_model_results
 from .text_utils import json_safe_value, text_value
 
 HISTORY_FILE_NAME = "检测历史.jsonl"
@@ -43,11 +44,7 @@ def _clean_rows(detections: Any) -> list[dict[str, Any]]:
 
 
 def _item_model_results(item: dict[str, Any]) -> list[dict[str, Any]]:
-    results = item.get("all_results")
-    if isinstance(results, list) and results:
-        return [result for result in results if isinstance(result, dict)]
-    result = item.get("result") or item
-    return [result] if isinstance(result, dict) else []
+    return item_model_results(item)
 
 
 def _history_model_rows(item: dict[str, Any]) -> list[dict[str, Any]]:

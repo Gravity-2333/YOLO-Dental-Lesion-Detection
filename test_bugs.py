@@ -717,5 +717,63 @@ except Exception as e:
     print(f"✗ 历史删除空选择提示测试失败: {e}")
     sys.exit(1)
 
+print("\n测试27: 检查空模型明细不会掩盖主结果检测框...")
+try:
+    from docx import Document
+    from PIL import Image
+    from app import _item_results, export_batch_results
+    from src.dental_detection.record_formatters import format_history_record
+
+    image = Image.new("RGB", (80, 60), "white")
+    primary = {
+        "model": "primary-model",
+        "model_path": "primary.pt",
+        "detections": [{"class": "Caries", "confidence": 0.84, "x1": 1, "y1": 2, "x2": 20, "y2": 30}],
+        "original": image,
+        "model_input": image,
+        "annotated": image,
+        "full_annotated": image,
+        "table": [],
+    }
+    item = {
+        "name": "stale-results.png",
+        "display_name": "001 - stale-results.png",
+        "result": primary,
+        "all_results": [{"model": "stale-empty-model", "detections": []}],
+        "advice": "测试建议",
+        "quality_text": "测试质量",
+        "quality_level": "良好",
+        "summary": {"模型模式": "单模型"},
+    }
+    assert _item_results(item)[0]["model"] == "primary-model", "空 all_results 不应掩盖主结果"
+    summary = build_batch_summary([item])
+    assert summary["检测框总数"] == 1, "批量摘要应回退统计主结果检测框"
+    with TemporaryDirectory() as temp_dir:
+        append_history_records([item], temp_dir, 100)
+        rows = history_rows(temp_dir)
+        record = load_history_record(rows[0]["记录ID"], temp_dir)
+        assert record["detection_count"] == 1, "历史记录应回退保存主结果检测框"
+        assert "龋齿" in format_history_record(record), "历史详情应显示主结果检测框"
+
+        report_path = export_batch_docx_report([item], summary, Path(temp_dir) / "word")
+        doc = Document(report_path)
+        doc_text = "\n".join(
+            [paragraph.text for paragraph in doc.paragraphs]
+            + [cell.text for table in doc.tables for row in table.rows for cell in row.cells]
+        )
+        assert "primary-model" in doc_text and "Caries" in doc_text, "批量 Word 应回退显示主结果检测框"
+
+        _, _, exported_state = export_batch_results([item], temp_dir)
+        batch_zip = Path(exported_state[0]["zip_report_path"])
+        with zipfile.ZipFile(batch_zip) as archive:
+            detections_json = json.loads(archive.read("detections.json").decode("utf-8"))
+        exported_item = detections_json["items"][0]
+        assert exported_item["models"][0]["model"] == "primary-model", "批量 ZIP 应回退主模型名称"
+        assert exported_item["models"][0]["detections"][0]["class"] == "Caries", "批量 ZIP 应回退主检测框"
+    print("✓ 空模型明细回退主结果正常")
+except Exception as e:
+    print(f"✗ 空模型明细回退主结果测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

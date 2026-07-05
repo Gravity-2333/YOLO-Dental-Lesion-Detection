@@ -9,18 +9,11 @@ from .result_levels import (
     get_confidence_level,
     parse_confidence,
 )
+from .result_items import item_model_results
 
 
 def _iter_model_results(item: dict[str, Any]):
-    results = item.get("all_results")
-    if isinstance(results, list) and results:
-        for result in results:
-            if isinstance(result, dict):
-                yield result
-        return
-    result = item.get("result") or item
-    if isinstance(result, dict):
-        yield result
+    yield from item_model_results(item)
 
 
 def _clean_detections(detections: Any) -> list[dict[str, Any]]:
