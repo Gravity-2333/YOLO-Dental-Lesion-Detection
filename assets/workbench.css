@@ -676,7 +676,16 @@ textarea[aria-label="批量导出路径"],
 textarea[aria-label="模型目录"],
 textarea[aria-label="存储目录"],
 textarea[aria-label="主模型路径"],
-textarea[aria-label="对比模型路径"] {
+textarea[aria-label="对比模型路径"],
+input[aria-label="报告路径"],
+input[aria-label="导出路径"],
+input[aria-label="批量导出路径"],
+input[aria-label="模型目录"],
+input[aria-label="存储目录"],
+input[aria-label="主模型路径"],
+input[aria-label="对比模型路径"],
+.path-row input,
+.settings-card input:not([type="radio"]):not([type="checkbox"]):not([type="range"]) {
   font-size: 0.88rem !important;
   font-family: "Microsoft YaHei", "微软雅黑", Arial, sans-serif !important;
   color: #334155 !important;

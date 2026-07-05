@@ -926,5 +926,23 @@ except Exception as e:
     print(f"✗ 病例筛选短输入框测试失败: {e}")
     sys.exit(1)
 
+print("\n测试33: 检查路径输入框长文本省略规则覆盖 input...")
+try:
+    css_text = (Path(__file__).parent / "assets" / "workbench.css").read_text(encoding="utf-8")
+    path_rule_anchor = 'textarea[aria-label="报告路径"],'
+    rule_start = css_text.index(path_rule_anchor)
+    rule_end = css_text.index("}", rule_start)
+    rule_body = css_text[rule_start:rule_end]
+    for label in ["报告路径", "导出路径", "批量导出路径", "模型目录", "存储目录", "主模型路径", "对比模型路径"]:
+        assert f'textarea[aria-label="{label}"]' in rule_body, f"{label} textarea 应有长文本省略规则"
+        assert f'input[aria-label="{label}"]' in rule_body, f"{label} input 应有长文本省略规则"
+    assert ".path-row input" in rule_body, "路径行运行时 input 应有长文本省略规则"
+    assert ".settings-card input:not" in rule_body, "设置卡片单行 input 应有长文本省略规则"
+    assert "text-overflow: ellipsis" in rule_body and "white-space: nowrap" in rule_body, "路径输入框应单行省略"
+    print("✓ 路径输入框长文本省略规则正常")
+except Exception as e:
+    print(f"✗ 路径输入框省略规则测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
