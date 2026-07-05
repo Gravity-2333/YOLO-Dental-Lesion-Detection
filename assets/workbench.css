@@ -1066,6 +1066,18 @@ textarea[aria-label="病例反馈"] {
   min-height: 90px !important;
 }
 
+textarea[aria-label="病例编号 / 备注名称"],
+textarea[aria-label="搜索病例"],
+textarea[aria-label="开始日期"],
+textarea[aria-label="结束日期"] {
+  min-height: 44px !important;
+  height: 44px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  resize: none !important;
+}
+
 textarea[aria-label="病例详情"] {
   min-height: 220px !important;
   line-height: 1.65 !important;

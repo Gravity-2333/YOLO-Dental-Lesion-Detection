@@ -2899,7 +2899,12 @@ def build_app() -> gr.Blocks:
                         '<p>保存检测摘要、检测框和建议，便于后续复查。</p></div></div>'
                     )
                     with gr.Row(elem_classes=["compact-row"]):
-                        case_id = gr.Textbox(label="病例编号 / 备注名称", placeholder="例如：20260602-复查")
+                        case_id = gr.Textbox(
+                            label="病例编号 / 备注名称",
+                            placeholder="例如：20260602-复查",
+                            lines=1,
+                            max_lines=1,
+                        )
                         case_note = gr.Textbox(label="病例备注", placeholder="可填写主诉、复查说明或医生备注", lines=3)
                     with gr.Row(elem_classes=["compact-row"]):
                         save_case_btn = gr.Button(
@@ -2918,7 +2923,12 @@ def build_app() -> gr.Blocks:
                 with gr.Group(elem_classes=["section-card", "case-card"]):
                     gr.HTML('<div class="section-heading"><h2>已保存病例</h2><p>选择记录后查看结构化详情。</p></div>')
                     with gr.Row(elem_classes=["compact-row"]):
-                        case_keyword = gr.Textbox(label="搜索病例", placeholder="病例编号、图片名称、备注、类别或建议")
+                        case_keyword = gr.Textbox(
+                            label="搜索病例",
+                            placeholder="病例编号、图片名称、备注、类别或建议",
+                            lines=1,
+                            max_lines=1,
+                        )
                         case_class_filter = gr.Dropdown(
                             label="类别筛选",
                             choices=["全部", "龋齿", "根尖周病变", "阻生牙", "无检测结果"],
@@ -2930,8 +2940,8 @@ def build_app() -> gr.Blocks:
                             value="全部",
                         )
                     with gr.Row(elem_classes=["compact-row"]):
-                        case_date_from = gr.Textbox(label="开始日期", placeholder="YYYY-MM-DD")
-                        case_date_to = gr.Textbox(label="结束日期", placeholder="YYYY-MM-DD")
+                        case_date_from = gr.Textbox(label="开始日期", placeholder="YYYY-MM-DD", lines=1, max_lines=1)
+                        case_date_to = gr.Textbox(label="结束日期", placeholder="YYYY-MM-DD", lines=1, max_lines=1)
                     with gr.Row(elem_classes=["compact-row"]):
                         search_case_btn = gr.Button("搜索/筛选", elem_classes=["secondary-action", "compact-button"])
                         delete_case_btn = gr.Button("移入回收站", elem_classes=["secondary-action", "compact-button"])

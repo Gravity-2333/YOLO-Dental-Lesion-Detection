@@ -905,5 +905,26 @@ except Exception as e:
     print(f"✗ 紧凑工具行按钮对齐测试失败: {e}")
     sys.exit(1)
 
+print("\n测试32: 检查病例筛选短输入框不换行截断...")
+try:
+    project_root = Path(__file__).parent
+    app_text = (project_root / "app.py").read_text(encoding="utf-8")
+    css_text = (project_root / "assets" / "workbench.css").read_text(encoding="utf-8")
+    for label in ["病例编号 / 备注名称", "搜索病例", "开始日期", "结束日期"]:
+        assert f'label="{label}"' in app_text, f"{label} 输入框应存在"
+        label_index = app_text.index(f'label="{label}"')
+        snippet = app_text[label_index : label_index + 220]
+        assert "lines=1" in snippet and "max_lines=1" in snippet, f"{label} 应声明为单行输入框"
+        assert f'textarea[aria-label="{label}"]' in css_text, f"{label} 应有单行样式兜底"
+    short_input_rule = 'textarea[aria-label="病例编号 / 备注名称"],\ntextarea[aria-label="搜索病例"],'
+    rule_start = css_text.index(short_input_rule)
+    rule_end = css_text.index("}", rule_start)
+    rule_body = css_text[rule_start:rule_end]
+    assert "white-space: nowrap" in rule_body and "text-overflow: ellipsis" in rule_body, "短输入框占位文字应单行省略"
+    print("✓ 病例筛选短输入框单行显示正常")
+except Exception as e:
+    print(f"✗ 病例筛选短输入框测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
