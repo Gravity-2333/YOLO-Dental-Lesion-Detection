@@ -873,5 +873,22 @@ except Exception as e:
     print(f"✗ 无检测主结果模型名保留测试失败: {e}")
     sys.exit(1)
 
+print("\n测试30: 检查下载结果图文件名过滤控制字符...")
+try:
+    from PIL import Image
+    from src.dental_detection.visualization import save_result_image
+
+    image = Image.new("RGB", (16, 16), "white")
+    with TemporaryDirectory() as temp_dir:
+        path = save_result_image(image, temp_dir, "牙片\n\tCON:01?.png")
+        assert path.exists(), "结果图应能保存成功"
+        assert "\n" not in path.name and "\t" not in path.name, "文件名不应包含控制字符"
+        assert ":" not in path.name and "?" not in path.name, "文件名不应包含 Windows 禁用字符"
+        assert "牙片" in path.name, "安全清理后应尽量保留中文可读信息"
+    print("✓ 下载结果图文件名清理正常")
+except Exception as e:
+    print(f"✗ 下载结果图文件名清理测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

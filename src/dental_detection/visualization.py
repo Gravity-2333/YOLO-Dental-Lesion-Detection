@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 import math
 from pathlib import Path
+import re
 from typing import Any
 
 import numpy as np
@@ -13,8 +14,18 @@ from .result_levels import enrich_detection_row
 
 
 def _safe_stem(name: str) -> str:
-    safe = "".join("_" if char in '<>:"/\\|?*\x00' else char for char in str(name or "image")).strip(" ._")
-    return (Path(safe).stem or "image")[:80].rstrip(" ._") or "image"
+    stem = Path(str(name or "image")).stem or "image"
+    safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", stem).strip(" ._")
+    if safe.upper() in {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *(f"COM{index}" for index in range(1, 10)),
+        *(f"LPT{index}" for index in range(1, 10)),
+    }:
+        safe = f"{safe}_file"
+    return safe[:80].rstrip(" ._") or "image"
 
 
 def as_rgb_image(image: Any) -> Image.Image:
