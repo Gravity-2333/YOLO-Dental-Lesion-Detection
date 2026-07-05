@@ -829,5 +829,49 @@ except Exception as e:
     print(f"✗ 测试AI接口保存隔离测试失败: {e}")
     sys.exit(1)
 
+print("\n测试29: 检查无检测主结果不会被陈旧空明细覆盖模型名...")
+try:
+    from PIL import Image
+    from app import _item_results, export_single_report
+
+    image = Image.new("RGB", (80, 60), "white")
+    primary = {
+        "model": "primary-empty-model",
+        "model_path": "primary-empty.pt",
+        "detections": [],
+        "original": image,
+        "model_input": image,
+        "annotated": image,
+        "full_annotated": image,
+        "table": [],
+    }
+    item = {
+        "name": "empty-with-primary.png",
+        "display_name": "001 - empty-with-primary.png",
+        "result": primary,
+        "all_results": [{"model": "stale-empty-model", "detections": []}],
+        "advice": "未检测到目标框。",
+        "quality_text": "测试质量",
+        "quality_level": "良好",
+        "summary": {"模型模式": "单模型"},
+    }
+    assert _item_results(item)[0]["model"] == "primary-empty-model", "无检测主结果也应优先保留真实模型名"
+    with TemporaryDirectory() as temp_dir:
+        append_history_records([item], temp_dir, 100)
+        rows = history_rows(temp_dir)
+        record = load_history_record(rows[0]["记录ID"], temp_dir)
+        assert record["model"] == "primary-empty-model", "历史记录不应写入陈旧空明细模型名"
+
+        _, _, exported_state = export_single_report([item], "001 - empty-with-primary.png", temp_dir)
+        single_zip = Path(exported_state[0]["zip_report_path"])
+        with zipfile.ZipFile(single_zip) as archive:
+            detections_json = json.loads(archive.read("detections.json").decode("utf-8"))
+        assert detections_json["report"]["model"] == "primary-empty-model", "单图 ZIP 报告模型名应来自主结果"
+        assert detections_json["models"][0]["model"] == "primary-empty-model", "单图 ZIP 模型明细应来自主结果"
+    print("✓ 无检测主结果模型名保留正常")
+except Exception as e:
+    print(f"✗ 无检测主结果模型名保留测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
