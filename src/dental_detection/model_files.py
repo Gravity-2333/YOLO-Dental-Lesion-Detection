@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .config import PROJECT_ROOT
 
-SUPPORTED_MODEL_SUFFIXES = {".pt", ".onnx", ".engine", ".mlmodel", ".mlpackage", ".torchscript"}
+SUPPORTED_MODEL_SUFFIXES = {".pt", ".onnx", ".engine", ".mlmodel", ".torchscript"}
 SUPPORTED_MODEL_DIR_SUFFIXES = {".mlpackage"}
 MAX_MODEL_FILES = 500
 MAX_MODEL_SCAN_DEPTH = 8
@@ -17,7 +17,7 @@ def model_label_from_path(path: str | Path) -> str:
 
 
 def supported_suffix_text() -> str:
-    return "、".join(sorted(SUPPORTED_MODEL_SUFFIXES))
+    return "、".join(sorted(SUPPORTED_MODEL_SUFFIXES | SUPPORTED_MODEL_DIR_SUFFIXES))
 
 
 def _is_supported_model_file(path: Path) -> bool:
@@ -26,6 +26,11 @@ def _is_supported_model_file(path: Path) -> bool:
 
 def _is_supported_model_dir(path: Path) -> bool:
     return path.is_dir() and path.suffix.lower() in SUPPORTED_MODEL_DIR_SUFFIXES
+
+
+def is_supported_model_artifact(path: str | Path) -> bool:
+    model_path = Path(path)
+    return _is_supported_model_file(model_path) or _is_supported_model_dir(model_path)
 
 
 def _model_choice(path: Path) -> tuple[str, str] | None:

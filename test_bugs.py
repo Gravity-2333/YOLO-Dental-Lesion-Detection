@@ -666,16 +666,24 @@ except Exception as e:
 
 print("\n测试24: 检查模型扫描包含 mlpackage 目录模型...")
 try:
-    from src.dental_detection.model_files import scan_model_files
+    from src.dental_detection.model_files import is_supported_model_artifact, scan_model_files, supported_suffix_text
 
     with TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
         package = root / "exported_model.mlpackage"
         package.mkdir()
+        fake_package_file = root / "fake_package.mlpackage"
+        fake_package_file.write_bytes(b"not a package directory")
         choices = scan_model_files(root)
         assert any(Path(value).name == "exported_model.mlpackage" for _, value in choices), (
             "扫描模型目录时应把 .mlpackage 目录作为可选模型"
         )
+        assert not any(Path(value).name == "fake_package.mlpackage" for _, value in choices), (
+            ".mlpackage 普通文件不应被误认为可选模型包"
+        )
+        assert is_supported_model_artifact(package), ".mlpackage 目录应被视为支持的模型包"
+        assert not is_supported_model_artifact(fake_package_file), ".mlpackage 普通文件不应通过模型包校验"
+        assert ".mlpackage" in supported_suffix_text(), "支持格式提示仍应包含 .mlpackage 模型包"
 
         direct_choices = scan_model_files(package)
         assert len(direct_choices) == 1 and Path(direct_choices[0][1]).name == "exported_model.mlpackage", (
@@ -1127,6 +1135,15 @@ try:
         package_dir = Path(temp_dir) / "exported_model.mlpackage"
         package_dir.mkdir()
         app._validate_model_files([("CoreML 模型包", package_dir)])
+        fake_package_file = Path(temp_dir) / "fake_package.mlpackage"
+        fake_package_file.write_bytes(b"not a package directory")
+        try:
+            app._validate_model_files([("伪模型包", fake_package_file)])
+            raise AssertionError(".mlpackage 普通文件不应通过模型包校验")
+        except Exception as exc:
+            assert "模型路径无效" in str(exc) or "not a file or supported model package" in str(exc), (
+                ".mlpackage 普通文件应提示不是可加载模型文件或模型包"
+            )
         original_yolo = app.YOLO
         try:
             class FakeYOLO:
@@ -2186,6 +2203,26 @@ try:
     print("✓ 批量 Word 异常模型摘要兼容正常")
 except Exception as e:
     print(f"✗ 批量 Word 异常模型摘要测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试72: 检查模型信息不把无效模型路径标为可用...")
+try:
+    import app
+
+    with TemporaryDirectory() as temp_dir:
+        fake_pt_dir = Path(temp_dir) / "fake_model.pt"
+        fake_pt_dir.mkdir()
+        fake_package_file = Path(temp_dir) / "fake_package.mlpackage"
+        fake_package_file.write_bytes(b"not a package directory")
+
+        pt_info = app._current_model_info_markdown(str(fake_pt_dir))
+        package_info = app._current_model_info_markdown(str(fake_package_file))
+    assert "模型状态：不可用或格式不支持" in pt_info, ".pt 目录不应在模型信息中显示为可用"
+    assert "模型状态：不可用或格式不支持" in package_info, ".mlpackage 普通文件不应显示为可用模型包"
+    assert "模型状态：可用" not in pt_info + package_info, "无效模型路径不能误导用户为可用"
+    print("✓ 模型信息无效路径状态正常")
+except Exception as e:
+    print(f"✗ 模型信息无效路径状态测试失败: {e}")
     sys.exit(1)
 
 print("\n" + "="*60)

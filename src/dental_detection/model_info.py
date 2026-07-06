@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import DEFAULT_MODEL_NAME
+from .model_files import is_supported_model_artifact
 from .result_levels import CLASS_DISPLAY_NAMES
 
 
@@ -32,7 +33,7 @@ CLASS_LEGEND = [
 
 def _path_exists(value: Any) -> bool:
     try:
-        return Path(value).expanduser().exists()
+        return is_supported_model_artifact(Path(value).expanduser())
     except (TypeError, OSError, RuntimeError):
         return False
 
@@ -89,12 +90,13 @@ def format_model_info_markdown(model_info: dict[str, Any]) -> str:
     name = escape(str(model_info.get("name", "未知模型")))
     architecture = escape(str(model_info.get("architecture", "YOLOv8 目标检测模型")))
     role = escape(str(model_info.get("role", "牙齿病变区域辅助识别")))
+    status_text = "可用" if model_info.get("available") else "不可用或格式不支持"
     return f"""## 当前模型：{name}
 
 - 模型类型：{architecture}
 - 模型定位：{role}
 - 可识别类别：{"、".join(CLASS_DISPLAY_NAMES.values())}
-- 模型状态：{"可用" if model_info.get("available") else "模型文件未找到"}
+- 模型状态：{status_text}
 
 ### 输入图片要求
 - 建议使用清晰、完整、曝光正常的牙科影像。

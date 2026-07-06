@@ -505,10 +505,11 @@ def _current_model_info_markdown(selected_path: str | None = None) -> str:
     if selected_path:
         try:
             path = Path(selected_path).expanduser()
-            available = path.exists()
         except (OSError, RuntimeError, ValueError):
             path = Path("invalid_model_path")
             available = False
+        else:
+            available = _is_supported_model_artifact(path)
         return format_model_info_markdown(
             {
                 "name": model_label_from_path(path),
