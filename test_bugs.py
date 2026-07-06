@@ -944,5 +944,18 @@ except Exception as e:
     print(f"✗ 路径输入框省略规则测试失败: {e}")
     sys.exit(1)
 
+print("\n测试34: 检查前端更多菜单脚本等待 body 可用...")
+try:
+    js_text = (Path(__file__).parent / "assets" / "workbench.js").read_text(encoding="utf-8")
+    assert "const start = () =>" in js_text, "前端脚本应封装启动逻辑"
+    assert "if (!document.body)" in js_text and "requestAnimationFrame(start)" in js_text, (
+        "MutationObserver 注册前应等待 document.body 可用"
+    )
+    assert "DOMContentLoaded" in js_text and "{ once: true }" in js_text, "脚本应兼容提前注入场景"
+    print("✓ 前端更多菜单脚本加载时机正常")
+except Exception as e:
+    print(f"✗ 前端更多菜单脚本测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
