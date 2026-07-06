@@ -8,7 +8,7 @@ from typing import Any
 from uuid import uuid4
 
 from .assistant import ensure_app_dirs, storage_root
-from .result_levels import enrich_detection_row, get_confidence_level, has_detection_payload, parse_confidence
+from .result_levels import enrich_detection_row, get_confidence_level, has_detection_payload, iter_detection_items, parse_confidence
 from .result_items import item_model_results
 from .text_utils import json_safe_value, text_value
 
@@ -33,7 +33,7 @@ def ensure_history_dir(storage_dir: str | None = None) -> Path:
 
 def _clean_rows(detections: Any) -> list[dict[str, Any]]:
     rows = []
-    for det in detections or []:
+    for det in iter_detection_items(detections):
         if not has_detection_payload(det):
             continue
         row = enrich_detection_row(det)
@@ -53,7 +53,7 @@ def _history_model_rows(item: dict[str, Any]) -> list[dict[str, Any]]:
     for result in _item_model_results(item):
         model_name = text_value(result.get("model"), "unknown")
         detections = []
-        for det in result.get("detections") or []:
+        for det in iter_detection_items(result.get("detections")):
             if not has_detection_payload(det):
                 continue
             enriched = enrich_detection_row(det)
@@ -99,7 +99,7 @@ def build_history_record(item: dict[str, Any]) -> dict[str, Any]:
     summary = summary if isinstance(summary, dict) else {}
     model_results = _history_model_rows(item)
     if model_results:
-        rows = [row for model in model_results for row in model.get("detections", []) if isinstance(row, dict)]
+        rows = [row for model in model_results for row in iter_detection_items(model.get("detections"))]
         model_names = [row["model"] for row in model_results if row.get("model")]
     else:
         rows = _clean_rows(result.get("detections", []))

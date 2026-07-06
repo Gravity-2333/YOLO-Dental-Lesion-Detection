@@ -83,7 +83,7 @@ from src.dental_detection.record_views import (
     history_id as _history_id,
     history_table_from_rows as _history_table_from_rows,
 )
-from src.dental_detection.result_levels import enrich_detection_row, has_detection_payload
+from src.dental_detection.result_levels import enrich_detection_row, has_detection_payload, iter_detection_items
 from src.dental_detection.result_items import item_model_results
 from src.dental_detection.text_utils import csv_safe_row, json_safe_value, text_value
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
@@ -255,7 +255,7 @@ def _records_from_detections(detections: list[Detection], image_size: tuple[int,
 
 def _clean_detection_records(detections: Any, image_size: tuple[int, int] | None = None) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for det in detections or []:
+    for det in iter_detection_items(detections):
         if not has_detection_payload(det):
             continue
         row = enrich_detection_row(det, image_size)

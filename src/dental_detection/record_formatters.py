@@ -3,13 +3,13 @@ from __future__ import annotations
 from typing import Any
 
 from .assistant import SAFETY_NOTICE
-from .result_levels import enrich_detection_row, has_detection_payload
+from .result_levels import enrich_detection_row, has_detection_payload, iter_detection_items
 from .text_utils import text_value
 
 
 def _clean_detection_records(detections: Any) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for det in detections or []:
+    for det in iter_detection_items(detections):
         if not has_detection_payload(det):
             continue
         row = enrich_detection_row(det)
@@ -29,7 +29,7 @@ def _model_result_detections(model_results: Any) -> list[dict[str, Any]]:
         if not isinstance(item, dict):
             continue
         model = item.get("model") or item.get("模型")
-        for det in item.get("detections") or []:
+        for det in iter_detection_items(item.get("detections")):
             if not has_detection_payload(det):
                 continue
             row = dict(det)
@@ -43,7 +43,7 @@ def _record_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
     model_rows = _model_result_detections(data.get("model_results"))
     if model_rows:
         return model_rows
-    return _clean_detection_records(data.get("detections") or [])
+    return _clean_detection_records(data.get("detections"))
 
 
 def _format_model_results(model_results: Any) -> list[str]:

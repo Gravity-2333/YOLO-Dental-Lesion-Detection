@@ -8,6 +8,7 @@ from .result_levels import (
     get_class_display_name,
     get_confidence_level,
     has_detection_payload,
+    iter_detection_items,
     parse_confidence,
 )
 from .result_items import item_model_results
@@ -19,7 +20,7 @@ def _iter_model_results(item: dict[str, Any]):
 
 def _clean_detections(detections: Any) -> list[dict[str, Any]]:
     rows = []
-    for det in detections or []:
+    for det in iter_detection_items(detections):
         if has_detection_payload(det):
             rows.append(enrich_detection_row(det))
     return rows

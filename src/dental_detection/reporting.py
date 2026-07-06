@@ -9,7 +9,7 @@ from PIL import Image
 
 from .batch_summary import build_batch_summary
 from .model_info import legend_markdown
-from .result_levels import REGION_NOTICE, enrich_detection_row, has_detection_payload, parse_confidence
+from .result_levels import REGION_NOTICE, enrich_detection_row, has_detection_payload, iter_detection_items, parse_confidence
 from .result_items import item_model_results
 from .visualization import save_png_image
 
@@ -121,7 +121,7 @@ def export_single_docx_report(data: SingleReportData, output_dir: Path) -> Path:
     enriched = []
     for group in model_groups:
         model_name = group.get("model", "")
-        for det in group.get("detections", []):
+        for det in iter_detection_items(group.get("detections")):
             if not has_detection_payload(det):
                 continue
             row = enrich_detection_row(det, detection_image_size)
@@ -241,7 +241,7 @@ def _single_report_model_results(data: SingleReportData) -> list[dict[str, Any]]
                 {
                     "model": str(item.get("model") or item.get("模型") or f"模型 {index}"),
                     "model_path": str(item.get("model_path") or item.get("路径") or item.get("模型路径") or ""),
-                    "detections": [det for det in item.get("detections", []) if has_detection_payload(det)],
+                    "detections": [det for det in iter_detection_items(item.get("detections")) if has_detection_payload(det)],
                     "annotated_image": _model_result_image(item),
                 }
             )
@@ -257,7 +257,7 @@ def _add_detection_table(document, detections: list[dict[str, Any]], image_size:
     table.style = "Table Grid"
     for cell, header in zip(table.rows[0].cells, headers):
         cell.text = header
-    rows = [enrich_detection_row(det, image_size) for det in detections if has_detection_payload(det)]
+    rows = [enrich_detection_row(det, image_size) for det in iter_detection_items(detections) if has_detection_payload(det)]
     if not rows:
         cells = table.add_row().cells
         cells[0].text = "-"
@@ -353,12 +353,12 @@ def export_batch_docx_report(
             result_detections = [
                 det
                 for model_result in item_results
-                for det in (model_result.get("detections", []) if isinstance(model_result, dict) else [])
+                for det in (iter_detection_items(model_result.get("detections")) if isinstance(model_result, dict) else [])
                 if has_detection_payload(det)
             ]
             detections = [
                 det
-                for det in (result.get("detections", []) if isinstance(result, dict) else [])
+                for det in (iter_detection_items(result.get("detections")) if isinstance(result, dict) else [])
                 if has_detection_payload(det)
             ]
             enriched = [enrich_detection_row(det) for det in result_detections]
@@ -391,7 +391,7 @@ def export_batch_docx_report(
             if len(item_results) > 1:
                 for model_index, model_result in enumerate(item_results, start=1):
                     model_name = model_result.get("model", f"模型 {model_index}") if isinstance(model_result, dict) else f"模型 {model_index}"
-                    model_detections = model_result.get("detections", []) if isinstance(model_result, dict) else []
+                    model_detections = model_result.get("detections") if isinstance(model_result, dict) else []
                     document.add_paragraph(f"模型 {model_index}：{model_name}")
                     model_image = _model_result_image(model_result) if isinstance(model_result, dict) else None
                     if model_image is not None:

@@ -15,6 +15,7 @@ from .result_levels import (
     CLASS_DISPLAY_NAMES,
     enrich_detection_row,
     has_detection_payload,
+    iter_detection_items,
     normalize_class_name,
     parse_confidence,
 )
@@ -478,13 +479,8 @@ def test_chat_completion(settings: AiSettings) -> str:
 
 
 def _prompt_safe_detections(detections: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    rows = json_safe_value(detections)
-    if not isinstance(rows, list):
-        return []
     safe_rows: list[dict[str, Any]] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
+    for row in iter_detection_items(json_safe_value(detections)):
         item = dict(row)
         if "confidence" in item:
             confidence = parse_confidence(item.get("confidence"))
@@ -511,7 +507,8 @@ def detection_prompt(
 
 
 def default_advice(detections: list[dict[str, Any]]) -> str:
-    if not detections:
+    detection_items = list(iter_detection_items(detections))
+    if not detection_items:
         return (
             "检测摘要：本次未检测到明确的目标病变框。\n\n"
             "需要关注的位置：未形成可定位的检测框；若原始影像存在可疑区域，应以专业阅片为准。\n\n"
@@ -521,7 +518,7 @@ def default_advice(detections: list[dict[str, Any]]) -> str:
         )
 
     grouped: dict[str, list[dict[str, Any]]] = {}
-    for det in detections:
+    for det in detection_items:
         if not has_detection_payload(det):
             continue
         row = enrich_detection_row(det)

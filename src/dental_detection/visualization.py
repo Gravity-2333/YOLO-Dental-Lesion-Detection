@@ -10,7 +10,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from .assistant import ensure_app_dirs, export_dir
-from .result_levels import enrich_detection_row
+from .result_levels import enrich_detection_row, iter_detection_items
 
 
 def _safe_stem(name: str) -> str:
@@ -115,7 +115,7 @@ def draw_detections_with_filter(
     }
     width = max(2, round(min(base.size) / 300))
 
-    for detection in detections or []:
+    for detection in iter_detection_items(detections):
         row = enrich_detection_row(detection, base.size)
         display_name = str(row.get("中文名称") or row.get("class") or "未知类别")
         if allowed is not None and display_name not in allowed and str(row.get("class") or "") not in allowed:
@@ -162,7 +162,7 @@ def crop_detection_regions(
     pil_image = as_rgb_image(image)
     width, height = pil_image.size
     regions: list[dict[str, Any]] = []
-    for index, detection in enumerate(detections or [], start=1):
+    for index, detection in enumerate(iter_detection_items(detections), start=1):
         row = enrich_detection_row(detection, pil_image.size)
         try:
             x1 = float(row["x1"])

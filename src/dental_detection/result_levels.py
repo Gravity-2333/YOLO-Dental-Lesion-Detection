@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Iterable
 from typing import Any
 
 
@@ -103,6 +104,18 @@ def has_detection_payload(det: Any) -> bool:
         if value is not None and str(value).strip() != "":
             return True
     return all(det.get(key) is not None and str(det.get(key)).strip() != "" for key in BBOX_KEYS)
+
+
+def iter_detection_items(detections: Any):
+    if isinstance(detections, dict):
+        candidates = (detections,)
+    elif isinstance(detections, Iterable) and not isinstance(detections, (str, bytes, bytearray)):
+        candidates = detections
+    else:
+        candidates = ()
+    for item in candidates:
+        if isinstance(item, dict):
+            yield item
 
 
 def estimate_image_region(det: dict[str, Any], image_size: tuple[int, int] | None = None) -> str:

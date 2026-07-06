@@ -2284,5 +2284,40 @@ except Exception as e:
     print(f"✗ 非对象病例 JSON 损坏提示测试失败: {e}")
     sys.exit(1)
 
+print("\n测试75: 检查单对象检测框兼容为一条结果...")
+try:
+    import app
+    from PIL import Image
+    from src.dental_detection.assistant import default_advice, detection_prompt
+    from src.dental_detection.batch_summary import build_batch_summary
+    from src.dental_detection.history_store import build_history_record
+    from src.dental_detection.record_formatters import format_case_record, format_history_record
+    from src.dental_detection.visualization import crop_detection_regions
+
+    detection = {"class": "Caries", "confidence": 0.86, "x1": 4, "y1": 5, "x2": 40, "y2": 45}
+    image = Image.new("RGB", (80, 60), "white")
+    item = {
+        "name": "single-dict-detection.png",
+        "result": {"model": "legacy-model", "detections": detection, "original": image},
+        "all_results": [{"model": "legacy-model", "detections": detection}],
+    }
+
+    assert len(app._clean_detection_records(detection)) == 1, "单个检测框对象应被当作一条检测结果"
+    assert "龋齿" in default_advice(detection), "内置建议应兼容单对象检测框"
+    assert '"class": "Caries"' in detection_prompt(detection)[1]["content"], "AI 提示应把单对象检测框转为列表内容"
+    assert build_batch_summary([item])["检测框总数"] == 1, "批量摘要应统计单对象检测框"
+
+    history_record = build_history_record(item)
+    assert history_record["detection_count"] == 1, "历史记录应统计单对象检测框"
+    assert "龋齿" in format_history_record(history_record), "历史详情应显示单对象检测框"
+
+    case_detail = format_case_record({"case_id": "single-dict", "image_name": "x.png", "model_results": item["all_results"]})
+    assert "检测框：共 1 个" in case_detail and "龋齿" in case_detail, "病例详情应显示单对象检测框"
+    assert len(crop_detection_regions(image, detection)) == 1, "局部区域裁剪应兼容单对象检测框"
+    print("✓ 单对象检测框兼容正常")
+except Exception as e:
+    print(f"✗ 单对象检测框兼容测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

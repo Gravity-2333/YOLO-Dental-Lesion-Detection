@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from .result_levels import has_detection_payload
+from .result_levels import has_detection_payload, iter_detection_items
 
 
 def _result_has_detections(result: Any) -> bool:
     if not isinstance(result, dict):
         return False
-    for det in result.get("detections") or []:
+    for det in iter_detection_items(result.get("detections")):
         if has_detection_payload(det):
             return True
     return False
