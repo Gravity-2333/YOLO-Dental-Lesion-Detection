@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .assistant import SAFETY_NOTICE
+from .result_items import iter_model_result_items
 from .result_levels import enrich_detection_row, has_detection_payload, iter_detection_items
 from .text_utils import text_value
 
@@ -22,12 +23,11 @@ def _clean_detection_records(detections: Any) -> list[dict[str, Any]]:
 
 
 def _model_result_detections(model_results: Any) -> list[dict[str, Any]]:
-    if not isinstance(model_results, list) or not model_results:
+    model_items = list(iter_model_result_items(model_results))
+    if not model_items:
         return []
     rows: list[dict[str, Any]] = []
-    for item in model_results:
-        if not isinstance(item, dict):
-            continue
+    for item in model_items:
         model = item.get("model") or item.get("模型")
         for det in iter_detection_items(item.get("detections")):
             if not has_detection_payload(det):
@@ -47,12 +47,11 @@ def _record_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _format_model_results(model_results: Any) -> list[str]:
-    if not isinstance(model_results, list) or not model_results:
+    model_items = list(iter_model_result_items(model_results))
+    if not model_items:
         return []
     lines = ["", "模型结果明细："]
-    for index, item in enumerate(model_results, start=1):
-        if not isinstance(item, dict):
-            continue
+    for index, item in enumerate(model_items, start=1):
         model = text_value(item.get("model") or item.get("模型"), f"模型 {index}")
         raw_count = item.get("detection_count", item.get("检测数量"))
         if raw_count in {"", None}:

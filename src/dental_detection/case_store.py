@@ -8,6 +8,7 @@ from typing import Any
 
 from .assistant import SAFETY_NOTICE, case_dir, ensure_app_dirs, report_dir, storage_root
 from .model_info import legend_markdown
+from .result_items import iter_model_result_items
 from .result_levels import (
     REGION_NOTICE,
     enrich_detection_row,
@@ -38,12 +39,10 @@ def _read_case_file(path: Path) -> dict[str, Any]:
 
 
 def _case_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
-    model_results = data.get("model_results")
-    if isinstance(model_results, list) and model_results:
+    model_results = list(iter_model_result_items(data.get("model_results")))
+    if model_results:
         rows = []
         for result in model_results:
-            if not isinstance(result, dict):
-                continue
             model_name = result.get("model") or result.get("模型")
             for det in iter_detection_items(result.get("detections")):
                 if not has_detection_payload(det):

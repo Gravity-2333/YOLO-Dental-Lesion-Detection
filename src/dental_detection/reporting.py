@@ -10,7 +10,7 @@ from PIL import Image
 from .batch_summary import build_batch_summary
 from .model_info import legend_markdown
 from .result_levels import REGION_NOTICE, enrich_detection_row, has_detection_payload, iter_detection_items, parse_confidence
-from .result_items import item_model_results
+from .result_items import item_model_results, iter_model_result_items
 from .visualization import save_png_image
 
 
@@ -217,26 +217,28 @@ def _model_result_image(item: dict[str, Any]) -> Any:
 
 
 def _model_name(item: dict[str, Any]) -> str:
-    result = _primary_result(item)
-    if result.get("model"):
-        return str(result["model"])
+    model_names = [
+        str(result.get("model"))
+        for result in _item_results(item)
+        if isinstance(result, dict) and result.get("model")
+    ]
+    if model_names:
+        return "、".join(dict.fromkeys(model_names))
     summary = item.get("summary")
     if isinstance(summary, dict):
         model_results = summary.get("模型结果")
-        if isinstance(model_results, list):
-            for result in model_results:
-                if isinstance(result, dict) and result.get("模型"):
-                    return str(result["模型"])
+        for result in iter_model_result_items(model_results):
+            if result.get("模型"):
+                return str(result["模型"])
         return str(summary.get("模型", "unknown"))
     return "unknown"
 
 
 def _single_report_model_results(data: SingleReportData) -> list[dict[str, Any]]:
-    if data.model_results:
+    model_items = list(iter_model_result_items(data.model_results))
+    if model_items:
         rows = []
-        for index, item in enumerate(data.model_results, start=1):
-            if not isinstance(item, dict):
-                continue
+        for index, item in enumerate(model_items, start=1):
             rows.append(
                 {
                     "model": str(item.get("model") or item.get("模型") or f"模型 {index}"),

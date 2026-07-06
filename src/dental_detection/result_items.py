@@ -1,8 +1,21 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 from .result_levels import has_detection_payload, iter_detection_items
+
+
+def iter_model_result_items(results: Any):
+    if isinstance(results, dict):
+        candidates = (results,)
+    elif isinstance(results, Iterable) and not isinstance(results, (str, bytes, bytearray)):
+        candidates = results
+    else:
+        candidates = ()
+    for item in candidates:
+        if isinstance(item, dict):
+            yield item
 
 
 def _result_has_detections(result: Any) -> bool:
@@ -34,19 +47,17 @@ def _result_has_artifacts(result: Any) -> bool:
 
 def item_model_results(item: dict[str, Any]) -> list[dict[str, Any]]:
     """Return model results without letting empty stale details hide primary detections."""
-    results = item.get("all_results")
+    results = list(iter_model_result_items(item.get("all_results")))
     primary = item.get("result") or item
     primary = primary if isinstance(primary, dict) else {}
-    if isinstance(results, list) and results:
-        model_results = [result for result in results if isinstance(result, dict)]
-        if model_results:
-            if any(_result_has_detections(result) for result in model_results):
-                return model_results
-            if _result_has_detections(primary):
-                return [primary]
-            if any(_result_has_artifacts(result) for result in model_results):
-                return model_results
-            if _result_has_artifacts(primary):
-                return [primary]
-            return model_results
+    if results:
+        if any(_result_has_detections(result) for result in results):
+            return results
+        if _result_has_detections(primary):
+            return [primary]
+        if any(_result_has_artifacts(result) for result in results):
+            return results
+        if _result_has_artifacts(primary):
+            return [primary]
+        return results
     return [primary] if primary else []

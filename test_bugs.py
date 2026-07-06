@@ -2319,5 +2319,52 @@ except Exception as e:
     print(f"✗ 单对象检测框兼容测试失败: {e}")
     sys.exit(1)
 
+print("\n测试76: 检查单对象模型结果兼容为一组结果...")
+try:
+    import app
+    from docx import Document
+    from PIL import Image
+    from src.dental_detection.case_store import _case_detections
+    from src.dental_detection.history_store import build_history_record
+    from src.dental_detection.record_formatters import format_case_record, format_history_record
+    from src.dental_detection.reporting import export_batch_docx_report
+
+    detection = {"class": "Caries", "confidence": 0.88, "x1": 4, "y1": 5, "x2": 40, "y2": 45}
+    model_result = {"model": "single-model-object", "模型": "single-model-object", "detections": detection}
+    image = Image.new("RGB", (80, 60), "white")
+    item = {
+        "name": "single-model-result.png",
+        "result": {"model": "primary", "detections": [], "original": image, "model_input": image, "annotated": image},
+        "all_results": model_result,
+        "summary": {"模型结果": model_result},
+        "advice": "",
+    }
+
+    assert len(app._item_results(item)) == 1 and app._item_results(item)[0]["model"] == "single-model-object", (
+        "all_results 单对象应被当作一组模型结果"
+    )
+    history_record = build_history_record(item)
+    assert history_record["detection_count"] == 1 and history_record["model"] == "single-model-object", (
+        "历史记录应统计 all_results 单对象模型结果"
+    )
+    assert "龋齿" in format_history_record({"image_name": "x", "model_results": model_result}), (
+        "历史详情应兼容 model_results 单对象"
+    )
+    assert len(_case_detections({"model_results": model_result})) == 1, "病例列表统计应兼容 model_results 单对象"
+    assert "检测框：共 1 个" in format_case_record({"case_id": "single-model", "image_name": "x", "model_results": model_result}), (
+        "病例详情应兼容 model_results 单对象"
+    )
+    assert app._summary_model_name({"模型结果": model_result}) == "single-model-object", (
+        "摘要模型名应兼容单对象模型结果"
+    )
+    with TemporaryDirectory() as temp_dir:
+        report_path = export_batch_docx_report([item], None, Path(temp_dir) / "word")
+        paragraphs = "\n".join(paragraph.text for paragraph in Document(report_path).paragraphs)
+    assert "使用模型：single-model-object" in paragraphs, "批量 Word 报告应显示单对象模型结果名称"
+    print("✓ 单对象模型结果兼容正常")
+except Exception as e:
+    print(f"✗ 单对象模型结果兼容测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

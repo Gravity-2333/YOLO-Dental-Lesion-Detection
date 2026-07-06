@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from .assistant import ensure_app_dirs, storage_root
 from .result_levels import enrich_detection_row, get_confidence_level, has_detection_payload, iter_detection_items, parse_confidence
-from .result_items import item_model_results
+from .result_items import item_model_results, iter_model_result_items
 from .text_utils import json_safe_value, text_value
 
 HISTORY_FILE_NAME = "检测历史.jsonl"
@@ -75,10 +75,9 @@ def _model_name(item: dict[str, Any], result: dict[str, Any], summary: dict[str,
     if model:
         return str(model)
     model_results = summary.get("模型结果")
-    if isinstance(model_results, list) and model_results:
-        first = model_results[0]
-        if isinstance(first, dict) and first.get("模型"):
-            return str(first["模型"])
+    for item in iter_model_result_items(model_results):
+        if item.get("模型"):
+            return str(item["模型"])
     return str(summary.get("模型", "unknown"))
 
 

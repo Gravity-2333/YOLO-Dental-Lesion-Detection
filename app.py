@@ -84,7 +84,7 @@ from src.dental_detection.record_views import (
     history_table_from_rows as _history_table_from_rows,
 )
 from src.dental_detection.result_levels import enrich_detection_row, has_detection_payload, iter_detection_items
-from src.dental_detection.result_items import item_model_results
+from src.dental_detection.result_items import item_model_results, iter_model_result_items
 from src.dental_detection.text_utils import csv_safe_row, json_safe_value, text_value
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from ultralytics import YOLO
@@ -1053,10 +1053,9 @@ def _item_display_name(item: dict[str, Any], fallback: str = "") -> str:
 
 def _summary_model_name(summary_data: dict[str, Any]) -> str:
     model_results = summary_data.get("模型结果")
-    if isinstance(model_results, list):
-        for result in model_results:
-            if isinstance(result, dict) and result.get("模型"):
-                return str(result["模型"])
+    for result in iter_model_result_items(model_results):
+        if result.get("模型"):
+            return str(result["模型"])
     return text_value(summary_data.get("模型"))
 
 
@@ -1151,12 +1150,11 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
 
     first_summary = batch_state[0].get("summary", {})
     first_summary = first_summary if isinstance(first_summary, dict) else {}
-    first_model_results = first_summary.get("模型结果") if isinstance(first_summary, dict) else []
-    first_model_results = first_model_results if isinstance(first_model_results, list) else []
+    first_model_results = list(iter_model_result_items(first_summary.get("模型结果"))) if isinstance(first_summary, dict) else []
     model_names = [
         str(item.get("模型"))
         for item in first_model_results
-        if isinstance(item, dict) and item.get("模型")
+        if item.get("模型")
     ]
     if not model_names and batch_state:
         model_names = [
