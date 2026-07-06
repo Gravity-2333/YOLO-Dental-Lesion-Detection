@@ -8,7 +8,7 @@ from typing import Any
 from uuid import uuid4
 
 from .assistant import ensure_app_dirs, storage_root
-from .result_levels import enrich_detection_row, get_confidence_level, parse_confidence
+from .result_levels import enrich_detection_row, get_confidence_level, has_detection_payload, parse_confidence
 from .result_items import item_model_results
 from .text_utils import json_safe_value, text_value
 
@@ -34,12 +34,13 @@ def ensure_history_dir(storage_dir: str | None = None) -> Path:
 def _clean_rows(detections: Any) -> list[dict[str, Any]]:
     rows = []
     for det in detections or []:
-        if isinstance(det, dict):
-            row = enrich_detection_row(det)
-            model_name = det.get("model") or det.get("模型")
-            if model_name:
-                row["模型"] = text_value(model_name)
-            rows.append(row)
+        if not has_detection_payload(det):
+            continue
+        row = enrich_detection_row(det)
+        model_name = det.get("model") or det.get("模型")
+        if model_name:
+            row["模型"] = text_value(model_name)
+        rows.append(row)
     return rows
 
 
@@ -53,7 +54,7 @@ def _history_model_rows(item: dict[str, Any]) -> list[dict[str, Any]]:
         model_name = text_value(result.get("model"), "unknown")
         detections = []
         for det in result.get("detections") or []:
-            if not isinstance(det, dict):
+            if not has_detection_payload(det):
                 continue
             enriched = enrich_detection_row(det)
             enriched["模型"] = model_name

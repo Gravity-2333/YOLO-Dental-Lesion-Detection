@@ -3,20 +3,21 @@ from __future__ import annotations
 from typing import Any
 
 from .assistant import SAFETY_NOTICE
-from .result_levels import enrich_detection_row
+from .result_levels import enrich_detection_row, has_detection_payload
 from .text_utils import text_value
 
 
 def _clean_detection_records(detections: Any) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for det in detections or []:
-        if isinstance(det, dict):
-            row = enrich_detection_row(det)
-            model_name = det.get("model") or det.get("模型")
-            if model_name:
-                row["模型"] = text_value(model_name)
-            if not all(value in {"", None} for value in row.values()):
-                rows.append(row)
+        if not has_detection_payload(det):
+            continue
+        row = enrich_detection_row(det)
+        model_name = det.get("model") or det.get("模型")
+        if model_name:
+            row["模型"] = text_value(model_name)
+        if not all(value in {"", None} for value in row.values()):
+            rows.append(row)
     return rows
 
 
@@ -29,7 +30,7 @@ def _model_result_detections(model_results: Any) -> list[dict[str, Any]]:
             continue
         model = item.get("model") or item.get("模型")
         for det in item.get("detections") or []:
-            if not isinstance(det, dict):
+            if not has_detection_payload(det):
                 continue
             row = dict(det)
             if model and not row.get("模型"):

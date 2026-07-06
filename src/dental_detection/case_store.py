@@ -8,7 +8,7 @@ from typing import Any
 
 from .assistant import SAFETY_NOTICE, case_dir, ensure_app_dirs, report_dir, storage_root
 from .model_info import legend_markdown
-from .result_levels import REGION_NOTICE, enrich_detection_row, get_class_display_name, parse_confidence
+from .result_levels import REGION_NOTICE, enrich_detection_row, get_class_display_name, has_detection_payload, parse_confidence
 from .text_utils import text_value
 
 
@@ -37,7 +37,7 @@ def _case_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
                 continue
             model_name = result.get("model") or result.get("模型")
             for det in result.get("detections") or []:
-                if not isinstance(det, dict):
+                if not has_detection_payload(det):
                     continue
                 row = enrich_detection_row(det)
                 if model_name:
@@ -45,7 +45,7 @@ def _case_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
                 rows.append(row)
         if rows:
             return rows
-    return [enrich_detection_row(det) for det in data.get("detections") or [] if isinstance(det, dict)]
+    return [enrich_detection_row(det) for det in data.get("detections") or [] if has_detection_payload(det)]
 
 
 def _case_classes(detections: list[dict[str, Any]]) -> list[str]:

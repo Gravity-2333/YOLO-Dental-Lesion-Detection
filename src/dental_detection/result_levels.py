@@ -12,6 +12,18 @@ CLASS_DISPLAY_NAMES = {
 }
 
 REGION_NOTICE = "区域提示仅根据图像中检测框位置粗略计算，不等同于专业牙位编号。"
+DETECTION_PAYLOAD_KEYS = {
+    "class",
+    "类别",
+    "label",
+    "name",
+    "confidence",
+    "置信度",
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+}
 
 
 def normalize_class_name(name: str) -> str:
@@ -78,6 +90,16 @@ def get_confidence_description(confidence: Any) -> str:
     if value >= 0.40:
         return "模型检测到可疑区域，但把握程度中等，建议由专业人员结合影像复核。"
     return "模型把握较低，仅作为提示，不应作为诊断依据。"
+
+
+def has_detection_payload(det: Any) -> bool:
+    if not isinstance(det, dict):
+        return False
+    for key in DETECTION_PAYLOAD_KEYS:
+        value = det.get(key)
+        if value is not None and str(value).strip() != "":
+            return True
+    return False
 
 
 def estimate_image_region(det: dict[str, Any], image_size: tuple[int, int] | None = None) -> str:

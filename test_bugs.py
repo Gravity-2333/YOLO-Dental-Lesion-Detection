@@ -1782,5 +1782,79 @@ except Exception as e:
     print(f"✗ 保存设置存储目录错误提示测试失败: {e}")
     sys.exit(1)
 
+print("\n测试58: 检查空字典检测框不会被统计成未知病变...")
+try:
+    import app
+    from docx import Document
+    from PIL import Image
+    from src.dental_detection.history_store import build_history_record
+
+    image = Image.new("RGB", (80, 60), "white")
+    empty_detection_item = {
+        "name": "empty-dict.png",
+        "result": {
+            "model": "model-empty",
+            "original": image,
+            "model_input": image,
+            "annotated": image,
+            "detections": [{}, {"备注": ""}],
+        },
+        "all_results": [{"model": "model-empty", "detections": [{}, {"备注": ""}]}],
+        "summary": {},
+        "advice": "",
+    }
+
+    assert app._clean_detection_records([{}, {"备注": ""}]) == [], "空字典检测框应被清理"
+    summary = build_batch_summary([empty_detection_item])
+    assert summary["检测框总数"] == 0 and summary["涉及类别"] == "无", "批量摘要不应把空字典当成未知病变"
+    history_record = build_history_record(empty_detection_item)
+    assert history_record["detection_count"] == 0, "历史记录不应统计空字典检测框"
+
+    with TemporaryDirectory() as temp_dir:
+        case_dir(temp_dir).mkdir(parents=True, exist_ok=True)
+        case_path = case_dir(temp_dir) / "case_20260706_empty.json"
+        case_path.write_text(
+            json.dumps(
+                {
+                    "created_at": "2026-07-06T12:00:00",
+                    "case_id": "empty",
+                    "image_name": "empty-dict.png",
+                    "detections": [{}],
+                    "model_results": [{"model": "model-empty", "detections": [{}]}],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        rows = list_case_records(temp_dir)
+        assert rows[0]["检测数量"] == 0 and rows[0]["涉及类别"] == "无检测结果", (
+            "病例列表不应把空字典检测框统计为未知类别"
+        )
+        detail = format_case_record(load_case_record(temp_dir, case_path.name))
+        assert "检测框：共 0 个" in detail and "未检测到病变框" in detail, "病例详情应显示无检测框"
+
+        report_path = export_single_docx_report(
+            SingleReportData(
+                image_name="empty-dict.png",
+                created_at="2026-07-06T12:00:00",
+                model_name="model-empty",
+                original_image=image,
+                model_input_image=image,
+                annotated_image=image,
+                detections=[{}],
+                advice="",
+                quality_text="",
+                summary={},
+                safety_notice="测试声明",
+            ),
+            Path(temp_dir) / "word-empty",
+        )
+        report_text = "\n".join(paragraph.text for paragraph in Document(report_path).paragraphs)
+        assert "未检测到明确目标框" in report_text, "Word 报告摘要不应把空字典检测框当成有效目标"
+    print("✓ 空字典检测框清理正常")
+except Exception as e:
+    print(f"✗ 空字典检测框清理测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
