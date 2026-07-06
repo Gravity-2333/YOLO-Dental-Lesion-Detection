@@ -810,6 +810,13 @@ def _case_detail_from_choice(choice: str | None, storage_dir: str) -> str:
     return load_case_record(choice, storage_dir)
 
 
+def _case_file_name_from_choice(choice: str) -> str:
+    file_name = str(choice or "").split("|")[-1].strip()
+    if Path(file_name).name != file_name or not file_name.startswith("case_") or not file_name.endswith(".json"):
+        raise gr.Error("病例选择无效，请刷新病例列表后重试。")
+    return file_name
+
+
 def _validate_case_date_filters(date_from: str, date_to: str) -> tuple[str, str]:
     start = str(date_from or "").strip()
     end = str(date_to or "").strip()
@@ -1736,7 +1743,7 @@ def delete_selected_case_record(
         raise gr.Error("请先选择要移入回收站的病例记录。")
     _ensure_storage_root(storage_dir)
     date_from, date_to = _validate_case_date_filters(date_from, date_to)
-    file_name = choice.split("|")[-1].strip()
+    file_name = _case_file_name_from_choice(choice)
     try:
         trash_path = move_case_to_trash(storage_dir, file_name)
     except (OSError, ValueError, FileNotFoundError) as exc:
@@ -1758,7 +1765,7 @@ def export_selected_case_record(choice: str, storage_dir: str):
     if not choice:
         raise gr.Error("请先选择要导出的病例记录。")
     _ensure_storage_root(storage_dir)
-    file_name = choice.split("|")[-1].strip()
+    file_name = _case_file_name_from_choice(choice)
     try:
         path = export_case_report(storage_dir, file_name)
     except (OSError, UnicodeDecodeError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
@@ -1774,8 +1781,9 @@ def load_case_record(choice: str, storage_dir: str):
         _ensure_storage_root(storage_dir)
     except gr.Error as exc:
         return format_case_record({"错误": str(exc)})
-    file_name = choice.split("|")[-1].strip()
-    if Path(file_name).name != file_name or not file_name.startswith("case_") or not file_name.endswith(".json"):
+    try:
+        file_name = _case_file_name_from_choice(choice)
+    except gr.Error:
         return format_case_record({"错误": "病例选择无效，请刷新病例列表后重试。"})
     try:
         return format_case_record(load_case_record_data(storage_dir, file_name))

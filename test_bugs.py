@@ -933,7 +933,19 @@ try:
     rule_start = css_text.index(path_rule_anchor)
     rule_end = css_text.index("}", rule_start)
     rule_body = css_text[rule_start:rule_end]
-    for label in ["报告路径", "导出路径", "批量导出路径", "模型目录", "存储目录", "主模型路径", "对比模型路径"]:
+    for label in [
+        "报告路径",
+        "导出路径",
+        "批量导出路径",
+        "批量 Word 报告路径",
+        "Word 报告路径",
+        "结果图路径",
+        "病例报告路径",
+        "模型目录",
+        "存储目录",
+        "主模型路径",
+        "对比模型路径",
+    ]:
         assert f'textarea[aria-label="{label}"]' in rule_body, f"{label} textarea 应有长文本省略规则"
         assert f'input[aria-label="{label}"]' in rule_body, f"{label} input 应有长文本省略规则"
     assert ".path-row input" in rule_body, "路径行运行时 input 应有长文本省略规则"
@@ -1534,6 +1546,32 @@ try:
     print("✓ 移动端引导步骤文字换行正常")
 except Exception as e:
     print(f"✗ 移动端引导步骤文字样式测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试50: 检查病例无效选择在各入口提示一致...")
+try:
+    import app
+
+    with TemporaryDirectory() as temp_dir:
+        invalid_choice = "2026-07-06 | 病例 | 图片 | ..\\secret.json"
+        detail = app.load_case_record(invalid_choice, temp_dir)
+        assert "病例选择无效" in detail, "加载病例应提示选择无效"
+        for action_name, action in [
+            ("导出病例", lambda: app.export_selected_case_record(invalid_choice, temp_dir)),
+            (
+                "删除病例",
+                lambda: app.delete_selected_case_record(invalid_choice, "", "全部", "全部", "", "", temp_dir),
+            ),
+        ]:
+            try:
+                action()
+            except Exception as exc:
+                assert "病例选择无效" in str(exc), f"{action_name} 应提示选择无效"
+            else:
+                raise AssertionError(f"{action_name} 不应接受无效病例选择")
+    print("✓ 病例无效选择提示一致正常")
+except Exception as e:
+    print(f"✗ 病例无效选择提示一致测试失败: {e}")
     sys.exit(1)
 
 print("\n" + "="*60)
