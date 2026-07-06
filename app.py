@@ -3326,6 +3326,9 @@ def build_app() -> gr.Blocks:
 
         image.change(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
         batch_files.change(fn=clear_outputs, outputs=common_outputs)
+        stale_result_controls = [primary_model_path, compare_model_path, conf, iou, device_choice, use_clahe]
+        for control in stale_result_controls:
+            control.change(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
         example_select.change(fn=_example_preview_text, inputs=example_select, outputs=example_info)
         load_example_btn.click(fn=load_demo_example, inputs=example_select, outputs=[image, example_info]).then(
             fn=clear_outputs_with_quality,
@@ -3420,12 +3423,24 @@ def build_app() -> gr.Blocks:
             inputs=[direct_api_key_hidden, direct_api_key_visible, direct_key_visible],
             outputs=[direct_api_key_hidden, direct_api_key_visible, show_direct_key_btn, direct_key_visible],
         )
-        model_mode.change(fn=sync_model_mode, inputs=model_mode, outputs=[settings_model_mode, compare_model_path])
-        settings_model_mode.change(fn=sync_model_mode, inputs=settings_model_mode, outputs=[model_mode, compare_model_path])
+        model_mode.change(fn=sync_model_mode, inputs=model_mode, outputs=[settings_model_mode, compare_model_path]).then(
+            fn=clear_outputs_with_quality,
+            inputs=image,
+            outputs=common_outputs,
+        )
+        settings_model_mode.change(fn=sync_model_mode, inputs=settings_model_mode, outputs=[model_mode, compare_model_path]).then(
+            fn=clear_outputs_with_quality,
+            inputs=image,
+            outputs=common_outputs,
+        )
         enable_compare.change(
             fn=on_enable_compare_change,
             inputs=enable_compare,
             outputs=[model_mode, settings_model_mode, compare_model_path],
+        ).then(
+            fn=clear_outputs_with_quality,
+            inputs=image,
+            outputs=common_outputs,
         )
         show_summary.change(fn=toggle_summary, inputs=show_summary, outputs=summary)
         test_btn.click(
@@ -3542,11 +3557,19 @@ def build_app() -> gr.Blocks:
             fn=apply_selected_model,
             inputs=[model_file_select, model_apply_target],
             outputs=[primary_model_path, compare_model_path, model_cards_view, model_info_markdown, model_feedback],
+        ).then(
+            fn=clear_outputs_with_quality,
+            inputs=image,
+            outputs=common_outputs,
         )
         apply_model_card_btn.click(
             fn=apply_model_card,
             inputs=[model_card_select, model_dir],
             outputs=[primary_model_path, model_file_select, model_cards_view, model_info_markdown, model_feedback],
+        ).then(
+            fn=clear_outputs_with_quality,
+            inputs=image,
+            outputs=common_outputs,
         )
         test_model_btn.click(
             fn=test_model_file,

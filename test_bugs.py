@@ -1964,5 +1964,23 @@ except Exception as e:
     print(f"✗ 仅中文名称检测框兼容测试失败: {e}")
     sys.exit(1)
 
+print("\n测试64: 检查模型和推理参数变化会清理陈旧检测结果...")
+try:
+    app_text = (Path(__file__).parent / "app.py").read_text(encoding="utf-8")
+    assert "stale_result_controls = [primary_model_path, compare_model_path, conf, iou, device_choice, use_clahe]" in app_text, (
+        "模型路径、阈值、设备和 CLAHE 变化都应注册陈旧结果清理"
+    )
+    assert "for control in stale_result_controls:" in app_text, "陈旧结果清理应统一绑定，避免漏掉单个控件"
+    assert app_text.count("fn=clear_outputs_with_quality,\n            inputs=image,\n            outputs=common_outputs,") >= 5, (
+        "模型应用、模型模式和关键推理参数变化后应清理旧检测/导出状态"
+    )
+    assert "apply_model_btn.click(" in app_text and "apply_model_card_btn.click(" in app_text, "模型应用入口应存在"
+    apply_model_section = app_text[app_text.index("apply_model_btn.click(") : app_text.index("test_model_btn.click(")]
+    assert apply_model_section.count("clear_outputs_with_quality") >= 2, "应用模型后不应保留旧检测结果"
+    print("✓ 模型和推理参数变化清理陈旧结果正常")
+except Exception as e:
+    print(f"✗ 模型和推理参数陈旧结果清理测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
