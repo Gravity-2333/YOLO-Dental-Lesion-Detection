@@ -2047,5 +2047,18 @@ except Exception as e:
     print(f"✗ 中文类别名专属建议匹配测试失败: {e}")
     sys.exit(1)
 
+print("\n测试68: 检查默认建议忽略无效检测字段...")
+try:
+    from src.dental_detection.assistant import default_advice
+
+    advice = default_advice([{"confidence": 0.94}, {}, {"备注": ""}])
+    assert "本次未检测到明确的目标病变框" in advice, "无效检测字段应按无检测处理"
+    assert "未知区域" not in advice and "未知类别" not in advice, "孤立置信度不应生成未知病变建议"
+    assert "0.94" not in advice, "无效置信度字段不应污染默认建议"
+    print("✓ 默认建议无效检测字段清理正常")
+except Exception as e:
+    print(f"✗ 默认建议无效检测字段清理测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

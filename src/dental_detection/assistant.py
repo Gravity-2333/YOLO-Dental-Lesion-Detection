@@ -12,7 +12,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .config import PROJECT_ROOT
-from .result_levels import enrich_detection_row, parse_confidence
+from .result_levels import enrich_detection_row, has_detection_payload, parse_confidence
 from .text_utils import json_safe_value
 
 APP_DIR_NAME = "YOLO-Dental-Lesion-Detection"
@@ -547,7 +547,7 @@ def default_advice(detections: list[dict[str, Any]]) -> str:
 
     grouped: dict[str, list[dict[str, Any]]] = {}
     for det in detections:
-        if not isinstance(det, dict):
+        if not has_detection_payload(det):
             continue
         row = enrich_detection_row(det)
         label = str(row.get("class") or "未知区域")
