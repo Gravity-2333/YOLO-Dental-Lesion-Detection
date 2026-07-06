@@ -1653,14 +1653,15 @@ def save_case_record(
     stamp = now.strftime("%Y%m%d_%H%M%S_%f")
     case_id_text = str(case_id or "").strip()
     case_note_text = str(case_note or "").strip()
-    safe_case = _safe_stem(case_id_text or item.get("name") or "case")
+    image_name = item.get("name") or item.get("image_name") or "当前单图"
+    safe_case = _safe_stem(case_id_text or image_name or "case")
     path = _unique_case_path(storage_dir, stamp, safe_case)
     payload = {
         "created_at": now.isoformat(timespec="seconds"),
         "case_id": case_id_text or "未填写",
         "note": case_note_text,
-        "image_name": item.get("name") or "当前单图",
-        "display_name": _item_display_name(item, item.get("name") or "当前单图"),
+        "image_name": image_name,
+        "display_name": _item_display_name(item, image_name),
         "summary": item.get("summary", {}),
         "model_results": _model_result_records(item),
         "detections": _clean_detection_records(result.get("detections", [])),
@@ -2277,8 +2278,9 @@ def update_detection_visibility(visible_classes: list[str], selected_name: str, 
         ]
     result["annotated"] = draw_detections_with_filter(base_image, detections, visible_classes)
     highres_image, crop_items, crop_text = _result_visual_outputs(result)
-    table_rows = result["_visible_detections"] if visible_classes is not None else detections
-    table = _table_from_records(table_rows) if table_rows else _empty_table("当前筛选无可见检测框")
+    # 类别开关只改变可视化结果和局部图，检测表仍保留完整检测结果，
+    # 避免用户误以为被隐藏的检测框已经从结果中删除。
+    table = _table_from_records(detections) if detections else _empty_table()
     return (
         result["annotated"],
         highres_image,

@@ -1574,5 +1574,67 @@ except Exception as e:
     print(f"✗ 病例无效选择提示一致测试失败: {e}")
     sys.exit(1)
 
+print("\n测试51: 检查类别显示开关不删减检测表完整结果...")
+try:
+    import app
+    from PIL import Image
+
+    image = Image.new("RGB", (100, 80), "white")
+    detections = [
+        {"class": "Caries", "confidence": 0.88, "x1": 10, "y1": 10, "x2": 30, "y2": 30},
+        {"class": "Impacted", "confidence": 0.77, "x1": 55, "y1": 35, "x2": 85, "y2": 65},
+    ]
+    batch_state = [
+        {
+            "name": "当前单图",
+            "result": {
+                "original": image,
+                "model_input": image,
+                "annotated": image,
+                "detections": detections,
+            },
+            "advice": "",
+            "summary": {},
+        }
+    ]
+    outputs = app.update_detection_visibility(["龋齿"], "当前单图", batch_state)
+    crop_items = outputs[2]
+    table = outputs[5]
+    assert len(crop_items) == 1, "类别开关应只影响结果图和局部图显示"
+    assert set(table["class"].tolist()) == {"Caries", "Impacted"}, "检测表应保留完整检测结果"
+    assert len(batch_state[0]["result"]["detections"]) == 2, "类别开关不应删除原始检测框"
+    print("✓ 类别显示开关完整结果保留正常")
+except Exception as e:
+    print(f"✗ 类别显示开关完整结果测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试52: 检查病例保存兼容仅含 image_name 的结果项...")
+try:
+    import app
+    from PIL import Image
+
+    image = Image.new("RGB", (80, 60), "white")
+    item = {
+        "image_name": "legacy_only_name.png",
+        "result": {
+            "model": "legacy-model",
+            "original": image,
+            "detections": [{"class": "Caries", "confidence": 0.8, "x1": 5, "y1": 6, "x2": 30, "y2": 28}],
+        },
+        "advice": "建议复查。",
+        "summary": {},
+    }
+    with TemporaryDirectory() as temp_dir:
+        app.save_case_record([item], "legacy_only_name.png", "", "", temp_dir)
+        rows = list_case_records(temp_dir)
+        assert rows and rows[0]["图片名称"] == "legacy_only_name.png", "病例列表应保留 image_name"
+        data = load_case_record(temp_dir, rows[0]["文件名"])
+        assert data["image_name"] == "legacy_only_name.png", "病例 JSON 不应把 image_name 回退成当前单图"
+        assert data["display_name"] == "legacy_only_name.png", "病例显示名应兼容 image_name"
+    print("✓ 仅 image_name 病例保存兼容正常")
+except Exception as e:
+    print(f"✗ 仅 image_name 病例保存兼容测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
