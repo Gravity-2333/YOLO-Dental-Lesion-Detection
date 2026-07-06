@@ -13,6 +13,18 @@ def friendly_error_message(exc: BaseException | str, context: str = "操作失�
             "可能原因：显卡驱动、CUDA 环境或 PyTorch GPU 版本未正确启用。\n\n"
             "建议处理：先在推理设备中选择 CPU；如果需要 GPU，请检查显卡驱动和 yolo 环境。"
         )
+    if "ai 服务响应超时" in text or "timed out" in text or "timeout" in text:
+        return (
+            f"{context}：AI 服务响应超时。\n\n"
+            "可能原因：网络不稳定、接口服务繁忙，或代理配置不可用。\n\n"
+            "建议处理：稍后重试；如多次失败，请检查 Base URL、代理和网络连接。"
+        )
+    if "无法连接 ai 服务" in text or "connection" in text or "connect" in text:
+        return (
+            f"{context}：无法连接 AI 服务。\n\n"
+            "可能原因：Base URL 填写错误、网络未连通，或本地代理没有生效。\n\n"
+            "建议处理：检查 Base URL 和网络代理后，在设置中点击测试接口。"
+        )
     if "no such file" in text or "not found" in text or "不存在" in text:
         return (
             f"{context}：相关文件不存在。\n\n"
@@ -25,7 +37,7 @@ def friendly_error_message(exc: BaseException | str, context: str = "操作失�
             "可能原因：选择的文件不是系统支持的 YOLO 权重或模型包。\n\n"
             "建议处理：请选择 .pt、.onnx、.engine、.mlmodel、.mlpackage 或 .torchscript 模型文件。"
         )
-    if ("存储" in context or "目录" in context) and ("file exists" in text or "not a directory" in text):
+    if "file exists" in text or "not a directory" in text or "不是目录" in text:
         return (
             f"{context}：请选择一个文件夹作为存储目录。\n\n"
             "可能原因：当前填写的是文件路径，或该位置不能作为目录创建。\n\n"

@@ -1716,5 +1716,71 @@ except Exception as e:
     print(f"✗ AI 对话失败提示测试失败: {e}")
     sys.exit(1)
 
+print("\n测试56: 检查 AI 超时和连接失败提示有明确建议...")
+try:
+    from src.dental_detection.error_messages import friendly_error_message
+
+    timeout_message = friendly_error_message("AI 服务响应超时，请检查网络或接口配置。", "AI 接口测试失败")
+    connect_message = friendly_error_message("无法连接 AI 服务，请检查网络、Base URL 或代理配置。", "AI 接口测试失败")
+    assert "AI 服务响应超时" in timeout_message and "稍后重试" in timeout_message, (
+        "AI 超时应给出重试和网络检查建议"
+    )
+    assert "无法连接 AI 服务" in connect_message and "测试接口" in connect_message, (
+        "AI 连接失败应提示检查 Base URL/代理并测试接口"
+    )
+    assert "错误信息" not in timeout_message + connect_message, "常见 AI 网络错误不应落入泛化错误模板"
+    print("✓ AI 网络错误提示正常")
+except Exception as e:
+    print(f"✗ AI 网络错误提示测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试57: 检查保存设置时存储目录误填文件路径有明确提示...")
+try:
+    import app
+
+    original_save_settings = app.save_settings
+
+    def fail_save_settings(*args, **kwargs):
+        raise FileExistsError("File exists: C:/tmp/not_a_dir")
+
+    app.save_settings = fail_save_settings
+    try:
+        try:
+            app.save_ui_settings(
+                False,
+                "https://api.deepseek.com/v1",
+                "deepseek-chat",
+                "环境变量",
+                "DEEPSEEK_API_KEY",
+                "",
+                "",
+                False,
+                False,
+                True,
+                "C:/tmp/not_a_dir",
+                "",
+                "简洁版",
+                False,
+                False,
+                app.MODEL_MODE_SINGLE,
+                "models",
+                str(DEFAULT_MODEL_PATH),
+                "",
+                True,
+                100,
+            )
+        except Exception as exc:
+            message = str(exc)
+        else:
+            raise AssertionError("保存设置遇到文件路径冲突时应报错")
+    finally:
+        app.save_settings = original_save_settings
+    assert "请选择一个文件夹作为存储目录" in message, "存储目录误填文件时应明确说明选择文件夹"
+    assert "建议处理" in message, "存储目录错误应包含处理建议"
+    print("✓ 保存设置存储目录错误提示正常")
+except Exception as e:
+    print(f"✗ 保存设置存储目录错误提示测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

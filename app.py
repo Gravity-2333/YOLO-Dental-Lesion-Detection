@@ -2386,7 +2386,13 @@ def save_ui_settings(
     try:
         path = save_settings(settings)
     except (OSError, RuntimeError, ValueError, TypeError) as exc:
-        raise _friendly_gr_error(exc, "设置保存失败") from exc
+        text = str(exc).casefold()
+        context = (
+            "存储目录不可用"
+            if ("file exists" in text or "not a directory" in text or "不是目录" in text)
+            else "设置保存失败"
+        )
+        raise _friendly_gr_error(exc, context) from exc
     _ensure_storage_root(settings.storage_dir)
     feedback = [f"设置已保存：{path}"]
     case_rows = list_case_records(settings.storage_dir)
