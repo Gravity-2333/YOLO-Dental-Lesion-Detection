@@ -25,7 +25,9 @@ def _safe_case_file_name(file_name: str) -> str:
 
 def _read_case_file(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
-    return data if isinstance(data, dict) else {}
+    if not isinstance(data, dict):
+        raise ValueError("病例文件顶层结构不是对象。")
+    return data
 
 
 def _case_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -95,7 +97,7 @@ def list_case_records(storage_dir: str) -> list[dict[str, Any]]:
     for path in sorted(case_dir(storage_dir).glob("case_*.json"), reverse=True):
         try:
             rows.append(_row_from_case(path, _read_case_file(path)))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
             rows.append(
                 {
                     "保存时间": "",

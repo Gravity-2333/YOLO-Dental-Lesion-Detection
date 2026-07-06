@@ -2258,5 +2258,31 @@ except Exception as e:
     print(f"✗ 病例详情异常摘要结构测试失败: {e}")
     sys.exit(1)
 
+print("\n测试74: 检查非对象病例 JSON 显示为损坏记录...")
+try:
+    import app
+    from src.dental_detection.assistant import case_dir, ensure_app_dirs
+    from src.dental_detection.case_store import list_case_records as list_case_rows
+
+    with TemporaryDirectory() as temp_dir:
+        ensure_app_dirs(temp_dir)
+        case_path = case_dir(temp_dir) / "case_list_payload.json"
+        case_path.write_text("[1, 2, 3]", encoding="utf-8")
+        rows = list_case_rows(temp_dir)
+        detail = app.load_case_record("x | y | z | case_list_payload.json", temp_dir)
+        try:
+            app.export_selected_case_record("x | y | z | case_list_payload.json", temp_dir)
+        except Exception as exc:
+            export_message = str(exc)
+        else:
+            raise AssertionError("非对象病例 JSON 不应导出为空报告")
+    assert rows and rows[0]["病例编号"] == "损坏病例文件", "顶层非对象病例 JSON 应显示为损坏记录"
+    assert "病例文件损坏或无法读取" in detail, "详情入口应提示病例文件损坏而不是显示空病例"
+    assert "病例文件损坏或无法读取" in export_message, "导出入口应阻止非对象病例 JSON 生成空报告"
+    print("✓ 非对象病例 JSON 损坏提示正常")
+except Exception as e:
+    print(f"✗ 非对象病例 JSON 损坏提示测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
