@@ -700,7 +700,7 @@ def _build_advice(settings: AiSettings, detections: list[dict[str, Any]]) -> str
             max_tokens=500,
         )
     except Exception as exc:
-        return f"{default_advice(detections)}\n\nAI 建议生成失败：{exc}"
+        return f"{default_advice(detections)}\n\n{friendly_error_message(exc, 'AI 建议生成失败')}"
 
 
 def _advice_style_prompt(style: str) -> str:
@@ -2467,7 +2467,7 @@ def continue_chat(
             messages = [{"role": "system", "content": system_prompt}, *history, user_entry]
             answer = chat_completion(settings, messages, temperature=0.2, max_tokens=500)
         except Exception as exc:
-            answer = f"AI 回复失败：{exc}"
+            answer = friendly_error_message(exc, "AI 回复失败")
             clear_input = False
         history.append(user_entry)
         if answer.strip():

@@ -1636,5 +1636,85 @@ except Exception as e:
     print(f"✗ 仅 image_name 病例保存兼容测试失败: {e}")
     sys.exit(1)
 
+print("\n测试53: 检查模型格式错误提示不会泛化成加载失败...")
+try:
+    from src.dental_detection.error_messages import friendly_error_message
+
+    message = friendly_error_message(
+        "主模型: unsupported model format .txt; supported: .pt",
+        "模型文件格式不支持",
+    )
+    assert "格式不受支持" in message, "模型格式错误应明确提示格式不支持"
+    assert ".pt" in message and ".onnx" in message, "提示应给出可选择的模型格式"
+    assert "模型文件无法加载" not in message, "格式错误不应泛化为模型损坏或无法加载"
+    print("✓ 模型格式错误提示正常")
+except Exception as e:
+    print(f"✗ 模型格式错误提示测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试54: 检查 AI 建议失败提示包含处理建议...")
+try:
+    import app
+    from src.dental_detection.assistant import AiSettings
+
+    original_chat_completion = app.chat_completion
+
+    def fail_chat(*args, **kwargs):
+        raise ValueError("API Key missing")
+
+    app.chat_completion = fail_chat
+    try:
+        settings = AiSettings(enabled=True, api_key="", key_mode="直接 Key 值")
+        advice = app._build_advice(settings, [{"class": "Caries", "confidence": 0.86}])
+    finally:
+        app.chat_completion = original_chat_completion
+    assert "检测摘要" in advice, "AI 失败时仍应保留内置建议"
+    assert "AI 接口鉴权失败" in advice, "AI 失败应转换为用户友好提示"
+    assert "建议处理" in advice and "测试接口" in advice, "AI 失败提示应包含下一步操作"
+    print("✓ AI 建议失败提示正常")
+except Exception as e:
+    print(f"✗ AI 建议失败提示测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试55: 检查 AI 对话失败提示保留输入并给出建议...")
+try:
+    import app
+
+    original_chat_completion = app.chat_completion
+
+    def fail_chat(*args, **kwargs):
+        raise ValueError("API Key missing")
+
+    app.chat_completion = fail_chat
+    try:
+        chatbot, chat_state, chat_input, export_file, export_path = app.continue_chat(
+            "请解释结果",
+            [],
+            True,
+            "https://api.deepseek.com/v1",
+            "deepseek-chat",
+            "直接 Key 值",
+            "",
+            "",
+            "",
+            False,
+            False,
+            False,
+            "",
+            "",
+            "简洁版",
+        )
+    finally:
+        app.chat_completion = original_chat_completion
+    assert chat_input == "请解释结果", "AI 对话失败时应保留用户输入方便修改重试"
+    assert chatbot[-1]["role"] == "assistant", "失败提示应作为助手回复显示"
+    assert "AI 接口鉴权失败" in chatbot[-1]["content"], "AI 对话失败应使用友好提示"
+    assert "建议处理" in chatbot[-1]["content"], "AI 对话失败提示应包含处理建议"
+    assert export_path == "" and getattr(export_file, "get", lambda *_: None)("visible") is False, "失败后不应暴露旧导出文件"
+    print("✓ AI 对话失败提示正常")
+except Exception as e:
+    print(f"✗ AI 对话失败提示测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

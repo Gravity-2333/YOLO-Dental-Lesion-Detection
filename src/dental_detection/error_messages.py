@@ -19,6 +19,18 @@ def friendly_error_message(exc: BaseException | str, context: str = "操作失�
             "可能原因：文件被移动、删除，或设置中的路径已经失效。\n\n"
             "建议处理：重新选择图片或模型文件，并在设置中点击测试模型确认路径有效。"
         )
+    if "unsupported model format" in text or ("模型" in context and ("格式不支持" in context or "unsupported" in text)):
+        return (
+            f"{context}：模型文件格式不受支持。\n\n"
+            "可能原因：选择的文件不是系统支持的 YOLO 权重或模型包。\n\n"
+            "建议处理：请选择 .pt、.onnx、.engine、.mlmodel、.mlpackage 或 .torchscript 模型文件。"
+        )
+    if ("存储" in context or "目录" in context) and ("file exists" in text or "not a directory" in text):
+        return (
+            f"{context}：请选择一个文件夹作为存储目录。\n\n"
+            "可能原因：当前填写的是文件路径，或该位置不能作为目录创建。\n\n"
+            "建议处理：在设置中重新选择一个可写文件夹，例如用户文档目录下的新文件夹。"
+        )
     if "model" in text or "模型" in context or Path(raw).suffix == ".pt":
         return (
             f"{context}：模型文件无法加载。\n\n"
