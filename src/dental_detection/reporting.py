@@ -10,7 +10,7 @@ from PIL import Image
 from .batch_summary import build_batch_summary
 from .model_info import legend_markdown
 from .result_levels import REGION_NOTICE, enrich_detection_row, has_detection_payload, iter_detection_items, parse_confidence
-from .result_items import item_model_results, iter_model_result_items
+from .result_items import item_model_results, iter_model_result_items, model_result_detections, model_result_name, model_result_path
 from .visualization import save_png_image
 
 
@@ -218,9 +218,9 @@ def _model_result_image(item: dict[str, Any]) -> Any:
 
 def _model_name(item: dict[str, Any]) -> str:
     model_names = [
-        str(result.get("model"))
+        model_result_name(result)
         for result in _item_results(item)
-        if isinstance(result, dict) and result.get("model")
+        if isinstance(result, dict) and model_result_name(result, "")
     ]
     if model_names:
         return "、".join(dict.fromkeys(model_names))
@@ -241,9 +241,9 @@ def _single_report_model_results(data: SingleReportData) -> list[dict[str, Any]]
         for index, item in enumerate(model_items, start=1):
             rows.append(
                 {
-                    "model": str(item.get("model") or item.get("模型") or f"模型 {index}"),
-                    "model_path": str(item.get("model_path") or item.get("路径") or item.get("模型路径") or ""),
-                    "detections": [det for det in iter_detection_items(item.get("detections")) if has_detection_payload(det)],
+                    "model": model_result_name(item, f"模型 {index}"),
+                    "model_path": model_result_path(item),
+                    "detections": [det for det in iter_detection_items(model_result_detections(item)) if has_detection_payload(det)],
                     "annotated_image": _model_result_image(item),
                 }
             )
@@ -355,7 +355,7 @@ def export_batch_docx_report(
             result_detections = [
                 det
                 for model_result in item_results
-                for det in (iter_detection_items(model_result.get("detections")) if isinstance(model_result, dict) else [])
+                for det in (iter_detection_items(model_result_detections(model_result)) if isinstance(model_result, dict) else [])
                 if has_detection_payload(det)
             ]
             detections = [
@@ -392,8 +392,8 @@ def export_batch_docx_report(
             image_size = _image_size(result.get("model_input")) or _image_size(result.get("original")) or _image_size(annotated)
             if len(item_results) > 1:
                 for model_index, model_result in enumerate(item_results, start=1):
-                    model_name = model_result.get("model", f"模型 {model_index}") if isinstance(model_result, dict) else f"模型 {model_index}"
-                    model_detections = model_result.get("detections") if isinstance(model_result, dict) else []
+                    model_name = model_result_name(model_result, f"模型 {model_index}") if isinstance(model_result, dict) else f"模型 {model_index}"
+                    model_detections = model_result_detections(model_result) if isinstance(model_result, dict) else []
                     document.add_paragraph(f"模型 {model_index}：{model_name}")
                     model_image = _model_result_image(model_result) if isinstance(model_result, dict) else None
                     if model_image is not None:

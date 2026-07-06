@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .assistant import SAFETY_NOTICE
-from .result_items import iter_model_result_items
+from .result_items import iter_model_result_items, model_result_detections, model_result_name, model_result_path
 from .result_levels import enrich_detection_row, has_detection_payload, iter_detection_items
 from .text_utils import text_value
 
@@ -28,8 +28,8 @@ def _model_result_detections(model_results: Any) -> list[dict[str, Any]]:
         return []
     rows: list[dict[str, Any]] = []
     for item in model_items:
-        model = item.get("model") or item.get("模型")
-        for det in iter_detection_items(item.get("detections")):
+        model = model_result_name(item, "")
+        for det in iter_detection_items(model_result_detections(item)):
             if not has_detection_payload(det):
                 continue
             row = dict(det)
@@ -52,13 +52,12 @@ def _format_model_results(model_results: Any) -> list[str]:
         return []
     lines = ["", "模型结果明细："]
     for index, item in enumerate(model_items, start=1):
-        model = text_value(item.get("model") or item.get("模型"), f"模型 {index}")
+        model = text_value(model_result_name(item, f"模型 {index}"), f"模型 {index}")
         raw_count = item.get("detection_count", item.get("检测数量"))
         if raw_count in {"", None}:
-            detections = item.get("detections") or item.get("检测框") or []
-            raw_count = len(detections) if isinstance(detections, list) else 0
+            raw_count = sum(1 for _ in iter_detection_items(model_result_detections(item)))
         count = text_value(raw_count, "0")
-        path = text_value(item.get("model_path") or item.get("路径") or item.get("模型路径"))
+        path = text_value(model_result_path(item))
         line = f"- {index}. {model} | 检测数量={count}"
         if path:
             line += f" | 路径={path}"

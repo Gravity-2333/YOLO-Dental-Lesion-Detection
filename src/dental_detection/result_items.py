@@ -6,6 +6,20 @@ from typing import Any
 from .result_levels import has_detection_payload, iter_detection_items
 
 
+def model_result_name(result: dict[str, Any], fallback: str = "unknown") -> str:
+    return str(result.get("model") or result.get("模型") or fallback)
+
+
+def model_result_path(result: dict[str, Any]) -> str:
+    return str(result.get("model_path") or result.get("路径") or result.get("模型路径") or "")
+
+
+def model_result_detections(result: dict[str, Any]) -> Any:
+    if "detections" in result:
+        return result.get("detections")
+    return result.get("检测框")
+
+
 def iter_model_result_items(results: Any):
     if isinstance(results, dict):
         candidates = (results,)
@@ -21,7 +35,7 @@ def iter_model_result_items(results: Any):
 def _result_has_detections(result: Any) -> bool:
     if not isinstance(result, dict):
         return False
-    for det in iter_detection_items(result.get("detections")):
+    for det in iter_detection_items(model_result_detections(result)):
         if has_detection_payload(det):
             return True
     return False

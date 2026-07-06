@@ -11,7 +11,7 @@ from .result_levels import (
     iter_detection_items,
     parse_confidence,
 )
-from .result_items import item_model_results
+from .result_items import item_model_results, model_result_detections
 
 
 def _iter_model_results(item: dict[str, Any]):
@@ -48,7 +48,7 @@ def build_batch_summary(batch_state: list[dict[str, Any]], batch_errors: list[st
             poor_quality_images.append(image_name)
         image_detections = []
         for result in _iter_model_results(item):
-            for det in _clean_detections(result.get("detections", [])):
+            for det in _clean_detections(model_result_detections(result)):
                 image_detections.append(det)
                 total_boxes += 1
                 label = str(det.get("class", "未知类别") or "未知类别")

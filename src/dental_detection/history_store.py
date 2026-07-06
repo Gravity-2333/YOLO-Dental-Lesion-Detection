@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from .assistant import ensure_app_dirs, storage_root
 from .result_levels import enrich_detection_row, get_confidence_level, has_detection_payload, iter_detection_items, parse_confidence
-from .result_items import item_model_results, iter_model_result_items
+from .result_items import item_model_results, iter_model_result_items, model_result_detections, model_result_name, model_result_path
 from .text_utils import json_safe_value, text_value
 
 HISTORY_FILE_NAME = "检测历史.jsonl"
@@ -51,9 +51,9 @@ def _item_model_results(item: dict[str, Any]) -> list[dict[str, Any]]:
 def _history_model_rows(item: dict[str, Any]) -> list[dict[str, Any]]:
     rows = []
     for result in _item_model_results(item):
-        model_name = text_value(result.get("model"), "unknown")
+        model_name = text_value(model_result_name(result), "unknown")
         detections = []
-        for det in iter_detection_items(result.get("detections")):
+        for det in iter_detection_items(model_result_detections(result)):
             if not has_detection_payload(det):
                 continue
             enriched = enrich_detection_row(det)
@@ -62,7 +62,7 @@ def _history_model_rows(item: dict[str, Any]) -> list[dict[str, Any]]:
         rows.append(
             {
                 "model": model_name,
-                "model_path": text_value(result.get("model_path")),
+                "model_path": text_value(model_result_path(result)),
                 "detection_count": len(detections),
                 "detections": detections,
             }
