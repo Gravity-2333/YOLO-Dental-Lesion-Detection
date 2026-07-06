@@ -1433,5 +1433,73 @@ except Exception as e:
     print(f"✗ 同名批量图片报告显示名测试失败: {e}")
     sys.exit(1)
 
+print("\n测试47: 检查批量导出总览保留失败和未检出信息...")
+try:
+    from docx import Document
+    from PIL import Image
+    import app
+    from src.dental_detection.batch_overview_view import batch_overview_csv_text
+
+    image = Image.new("RGB", (80, 60), "white")
+    item = {
+        "name": "same.png",
+        "display_name": "002 - same.png",
+        "result": {
+            "model": "model-a",
+            "detections": [],
+            "original": image,
+            "model_input": image,
+            "annotated": image,
+            "full_annotated": image,
+            "table": [],
+        },
+        "all_results": [
+            {
+                "model": "model-a",
+                "detections": [],
+                "original": image,
+                "model_input": image,
+                "annotated": image,
+                "full_annotated": image,
+            }
+        ],
+        "advice": "测试建议",
+        "quality_text": "测试质量",
+        "quality_level": "良好",
+        "summary": {"模型": "model-a", "CLAHE增强": False, "conf": 0.25, "iou": 0.7},
+        "batch_errors": ["bad.png: 图片处理失败"],
+    }
+    overview = build_batch_summary([item], item["batch_errors"])
+    overview_csv = batch_overview_csv_text(overview)
+    assert "无检测结果图片" in overview_csv and "002 - same.png" in overview_csv, (
+        "批量总览 CSV 应包含未检出图片列表"
+    )
+    assert "失败图片" in overview_csv and "bad.png: 图片处理失败" in overview_csv, (
+        "批量总览 CSV 应包含失败图片列表"
+    )
+
+    with TemporaryDirectory() as temp_dir:
+        word_path = export_batch_docx_report([item], overview, Path(temp_dir) / "word")
+        word_text = "\n".join(paragraph.text for paragraph in Document(word_path).paragraphs)
+        assert "002 - same.png" in word_text and "原始文件名：same.png" in word_text, (
+            "批量 Word 逐图结果应保留列表显示名和原始文件名"
+        )
+
+        _, _, state = app.export_batch_results([item], temp_dir)
+        batch_zip = Path(state[0]["zip_report_path"])
+        with zipfile.ZipFile(batch_zip) as archive:
+            summary_text = archive.read("summary.txt").decode("utf-8")
+            exported_overview_csv = archive.read("批量检测总览.csv").decode("utf-8-sig")
+        assert "图片总数: 2" in summary_text and "成功处理: 1" in summary_text and "处理失败: 1" in summary_text, (
+            "ZIP summary.txt 应区分总数、成功和失败数量"
+        )
+        assert "失败图片" in exported_overview_csv and "bad.png: 图片处理失败" in exported_overview_csv, (
+            "ZIP 内批量总览 CSV 应导出失败图片列表"
+        )
+    print("✓ 批量导出失败和未检出信息保留正常")
+except Exception as e:
+    print(f"✗ 批量导出总览信息测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

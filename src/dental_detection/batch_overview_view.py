@@ -81,4 +81,12 @@ def batch_overview_csv_text(overview: dict[str, Any]) -> str:
     writer.writerow(["质量较差图片"])
     for image_name in overview.get("质量较差图片", []):
         writer.writerow([image_name])
+    writer.writerow([])
+    writer.writerow(["无检测结果图片"])
+    for image_name in overview.get("无检测结果图片", []):
+        writer.writerow([image_name])
+    writer.writerow([])
+    writer.writerow(["失败图片"])
+    for image_name in overview.get("失败图片", []):
+        writer.writerow([image_name])
     return buffer.getvalue()

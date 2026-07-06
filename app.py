@@ -1063,7 +1063,9 @@ def _summary_lines(batch_state: list[dict[str, Any]], export_info: dict[str, Any
     lines = [
         "YOLO Dental Lesion Detection Batch Export",
         f"导出时间: {export_info['exported_at']}",
-        f"图片数量: {len(batch_state)}",
+        f"图片总数: {export_info.get('image_count', len(batch_state))}",
+        f"成功处理: {export_info.get('success_count', len(batch_state))}",
+        f"处理失败: {export_info.get('failed_count', 0)}",
         f"检测到的总框数: {total_boxes}",
         f"是否使用 CLAHE: {export_info['use_clahe']}",
         f"conf: {export_info['conf']}",
@@ -1141,7 +1143,9 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
         ]
     export_info = {
         "exported_at": datetime.now().isoformat(timespec="seconds"),
-        "image_count": len(batch_state),
+        "image_count": batch_overview.get("图片总数", len(batch_state)),
+        "success_count": batch_overview.get("成功处理", len(batch_state)),
+        "failed_count": batch_overview.get("处理失败", 0),
         "use_clahe": bool(first_summary.get("CLAHE增强", False)),
         "conf": first_summary.get("conf", "unknown"),
         "iou": first_summary.get("iou", "unknown"),

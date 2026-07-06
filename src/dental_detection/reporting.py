@@ -347,6 +347,7 @@ def export_batch_docx_report(
             result = _primary_result(item)
             item_results = _item_results(item)
             name = item.get("name") or item.get("image_name") or f"image_{index:03d}.png"
+            display_name = str(item.get("display_name") or name)
             result_detections = [
                 det
                 for model_result in item_results
@@ -362,7 +363,9 @@ def export_batch_docx_report(
                     confidences.append(confidence)
             classes = sorted({row.get("中文名称", "") for row in enriched if row.get("中文名称")})
 
-            document.add_heading(f"{index}. {name}", level=2)
+            document.add_heading(f"{index}. {display_name}", level=2)
+            if display_name != str(name):
+                document.add_paragraph(f"原始文件名：{name}")
             document.add_paragraph(f"使用模型：{_model_name(item)}")
             document.add_paragraph(f"检测框数量：{len(enriched)}")
             document.add_paragraph(f"涉及类别：{'、'.join(classes) if classes else '无'}")
