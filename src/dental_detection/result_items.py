@@ -2,26 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
-
-_DETECTION_KEYS = {
-    "class",
-    "类别",
-    "label",
-    "name",
-    "confidence",
-    "置信度",
-    "x1",
-    "y1",
-    "x2",
-    "y2",
-}
+from .result_levels import has_detection_payload
 
 
 def _result_has_detections(result: Any) -> bool:
     if not isinstance(result, dict):
         return False
     for det in result.get("detections") or []:
-        if isinstance(det, dict) and any(key in det for key in _DETECTION_KEYS):
+        if has_detection_payload(det):
             return True
     return False
 

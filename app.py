@@ -432,9 +432,10 @@ def _is_supported_model_artifact(path: Path) -> bool:
 
 
 def _validate_model_artifact(path: Path, role: str = "模型") -> None:
-    if path.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
+    supported_suffixes = SUPPORTED_MODEL_SUFFIXES | SUPPORTED_MODEL_DIR_SUFFIXES
+    if path.suffix.lower() not in supported_suffixes:
         raise _friendly_gr_error(
-            f"{role}: unsupported model format {path.suffix}; supported: {', '.join(sorted(SUPPORTED_MODEL_SUFFIXES))}",
+            f"{role}: unsupported model format {path.suffix}; supported: {', '.join(sorted(supported_suffixes))}",
             "模型文件格式不支持",
         )
     if not path.exists():

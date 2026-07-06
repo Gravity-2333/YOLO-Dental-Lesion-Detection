@@ -1900,5 +1900,48 @@ except Exception as e:
     print(f"✗ 模型卡片与高级下拉同步测试失败: {e}")
     sys.exit(1)
 
+print("\n测试61: 检查无效 all_results 不覆盖主结果检测框...")
+try:
+    from src.dental_detection.batch_summary import build_batch_summary
+    from src.dental_detection.history_store import build_history_record
+    from src.dental_detection.result_items import item_model_results
+
+    primary_detection = {"class": "Caries", "confidence": 0.83, "x1": 1, "y1": 2, "x2": 30, "y2": 40}
+    item = {
+        "name": "primary-valid.png",
+        "result": {"model": "primary-model", "detections": [primary_detection]},
+        "all_results": [{"model": "stale-model", "detections": [{"confidence": 0.99}]}],
+    }
+    results = item_model_results(item)
+    assert len(results) == 1 and results[0]["model"] == "primary-model", (
+        "孤立置信度 all_results 不应覆盖有效主结果"
+    )
+    summary = build_batch_summary([item])
+    history_record = build_history_record(item)
+    assert summary["检测框总数"] == 1 and summary["涉及类别"] == "龋齿", "批量摘要应回退统计主结果"
+    assert history_record["detection_count"] == 1 and history_record["model"] == "primary-model", (
+        "历史记录应回退保存主结果模型和检测框"
+    )
+    print("✓ 无效 all_results 回退主结果正常")
+except Exception as e:
+    print(f"✗ 无效 all_results 回退测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试62: 检查 mlpackage 目录模型可通过模型选择验证...")
+try:
+    import app
+
+    with TemporaryDirectory() as temp_dir:
+        package_dir = Path(temp_dir) / "exported_model.mlpackage"
+        package_dir.mkdir()
+        app._validate_model_artifact(package_dir, "测试 mlpackage")
+        outputs = app.apply_selected_model(str(package_dir), "主模型")
+    assert outputs[0]["value"].endswith("exported_model.mlpackage"), "mlpackage 目录应可填入主模型路径"
+    assert "已填入主模型" in outputs[-1], "选择 mlpackage 目录模型应返回成功反馈"
+    print("✓ mlpackage 目录模型选择验证正常")
+except Exception as e:
+    print(f"✗ mlpackage 目录模型验证测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
