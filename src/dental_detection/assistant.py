@@ -6,13 +6,18 @@ import ipaddress
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 from typing import Any
 from urllib.parse import urlparse
 
 from .config import PROJECT_ROOT
-from .result_levels import enrich_detection_row, has_detection_payload, parse_confidence
+from .result_levels import (
+    CLASS_DISPLAY_NAMES,
+    enrich_detection_row,
+    has_detection_payload,
+    normalize_class_name,
+    parse_confidence,
+)
 from .text_utils import json_safe_value
 
 APP_DIR_NAME = "YOLO-Dental-Lesion-Detection"
@@ -54,37 +59,7 @@ CLASS_ADVICE = {
     "Periapical Lesion": "疑似根尖周相关异常区域。建议结合疼痛、咬合不适、牙龈肿胀等症状，由牙科医生复查根尖区域。",
     "Impacted": "疑似阻生牙相关区域。建议关注局部清洁难度、反复发炎或邻牙受影响风险，并咨询牙科医生评估。",
 }
-CLASS_DISPLAY_NAMES = {
-    "Caries": "龋齿",
-    "Periapical Lesion": "根尖周病变",
-    "Impacted": "阻生牙",
-}
-
-
-def _normalize_class_name(name: str) -> str:
-    """将类别名统一为内部建议匹配使用的规范名称。
-
-    UI 和导出仍保留模型返回的原始类别名；这里只消除空格、下划线、
-    短横线、大小写等差异，避免专属建议静默回退成泛用建议。
-    """
-    raw = str(name).replace("_", " ").strip()
-    raw_key = re.sub(r"\s+", " ", raw.casefold())
-    token = re.sub(r"[^a-z0-9]+", " ", raw.casefold()).strip()
-    token = re.sub(r"\s+", " ", token)
-    aliases = {
-        "caries": "Caries",
-        "龋齿": "Caries",
-        "龋病": "Caries",
-        "periapical lesion": "Periapical Lesion",
-        "periapical lesions": "Periapical Lesion",
-        "根尖周病变": "Periapical Lesion",
-        "根尖周病损": "Periapical Lesion",
-        "impacted": "Impacted",
-        "impacted tooth": "Impacted",
-        "impacted teeth": "Impacted",
-        "阻生牙": "Impacted",
-    }
-    return aliases.get(raw_key, aliases.get(token, raw))
+_normalize_class_name = normalize_class_name
 
 
 @dataclass

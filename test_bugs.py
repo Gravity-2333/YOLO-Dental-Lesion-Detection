@@ -2031,9 +2031,11 @@ except Exception as e:
 
 print("\n测试67: 检查中文类别名也能匹配专属内置建议...")
 try:
+    import src.dental_detection.assistant as assistant_module
     from src.dental_detection.assistant import default_advice
     from src.dental_detection.result_levels import get_class_display_name, normalize_class_name
 
+    assert assistant_module._normalize_class_name is normalize_class_name, "内置建议应复用统一类别归一化函数"
     assert normalize_class_name("龋齿") == "Caries", "中文龋齿类别应归一到 Caries"
     assert normalize_class_name("根尖周病变") == "Periapical Lesion", "中文根尖周病变应归一到 Periapical Lesion"
     assert normalize_class_name("阻生牙") == "Impacted", "中文阻生牙应归一到 Impacted"
