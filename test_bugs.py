@@ -1209,5 +1209,108 @@ except Exception as e:
     print(f"✗ 历史详情模型明细回退测试失败: {e}")
     sys.exit(1)
 
+print("\n测试41: 检查单图导出路径不会误同步到同名兄弟项...")
+try:
+    from PIL import Image
+    import app
+
+    image = Image.new("RGB", (80, 60), "white")
+
+    def make_item(model_name: str):
+        return {
+            "name": "same.png",
+            "result": {
+                "model": model_name,
+                "detections": [],
+                "original": image,
+                "model_input": image,
+                "annotated": image,
+                "full_annotated": image,
+                "table": [],
+            },
+            "advice": "测试建议",
+            "quality_text": "测试质量",
+            "quality_level": "良好",
+            "summary": {},
+        }
+
+    batch_state = [make_item("model-a"), make_item("model-b")]
+    with TemporaryDirectory() as temp_dir:
+        _, _, exported_state = app.export_single_report(batch_state, "same.png", temp_dir)
+        assert exported_state[0].get("zip_report_path"), "选中项应写入单图 ZIP 路径"
+        assert not exported_state[1].get("zip_report_path"), "同名但未选中的兄弟项不应被误写入 ZIP 路径"
+        assert exported_state[0].get("report_path") == exported_state[0].get("zip_report_path"), "选中项报告路径应同步"
+        assert not exported_state[1].get("report_path"), "未选中兄弟项 report_path 不应被污染"
+    print("✓ 单图导出路径精确同步正常")
+except Exception as e:
+    print(f"✗ 单图导出路径同步测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试42: 检查单图Word报告空模型明细回退顶层检测框...")
+try:
+    from docx import Document
+    from PIL import Image
+
+    image = Image.new("RGB", (80, 60), "white")
+    detections = [{"class": "Caries", "confidence": 0.86, "x1": 1, "y1": 2, "x2": 20, "y2": 30}]
+    with TemporaryDirectory() as temp_dir:
+        report_path = export_single_docx_report(
+            SingleReportData(
+                image_name="fallback-docx.png",
+                created_at="2026-07-06T10:00:00",
+                model_name="primary-model",
+                original_image=image,
+                model_input_image=image,
+                annotated_image=image,
+                detections=detections,
+                advice="测试建议",
+                quality_text="测试质量",
+                summary={},
+                safety_notice="测试声明",
+                model_results=[{"model": "stale-empty-model", "detections": [], "annotated": image}],
+            ),
+            Path(temp_dir),
+        )
+        doc = Document(report_path)
+        doc_text = "\n".join(
+            [paragraph.text for paragraph in doc.paragraphs]
+            + [cell.text for table in doc.tables for row in table.rows for cell in row.cells]
+        )
+        assert "primary-model" in doc_text, "空模型明细不应覆盖真实主模型名"
+        assert "Caries" in doc_text and "龋齿" in doc_text, "空模型明细不应覆盖顶层检测框"
+        assert "stale-empty-model" not in doc_text, "陈旧空模型名不应进入报告"
+    print("✓ 单图Word报告空模型明细回退正常")
+except Exception as e:
+    print(f"✗ 单图Word报告空模型明细回退测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试43: 检查旧模型明细缺数量时按检测框回填...")
+try:
+    from src.dental_detection.record_formatters import format_case_record, format_history_record
+
+    legacy = {
+        "created_at": "2026-07-06T10:00:00",
+        "case_id": "legacy-count",
+        "image_name": "legacy-count.png",
+        "model": "legacy-model",
+        "model_results": [
+            {
+                "model": "detail-model",
+                "detections": [
+                    {"class": "Impacted", "confidence": 0.77, "x1": 1, "y1": 2, "x2": 30, "y2": 40}
+                ],
+            }
+        ],
+    }
+    history_detail = format_history_record(legacy)
+    case_detail = format_case_record(legacy)
+    assert "detail-model | 检测数量=1" in history_detail, "历史详情应按检测框数量回填模型明细数量"
+    assert "detail-model | 检测数量=1" in case_detail, "病例详情应按检测框数量回填模型明细数量"
+    assert "检测数量=0" not in history_detail + case_detail, "存在检测框时不应误显示数量为0"
+    print("✓ 旧模型明细数量回填正常")
+except Exception as e:
+    print(f"✗ 旧模型明细数量回填测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

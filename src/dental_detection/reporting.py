@@ -243,7 +243,7 @@ def _single_report_model_results(data: SingleReportData) -> list[dict[str, Any]]
                     "annotated_image": _model_result_image(item),
                 }
             )
-        if rows:
+        if rows and (any(item.get("detections") for item in rows) or not data.detections):
             return rows
     return [{"model": data.model_name, "model_path": "", "detections": data.detections, "annotated_image": data.annotated_image}]
 

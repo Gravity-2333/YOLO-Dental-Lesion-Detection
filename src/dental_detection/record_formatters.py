@@ -53,7 +53,11 @@ def _format_model_results(model_results: Any) -> list[str]:
         if not isinstance(item, dict):
             continue
         model = text_value(item.get("model") or item.get("模型"), f"模型 {index}")
-        count = text_value(item.get("detection_count") or item.get("检测数量"), "0")
+        raw_count = item.get("detection_count", item.get("检测数量"))
+        if raw_count in {"", None}:
+            detections = item.get("detections") or item.get("检测框") or []
+            raw_count = len(detections) if isinstance(detections, list) else 0
+        count = text_value(raw_count, "0")
         path = text_value(item.get("model_path") or item.get("路径") or item.get("模型路径"))
         line = f"- {index}. {model} | 检测数量={count}"
         if path:

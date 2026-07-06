@@ -1030,12 +1030,13 @@ def _item_display_name(item: dict[str, Any], fallback: str = "") -> str:
 
 
 def _sync_report_path(batch_state: list[dict[str, Any]], image_refs: list[Any], path: str | Path, field: str) -> None:
-    match_keys = {_report_match_key(ref) for ref in image_refs if _report_match_key(ref)}
-    if not match_keys:
+    exact_ref_ids = {id(ref) for ref in image_refs if isinstance(ref, dict)}
+    match_keys = {_report_match_key(ref) for ref in image_refs if not isinstance(ref, dict) and _report_match_key(ref)}
+    if not exact_ref_ids and not match_keys:
         return
     path_text = str(path)
     for item in batch_state or []:
-        if _report_match_key(item) in match_keys:
+        if id(item) in exact_ref_ids or _report_match_key(item) in match_keys:
             item[field] = path_text
             item["report_path"] = path_text
 
