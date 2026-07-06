@@ -169,7 +169,7 @@ def load_settings() -> AiSettings:
         return AiSettings()
     try:
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         # 保留损坏文件的备份，方便用户恢复
         try:
             corrupt_backup = _unique_corrupt_settings_backup()

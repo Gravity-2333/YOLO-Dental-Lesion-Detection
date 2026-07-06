@@ -95,7 +95,7 @@ def list_case_records(storage_dir: str) -> list[dict[str, Any]]:
     for path in sorted(case_dir(storage_dir).glob("case_*.json"), reverse=True):
         try:
             rows.append(_row_from_case(path, _read_case_file(path)))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             rows.append(
                 {
                     "保存时间": "",

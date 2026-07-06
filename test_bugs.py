@@ -1120,5 +1120,42 @@ except Exception as e:
     print(f"✗ 模型路径文件/目录类型测试失败: {e}")
     sys.exit(1)
 
+print("\n测试38: 检查坏编码配置、病例和历史文件不会拖垮主流程...")
+try:
+    import src.dental_detection.assistant as assistant_module
+    from src.dental_detection.history_store import history_file
+
+    original_config_path = assistant_module.CONFIG_PATH
+    try:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bad_settings = root / "settings.json"
+            bad_settings.write_bytes(b"\xff\xfe\xff")
+            assistant_module.CONFIG_PATH = bad_settings
+            settings = assistant_module.load_settings()
+            assert settings.model, "坏编码 settings.json 应回退默认设置"
+            assert not bad_settings.exists(), "坏编码 settings.json 应被移走备份"
+            assert list(root.glob("settings.*.corrupt.json")), "坏编码 settings.json 应保留 corrupt 备份"
+
+        with TemporaryDirectory() as temp_dir:
+            ensure_app_dirs(temp_dir)
+            bad_case = case_dir(temp_dir) / "case_bad_encoding.json"
+            bad_case.write_bytes(b"\xff\xfe\xff")
+            case_rows = list_case_records(temp_dir)
+            assert case_rows and case_rows[0]["病例编号"] == "损坏病例文件", "坏编码病例文件应显示为损坏记录"
+            detail = app.load_case_record("任意时间 | 病例 | 图片 | case_bad_encoding.json", temp_dir)
+            assert "错误" in detail or "病例文件" in detail, "坏编码病例详情应返回错误文本而不是抛出异常"
+
+        with TemporaryDirectory() as temp_dir:
+            ensure_app_dirs(temp_dir)
+            history_file(temp_dir).write_bytes(b"\xff\xfe\xff")
+            assert history_rows(temp_dir) == [], "坏编码历史文件应被当作空历史处理"
+    finally:
+        assistant_module.CONFIG_PATH = original_config_path
+    print("✓ 坏编码文件容错正常")
+except Exception as e:
+    print(f"✗ 坏编码文件容错测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

@@ -875,7 +875,7 @@ def _load_example_metadata() -> list[dict[str, Any]]:
         return []
     try:
         data = json.loads(EXAMPLE_META_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return []
     if not isinstance(data, list):
         return []
@@ -1747,8 +1747,8 @@ def export_selected_case_record(choice: str, storage_dir: str):
     file_name = choice.split("|")[-1].strip()
     try:
         path = export_case_report(storage_dir, file_name)
-    except (OSError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
-        raise gr.Error(str(exc)) from exc
+    except (OSError, UnicodeDecodeError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
+        raise gr.Error(f"病例文件损坏或无法读取：{exc}") from exc
     _remember_allowed_file_root(path.parent)
     return _file_component_output(path), f"已导出病例报告：{path}"
 
@@ -1765,8 +1765,8 @@ def load_case_record(choice: str, storage_dir: str):
         return format_case_record({"错误": "病例选择无效，请刷新病例列表后重试。"})
     try:
         return format_case_record(load_case_record_data(storage_dir, file_name))
-    except (OSError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
-        return format_case_record({"错误": str(exc)})
+    except (OSError, UnicodeDecodeError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
+        return format_case_record({"错误": f"病例文件损坏或无法读取：{exc}"})
 
 
 def load_case_record_and_clear_export(choice: str, storage_dir: str):

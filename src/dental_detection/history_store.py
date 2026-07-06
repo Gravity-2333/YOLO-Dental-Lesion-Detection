@@ -134,7 +134,7 @@ def _load_raw_records(storage_dir: str | None = None) -> list[dict[str, Any]]:
     records = []
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return []
     for line in lines:
         if not line.strip():
