@@ -1856,5 +1856,30 @@ except Exception as e:
     print(f"✗ 空字典检测框清理测试失败: {e}")
     sys.exit(1)
 
+print("\n测试59: 检查仅置信度字段不会被统计成未知病变...")
+try:
+    import app
+    from src.dental_detection.result_levels import has_detection_payload
+    from src.dental_detection.history_store import build_history_record
+
+    confidence_only = {"confidence": 0.91}
+    bbox_only = {"x1": 1, "y1": 2, "x2": 20, "y2": 30}
+    chinese_label = {"中文名称": "龋齿", "confidence": 0.88}
+    assert not has_detection_payload(confidence_only), "只有置信度没有类别或 bbox 时不应算作检测框"
+    assert has_detection_payload(bbox_only), "保留无类别但有完整 bbox 的旧记录兼容"
+    assert has_detection_payload(chinese_label), "只含中文类别名的旧记录应继续兼容"
+    assert app._clean_detection_records([confidence_only]) == [], "置信度孤立字段应被清理"
+
+    item = {"name": "confidence-only.png", "result": {"detections": [confidence_only]}}
+    summary = build_batch_summary([item])
+    history_record = build_history_record(item)
+    assert summary["检测框总数"] == 0 and history_record["detection_count"] == 0, (
+        "置信度孤立字段不应污染摘要和历史统计"
+    )
+    print("✓ 仅置信度字段清理正常")
+except Exception as e:
+    print(f"✗ 仅置信度字段清理测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

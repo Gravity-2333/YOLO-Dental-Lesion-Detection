@@ -12,18 +12,14 @@ CLASS_DISPLAY_NAMES = {
 }
 
 REGION_NOTICE = "区域提示仅根据图像中检测框位置粗略计算，不等同于专业牙位编号。"
-DETECTION_PAYLOAD_KEYS = {
+DETECTION_CLASS_KEYS = {
     "class",
     "类别",
     "label",
     "name",
-    "confidence",
-    "置信度",
-    "x1",
-    "y1",
-    "x2",
-    "y2",
+    "中文名称",
 }
+BBOX_KEYS = {"x1", "y1", "x2", "y2"}
 
 
 def normalize_class_name(name: str) -> str:
@@ -95,11 +91,11 @@ def get_confidence_description(confidence: Any) -> str:
 def has_detection_payload(det: Any) -> bool:
     if not isinstance(det, dict):
         return False
-    for key in DETECTION_PAYLOAD_KEYS:
+    for key in DETECTION_CLASS_KEYS:
         value = det.get(key)
         if value is not None and str(value).strip() != "":
             return True
-    return False
+    return all(det.get(key) is not None and str(det.get(key)).strip() != "" for key in BBOX_KEYS)
 
 
 def estimate_image_region(det: dict[str, Any], image_size: tuple[int, int] | None = None) -> str:
