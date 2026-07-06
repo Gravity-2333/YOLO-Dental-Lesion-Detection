@@ -1127,6 +1127,22 @@ try:
         package_dir = Path(temp_dir) / "exported_model.mlpackage"
         package_dir.mkdir()
         app._validate_model_files([("CoreML 模型包", package_dir)])
+        original_yolo = app.YOLO
+        try:
+            class FakeYOLO:
+                names = {0: "Caries"}
+
+                def __init__(self, path):
+                    self.path = path
+
+            app.YOLO = FakeYOLO
+            package_feedback = app.test_model_file(str(package_dir), str(package_dir), app.MODEL_MODE_SINGLE)
+            assert "文件后缀不在支持列表中" not in package_feedback, (
+                "测试模型按钮不应把已支持的 .mlpackage 目录误报为后缀不支持"
+            )
+            assert "可加载" in package_feedback, "测试模型按钮应继续走到 .mlpackage 加载检查"
+        finally:
+            app.YOLO = original_yolo
     print("✓ 模型路径文件/目录类型校验正常")
 except Exception as e:
     print(f"✗ 模型路径文件/目录类型测试失败: {e}")
@@ -2099,6 +2115,77 @@ try:
     print("✓ CSV 公式型文本转义正常")
 except Exception as e:
     print(f"✗ CSV 公式型文本转义测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试70: 检查单图 ZIP 导出兼容异常摘要结构...")
+try:
+    import app
+    from PIL import Image
+
+    image = Image.new("RGB", (80, 60), "white")
+    item = {
+        "name": "summary-list.png",
+        "result": {
+            "original": image,
+            "model_input": image,
+            "annotated": image,
+            "detections": [],
+        },
+        "summary": ["bad legacy summary"],
+        "advice": "",
+    }
+    with TemporaryDirectory() as temp_dir:
+        _, _, state = app.export_single_report([item], "summary-list.png", temp_dir)
+        zip_path = Path(state[0]["zip_report_path"])
+        with zipfile.ZipFile(zip_path) as archive:
+            payload = json.loads(archive.read("detections.json").decode("utf-8"))
+
+        malformed_model_item = {
+            **item,
+            "name": "summary-model-list.png",
+            "summary": {"模型结果": ["bad legacy summary"]},
+        }
+        _, _, malformed_state = app.export_single_report([malformed_model_item], "summary-model-list.png", temp_dir)
+        malformed_zip_path = Path(malformed_state[0]["zip_report_path"])
+        with zipfile.ZipFile(malformed_zip_path) as archive:
+            malformed_payload = json.loads(archive.read("detections.json").decode("utf-8"))
+        _, _, word_state = app.export_word_report([malformed_model_item], "summary-model-list.png", temp_dir)
+        word_path = Path(word_state[0]["word_report_path"])
+        word_exists = word_path.exists()
+    assert payload["summary"] == {}, "异常 summary 结构应被归一为空摘要，避免导出崩溃"
+    assert payload["report"]["model"] == "unknown", "缺失模型名时应回退 unknown"
+    assert malformed_payload["report"]["model"] == "unknown", "异常模型明细不应导致模型名回填崩溃"
+    assert word_exists, "Word 报告也应兼容异常模型明细"
+    print("✓ 单图 ZIP 异常摘要结构兼容正常")
+except Exception as e:
+    print(f"✗ 单图 ZIP 异常摘要结构测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试71: 检查批量 Word 报告跳过异常模型摘要项...")
+try:
+    from docx import Document
+    from PIL import Image
+    from src.dental_detection.reporting import export_batch_docx_report
+
+    image = Image.new("RGB", (80, 60), "white")
+    item = {
+        "name": "batch-summary.png",
+        "result": {
+            "original": image,
+            "model_input": image,
+            "annotated": image,
+            "detections": [],
+        },
+        "summary": {"模型结果": ["bad legacy summary", {"模型": "valid-model"}]},
+        "advice": "",
+    }
+    with TemporaryDirectory() as temp_dir:
+        path = export_batch_docx_report([item], None, Path(temp_dir) / "word")
+        paragraphs = "\n".join(paragraph.text for paragraph in Document(path).paragraphs)
+    assert "使用模型：valid-model" in paragraphs, "批量 Word 报告应跳过异常摘要项并使用后续有效模型名"
+    print("✓ 批量 Word 异常模型摘要兼容正常")
+except Exception as e:
+    print(f"✗ 批量 Word 异常模型摘要测试失败: {e}")
     sys.exit(1)
 
 print("\n" + "="*60)

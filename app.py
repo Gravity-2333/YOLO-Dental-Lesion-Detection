@@ -605,7 +605,8 @@ def test_model_file(primary_model_path: str, compare_model_path: str, model_mode
         if not path.exists():
             messages.append(f"{role}：文件不存在，路径为 {path}")
             continue
-        if path.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
+        supported_suffixes = SUPPORTED_MODEL_SUFFIXES | SUPPORTED_MODEL_DIR_SUFFIXES
+        if path.suffix.lower() not in supported_suffixes:
             messages.append(f"{role}：文件后缀不在支持列表中，当前路径为 {path}")
             continue
         if not _is_supported_model_artifact(path):
@@ -1049,6 +1050,15 @@ def _item_display_name(item: dict[str, Any], fallback: str = "") -> str:
     return str(item.get("display_name") or item.get("name") or item.get("image_name") or fallback).strip()
 
 
+def _summary_model_name(summary_data: dict[str, Any]) -> str:
+    model_results = summary_data.get("模型结果")
+    if isinstance(model_results, list):
+        for result in model_results:
+            if isinstance(result, dict) and result.get("模型"):
+                return str(result["模型"])
+    return text_value(summary_data.get("模型"))
+
+
 def _sync_report_path(batch_state: list[dict[str, Any]], image_refs: list[Any], path: str | Path, field: str) -> None:
     exact_ref_ids = {id(ref) for ref in image_refs if isinstance(ref, dict)}
     match_keys = {_report_match_key(ref) for ref in image_refs if not isinstance(ref, dict) and _report_match_key(ref)}
@@ -1402,14 +1412,14 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     advice = item.get("advice") or ""
     detections = _clean_detection_records(result.get("detections", []))
     model_items = []
-    summary_data = json_safe_value(item.get("summary", {}))
-    # 优先取 result 顶层 model（批量检测），其次取 summary["模型结果"][0]["模型"]（单图检测）
+    raw_summary = item.get("summary", {})
+    summary_data = json_safe_value(raw_summary if isinstance(raw_summary, dict) else {})
+    # 优先取 result 顶层 model，其次从摘要中的有效模型项回填。
     model_name = result.get("model")
     if not model_name:
-        model_results = summary_data.get("模型结果", [])
-        model_name = model_results[0].get("模型") if model_results else None
+        model_name = _summary_model_name(summary_data)
     if not model_name:
-        model_name = summary_data.get("模型", "unknown")
+        model_name = "unknown"
 
     export_info = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -1584,10 +1594,9 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
 
     model_name = result.get("model")
     if not model_name:
-        model_results = summary_data.get("模型结果", [])
-        model_name = model_results[0].get("模型") if model_results else None
+        model_name = _summary_model_name(summary_data)
     if not model_name:
-        model_name = summary_data.get("模型", "unknown")
+        model_name = "unknown"
 
     _ensure_storage_root(storage_dir)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")

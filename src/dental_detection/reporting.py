@@ -223,10 +223,10 @@ def _model_name(item: dict[str, Any]) -> str:
     summary = item.get("summary")
     if isinstance(summary, dict):
         model_results = summary.get("模型结果")
-        if isinstance(model_results, list) and model_results:
-            first = model_results[0]
-            if isinstance(first, dict) and first.get("模型"):
-                return str(first["模型"])
+        if isinstance(model_results, list):
+            for result in model_results:
+                if isinstance(result, dict) and result.get("模型"):
+                    return str(result["模型"])
         return str(summary.get("模型", "unknown"))
     return "unknown"
 
