@@ -1982,5 +1982,27 @@ except Exception as e:
     print(f"✗ 模型和推理参数陈旧结果清理测试失败: {e}")
     sys.exit(1)
 
+print("\n测试65: 检查无扩展名缺失模型路径优先提示不存在...")
+try:
+    import app
+
+    missing_no_suffix = Path("Z:/definitely_missing_dental_model")
+    try:
+        app._validate_model_artifact(missing_no_suffix, "主模型")
+    except Exception as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("不存在的模型路径不应通过校验")
+    assert "相关文件不存在" in message or "模型文件不存在" in message, (
+        "无扩展名但不存在的模型路径应优先提示文件不存在"
+    )
+    assert "格式不支持" not in message and "unsupported model format" not in message, (
+        "缺失路径不应先被误判为格式不支持"
+    )
+    print("✓ 无扩展名缺失模型路径提示正常")
+except Exception as e:
+    print(f"✗ 无扩展名缺失模型路径提示测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
