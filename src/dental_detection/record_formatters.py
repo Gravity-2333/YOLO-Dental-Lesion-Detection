@@ -101,7 +101,8 @@ def format_case_record(data: dict[str, Any] | None) -> str:
     if "提示" in data:
         return str(data["提示"])
 
-    summary = data.get("summary") or {}
+    summary = data.get("summary")
+    summary = summary if isinstance(summary, dict) else {}
     detections = _record_detections(data)
     lines = [
         f"病例编号：{text_value(data.get('case_id'), '未填写')}",

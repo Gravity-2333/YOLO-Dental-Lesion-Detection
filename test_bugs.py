@@ -2225,5 +2225,38 @@ except Exception as e:
     print(f"✗ 模型信息无效路径状态测试失败: {e}")
     sys.exit(1)
 
+print("\n测试73: 检查病例详情兼容异常摘要结构...")
+try:
+    import app
+    from src.dental_detection.assistant import case_dir, ensure_app_dirs
+    from src.dental_detection.record_formatters import format_case_record
+
+    malformed_case = {
+        "case_id": "legacy-bad-summary",
+        "created_at": "2026-07-06T12:45:00",
+        "image_name": "bad-summary.png",
+        "summary": ["bad legacy summary"],
+        "detections": [],
+    }
+    detail = format_case_record(malformed_case)
+    assert "病例编号：legacy-bad-summary" in detail, "异常 summary 不应阻断病例详情基础信息展示"
+    assert "暂无摘要信息" in detail, "异常 summary 应回退为空摘要提示"
+
+    with TemporaryDirectory() as temp_dir:
+        ensure_app_dirs(temp_dir)
+        case_path = case_dir(temp_dir) / "case_bad_summary.json"
+        case_path.write_text(json.dumps(malformed_case, ensure_ascii=False), encoding="utf-8")
+        ui_detail = app.load_case_record(
+            "2026-07-06T12:45:00 | legacy-bad-summary | bad-summary.png | case_bad_summary.json",
+            temp_dir,
+        )
+    assert "错误" not in ui_detail and "legacy-bad-summary" in ui_detail, (
+        "病例详情入口应兼容有效 JSON 中的异常 summary 结构"
+    )
+    print("✓ 病例详情异常摘要结构兼容正常")
+except Exception as e:
+    print(f"✗ 病例详情异常摘要结构测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
