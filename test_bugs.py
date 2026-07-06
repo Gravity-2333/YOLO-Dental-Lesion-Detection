@@ -1157,5 +1157,18 @@ except Exception as e:
     print(f"✗ 坏编码文件容错测试失败: {e}")
     sys.exit(1)
 
+print("\n测试39: 检查空白存储目录不会误建相对目录...")
+try:
+    from src.dental_detection.assistant import APP_HOME, storage_root
+
+    assert storage_root("   ") == APP_HOME, "纯空白存储目录应回退默认数据目录"
+    with TemporaryDirectory() as temp_dir:
+        normalized = storage_root(f"  {temp_dir}  ")
+        assert normalized == Path(temp_dir), "存储目录前后空格应被清理"
+    print("✓ 存储目录空白输入归一正常")
+except Exception as e:
+    print(f"✗ 存储目录空白输入测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

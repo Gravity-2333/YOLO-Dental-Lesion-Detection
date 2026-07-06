@@ -117,7 +117,10 @@ class AiSettings:
 
 
 def storage_root(storage_dir: str | None = None) -> Path:
-    return Path(storage_dir).expanduser() if storage_dir else APP_HOME
+    if storage_dir is None:
+        return APP_HOME
+    value = str(storage_dir).strip()
+    return Path(value).expanduser() if value else APP_HOME
 
 
 def conversation_dir(storage_dir: str | None = None) -> Path:
