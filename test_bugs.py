@@ -1943,5 +1943,26 @@ except Exception as e:
     print(f"✗ mlpackage 目录模型验证测试失败: {e}")
     sys.exit(1)
 
+print("\n测试63: 检查仅中文名称检测框不会退化为未知类别...")
+try:
+    import app
+    from src.dental_detection.batch_summary import build_batch_summary
+    from src.dental_detection.history_store import build_history_record
+
+    chinese_only = {"中文名称": "龋齿", "置信度": "83%"}
+    rows = app._clean_detection_records([chinese_only])
+    assert rows[0]["class"] == "龋齿" and rows[0]["中文名称"] == "龋齿", (
+        "仅含中文名称的旧检测记录应保留类别语义"
+    )
+    item = {"name": "chinese-only.png", "result": {"model": "legacy-model", "detections": [chinese_only]}}
+    summary = build_batch_summary([item])
+    history_record = build_history_record(item)
+    assert summary["涉及类别"] == "龋齿" and summary["检测框总数"] == 1, "批量摘要不应显示未知类别"
+    assert history_record["classes"] == ["龋齿"], "历史记录应保留中文类别名"
+    print("✓ 仅中文名称检测框兼容正常")
+except Exception as e:
+    print(f"✗ 仅中文名称检测框兼容测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

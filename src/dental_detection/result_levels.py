@@ -131,7 +131,14 @@ def estimate_image_region(det: dict[str, Any], image_size: tuple[int, int] | Non
 
 
 def enrich_detection_row(det: dict[str, Any], image_size: tuple[int, int] | None = None) -> dict[str, Any]:
-    label = str(det.get("class") or det.get("类别") or det.get("label") or det.get("name") or "未知类别")
+    label = str(
+        det.get("class")
+        or det.get("类别")
+        or det.get("label")
+        or det.get("name")
+        or det.get("中文名称")
+        or "未知类别"
+    )
     confidence = det.get("confidence", det.get("置信度", ""))
     return {
         "class": label,
