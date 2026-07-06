@@ -213,7 +213,11 @@ def export_case_report(storage_dir: str, file_name: str) -> Path:
     document.add_paragraph("该病例记录仅保存检测摘要、检测框和辅助建议，不包含原始牙片图片。")
     document.add_paragraph(f"保存时间：{data.get('created_at', '-')}")
     document.add_paragraph(f"病例编号：{data.get('case_id', '未填写')}")
-    document.add_paragraph(f"图片名称：{data.get('image_name', '-')}")
+    image_name = text_value(data.get("image_name"), "-")
+    display_name = text_value(data.get("display_name")).strip()
+    document.add_paragraph(f"图片名称：{image_name}")
+    if display_name and display_name != image_name:
+        document.add_paragraph(f"列表显示名：{display_name}")
     if data.get("note"):
         document.add_paragraph(f"病例备注：{data.get('note')}")
     report_path = data.get("report_path") or data.get("word_report_path") or data.get("zip_report_path")

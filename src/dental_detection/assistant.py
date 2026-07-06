@@ -291,6 +291,7 @@ def _move_contents(source: Path, target: Path, skip_roots: set[Path] | None = No
 
 
 def _move_app_data_dirs(old_root: Path, new_root: Path) -> None:
+    skip_roots = {new_root} if old_root in new_root.parents else None
     for child_name in APP_DATA_DIR_NAMES:
         source = old_root / child_name
         if not source.exists() or not source.is_dir():
@@ -301,7 +302,7 @@ def _move_app_data_dirs(old_root: Path, new_root: Path) -> None:
             continue
         if source_resolved == new_root or new_root in source_resolved.parents:
             continue
-        _move_contents(source, new_root / child_name)
+        _move_contents(source, new_root / child_name, skip_roots)
         if _is_empty_dir(source):
             source.rmdir()
 

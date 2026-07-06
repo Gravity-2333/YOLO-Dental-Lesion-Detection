@@ -1312,5 +1312,126 @@ except Exception as e:
     print(f"✗ 旧模型明细数量回填测试失败: {e}")
     sys.exit(1)
 
+print("\n测试44: 检查默认应用目录迁到受管子目录不递归搬动新目录...")
+try:
+    import src.dental_detection.assistant as assistant_module
+
+    original_app_home = assistant_module.APP_HOME
+    try:
+        with TemporaryDirectory() as temp_dir:
+            old_root = Path(temp_dir) / "app_home"
+            old_cases = old_root / "cases"
+            old_cases.mkdir(parents=True)
+            (old_cases / "case_legacy.json").write_text("{}", encoding="utf-8")
+            new_storage = old_cases / "nested_storage"
+            assistant_module.APP_HOME = old_root
+
+            assistant_module.migrate_storage(str(old_root), str(new_storage))
+
+            migrated_case = new_storage / "cases" / "case_legacy.json"
+            recursive_target = new_storage / "cases" / "nested_storage"
+            assert migrated_case.exists(), "默认目录下的病例文件应迁入新存储目录"
+            assert not recursive_target.exists(), "迁移默认目录时不应把新目录搬进自身"
+    finally:
+        assistant_module.APP_HOME = original_app_home
+    print("✓ 默认应用目录迁到受管子目录正常")
+except Exception as e:
+    print(f"✗ 默认应用目录迁移到子目录测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试45: 检查模型类别名兼容列表格式...")
+try:
+    from app import _class_name_mapping
+    from src.dental_detection.inference import DentalDetector
+
+    class FakeValue:
+        def __init__(self, value):
+            self._value = value
+
+        def item(self):
+            return self._value
+
+    class FakeXYXY:
+        def __getitem__(self, index):
+            return self
+
+        def tolist(self):
+            return [1, 2, 30, 40]
+
+    class FakeBox:
+        cls = FakeValue(1)
+        conf = FakeValue(0.82)
+        xyxy = FakeXYXY()
+
+    detector = object.__new__(DentalDetector)
+    detector.names = ["Caries", "Impacted"]
+    detections = detector._parse_result(type("FakeResult", (), {"boxes": [FakeBox()]})())
+    assert detections[0].label == "Impacted", "names 为列表时应按类别下标读取名称"
+    assert _class_name_mapping(["Caries", "Impacted"]) == {"0": "Caries", "1": "Impacted"}, (
+        "导出摘要中的类别映射应兼容列表格式 names"
+    )
+    print("✓ 模型类别名列表格式兼容正常")
+except Exception as e:
+    print(f"✗ 模型类别名列表格式兼容测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试46: 检查同名批量图片报告保留列表显示名...")
+try:
+    from docx import Document
+    from PIL import Image
+    import app
+    from src.dental_detection.case_store import export_case_report
+
+    image = Image.new("RGB", (80, 60), "white")
+    item = {
+        "name": "same.png",
+        "display_name": "002 - same.png",
+        "result": {
+            "model": "model-a",
+            "detections": [],
+            "original": image,
+            "model_input": image,
+            "annotated": image,
+            "full_annotated": image,
+            "table": [],
+        },
+        "advice": "测试建议",
+        "quality_text": "测试质量",
+        "quality_level": "良好",
+        "summary": {},
+    }
+    with TemporaryDirectory() as temp_dir:
+        _, _, state = app.export_word_report([item], "002 - same.png", temp_dir)
+        word_path = Path(state[0]["word_report_path"])
+        word_text = "\n".join(paragraph.text for paragraph in Document(word_path).paragraphs)
+        assert "002 - same.png" in word_text and "原始文件：same.png" in word_text, (
+            "单图 Word 报告应保留批量列表显示名，避免同名图片混淆"
+        )
+
+        ensure_app_dirs(temp_dir)
+        case_path = case_dir(temp_dir) / "case_20260706_duplicate.json"
+        case_path.write_text(
+            json.dumps(
+                {
+                    "created_at": "2026-07-06T10:00:00",
+                    "case_id": "duplicate",
+                    "image_name": "same.png",
+                    "display_name": "002 - same.png",
+                    "detections": [],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        case_report = export_case_report(temp_dir, case_path.name)
+        case_text = "\n".join(paragraph.text for paragraph in Document(case_report).paragraphs)
+        assert "图片名称：same.png" in case_text and "列表显示名：002 - same.png" in case_text, (
+            "病例 Word 报告应保留列表显示名"
+        )
+    print("✓ 同名批量图片报告显示名保留正常")
+except Exception as e:
+    print(f"✗ 同名批量图片报告显示名测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

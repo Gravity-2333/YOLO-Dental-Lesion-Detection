@@ -342,6 +342,14 @@ def _detect_model(model_name: str, image, use_clahe: bool, conf: float, iou: flo
     return _detect_model_path(model_name, model_info["path"], image, use_clahe, conf, iou, device)
 
 
+def _class_name_mapping(names: Any) -> dict[str, Any]:
+    if isinstance(names, dict):
+        return {str(key): value for key, value in names.items()}
+    if isinstance(names, (list, tuple)):
+        return {str(index): value for index, value in enumerate(names)}
+    return {}
+
+
 def _bounded_float(value: Any, *, default: float, minimum: float, maximum: float) -> float:
     try:
         number = float(value)
@@ -378,7 +386,7 @@ def _detect_model_path(model_name: str, model_path: str | Path, image, use_clahe
         "full_annotated": annotated,
         "detections": records,
         "table": _table_from_records(records),
-        "class_names": {str(key): value for key, value in names.items()},
+        "class_names": _class_name_mapping(names),
         "model_path": str(Path(model_path).resolve()),
     }
 
@@ -1548,6 +1556,7 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
     item = _current_item(batch_state, selected_name)
     result = item.get("result") or item
     name = item.get("name") or item.get("image_name") or "当前单图"
+    display_name = _item_display_name(item, str(name))
     summary_data = item.get("summary", {})
     if not isinstance(summary_data, dict):
         summary_data = {}
@@ -1573,7 +1582,7 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
         counter += 1
 
     report_data = SingleReportData(
-        image_name=name,
+        image_name=f"{display_name}（原始文件：{name}）" if display_name != str(name) else str(name),
         created_at=datetime.now().isoformat(timespec="seconds"),
         model_name=str(model_name),
         original_image=original_img,

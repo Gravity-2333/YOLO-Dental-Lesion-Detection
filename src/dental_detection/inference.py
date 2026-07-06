@@ -43,6 +43,14 @@ class Detection:
 MAX_IMAGE_PIXELS = 8000 * 8000  # 最大像素数，超过此值先等比例缩放
 
 
+def label_from_names(names: Any, cls_id: int) -> str:
+    if isinstance(names, dict):
+        return str(names.get(cls_id, cls_id))
+    if isinstance(names, (list, tuple)) and 0 <= cls_id < len(names):
+        return str(names[cls_id])
+    return str(cls_id)
+
+
 def _normalized_rgb_image(image: Image.Image | np.ndarray | str | Path) -> Image.Image:
     """Normalize user input for YOLO without changing aspect ratio."""
     pil_image = as_rgb_image(image)
@@ -115,7 +123,7 @@ class DentalDetector:
             detections.append(
                 Detection(
                     cls_id=cls_id,
-                    label=str(self.names.get(cls_id, cls_id)),
+                    label=label_from_names(self.names, cls_id),
                     confidence=float(box.conf.item()),
                     x1=x1,
                     y1=y1,
