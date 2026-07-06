@@ -2004,5 +2004,30 @@ except Exception as e:
     print(f"✗ 无扩展名缺失模型路径提示测试失败: {e}")
     sys.exit(1)
 
+print("\n测试66: 检查桌面端下拉菜单不被工具行裁剪...")
+try:
+    css_text = (Path(__file__).parent / "assets" / "workbench.css").read_text(encoding="utf-8")
+    model_rule_start = css_text.index(".model-row {")
+    model_rule_end = css_text.index("}", model_rule_start)
+    model_rule = css_text[model_rule_start:model_rule_end]
+    assert "overflow: visible" in model_rule, "模型下拉所在行不应裁剪下拉选项"
+
+    dropdown_row_rule = ".compact-row,\n.model-row"
+    assert dropdown_row_rule in css_text, "应为包含下拉框的紧凑行提供溢出可见兜底"
+    dropdown_rule_start = css_text.index(dropdown_row_rule)
+    dropdown_rule_end = css_text.index("}", dropdown_rule_start)
+    dropdown_rule_body = css_text[dropdown_rule_start:dropdown_rule_end]
+    assert "overflow: visible" in dropdown_rule_body, "病例筛选等紧凑下拉行不应裁剪选项菜单"
+
+    safe_path_rule = ".path-row,\n.chat-input-row"
+    safe_path_start = css_text.index(safe_path_rule)
+    safe_path_end = css_text.index("}", safe_path_start)
+    safe_path_body = css_text[safe_path_start:safe_path_end]
+    assert "overflow: hidden" in safe_path_body, "路径/聊天行仍应保留控宽防溢出规则"
+    print("✓ 桌面端下拉菜单裁剪防护正常")
+except Exception as e:
+    print(f"✗ 桌面端下拉菜单裁剪测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

@@ -525,6 +525,10 @@ button[aria-disabled="true"] {
 .chat-input-row {
   align-items: end !important;
   gap: 10px !important;
+}
+
+.path-row,
+.chat-input-row {
   overflow: hidden !important;
 }
 
@@ -583,7 +587,12 @@ button[aria-disabled="true"] {
   grid-template-columns: minmax(0, 1fr) 132px !important;
   gap: 10px !important;
   align-items: end !important;
-  overflow: hidden !important;
+  overflow: visible !important;
+}
+
+.compact-row,
+.model-row {
+  overflow: visible !important;
 }
 
 .model-row > .block,
