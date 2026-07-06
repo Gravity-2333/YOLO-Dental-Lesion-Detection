@@ -1096,5 +1096,29 @@ except Exception as e:
     print(f"✗ 带图片产物空模型明细测试失败: {e}")
     sys.exit(1)
 
+print("\n测试37: 检查伪装成模型文件的目录会被提前拦截...")
+try:
+    import app
+
+    with TemporaryDirectory() as temp_dir:
+        fake_pt_dir = Path(temp_dir) / "fake_model.pt"
+        fake_pt_dir.mkdir()
+        try:
+            app._validate_model_files([("主模型", fake_pt_dir)])
+            raise AssertionError(".pt 目录不应通过模型文件校验")
+        except Exception as exc:
+            assert "模型路径无效" in str(exc) or "not a file" in str(exc), "应提示模型路径无效"
+
+        feedback = app.test_model_file(str(fake_pt_dir), str(fake_pt_dir), app.MODEL_MODE_SINGLE)
+        assert "路径不是可加载的模型文件" in feedback, "测试模型应明确提示目录不是模型文件"
+
+        package_dir = Path(temp_dir) / "exported_model.mlpackage"
+        package_dir.mkdir()
+        app._validate_model_files([("CoreML 模型包", package_dir)])
+    print("✓ 模型路径文件/目录类型校验正常")
+except Exception as e:
+    print(f"✗ 模型路径文件/目录类型测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

@@ -66,6 +66,7 @@ from src.dental_detection.model_info import (
     model_cards_html,
 )
 from src.dental_detection.model_files import (
+    SUPPORTED_MODEL_DIR_SUFFIXES,
     SUPPORTED_MODEL_SUFFIXES,
     model_label_from_path,
     scan_model_files,
@@ -353,13 +354,7 @@ def _bounded_float(value: Any, *, default: float, minimum: float, maximum: float
 
 def _detect_model_path(model_name: str, model_path: str | Path, image, use_clahe: bool, conf: float, iou: float, device):
     model_path = Path(model_path)
-    if model_path.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
-        raise _friendly_gr_error(
-            f"unsupported model format {model_path.suffix}; supported: {', '.join(sorted(SUPPORTED_MODEL_SUFFIXES))}",
-            "模型文件格式不支持",
-        )
-    if not model_path.exists():
-        raise _friendly_gr_error(f"model file not found: {model_path}", "模型文件不存在")
+    _validate_model_artifact(model_path, model_name)
     conf = _bounded_float(conf, default=0.25, minimum=0.01, maximum=0.99)
     iou = _bounded_float(iou, default=0.7, minimum=0.01, maximum=0.99)
     try:
@@ -419,15 +414,33 @@ def _validate_compare_model_selection(model_mode: str, primary_model_path: str, 
     _configured_models(model_mode, primary_model_path, compare_model_path)
 
 
+def _is_supported_model_artifact(path: Path) -> bool:
+    suffix = path.suffix.lower()
+    if path.is_file():
+        return suffix in SUPPORTED_MODEL_SUFFIXES
+    if path.is_dir():
+        return suffix in SUPPORTED_MODEL_DIR_SUFFIXES
+    return False
+
+
+def _validate_model_artifact(path: Path, role: str = "模型") -> None:
+    if path.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
+        raise _friendly_gr_error(
+            f"{role}: unsupported model format {path.suffix}; supported: {', '.join(sorted(SUPPORTED_MODEL_SUFFIXES))}",
+            "模型文件格式不支持",
+        )
+    if not path.exists():
+        raise _friendly_gr_error(f"{role}: model file not found: {path}", "模型文件不存在")
+    if not _is_supported_model_artifact(path):
+        raise _friendly_gr_error(
+            f"{role}: model path is not a file or supported model package: {path}",
+            "模型路径无效",
+        )
+
+
 def _validate_model_files(models: list[tuple[str, Path]]) -> None:
     for role, path in models:
-        if path.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
-            raise _friendly_gr_error(
-                f"{role}: unsupported model format {path.suffix}; supported: {', '.join(sorted(SUPPORTED_MODEL_SUFFIXES))}",
-                "模型文件格式不支持",
-            )
-        if not path.exists():
-            raise _friendly_gr_error(f"{role}: model file not found: {path}", "模型文件不存在")
+        _validate_model_artifact(path, role)
 
 
 def refresh_model_choices(model_dir: str, current_value: str | None = None):
@@ -450,10 +463,7 @@ def apply_selected_model(selected_path: str, target: str):
         model_path = Path(selected_path).expanduser().resolve()
     except (OSError, RuntimeError, ValueError) as exc:
         raise _friendly_gr_error(exc, "模型路径无效") from exc
-    if model_path.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
-        raise _friendly_gr_error(f"unsupported model format {model_path.suffix}", "模型文件格式不支持")
-    if not model_path.exists():
-        raise _friendly_gr_error(f"model file not found: {model_path}", "模型文件不存在")
+    _validate_model_artifact(model_path)
     path = str(model_path)
     if target == "对比模型":
         return gr.update(), gr.update(value=path), gr.update(), gr.update(), f"已填入对比模型：{path}"
@@ -584,6 +594,9 @@ def test_model_file(primary_model_path: str, compare_model_path: str, model_mode
             continue
         if path.suffix.lower() not in SUPPORTED_MODEL_SUFFIXES:
             messages.append(f"{role}：文件后缀不在支持列表中，当前路径为 {path}")
+            continue
+        if not _is_supported_model_artifact(path):
+            messages.append(f"{role}：路径不是可加载的模型文件或支持的模型包，当前路径为 {path}")
             continue
         try:
             model = YOLO(str(path))
