@@ -84,7 +84,13 @@ from src.dental_detection.record_views import (
     history_table_from_rows as _history_table_from_rows,
 )
 from src.dental_detection.result_levels import enrich_detection_row, has_detection_payload, iter_detection_items
-from src.dental_detection.result_items import item_model_results, iter_model_result_items
+from src.dental_detection.result_items import (
+    item_model_results,
+    iter_model_result_items,
+    model_result_detections,
+    model_result_name,
+    model_result_path,
+)
 from src.dental_detection.text_utils import csv_safe_row, json_safe_value, text_value
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from ultralytics import YOLO
@@ -279,7 +285,7 @@ def _result_visual_outputs(result: dict[str, Any] | None) -> tuple[Any, list[tup
         return None, [], "暂无疑似区域局部图"
     annotated = result.get("annotated")
     original = result.get("original")
-    detections = _clean_detection_records(result.get("_visible_detections", result.get("detections", [])))
+    detections = _clean_detection_records(result.get("_visible_detections", model_result_detections(result)))
     regions = crop_detection_regions(original, detections)
     gallery = [(item["image"], item["caption"]) for item in regions]
     status = f"已生成 {len(gallery)} 个疑似区域局部图" if gallery else "暂无疑似区域局部图"
@@ -878,7 +884,7 @@ def _report_annotated_image(result: dict[str, Any]) -> Any:
 
 
 def _visible_class_choices(result: dict[str, Any] | None) -> list[str]:
-    detections = _clean_detection_records((result or {}).get("detections", []))
+    detections = _clean_detection_records(model_result_detections(result or {}))
     choices: list[str] = []
     for row in detections:
         label = str(row.get("中文名称") or row.get("class") or "").strip()
@@ -976,11 +982,11 @@ def _detections_html(detections: list[dict[str, Any]]) -> str:
 
 def _model_detections_html(results: list[dict[str, Any]]) -> str:
     if len(results) <= 1:
-        return _detections_html(results[0].get("detections", []) if results else [])
+        return _detections_html(model_result_detections(results[0]) if results else [])
     sections = []
     for result in results:
-        model = _html_escape(result.get("model", "unknown"))
-        detections = _clean_detection_records(result.get("detections", []))
+        model = _html_escape(model_result_name(result))
+        detections = _clean_detection_records(model_result_detections(result))
         sections.append(f"<h3>{model}</h3>{_detections_html(detections)}")
     return "".join(sections)
 
@@ -988,7 +994,7 @@ def _model_detections_html(results: list[dict[str, Any]]) -> str:
 def _model_result_images_html(model_items: list[dict[str, Any]]) -> str:
     image_items = []
     for item in model_items:
-        model = _html_escape(item.get("model", "unknown"))
+        model = _html_escape(model_result_name(item))
         image_files = item.get("image_files") if isinstance(item.get("image_files"), dict) else {}
         result_file = image_files.get("result") if image_files else ""
         if result_file:
@@ -1017,8 +1023,8 @@ def _advice_detections(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for result in results:
         if not isinstance(result, dict):
             continue
-        model_name = text_value(result.get("model"), "unknown")
-        for det in _clean_detection_records(result.get("detections", [])):
+        model_name = text_value(model_result_name(result), "unknown")
+        for det in _clean_detection_records(model_result_detections(result)):
             rows.append({**det, "model": model_name, "模型": model_name})
     return rows
 
@@ -1026,14 +1032,14 @@ def _advice_detections(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _model_result_records(item: dict[str, Any]) -> list[dict[str, Any]]:
     rows = []
     for result in _item_results(item):
-        model_name = text_value(result.get("model"), "unknown")
+        model_name = text_value(model_result_name(result), "unknown")
         detections = []
-        for det in _clean_detection_records(result.get("detections", [])):
+        for det in _clean_detection_records(model_result_detections(result)):
             detections.append({**det, "模型": model_name})
         rows.append(
             {
                 "model": model_name,
-                "model_path": text_value(result.get("model_path")),
+                "model_path": text_value(model_result_path(result)),
                 "detection_count": len(detections),
                 "detections": detections,
             }
@@ -1054,8 +1060,9 @@ def _item_display_name(item: dict[str, Any], fallback: str = "") -> str:
 def _summary_model_name(summary_data: dict[str, Any]) -> str:
     model_results = summary_data.get("模型结果")
     for result in iter_model_result_items(model_results):
-        if result.get("模型"):
-            return str(result["模型"])
+        model_name = model_result_name(result, "")
+        if model_name:
+            return model_name
     return text_value(summary_data.get("模型"))
 
 
@@ -1077,9 +1084,9 @@ def _summary_lines(batch_state: list[dict[str, Any]], export_info: dict[str, Any
     model_counts: Counter[str] = Counter()
     for item in batch_state:
         for result in _item_results(item):
-            detections = _clean_detection_records(result.get("detections", []))
+            detections = _clean_detection_records(model_result_detections(result))
             total_boxes += len(detections)
-            model_counts.update([str(result.get("model", "unknown"))])
+            model_counts.update([model_result_name(result)])
             class_counts.update(str(det.get("class", "unknown")) for det in detections)
 
     lines = [
@@ -1152,15 +1159,15 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     first_summary = first_summary if isinstance(first_summary, dict) else {}
     first_model_results = list(iter_model_result_items(first_summary.get("模型结果"))) if isinstance(first_summary, dict) else []
     model_names = [
-        str(item.get("模型"))
+        model_result_name(item, "")
         for item in first_model_results
-        if item.get("模型")
+        if model_result_name(item, "")
     ]
     if not model_names and batch_state:
         model_names = [
-            str(result.get("model"))
+            model_result_name(result, "")
             for result in _item_results(batch_state[0])
-            if result.get("model")
+            if model_result_name(result, "")
         ]
     export_info = {
         "exported_at": datetime.now().isoformat(timespec="seconds"),
@@ -1184,7 +1191,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             stem = f"{index:03d}_{_safe_stem(name)}"
             result = item.get("result") or item
             all_results = _item_results(item)
-            primary_detections = _clean_detection_records(result.get("detections", []))
+            primary_detections = _clean_detection_records(model_result_detections(result))
             suggestion_type = item.get("suggestion_type", "default")
             advice = item.get("advice") or item.get("suggestion") or ""
 
@@ -1201,8 +1208,8 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
 
             model_json_items = []
             for model_index, model_result in enumerate(all_results, start=1):
-                model_name = model_result.get("model", item.get("model", "unknown"))
-                detections = _clean_detection_records(model_result.get("detections", []))
+                model_name = model_result_name(model_result, text_value(item.get("model"), "unknown"))
+                detections = _clean_detection_records(model_result_detections(model_result))
                 model_image_files = {}
                 model_annotated = _report_annotated_image(model_result)
                 if model_annotated is not None:
@@ -1212,7 +1219,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                 model_json_items.append(
                     {
                         "model": model_name,
-                        "model_path": model_result.get("model_path", ""),
+                        "model_path": model_result_path(model_result),
                         "detections": detections,
                         "image_files": model_image_files,
                     }
@@ -1243,7 +1250,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                 {
                     "image_name": name,
                     "display_name": display_name,
-                    "model": result.get("model", item.get("model", "unknown")),
+                    "model": model_result_name(result, text_value(item.get("model"), "unknown")),
                     "models": model_json_items,
                     "suggestion_type": suggestion_type,
                     "suggestion": advice,
@@ -1409,12 +1416,12 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     display_name = _item_display_name(item, str(name))
     stem = _safe_stem(name)
     advice = item.get("advice") or ""
-    detections = _clean_detection_records(result.get("detections", []))
+    detections = _clean_detection_records(model_result_detections(result))
     model_items = []
     raw_summary = item.get("summary", {})
     summary_data = json_safe_value(raw_summary if isinstance(raw_summary, dict) else {})
     # 优先取 result 顶层 model，其次从摘要中的有效模型项回填。
-    model_name = result.get("model")
+    model_name = model_result_name(result, "")
     if not model_name:
         model_name = _summary_model_name(summary_data)
     if not model_name:
@@ -1444,8 +1451,8 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
         save_png_image(input_img, work_dir / image_files["input"])
         save_png_image(annotated_img, work_dir / image_files["result"])
         for model_index, model_result in enumerate(all_results, start=1):
-            model = model_result.get("model", "unknown")
-            model_detections = _clean_detection_records(model_result.get("detections", []))
+            model = model_result_name(model_result)
+            model_detections = _clean_detection_records(model_result_detections(model_result))
             model_image_files = {}
             model_annotated = _report_annotated_image(model_result)
             if model_annotated is not None:
@@ -1455,7 +1462,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
             model_items.append(
                 {
                     "model": model,
-                    "model_path": model_result.get("model_path", ""),
+                    "model_path": model_result_path(model_result),
                     "detections": model_detections,
                     "image_files": model_image_files,
                 }
@@ -1591,7 +1598,7 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
     if original_img is None or annotated_img is None:
         raise gr.Error(f"{name} 的结果不完整（缺少图片数据），无法导出 Word 报告。")
 
-    model_name = result.get("model")
+    model_name = model_result_name(result, "")
     if not model_name:
         model_name = _summary_model_name(summary_data)
     if not model_name:
@@ -1612,16 +1619,16 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
         original_image=original_img,
         model_input_image=result.get("model_input"),
         annotated_image=annotated_img,
-        detections=_clean_detection_records(result.get("detections", [])),
+        detections=_clean_detection_records(model_result_detections(result)),
         advice=item.get("advice") or "",
         quality_text=assess_image_quality(original_img),
         summary=summary_data,
         safety_notice=SAFETY_NOTICE,
         model_results=[
             {
-                "model": model_result.get("model", "unknown"),
-                "model_path": model_result.get("model_path", ""),
-                "detections": _clean_detection_records(model_result.get("detections", [])),
+                "model": model_result_name(model_result),
+                "model_path": model_result_path(model_result),
+                "detections": _clean_detection_records(model_result_detections(model_result)),
                 "annotated": _report_annotated_image(model_result),
             }
             for model_result in _item_results(item)
@@ -1677,7 +1684,7 @@ def save_case_record(
         "display_name": _item_display_name(item, image_name),
         "summary": item.get("summary", {}),
         "model_results": _model_result_records(item),
-        "detections": _clean_detection_records(result.get("detections", [])),
+        "detections": _clean_detection_records(model_result_detections(result)),
         "quality_text": item.get("quality_text") or assess_image_quality(result.get("original")),
         "quality_level": item.get("quality_level", ""),
         "report_path": item.get("report_path", ""),
@@ -2279,7 +2286,7 @@ def update_detection_visibility(visible_classes: list[str], selected_name: str, 
     base_image = _first_present(result.get("model_input"), result.get("original"))
     if base_image is None:
         raise gr.Error("当前结果缺少可重绘的图像，请重新检测。")
-    detections = _clean_detection_records(result.get("detections", []))
+    detections = _clean_detection_records(model_result_detections(result))
     visible_set = None if visible_classes is None else {str(item).strip() for item in visible_classes if str(item).strip()}
     if visible_set is None:
         result["_visible_detections"] = detections

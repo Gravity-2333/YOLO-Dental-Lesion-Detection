@@ -2366,5 +2366,65 @@ except Exception as e:
     print(f"✗ 单对象模型结果兼容测试失败: {e}")
     sys.exit(1)
 
+print("\n测试77: 检查中文字段模型结果贯穿前端导出入口...")
+try:
+    import app
+    from docx import Document
+    from PIL import Image
+
+    image = Image.new("RGB", (80, 60), "white")
+    detection = {"类别": "Caries", "置信度": "88%", "x1": 4, "y1": 5, "x2": 40, "y2": 45}
+    model_result = {
+        "模型": "中文字段模型",
+        "检测框": detection,
+        "路径": "server_models/chinese.pt",
+        "annotated": image,
+    }
+    item = {
+        "name": "chinese-model-result.png",
+        "display_name": "中文字段结果",
+        "result": {"模型": "主模型中文", "检测框": [], "original": image, "model_input": image, "annotated": image},
+        "all_results": [model_result],
+        "summary": {"模型结果": model_result, "模型": "摘要中文模型"},
+        "advice": "测试建议",
+        "suggestion_type": "default",
+    }
+
+    assert app._model_result_records(item)[0]["detection_count"] == 1, "病例保存入口应统计中文字段检测框"
+    assert app._advice_detections([model_result])[0]["模型"] == "中文字段模型", "建议入口应保留中文字段模型名"
+    assert "中文字段模型" in app._model_detections_html([model_result]) or "龋齿" in app._model_detections_html([model_result]), (
+        "HTML 检测框入口应兼容中文字段模型结果"
+    )
+    assert app._summary_lines([item], {"exported_at": "now", "use_clahe": False, "conf": 0.25, "iou": 0.45})[
+        5
+    ] == "检测到的总框数: 1", "批量文本摘要应统计中文字段检测框"
+
+    with TemporaryDirectory() as temp_dir:
+        _, _, batch_state = app.export_batch_results([item], temp_dir)
+        batch_zip = Path(batch_state[0]["zip_report_path"])
+        with zipfile.ZipFile(batch_zip) as archive:
+            batch_payload = json.loads(archive.read("detections.json").decode("utf-8"))
+            csv_text = archive.read("detections.csv").decode("utf-8-sig")
+        batch_model = batch_payload["items"][0]["models"][0]
+        assert batch_model["model"] == "中文字段模型", "批量 ZIP 应导出中文字段模型名"
+        assert batch_model["model_path"] == "server_models/chinese.pt", "批量 ZIP 应导出中文字段路径"
+        assert len(batch_model["detections"]) == 1, "批量 ZIP 应导出中文字段检测框"
+        assert "中文字段模型" in csv_text and "龋齿" in csv_text, "批量 CSV 应包含中文字段模型结果"
+
+        _, _, single_state = app.export_single_report([item], "chinese-model-result.png", temp_dir)
+        single_zip = Path(single_state[0]["zip_report_path"])
+        with zipfile.ZipFile(single_zip) as archive:
+            single_payload = json.loads(archive.read("detections.json").decode("utf-8"))
+        assert single_payload["models"][0]["model"] == "中文字段模型", "单图 ZIP 应导出中文字段模型名"
+        assert len(single_payload["models"][0]["detections"]) == 1, "单图 ZIP 应导出中文字段检测框"
+
+        _, _, word_state = app.export_word_report([item], "chinese-model-result.png", temp_dir)
+        paragraphs = "\n".join(paragraph.text for paragraph in Document(word_state[0]["word_report_path"]).paragraphs)
+        assert "使用模型：中文字段模型" in paragraphs, "单图 Word 报告应显示中文字段模型名"
+    print("✓ 中文字段模型结果前端导出入口兼容正常")
+except Exception as e:
+    print(f"✗ 中文字段模型结果前端导出入口测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
