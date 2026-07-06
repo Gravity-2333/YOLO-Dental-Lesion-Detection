@@ -1501,5 +1501,40 @@ except Exception as e:
     print(f"✗ 批量导出总览信息测试失败: {e}")
     sys.exit(1)
 
+print("\n测试48: 检查移动端宽表格保留横向滚动宽度...")
+try:
+    css_text = (Path(__file__).parent / "assets" / "workbench.css").read_text(encoding="utf-8")
+    media_anchor = "@media (max-width: 640px)"
+    media_start = css_text.index(media_anchor)
+    table_rule_start = css_text.index("  table {", media_start)
+    table_rule_end = css_text.index("  }", table_rule_start)
+    table_rule = css_text[table_rule_start:table_rule_end]
+    assert "width: max-content" in table_rule, "小屏宽表格应保持内容宽度，由外层容器横向滚动"
+    assert "min-width: 560px" in table_rule, "小屏检测明细表不应被压缩到100%宽"
+    assert "min-width: 100%" not in table_rule, "小屏宽表格不应强制压缩到视口宽度"
+    overview_rule_start = css_text.index("  .batch-overview-panel table {", table_rule_end)
+    overview_rule_end = css_text.index("  }", overview_rule_start)
+    overview_rule = css_text[overview_rule_start:overview_rule_end]
+    assert "min-width: 720px" in overview_rule, "批量总览表列更多，应保留更宽滚动宽度"
+    print("✓ 移动端宽表格横向滚动宽度正常")
+except Exception as e:
+    print(f"✗ 移动端宽表格样式测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试49: 检查移动端引导步骤文字允许换行...")
+try:
+    css_text = (Path(__file__).parent / "assets" / "workbench.css").read_text(encoding="utf-8")
+    media_start = css_text.index("@media (max-width: 760px)")
+    guide_rule_start = css_text.index("  .guide-steps span {", media_start)
+    guide_rule_end = css_text.index("  }", guide_rule_start)
+    guide_rule = css_text[guide_rule_start:guide_rule_end]
+    assert "white-space: normal" in guide_rule, "移动端引导步骤不应强制单行显示"
+    assert "overflow-wrap: anywhere" in guide_rule, "移动端引导步骤长文字应允许断行"
+    assert "white-space: nowrap" not in guide_rule, "移动端引导步骤长文字不应撑破容器"
+    print("✓ 移动端引导步骤文字换行正常")
+except Exception as e:
+    print(f"✗ 移动端引导步骤文字样式测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
