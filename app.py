@@ -2100,13 +2100,6 @@ def run_batch_detection(
 
     first = batch_state[0]
     choices = [item["display_name"] for item in batch_state]
-    # 部分失败时在第一条建议中追加失败信息
-    if batch_errors:
-        first["advice"] += f"\n\n⚠ 以下 {len(batch_errors)} 张图片处理失败：\n" + "\n".join(
-            f"- {err}" for err in batch_errors[:10]
-        )
-        if len(batch_errors) > 10:
-            first["advice"] += f"\n…等共 {len(batch_errors)} 张"
     first["batch_errors"] = batch_errors
     overview = build_batch_summary(batch_state, batch_errors)
     chat_history = _conversation_from_advice(first["advice"])

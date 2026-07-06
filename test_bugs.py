@@ -957,5 +957,89 @@ except Exception as e:
     print(f"✗ 前端更多菜单脚本测试失败: {e}")
     sys.exit(1)
 
+print("\n测试35: 检查批量部分失败不会污染首张图片建议...")
+try:
+    import app
+    from PIL import Image
+
+    class FakeFile:
+        def __init__(self, name: str):
+            self.name = name
+
+    original_detect = app._detect_model_path
+    try:
+        image = Image.new("RGB", (80, 60), "white")
+
+        def fake_detect(model_name, model_path, image_path, use_clahe, conf, iou, device):
+            if "bad" in str(image_path):
+                raise RuntimeError("broken image")
+            detections = [
+                {
+                    "class": "Caries",
+                    "confidence": 0.82,
+                    "x1": 10,
+                    "y1": 10,
+                    "x2": 40,
+                    "y2": 40,
+                }
+            ]
+            return {
+                "model": model_name,
+                "model_path": str(model_path),
+                "original": image,
+                "model_input": image,
+                "annotated": image,
+                "full_annotated": image,
+                "detections": detections,
+                "table": app._table_from_records(detections),
+                "class_names": {"0": "Caries"},
+            }
+
+        app._detect_model_path = fake_detect
+        with TemporaryDirectory() as temp_dir:
+            model_path = Path(temp_dir) / "model.pt"
+            model_path.write_bytes(b"fake")
+            outputs = app.run_batch_detection(
+                [FakeFile("ok.png"), FakeFile("bad.png")],
+                app.MODEL_MODE_SINGLE,
+                str(model_path),
+                str(model_path),
+                0.25,
+                0.7,
+                "cpu",
+                False,
+                False,
+                False,
+                False,
+                "https://api.example.com/v1",
+                "example-model",
+                "环境变量",
+                "EXAMPLE_API_KEY",
+                "",
+                "",
+                False,
+                False,
+                False,
+                temp_dir,
+                "",
+                "简洁版",
+                False,
+                100,
+            )
+        advice_text = outputs[11]
+        overview_html = outputs[14].get("value", "") if isinstance(outputs[14], dict) else outputs[14]
+        batch_state = outputs[15]
+        assert "bad.png" not in advice_text and "处理失败" not in advice_text, (
+            "首张成功图片的建议不应混入批量失败清单"
+        )
+        assert "bad.png" in overview_html and "失败图片" in overview_html, "失败图片应在批量总览中独立展示"
+        assert batch_state[0].get("batch_errors"), "批量失败信息应保留在状态里供导出使用"
+    finally:
+        app._detect_model_path = original_detect
+    print("✓ 批量失败信息独立展示正常")
+except Exception as e:
+    print(f"✗ 批量失败信息污染建议测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
