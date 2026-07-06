@@ -1041,5 +1041,60 @@ except Exception as e:
     print(f"✗ 批量失败信息污染建议测试失败: {e}")
     sys.exit(1)
 
+print("\n测试36: 检查带图片产物的空模型明细不覆盖主检测框...")
+try:
+    import app
+    from PIL import Image
+
+    image = Image.new("RGB", (80, 60), "white")
+    primary = {
+        "model": "primary-with-box",
+        "detections": [{"class": "Caries", "confidence": 0.81, "x1": 1, "y1": 2, "x2": 20, "y2": 30}],
+        "original": image,
+        "model_input": image,
+        "annotated": image,
+        "full_annotated": image,
+    }
+    stale_empty_with_artifacts = {
+        "model": "stale-empty-with-image",
+        "detections": [],
+        "original": image,
+        "model_input": image,
+        "annotated": image,
+        "full_annotated": image,
+    }
+    item = {
+        "name": "artifact-stale.png",
+        "display_name": "001 - artifact-stale.png",
+        "result": primary,
+        "all_results": [stale_empty_with_artifacts],
+    }
+    resolved = app._item_results(item)
+    assert resolved[0]["model"] == "primary-with-box", "有图但空检测的陈旧明细不应覆盖主检测框"
+    assert build_batch_summary([item])["检测框总数"] == 1, "批量摘要应统计主检测框"
+
+    no_detection_item = {
+        "name": "compare-empty.png",
+        "result": {
+            "model": "primary-empty",
+            "detections": [],
+            "original": image,
+            "model_input": image,
+            "annotated": image,
+        },
+        "all_results": [
+            {"model": "empty-a", "detections": [], "annotated": image},
+            {"model": "empty-b", "detections": [], "annotated": image},
+        ],
+    }
+    no_detection_results = app._item_results(no_detection_item)
+    assert [row["model"] for row in no_detection_results] == ["empty-a", "empty-b"], (
+        "真正无检测的对比结果仍应保留分模型明细"
+    )
+    print("✓ 带图片产物的空模型明细回退正常")
+except Exception as e:
+    print(f"✗ 带图片产物空模型明细测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

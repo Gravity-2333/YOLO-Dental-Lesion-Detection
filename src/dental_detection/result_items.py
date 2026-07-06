@@ -52,9 +52,13 @@ def item_model_results(item: dict[str, Any]) -> list[dict[str, Any]]:
     if isinstance(results, list) and results:
         model_results = [result for result in results if isinstance(result, dict)]
         if model_results:
-            if any(_result_has_detections(result) or _result_has_artifacts(result) for result in model_results):
+            if any(_result_has_detections(result) for result in model_results):
                 return model_results
-            if _result_has_detections(primary) or _result_has_artifacts(primary):
+            if _result_has_detections(primary):
+                return [primary]
+            if any(_result_has_artifacts(result) for result in model_results):
+                return model_results
+            if _result_has_artifacts(primary):
                 return [primary]
             return model_results
     return [primary] if primary else []
