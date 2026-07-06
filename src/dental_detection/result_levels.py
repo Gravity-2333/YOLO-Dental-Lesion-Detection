@@ -23,17 +23,24 @@ BBOX_KEYS = {"x1", "y1", "x2", "y2"}
 
 
 def normalize_class_name(name: str) -> str:
-    token = re.sub(r"[^a-z0-9]+", " ", str(name).casefold()).strip()
+    raw = str(name).replace("_", " ").strip()
+    raw_key = re.sub(r"\s+", " ", raw.casefold())
+    token = re.sub(r"[^a-z0-9]+", " ", raw.casefold()).strip()
     token = re.sub(r"\s+", " ", token)
     aliases = {
         "caries": "Caries",
+        "龋齿": "Caries",
+        "龋病": "Caries",
         "periapical lesion": "Periapical Lesion",
         "periapical lesions": "Periapical Lesion",
+        "根尖周病变": "Periapical Lesion",
+        "根尖周病损": "Periapical Lesion",
         "impacted": "Impacted",
         "impacted tooth": "Impacted",
         "impacted teeth": "Impacted",
+        "阻生牙": "Impacted",
     }
-    return aliases.get(token, str(name).replace("_", " ").strip())
+    return aliases.get(raw_key, aliases.get(token, raw))
 
 
 def get_class_display_name(name: str) -> str:

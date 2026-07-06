@@ -2029,5 +2029,23 @@ except Exception as e:
     print(f"✗ 桌面端下拉菜单裁剪测试失败: {e}")
     sys.exit(1)
 
+print("\n测试67: 检查中文类别名也能匹配专属内置建议...")
+try:
+    from src.dental_detection.assistant import default_advice
+    from src.dental_detection.result_levels import get_class_display_name, normalize_class_name
+
+    assert normalize_class_name("龋齿") == "Caries", "中文龋齿类别应归一到 Caries"
+    assert normalize_class_name("根尖周病变") == "Periapical Lesion", "中文根尖周病变应归一到 Periapical Lesion"
+    assert normalize_class_name("阻生牙") == "Impacted", "中文阻生牙应归一到 Impacted"
+    assert get_class_display_name("龋齿") == "龋齿", "中文类别显示名应保持中文"
+
+    advice = default_advice([{"中文名称": "龋齿", "置信度": "83%"}])
+    assert "疑似龋坏相关区域" in advice, "中文类别名不应退回泛用建议"
+    assert "检测到模型标记的可疑区域" not in advice, "已知中文类别应匹配专属建议"
+    print("✓ 中文类别名专属建议匹配正常")
+except Exception as e:
+    print(f"✗ 中文类别名专属建议匹配测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
