@@ -521,7 +521,7 @@ def _current_model_info_markdown(selected_path: str | None = None) -> str:
     return format_model_info_markdown(cards[0])
 
 
-def apply_model_card(selected_path: str):
+def apply_model_card(selected_path: str, model_dir: str | None = None):
     if not selected_path:
         raise gr.Error("请先选择一个模型卡片。")
     card = next((item for item in _model_cards() if item.get("path") == selected_path), None)
@@ -530,8 +530,12 @@ def apply_model_card(selected_path: str):
     if not card.get("available"):
         raise _friendly_gr_error(f"model file not found: {card.get('path')}", "模型文件不存在")
     path = str(Path(card["path"]).expanduser().resolve())
+    choices = scan_model_files(_model_dir_or_default(model_dir))
+    if not any(path == value for _, value in choices):
+        choices = [(f"{model_label_from_path(path)}  |  {path}", path), *choices]
     return (
         gr.update(value=path),
+        gr.update(choices=choices, value=path),
         model_cards_html(_model_cards(path), path),
         _current_model_info_markdown(path),
         f"已选择{card['title']}：{card['name']}",
@@ -3540,8 +3544,8 @@ def build_app() -> gr.Blocks:
         )
         apply_model_card_btn.click(
             fn=apply_model_card,
-            inputs=model_card_select,
-            outputs=[primary_model_path, model_cards_view, model_info_markdown, model_feedback],
+            inputs=[model_card_select, model_dir],
+            outputs=[primary_model_path, model_file_select, model_cards_view, model_info_markdown, model_feedback],
         )
         test_model_btn.click(
             fn=test_model_file,

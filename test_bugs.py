@@ -1881,5 +1881,24 @@ except Exception as e:
     print(f"✗ 仅置信度字段清理测试失败: {e}")
     sys.exit(1)
 
+print("\n测试60: 检查模型卡片选择同步高级下拉框...")
+try:
+    import app
+
+    with TemporaryDirectory() as temp_dir:
+        outputs = app.apply_model_card(str(DEFAULT_MODEL_PATH), temp_dir)
+    primary_update, dropdown_update, cards_html, info_text, feedback = outputs
+    assert primary_update["value"] == str(DEFAULT_MODEL_PATH), "模型卡片应填入主模型路径"
+    assert dropdown_update["value"] == str(DEFAULT_MODEL_PATH), "高级模型下拉框应同步选中模型卡片路径"
+    assert any(value == str(DEFAULT_MODEL_PATH) for _, value in dropdown_update["choices"]), (
+        "即使当前模型目录不包含卡片模型，也应临时补入下拉候选"
+    )
+    assert "selected" in cards_html and "YOLOv8m C2f-Faster-lite" in info_text, "模型信息区应同步当前卡片选择"
+    assert "已选择" in feedback, "卡片选择应返回明确反馈"
+    print("✓ 模型卡片与高级下拉同步正常")
+except Exception as e:
+    print(f"✗ 模型卡片与高级下拉同步测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
