@@ -61,3 +61,16 @@ def text_value(value: Any, fallback: str = "") -> str:
     if isinstance(safe, (dict, list, tuple, set)):
         return json.dumps(safe, ensure_ascii=False, allow_nan=False)
     return str(safe)
+
+
+def csv_safe_value(value: Any) -> Any:
+    safe = json_safe_value(value)
+    if isinstance(safe, str):
+        stripped = safe.lstrip()
+        if stripped.startswith(("=", "+", "-", "@")) or safe.startswith(("\t", "\r", "\n")):
+            return f"'{safe}"
+    return safe
+
+
+def csv_safe_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {key: csv_safe_value(value) for key, value in row.items()}

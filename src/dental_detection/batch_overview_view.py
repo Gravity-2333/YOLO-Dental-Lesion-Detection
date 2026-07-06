@@ -4,6 +4,8 @@ import csv
 import io
 from typing import Any
 
+from .text_utils import csv_safe_value
+
 
 def html_escape(value: Any) -> str:
     return (
@@ -64,29 +66,29 @@ def batch_overview_csv_text(overview: dict[str, Any]) -> str:
     writer = csv.writer(buffer)
     writer.writerow(["批量检测总览"])
     for label in ["图片总数", "成功处理", "处理失败", "检测框总数", "平均置信度", "最高置信度", "涉及类别"]:
-        writer.writerow([label, overview.get(label, "无" if label == "涉及类别" else 0)])
+        writer.writerow([label, csv_safe_value(overview.get(label, "无" if label == "涉及类别" else 0))])
     writer.writerow([])
     writer.writerow(["类别统计"])
     class_columns = ["类别", "中文名称", "检测框数量", "涉及图片数", "最高置信度", "平均置信度"]
     writer.writerow(class_columns)
     for row in overview.get("类别统计", []):
-        writer.writerow([row.get(column, "") for column in class_columns])
+        writer.writerow([csv_safe_value(row.get(column, "")) for column in class_columns])
     writer.writerow([])
     writer.writerow(["重点关注图片"])
     focus_columns = ["排名", "图片名称", "最高类别", "最高置信度", "检测框数量", "关注等级"]
     writer.writerow(focus_columns)
     for row in overview.get("重点关注图片", []):
-        writer.writerow([row.get(column, "") for column in focus_columns])
+        writer.writerow([csv_safe_value(row.get(column, "")) for column in focus_columns])
     writer.writerow([])
     writer.writerow(["质量较差图片"])
     for image_name in overview.get("质量较差图片", []):
-        writer.writerow([image_name])
+        writer.writerow([csv_safe_value(image_name)])
     writer.writerow([])
     writer.writerow(["无检测结果图片"])
     for image_name in overview.get("无检测结果图片", []):
-        writer.writerow([image_name])
+        writer.writerow([csv_safe_value(image_name)])
     writer.writerow([])
     writer.writerow(["失败图片"])
     for image_name in overview.get("失败图片", []):
-        writer.writerow([image_name])
+        writer.writerow([csv_safe_value(image_name)])
     return buffer.getvalue()

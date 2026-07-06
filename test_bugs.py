@@ -2062,5 +2062,44 @@ except Exception as e:
     print(f"✗ 默认建议无效检测字段清理测试失败: {e}")
     sys.exit(1)
 
+print("\n测试69: 检查 CSV 导出转义公式型文本...")
+try:
+    import app
+    from PIL import Image
+    from src.dental_detection.batch_overview_view import batch_overview_csv_text
+    from src.dental_detection.text_utils import csv_safe_value
+
+    assert csv_safe_value("=HYPERLINK(\"http://bad\")").startswith("'="), "公式型 CSV 单元格应加前缀"
+
+    image = Image.new("RGB", (80, 60), "white")
+    malicious_name = '=HYPERLINK("http://bad","x").png'
+    item = {
+        "name": malicious_name,
+        "display_name": malicious_name,
+        "result": {
+            "model": "model-safe",
+            "original": image,
+            "model_input": image,
+            "annotated": image,
+            "detections": [{"class": "Caries", "confidence": 0.86, "x1": 1, "y1": 2, "x2": 30, "y2": 40}],
+        },
+        "summary": {"模型": "model-safe", "CLAHE增强": False, "conf": 0.25, "iou": 0.7},
+        "advice": "",
+    }
+    with TemporaryDirectory() as temp_dir:
+        _, _, state = app.export_batch_results([item], temp_dir)
+        zip_path = Path(state[0]["zip_report_path"])
+        with zipfile.ZipFile(zip_path) as archive:
+            detections_csv = archive.read("detections.csv").decode("utf-8-sig")
+            overview_csv = archive.read("批量检测总览.csv").decode("utf-8-sig")
+    assert "'=HYPERLINK" in detections_csv, "检测明细 CSV 中的图片名应防公式注入"
+    assert "'=HYPERLINK" in overview_csv, "批量总览 CSV 中的显示名应防公式注入"
+    direct_overview = batch_overview_csv_text({"失败图片": [malicious_name]})
+    assert "'=HYPERLINK" in direct_overview, "直接生成总览 CSV 时也应转义公式型文本"
+    print("✓ CSV 公式型文本转义正常")
+except Exception as e:
+    print(f"✗ CSV 公式型文本转义测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")

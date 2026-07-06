@@ -85,7 +85,7 @@ from src.dental_detection.record_views import (
 )
 from src.dental_detection.result_levels import enrich_detection_row, has_detection_payload
 from src.dental_detection.result_items import item_model_results
-from src.dental_detection.text_utils import json_safe_value, text_value
+from src.dental_detection.text_utils import csv_safe_row, json_safe_value, text_value
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from ultralytics import YOLO
 
@@ -1256,7 +1256,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                 fieldnames=["image_name", "display_name", "model", *TABLE_COLUMNS, "suggestion_type"],
             )
             writer.writeheader()
-            writer.writerows(csv_rows)
+            writer.writerows(csv_safe_row(row) for row in csv_rows)
 
         _write_text(
             work_dir / "detections.json",
@@ -1318,11 +1318,11 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                 fieldnames=["类别", "中文名称", "检测框数量", "涉及图片数", "平均置信度", "最高置信度"],
             )
             writer.writeheader()
-            writer.writerows(batch_overview.get("类别统计", []))
+            writer.writerows(csv_safe_row(row) for row in batch_overview.get("类别统计", []))
         with (work_dir / "focus_images.csv").open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=["排名", "图片名称", "最高类别", "原始类别", "最高置信度", "检测框数量", "关注等级"])
             writer.writeheader()
-            writer.writerows(batch_overview.get("重点关注图片", []))
+            writer.writerows(csv_safe_row(row) for row in batch_overview.get("重点关注图片", []))
         _write_text(
             work_dir / "failed_images.txt",
             "\n".join(str(item) for item in batch_overview.get("失败图片", [])) + "\n",
@@ -1462,9 +1462,9 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
                 model_detections = model_item["detections"]
                 if model_detections:
                     for det in model_detections:
-                        writer.writerow({"model": model, **{key: det.get(key, "") for key in TABLE_COLUMNS}})
+                        writer.writerow(csv_safe_row({"model": model, **{key: det.get(key, "") for key in TABLE_COLUMNS}}))
                 else:
-                    writer.writerow({"model": model, **{key: "" for key in TABLE_COLUMNS}})
+                    writer.writerow(csv_safe_row({"model": model, **{key: "" for key in TABLE_COLUMNS}}))
 
         _write_text(
             work_dir / "detections.json",
