@@ -157,7 +157,7 @@ def format_case_record(data: dict[str, Any] | None) -> str:
 def format_history_record(record: dict[str, Any] | None) -> str:
     if not record:
         return "请选择一条检测历史。"
-    detections = _clean_detection_records(record.get("detections") or [])
+    detections = _record_detections(record)
     classes = record.get("classes")
     if isinstance(classes, str):
         class_text = classes.strip() or "无"

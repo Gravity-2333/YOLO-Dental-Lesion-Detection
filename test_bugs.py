@@ -1170,5 +1170,44 @@ except Exception as e:
     print(f"✗ 存储目录空白输入测试失败: {e}")
     sys.exit(1)
 
+print("\n测试40: 检查历史详情兼容仅含模型明细的旧记录...")
+try:
+    from src.dental_detection.record_formatters import format_history_record
+
+    legacy_history = {
+        "created_at": "2026-07-06T10:00:00",
+        "image_name": "legacy-history.png",
+        "display_name": "001 - legacy-history.png",
+        "model": "legacy-model",
+        "detection_count": 1,
+        "classes": ["龋齿"],
+        "max_confidence": 0.83,
+        "level": "重点关注",
+        "detections": [],
+        "model_results": [
+            {
+                "model": "detail-model",
+                "detection_count": 1,
+                "detections": [
+                    {
+                        "class": "Caries",
+                        "confidence": 0.83,
+                        "x1": 1,
+                        "y1": 2,
+                        "x2": 30,
+                        "y2": 40,
+                    }
+                ],
+            }
+        ],
+    }
+    detail = format_history_record(legacy_history)
+    assert "龋齿" in detail and "detail-model" in detail, "历史详情应从模型明细回退显示检测框"
+    assert "无检测框" not in detail, "模型明细存在检测框时不应显示无检测框"
+    print("✓ 历史详情模型明细回退正常")
+except Exception as e:
+    print(f"✗ 历史详情模型明细回退测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
