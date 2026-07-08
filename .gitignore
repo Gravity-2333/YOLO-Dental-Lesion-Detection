@@ -9,6 +9,8 @@ env/
 
 data/dental_lesion/images/
 data/dental_lesion/labels/
+data/dental_lesion_final/images/
+data/dental_lesion_final/labels/
 yolov8_dental/
 /runs/
 outputs/
