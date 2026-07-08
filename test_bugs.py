@@ -2426,5 +2426,121 @@ except Exception as e:
     print(f"✗ 中文字段模型结果前端导出入口测试失败: {e}")
     sys.exit(1)
 
+print("\n测试78: 检查主流程输出不会把按钮文字传给文件组件...")
+try:
+    import app
+    from PIL import Image
+
+    def assert_common_outputs_aligned(outputs):
+        assert len(outputs) == 34, f"主流程应返回 34 个输出，实际 {len(outputs)}"
+        assert getattr(outputs[29], "get", lambda *_: None)("value") == "导出 Word 报告", (
+            "Word 导出按钮应位于 common_outputs[29]"
+        )
+        assert getattr(outputs[32], "get", lambda *_: None)("value") == "导出 ZIP 数据包", (
+            "ZIP 导出按钮应位于 common_outputs[32]"
+        )
+        assert getattr(outputs[27], "get", lambda *_: None)("value") != "导出 Word 报告", (
+            "word_report_file 文件组件不能收到按钮文字"
+        )
+        assert getattr(outputs[30], "get", lambda *_: None)("value") != "导出 ZIP 数据包", (
+            "report_file 文件组件不能收到按钮文字"
+        )
+
+    image = Image.new("RGB", (80, 60), "white")
+    detection = {
+        "class": "Caries",
+        "confidence": 0.86,
+        "x1": 4,
+        "y1": 5,
+        "x2": 40,
+        "y2": 45,
+    }
+
+    def fake_detect_model_path(model_name, model_path, image_arg, use_clahe, conf, iou, device):
+        records = app._clean_detection_records([detection], image_size=image.size)
+        return {
+            "model": model_name,
+            "original": image,
+            "model_input": image,
+            "annotated": image,
+            "full_annotated": image,
+            "detections": records,
+            "table": app._table_from_records(records),
+            "class_names": {"0": "Caries"},
+            "model_path": str(model_path),
+        }
+
+    original_detect = app._detect_model_path
+    app._detect_model_path = fake_detect_model_path
+    try:
+        baseline = str(Path("models/final_candidates/yolov8m_1280_full/weights/best.pt").resolve())
+        single_outputs = app.run_single_detection(
+            image,
+            app.MODEL_MODE_SINGLE,
+            baseline,
+            baseline,
+            0.25,
+            0.45,
+            "cpu",
+            False,
+            False,
+            True,
+            False,
+            "https://api.deepseek.com/v1",
+            "deepseek-chat",
+            "环境变量",
+            "DEEPSEEK_API_KEY",
+            "",
+            "",
+            False,
+            False,
+            False,
+            str(Path("outputs/test-storage").resolve()),
+            "",
+            "简洁版",
+            False,
+            100,
+        )
+        assert_common_outputs_aligned(single_outputs)
+
+        with TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / "batch.png"
+            image.save(image_path)
+            batch_outputs = app.run_batch_detection(
+                [str(image_path)],
+                app.MODEL_MODE_SINGLE,
+                baseline,
+                baseline,
+                0.25,
+                0.45,
+                "cpu",
+                False,
+                False,
+                True,
+                False,
+                "https://api.deepseek.com/v1",
+                "deepseek-chat",
+                "环境变量",
+                "DEEPSEEK_API_KEY",
+                "",
+                "",
+                False,
+                False,
+                False,
+                str(Path(temp_dir) / "storage"),
+                "",
+                "简洁版",
+                False,
+                100,
+            )
+        assert_common_outputs_aligned(batch_outputs)
+        assert_common_outputs_aligned(app.clear_outputs())
+    finally:
+        app._detect_model_path = original_detect
+    print("✓ 主流程输出组件顺序正常")
+except Exception as e:
+    print(f"✗ 主流程输出组件顺序测试失败: {e}")
+    sys.exit(1)
+
 print("\n" + "="*60)
 print("测试完成！")
