@@ -12,6 +12,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from .assistant import ensure_app_dirs, export_dir
 from .result_levels import enrich_detection_row, iter_detection_items
 
+LABEL_FONT_SCALE = 2.0
+
 
 def _safe_stem(name: str) -> str:
     stem = Path(str(name or "image")).stem or "image"
@@ -41,6 +43,27 @@ def as_rgb_image(image: Any) -> Image.Image:
             array = array * 255.0
         array = np.clip(array, 0, 255).astype(np.uint8)
     return Image.fromarray(array).convert("RGB")
+
+
+def label_font_for_image(image_size: tuple[int, int]) -> ImageFont.ImageFont:
+    """Use a readable label font; model outputs do not control visual text size."""
+    min_side = max(1, min(int(image_size[0]), int(image_size[1])))
+    size = max(24, min(48, round(min_side / 70 * LABEL_FONT_SCALE)))
+    candidates = [
+        "msyh.ttc",
+        "simhei.ttf",
+        "arial.ttf",
+        "DejaVuSans.ttf",
+    ]
+    for name in candidates:
+        try:
+            return ImageFont.truetype(name, size=size)
+        except OSError:
+            continue
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
 
 
 def save_png_image(image: Any, path: str | Path) -> Path:
@@ -107,7 +130,7 @@ def draw_detections_with_filter(
     allowed = None if visible_classes is None else {str(item).strip() for item in visible_classes if str(item).strip()}
     annotated = base.copy()
     draw = ImageDraw.Draw(annotated)
-    font = ImageFont.load_default()
+    font = label_font_for_image(base.size)
     colors = {
         "龋齿": (235, 88, 60),
         "根尖周病变": (32, 146, 230),
@@ -146,6 +169,9 @@ def draw_detections_with_filter(
             y1,
             text_w,
             text_h,
+            pad_x=max(4, round(text_h * 0.35)),
+            pad_y=max(3, round(text_h * 0.25)),
+            gap=max(6, round(text_h * 0.35)),
         )
         draw.rectangle((label_left, label_top, label_right, label_bottom), fill=color)
         draw.text((text_x, text_y), text, fill=(255, 255, 255), font=font)

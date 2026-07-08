@@ -8,10 +8,10 @@ from typing import Any
 
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageOps
 
 from .config import CUSTOM_ULTRALYTICS_PATH
-from .visualization import as_rgb_image, label_box_layout
+from .visualization import as_rgb_image, label_box_layout, label_font_for_image
 
 if CUSTOM_ULTRALYTICS_PATH.exists():
     sys.path.insert(0, str(CUSTOM_ULTRALYTICS_PATH))
@@ -146,7 +146,7 @@ class DentalDetector:
     def _draw_detections(image: Image.Image, detections: list[Detection]) -> Image.Image:
         annotated = image.copy()
         draw = ImageDraw.Draw(annotated)
-        font = ImageFont.load_default()
+        font = label_font_for_image(image.size)
         colors = {
             0: (235, 88, 60),
             1: (32, 146, 230),
@@ -177,6 +177,9 @@ class DentalDetector:
                 y1,
                 text_w,
                 text_h,
+                pad_x=max(4, round(text_h * 0.35)),
+                pad_y=max(3, round(text_h * 0.25)),
+                gap=max(6, round(text_h * 0.35)),
             )
             draw.rectangle((label_left, label_top, label_right, label_bottom), fill=color)
             draw.text((text_x, text_y), text, fill=(255, 255, 255), font=font)

@@ -626,8 +626,8 @@ except Exception as e:
 
 print("\n测试22: 检查检测框标签贴边时不会越出图像...")
 try:
-    from PIL import Image
-    from src.dental_detection.visualization import draw_detections_with_filter, label_box_layout
+    from PIL import Image, ImageDraw
+    from src.dental_detection.visualization import draw_detections_with_filter, label_box_layout, label_font_for_image
 
     left, top, right, bottom, text_x, text_y = label_box_layout(
         image_width=80,
@@ -647,6 +647,9 @@ try:
         [{"class": "Caries", "confidence": 0.91, "x1": 76, "y1": 4, "x2": 79, "y2": 30}],
     )
     assert annotated.size == image.size, "重绘结果不应改变图像尺寸"
+    large_font = label_font_for_image((1800, 900))
+    text_box = ImageDraw.Draw(Image.new("RGB", (1, 1))).textbbox((0, 0), "Caries 0.85", font=large_font)
+    assert text_box[3] - text_box[1] >= 18, "检测结果标签字号应明显大于 PIL 默认小字体"
     print("✓ 检测框标签贴边布局正常")
 except Exception as e:
     print(f"✗ 检测框标签贴边布局测试失败: {e}")
