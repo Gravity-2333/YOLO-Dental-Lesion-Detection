@@ -11,17 +11,9 @@ call "%PROJECT_ROOT%stop_project.bat" --from-start
 
 if not exist "%YOLO_CONFIG_DIR%" mkdir "%YOLO_CONFIG_DIR%"
 
-if defined PYTHON_EXE (
-    set "RUNNER_EXE=%PYTHON_EXE%"
-    set "RUNNER_ARGS=app.py --server-name %SERVER_NAME% --server-port %SERVER_PORT% %GRADIO_EXTRA_ARGS%"
-) else (
-    set "RUNNER_EXE=%MAMBA_EXE%"
-    set "RUNNER_ARGS=run -n %MAMBA_ENV% python app.py --server-name %SERVER_NAME% --server-port %SERVER_PORT% %GRADIO_EXTRA_ARGS%"
-)
-
 echo [信息] 正在启动 Gradio 前端服务...
 echo [信息] 新窗口会显示后端运行日志和可能的报错；关闭该窗口也会停止前端服务。
-start "YOLO Dental Gradio" cmd /k "chcp 65001 >nul && cd /d "%PROJECT_ROOT%" && set "YOLO_CONFIG_DIR=%YOLO_CONFIG_DIR%" && "%RUNNER_EXE%" %RUNNER_ARGS%"
+start "YOLO Dental Gradio" cmd /k call "%PROJECT_ROOT%scripts\run_gradio_server.bat"
 
 echo [信息] 前端访问地址：http://%SERVER_NAME%:%SERVER_PORT%
 echo [信息] 如果页面暂时打不开，请等待几秒钟，模型和 Gradio 服务需要一点启动时间。
