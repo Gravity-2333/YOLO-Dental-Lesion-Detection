@@ -2569,7 +2569,7 @@ try:
         default_model_path=str(DEFAULT_MODEL_PATH),
         recommended_paths=recommended_paths,
     )
-    assert "稳定对照" in baseline_html, "baseline 状态应保留稳定对照提示"
+    assert "兼容模型" in baseline_html, "原始结构状态应保留兼容模型标识"
 
     optimized_html = build_workbench_model_status_html(
         optimized_path,
@@ -2577,7 +2577,7 @@ try:
         default_model_path=str(DEFAULT_MODEL_PATH),
         recommended_paths=recommended_paths,
     )
-    assert "../yolov8-train" in optimized_html, "C2f 状态应提示同级 yolov8-train 依赖"
+    assert "优化模型" in optimized_html, "C2f 状态应保留优化模型标识"
 
     advanced_path = str(PROJECT_ROOT / "models" / "pretrained" / "yolov8n.pt")
     advanced_html = build_workbench_model_status_html(
@@ -2586,14 +2586,14 @@ try:
         default_model_path=str(DEFAULT_MODEL_PATH),
         recommended_paths=recommended_paths,
     )
-    assert "不建议答辩临时使用" in advanced_html, "高级模型状态应提示答辩风险"
+    assert "请确认来源和兼容性" in advanced_html, "高级模型状态应提示兼容性风险"
 
     long_path = "E:/" + "/".join(["very_long_model_directory"] * 8) + "/weights/best.pt"
     compact_text = format_model_path_for_display(long_path, max_chars=60)
     compact_html = build_model_path_compact_html(long_path)
     assert "..." in compact_text and compact_text != long_path, "长路径展示文本应省略"
     assert f'title="{long_path}"' in compact_html, "长路径 HTML 应保留完整 title 便于追踪"
-    assert build_demo_recommendation_html().strip(), "推荐演示说明不能为空"
+    assert build_demo_recommendation_html().strip(), "模型选择建议不能为空"
     assert build_advanced_model_warning_html().strip(), "高级模型提示不能为空"
     print("✓ 模型 UI helper 输出正常")
 except Exception as e:

@@ -8,7 +8,6 @@ import gradio as gr
 from .ai_defaults import DEFAULT_AI_PROMPT
 from .model_files import ADVANCED_MODEL_HINT
 from .model_info import legend_html
-from .model_ui import build_demo_recommendation_html
 from .settings_store import AiSettings
 from .ui_constants import MODEL_MODE_COMPARE, MODEL_MODE_SINGLE
 from .ui_content import section_heading
@@ -146,9 +145,8 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                 gr.HTML(
                     section_heading(
                         "模型选择",
-                        "优先使用模型卡片完成演示切换：baseline 用于稳定对照，C2f-Faster-lite 是优化模型并依赖同级 ../yolov8-train。",
+                        "选择用于检测的模型。普通使用建议保持默认优化模型。",
                     )
-                    + build_demo_recommendation_html()
                 )
                 model_cards_view = gr.HTML(data.model_cards_html)
                 model_card_select = gr.Radio(
@@ -228,9 +226,8 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                 with gr.Accordion("帮助", open=False):
                     gr.Markdown(
                         "刷新会扫描模型目录及子目录中的受支持模型文件；三点按钮用于弹出路径选择器并切换模型目录。\n\n"
-                        "YOLOv8m 原始结构是稳定 baseline，适合答辩演示时作为对照模型。\n\n"
-                        "YOLOv8m C2f-Faster-lite 是优化模型，依赖同级目录 `../yolov8-train` 中的自定义 ultralytics 代码。"
-                        "若迁移项目，请同时保留该目录；如果依赖缺失，建议先使用 baseline 模型演示。"
+                        "优化模型适合常规检测；兼容模型不依赖自定义结构，可在优化模型无法加载时使用。\n\n"
+                        "高级路径设置主要用于维护和实验权重，普通使用无需展开。"
                     )
 
         with gr.Tab("模型说明"):

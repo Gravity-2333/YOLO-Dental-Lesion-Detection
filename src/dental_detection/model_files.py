@@ -9,7 +9,7 @@ SUPPORTED_MODEL_SUFFIXES = {".pt", ".onnx", ".engine", ".mlmodel", ".torchscript
 SUPPORTED_MODEL_DIR_SUFFIXES = {".mlpackage"}
 MAX_MODEL_FILES = 500
 MAX_MODEL_SCAN_DEPTH = 8
-ADVANCED_MODEL_HINT = "高级模型可能包含实验权重、last.pt 或预训练模型，答辩演示请优先使用推荐模型。"
+ADVANCED_MODEL_HINT = "高级列表可能包含实验权重、last.pt 或预训练模型，普通使用请保持关闭。"
 
 
 def model_label_from_path(path: str | Path) -> str:

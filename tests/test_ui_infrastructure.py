@@ -14,8 +14,16 @@ from src.dental_detection.ui_contracts import (
     common_output_values,
 )
 from src.dental_detection.ui_constants import DETECTION_TABLE_COLUMNS
-from src.dental_detection.ui_content import APP_HEADER_HTML, WORKBENCH_HELP_TEXT, section_heading
+from src.dental_detection.ui_content import (
+    AI_CHAT_INTRO_HTML,
+    APP_HEADER_HTML,
+    CASE_INTRO_HTML,
+    WORKBENCH_GUIDE_HTML,
+    WORKBENCH_HELP_TEXT,
+    section_heading,
+)
 from src.dental_detection.ui_settings_page import AI_REQUEST_KEYS, SettingsComponents
+from src.dental_detection.ui_workbench_page import WorkbenchComponents
 
 
 class UiAssetTests(unittest.TestCase):
@@ -65,6 +73,16 @@ class UiContractTests(unittest.TestCase):
         self.assertEqual(common_inputs["model_mode"], "workbench_model_mode")
         self.assertEqual(components.ai_request_inputs(), list(AI_REQUEST_KEYS))
 
+    def test_workbench_components_supply_detection_inputs_by_name(self) -> None:
+        settings = SettingsComponents(**{field.name: field.name for field in fields(SettingsComponents)})
+        workbench = WorkbenchComponents(**{field.name: field.name for field in fields(WorkbenchComponents)})
+
+        common_inputs = workbench.common_input_map(settings)
+
+        self.assertEqual(set(common_inputs), set(COMMON_INPUT_KEYS))
+        self.assertEqual(common_inputs["model_mode"], "model_mode")
+        self.assertEqual(common_inputs["primary_model_path"], "primary_model_path")
+
 
 class UiContentTests(unittest.TestCase):
     def test_section_heading_escapes_dynamic_text(self) -> None:
@@ -75,6 +93,12 @@ class UiContentTests(unittest.TestCase):
     def test_shared_content_keeps_brand_and_safety_copy(self) -> None:
         self.assertIn("Dental AI Workbench", APP_HEADER_HTML)
         self.assertIn("不能替代专业牙科医生诊断", WORKBENCH_HELP_TEXT)
+
+    def test_user_facing_copy_avoids_internal_demo_instructions(self) -> None:
+        visible_copy = "".join((WORKBENCH_GUIDE_HTML, AI_CHAT_INTRO_HTML, CASE_INTRO_HTML))
+        self.assertNotIn("答辩", visible_copy)
+        self.assertNotIn("../yolov8-train", visible_copy)
+        self.assertNotIn("演示提示", visible_copy)
 
 
 if __name__ == "__main__":

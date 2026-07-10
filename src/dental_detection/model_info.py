@@ -60,18 +60,18 @@ def build_model_cards(model_registry: dict[str, dict[str, Any]], default_model_n
             title = "轻量优化模型"
             description = "结构更轻，推理资源消耗更低，适合优先考虑运行效率的场景。"
         else:
-            title = "Baseline 模型"
-            description = "YOLOv8m 原始结构候选模型，适合演示稳定 baseline 和效果对照。"
+            title = "兼容模型"
+            description = "YOLOv8m 原始结构，兼容性高，适合对运行环境兼容性要求较高的场景。"
         if needs_custom_ultralytics:
             dependency_note = "依赖同级目录 ../yolov8-train 中的自定义 ultralytics 代码。"
-            demo_note = (
-                "自定义依赖可用，推荐展示优化模型，并保留 baseline 对比。"
+            usage_note = (
+                "适合常规辅助筛查和批量检测。"
                 if custom_ultralytics_available
-                else "自定义依赖缺失，演示时建议改用 baseline 模型。"
+                else "运行依赖缺失，请改用兼容模型。"
             )
         else:
-            dependency_note = "不依赖自定义 ultralytics，迁移展示时更稳妥。"
-            demo_note = "适合作为稳定 baseline；可与优化模型进行答辩对照。"
+            dependency_note = "不依赖自定义 ultralytics。"
+            usage_note = "适合环境兼容、基础检测或模型效果对比。"
         if not artifact_available:
             status_text = "缺失"
             status_class = "missing"
@@ -93,7 +93,7 @@ def build_model_cards(model_registry: dict[str, dict[str, Any]], default_model_n
                 "artifact_available": artifact_available,
                 "dependency_available": dependency_available,
                 "dependency_note": dependency_note,
-                "demo_note": demo_note,
+                "usage_note": usage_note,
                 "is_default": is_default,
                 "is_baseline": is_baseline,
                 "needs_custom_ultralytics": needs_custom_ultralytics,
@@ -128,7 +128,7 @@ def format_model_info_markdown(model_info: dict[str, Any]) -> str:
     role = escape(str(model_info.get("role", "牙齿病变区域辅助识别")))
     status_text = escape(str(model_info.get("status_text") or ("可用" if model_info.get("available") else "不可用或格式不支持")))
     dependency_note = escape(str(model_info.get("dependency_note") or "无额外自定义依赖说明。"))
-    demo_note = escape(str(model_info.get("demo_note") or "演示前请确认模型文件可加载。"))
+    usage_note = escape(str(model_info.get("usage_note") or "使用前请确认模型文件可正常加载。"))
     path = escape(str(model_info.get("path", "")))
     return f"""## 当前模型：{name}
 
@@ -138,8 +138,8 @@ def format_model_info_markdown(model_info: dict[str, Any]) -> str:
 - 模型状态：{status_text}
 - 模型路径：`{path}`
 
-### 演示与依赖提示
-- {demo_note}
+### 使用与依赖
+- {usage_note}
 - {dependency_note}
 
 ### 输入图片要求
@@ -180,7 +180,6 @@ def legend_html() -> str:
 <div class="legend-item">
   <span class="legend-swatch" style="background:{item['color']}"></span>
   <strong>{item['中文名称']}</strong>
-  <span>{item['说明']}</span>
 </div>
 """
         )

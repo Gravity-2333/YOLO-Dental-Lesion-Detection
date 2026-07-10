@@ -89,7 +89,6 @@ from src.dental_detection.model_files import (
     supported_suffix_text,
 )
 from src.dental_detection.model_ui import (
-    build_demo_recommendation_html,
     build_model_cards_html,
     build_workbench_model_status_html,
 )
@@ -130,12 +129,10 @@ from src.dental_detection.ui_content import (
     AI_CHAT_INTRO_HTML,
     APP_HEADER_HTML,
     CASE_INTRO_HTML,
-    RESULT_STAGE_HTML,
-    WORKBENCH_GUIDE_HTML,
-    WORKBENCH_HELP_TEXT,
     section_heading,
 )
 from src.dental_detection.ui_settings_page import SettingsPageData, build_settings_page
+from src.dental_detection.ui_workbench_page import WorkbenchPageData, build_workbench_page
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from ultralytics import YOLO
 
@@ -490,7 +487,7 @@ def apply_model_card(selected_path: str, model_dir: str | None = None, include_a
         raise gr.Error("所选模型卡片无效，请刷新页面后重试。")
     if not card.get("available"):
         if card.get("status_text") == "依赖缺失":
-            raise gr.Error("该模型依赖同级目录 ../yolov8-train 中的自定义 ultralytics 代码。当前依赖缺失，建议先使用 baseline 模型演示。")
+            raise gr.Error("该模型所需的自定义运行模块缺失，请改用兼容模型或补齐项目依赖。")
         raise _friendly_gr_error(f"model file not found: {card.get('path')}", "模型文件不存在")
     path = str(Path(card["path"]).expanduser().resolve())
     choices = scan_model_files(
@@ -2543,253 +2540,16 @@ def build_app() -> gr.Blocks:
 
         with gr.Tabs(elem_classes=["main-tabs"]):
             with gr.Tab("检测工作台"):
-                with gr.Group(elem_classes=["section-card", "guide-card"]):
-                    gr.HTML(WORKBENCH_GUIDE_HTML)
-                    workbench_model_status = gr.HTML(_workbench_model_status_html(saved_primary_model_path))
-                    with gr.Accordion("使用说明", open=False):
-                        gr.Markdown(WORKBENCH_HELP_TEXT)
-                with gr.Row(elem_classes=["workbench-grid"]):
-                    with gr.Column(scale=4, elem_classes=["control-panel"]):
-                        with gr.Group(elem_classes=["section-card", "upload-card"]):
-                            with gr.Tabs(elem_classes=["sub-tabs"]):
-                                with gr.Tab("单张分析"):
-                                    gr.HTML(section_heading("上传影像", "请上传牙科影像或选择脱敏示例图开始检测。"))
-                                    image = gr.Image(
-                                        type="pil",
-                                        label="上传牙科影像",
-                                        show_label=False,
-                                        height=280,
-                                        sources=["upload", "clipboard"],
-                                        placeholder="拖拽牙科影像到此处\n支持常见图片格式",
-                                        elem_classes=["upload-input"],
-                                    )
-                                    run_btn = gr.Button(
-                                        "开始分析",
-                                        variant="primary",
-                                        elem_classes=["primary-action"],
-                                    )
-                                    with gr.Accordion("示例图片", open=False):
-                                        example_select = gr.Dropdown(
-                                            label="选择脱敏示例",
-                                            choices=_example_choices(),
-                                            value=None,
-                                        )
-                                        load_example_btn = gr.Button(
-                                            "加载示例",
-                                            elem_classes=["secondary-action", "compact-button"],
-                                        )
-                                        example_info = gr.Textbox(
-                                            label="示例说明",
-                                            value="选择示例后会在这里显示说明。",
-                                            interactive=False,
-                                            lines=4,
-                                        )
-                                with gr.Tab("批量分析"):
-                                    gr.HTML(section_heading("批量上传", "批量分析会按当前模型模式逐张检测，可在完成后导出结果包。"))
-                                    batch_files = gr.File(
-                                        label="批量上传图片",
-                                        show_label=False,
-                                        file_count="multiple",
-                                        file_types=[".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"],
-                                        elem_classes=["upload-input"],
-                                    )
-                                    batch_btn = gr.Button(
-                                        "批量分析",
-                                        variant="primary",
-                                        elem_classes=["primary-action"],
-                                    )
-                                    batch_select = gr.Dropdown(label="查看图片", choices=[])
-                                    with gr.Row(elem_classes=["compact-row"]):
-                                        export_batch_btn = gr.Button(
-                                            "导出批量结果",
-                                            interactive=False,
-                                            elem_classes=["secondary-action"],
-                                        )
-                                        export_batch_word_btn = gr.Button(
-                                            "导出批量 Word",
-                                            interactive=False,
-                                            elem_classes=["secondary-action"],
-                                        )
-                                        batch_export_file = gr.File(label="批量结果 ZIP", visible=False)
-                                        batch_word_file = gr.File(label="批量 Word 报告", visible=False)
-                                    batch_export_path = gr.Textbox(
-                                        label="批量导出路径",
-                                        interactive=False,
-                                        lines=1,
-                                        max_lines=1,
-                                        elem_classes=["path-output"],
-                                    )
-                                    batch_word_path = gr.Textbox(
-                                        label="批量 Word 报告路径",
-                                        interactive=False,
-                                        lines=1,
-                                        max_lines=1,
-                                        elem_classes=["path-output"],
-                                    )
-                                    batch_overview = gr.HTML(visible=False)
-
-                        with gr.Group(elem_classes=["section-card", "panel-card"]):
-                            gr.HTML(section_heading("推理设置", "常规演示保持默认参数即可；需要切换 baseline 或优化模型时，请到设置页选择模型卡片。"))
-                            model_mode = gr.Radio(
-                                choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
-                                value=saved.model_mode if saved.enable_compare else MODEL_MODE_SINGLE,
-                                label="模型模式",
-                                elem_classes=["segmented-control"],
-                            )
-                            if len(device_choices) > 2:
-                                device_choice = gr.Dropdown(
-                                    choices=device_choices,
-                                    value=_default_device_choice(),
-                                    label="推理设备",
-                                    elem_classes=["compact-control"],
-                                )
-                            else:
-                                device_choice = gr.Radio(
-                                    choices=device_choices,
-                                    value=_default_device_choice(),
-                                    label="推理设备",
-                                    elem_classes=["segmented-control"],
-                                )
-                            with gr.Row(elem_classes=["compact-row"]):
-                                conf = gr.Slider(0.05, 0.95, value=0.25, step=0.05, label="置信度")
-                                iou = gr.Slider(0.1, 0.9, value=0.7, step=0.05, label="IoU")
-                            use_clahe = gr.Checkbox(
-                                value=False,
-                                label="CLAHE 增强",
-                                info="适合低对比度牙片，默认关闭。",
-                            )
-
-                    with gr.Column(scale=7, elem_classes=["result-panel"]):
-                        gr.HTML(RESULT_STAGE_HTML)
-                        with gr.Row(elem_classes=["image-grid"]):
-                            with gr.Column(elem_classes=["image-panel"]):
-                                gr.HTML('<div class="image-title">原图</div>')
-                                original_output = gr.Image(
-                                    type="pil",
-                                    label="原图",
-                                    show_label=False,
-                                    height=240,
-                                    placeholder="等待上传",
-                                    elem_classes=["result-card"],
-                                )
-                            with gr.Column(elem_classes=["image-panel"]):
-                                gr.HTML('<div class="image-title">模型输入</div>')
-                                model_input_output = gr.Image(
-                                    type="pil",
-                                    label="模型输入",
-                                    show_label=False,
-                                    height=240,
-                                    placeholder="完成检测后显示",
-                                    elem_classes=["result-card"],
-                                )
-                            with gr.Column(elem_classes=["image-panel"]):
-                                gr.HTML('<div class="image-title">检测结果</div>')
-                                result_output = gr.Image(
-                                    type="pil",
-                                    label="检测结果",
-                                    show_label=False,
-                                    height=240,
-                                    placeholder="完成检测后显示",
-                                    elem_classes=["result-card"],
-                                )
-                        with gr.Accordion("查看高清结果与疑似区域", open=False):
-                            highres_result_output = gr.Image(
-                                type="pil",
-                                label="高清结果图",
-                                height=420,
-                                interactive=False,
-                                elem_classes=["result-card", "highres-result-card"],
-                            )
-                            crop_status = gr.Markdown("暂无疑似区域局部图")
-                            crop_gallery = gr.Gallery(
-                                label="疑似区域局部图",
-                                columns=3,
-                                rows=1,
-                                height=220,
-                                allow_preview=True,
-                                object_fit="contain",
-                            )
-                            with gr.Row(elem_classes=["path-row"]):
-                                result_image_path = gr.Textbox(
-                                    label="检测结果图路径",
-                                    interactive=False,
-                                    lines=1,
-                                    max_lines=1,
-                                    scale=8,
-                                    elem_classes=["path-output"],
-                                )
-                                download_result_btn = gr.Button(
-                                    "下载检测结果图",
-                                    interactive=False,
-                                    elem_classes=["secondary-action"],
-                                    scale=2,
-                                )
-                                result_image_file = gr.File(label="检测结果图 PNG", visible=False)
-                        with gr.Group(elem_classes=["section-card", "result-table-card"]):
-                            gr.HTML(legend_html())
-                            visible_class_filter = gr.CheckboxGroup(
-                                label="显示类别",
-                                choices=[],
-                                value=[],
-                                interactive=False,
-                                elem_classes=["compact-control"],
-                            )
-                            det_table = gr.Dataframe(
-                                value=_empty_table(),
-                                headers=list(DETECTION_TABLE_COLUMNS),
-                                label="检测框",
-                                wrap=False,
-                                interactive=False,
-                            )
-                        with gr.Row(elem_classes=["insight-grid"]):
-                            advice_box = gr.Textbox(
-                                label="牙齿辅助建议",
-                                lines=7,
-                                interactive=False,
-                                elem_classes=["panel-card"],
-                            )
-                            quality_box = gr.Textbox(
-                                value="等待上传图像",
-                                label="图像质量提示",
-                                lines=7,
-                                interactive=False,
-                                elem_classes=["panel-card"],
-                            )
-                        summary = gr.JSON(label="参数摘要", visible=False)
-                        with gr.Group(elem_classes=["section-card", "export-toolbar"]):
-                            with gr.Row(elem_classes=["path-row"]):
-                                word_report_path = gr.Textbox(
-                                    label="Word 报告路径",
-                                    interactive=False,
-                                    lines=1,
-                                    max_lines=1,
-                                    scale=8,
-                                    elem_classes=["path-output"],
-                                )
-                                export_word_btn = gr.Button(
-                                    "导出 Word 报告",
-                                    interactive=False,
-                                    elem_classes=["secondary-action"],
-                                    scale=2,
-                                )
-                                word_report_file = gr.File(label="Word 报告", visible=False)
-                            with gr.Row(elem_classes=["path-row"]):
-                                report_path = gr.Textbox(
-                                    label="ZIP 数据包路径",
-                                    interactive=False,
-                                    lines=1,
-                                    max_lines=1,
-                                    scale=8,
-                                    elem_classes=["path-output"],
-                                )
-                                export_report_btn = gr.Button(
-                                    "导出 ZIP 数据包",
-                                    interactive=False,
-                                    elem_classes=["secondary-action"],
-                                    scale=2,
-                                )
-                                report_file = gr.File(label="单图报告 ZIP", visible=False)
-
+                workbench = build_workbench_page(
+                    WorkbenchPageData(
+                        saved=saved,
+                        model_status_html=_workbench_model_status_html(saved_primary_model_path),
+                        example_choices=_example_choices(),
+                        device_choices=device_choices,
+                        default_device_choice=_default_device_choice(),
+                        initial_detection_table=_empty_table(),
+                    )
+                )
             with gr.Tab("AI 问答"):
                 with gr.Group(elem_classes=["section-card", "chat-card"]):
                     gr.HTML(AI_CHAT_INTRO_HTML)
@@ -2851,8 +2611,6 @@ def build_app() -> gr.Blocks:
                             elem_classes=["secondary-action", "compact-button"],
                         )
                     case_feedback = gr.Textbox(label="病例反馈", interactive=False, lines=3)
-                    with gr.Accordion("说明", open=False):
-                        gr.Markdown("病例记录仅保存检测摘要、检测框和建议，不自动保存原始牙片图片。")
                 with gr.Group(elem_classes=["section-card", "case-card"]):
                     gr.HTML(
                         '<div class="section-heading"><h2>已保存病例</h2>'
@@ -2957,6 +2715,48 @@ def build_app() -> gr.Blocks:
                     )
                 )
 
+        workbench_model_status = workbench.workbench_model_status
+        image = workbench.image
+        run_btn = workbench.run_btn
+        example_select = workbench.example_select
+        load_example_btn = workbench.load_example_btn
+        example_info = workbench.example_info
+        batch_files = workbench.batch_files
+        batch_btn = workbench.batch_btn
+        batch_select = workbench.batch_select
+        export_batch_btn = workbench.export_batch_btn
+        export_batch_word_btn = workbench.export_batch_word_btn
+        batch_export_file = workbench.batch_export_file
+        batch_word_file = workbench.batch_word_file
+        batch_export_path = workbench.batch_export_path
+        batch_word_path = workbench.batch_word_path
+        batch_overview = workbench.batch_overview
+        model_mode = workbench.model_mode
+        device_choice = workbench.device_choice
+        conf = workbench.conf
+        iou = workbench.iou
+        use_clahe = workbench.use_clahe
+        original_output = workbench.original_output
+        model_input_output = workbench.model_input_output
+        result_output = workbench.result_output
+        highres_result_output = workbench.highres_result_output
+        crop_status = workbench.crop_status
+        crop_gallery = workbench.crop_gallery
+        result_image_path = workbench.result_image_path
+        download_result_btn = workbench.download_result_btn
+        result_image_file = workbench.result_image_file
+        visible_class_filter = workbench.visible_class_filter
+        det_table = workbench.det_table
+        advice_box = workbench.advice_box
+        quality_box = workbench.quality_box
+        summary = workbench.summary
+        word_report_path = workbench.word_report_path
+        export_word_btn = workbench.export_word_btn
+        word_report_file = workbench.word_report_file
+        report_path = workbench.report_path
+        export_report_btn = workbench.export_report_btn
+        report_file = workbench.report_file
+
         enable_compare = settings.enable_compare
         show_summary = settings.show_summary
         model_cards_view = settings.model_cards_view
@@ -2998,15 +2798,7 @@ def build_app() -> gr.Blocks:
         default_storage_btn = settings.default_storage_btn
         save_settings_btn = settings.save_settings_btn
         settings_feedback = settings.settings_feedback
-        common_inputs = common_input_components(
-            settings.common_input_map(
-                model_mode=model_mode,
-                conf=conf,
-                iou=iou,
-                device_choice=device_choice,
-                use_clahe=use_clahe,
-            )
-        )
+        common_inputs = common_input_components(workbench.common_input_map(settings))
         common_outputs = common_output_components(
             {
                 "original": original_output,

@@ -30,8 +30,8 @@ def run_checks() -> None:
         default_model_path=str(DEFAULT_MODEL_PATH),
         recommended_paths=recommended_paths,
     )
-    if "稳定对照" not in baseline_html:
-        raise AssertionError("baseline 状态 HTML 缺少“稳定对照”提示")
+    if "兼容模型" not in baseline_html:
+        raise AssertionError("原始结构状态 HTML 缺少兼容模型标识")
 
     optimized_html = build_workbench_model_status_html(
         optimized_path,
@@ -39,8 +39,8 @@ def run_checks() -> None:
         default_model_path=str(DEFAULT_MODEL_PATH),
         recommended_paths=recommended_paths,
     )
-    if "../yolov8-train" not in optimized_html:
-        raise AssertionError("C2f-Faster-lite 状态 HTML 缺少 ../yolov8-train 依赖提示")
+    if "优化模型" not in optimized_html:
+        raise AssertionError("C2f-Faster-lite 状态 HTML 缺少优化模型标识")
 
     advanced_path = str(APP_PROJECT_ROOT / "models" / "pretrained" / "yolov8n.pt")
     advanced_html = build_workbench_model_status_html(
@@ -49,8 +49,8 @@ def run_checks() -> None:
         default_model_path=str(DEFAULT_MODEL_PATH),
         recommended_paths=recommended_paths,
     )
-    if "不建议答辩临时使用" not in advanced_html:
-        raise AssertionError("高级模型状态 HTML 缺少答辩风险提示")
+    if "请确认来源和兼容性" not in advanced_html:
+        raise AssertionError("高级模型状态 HTML 缺少兼容性提示")
 
     long_path = "E:/" + "/".join(["very_long_model_directory"] * 8) + "/weights/best.pt"
     compact_text = format_model_path_for_display(long_path, max_chars=60)
@@ -61,7 +61,7 @@ def run_checks() -> None:
         raise AssertionError("长路径 HTML 未保留完整 title")
 
     if not build_demo_recommendation_html().strip():
-        raise AssertionError("推荐演示说明为空")
+        raise AssertionError("模型选择建议为空")
     if not build_advanced_model_warning_html().strip():
         raise AssertionError("高级模型警告为空")
 
