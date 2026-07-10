@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+from dataclasses import fields
 import unittest
 
 import app
@@ -14,6 +15,7 @@ from src.dental_detection.ui_contracts import (
 )
 from src.dental_detection.ui_constants import DETECTION_TABLE_COLUMNS
 from src.dental_detection.ui_content import APP_HEADER_HTML, WORKBENCH_HELP_TEXT, section_heading
+from src.dental_detection.ui_settings_page import AI_REQUEST_KEYS, SettingsComponents
 
 
 class UiAssetTests(unittest.TestCase):
@@ -48,6 +50,20 @@ class UiContractTests(unittest.TestCase):
 
     def test_detection_table_contract_keeps_export_order(self) -> None:
         self.assertEqual(DETECTION_TABLE_COLUMNS[0:3], ("class", "中文名称", "confidence"))
+
+    def test_settings_components_build_named_callback_inputs(self) -> None:
+        components = SettingsComponents(**{field.name: field.name for field in fields(SettingsComponents)})
+        common_inputs = components.common_input_map(
+            model_mode="workbench_model_mode",
+            conf="conf",
+            iou="iou",
+            device_choice="device_choice",
+            use_clahe="use_clahe",
+        )
+
+        self.assertEqual(set(common_inputs), set(COMMON_INPUT_KEYS))
+        self.assertEqual(common_inputs["model_mode"], "workbench_model_mode")
+        self.assertEqual(components.ai_request_inputs(), list(AI_REQUEST_KEYS))
 
 
 class UiContentTests(unittest.TestCase):

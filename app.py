@@ -135,6 +135,7 @@ from src.dental_detection.ui_content import (
     WORKBENCH_HELP_TEXT,
     section_heading,
 )
+from src.dental_detection.ui_settings_page import SettingsPageData, build_settings_page
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from ultralytics import YOLO
 
@@ -2934,270 +2935,77 @@ def build_app() -> gr.Blocks:
                     )
 
             with gr.Tab("设置"):
-                with gr.Tabs(elem_classes=["settings-tabs"]):
-                    with gr.Tab("检测显示"):
-                        with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML(section_heading("显示选项", "控制主工作台中展示的分析能力。"))
-                            enable_compare = gr.Checkbox(value=saved.enable_compare, label="允许对比模型模式")
-                            show_summary = gr.Checkbox(value=saved.show_summary, label="显示参数分析摘要")
-                            with gr.Accordion("帮助", open=False):
-                                gr.Markdown("对比模型会在单张分析时运行两组模型；参数摘要用于查看推理配置和检测数量。")
-                    with gr.Tab("模型选择"):
-                        with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML(
-                                section_heading(
-                                    "模型选择",
-                                    "优先使用模型卡片完成演示切换：baseline 用于稳定对照，C2f-Faster-lite 是优化模型并依赖同级 ../yolov8-train。",
-                                )
-                                + build_demo_recommendation_html()
-                            )
-                            model_cards_view = gr.HTML(build_model_cards_html(_model_cards(saved_primary_model_path), saved_primary_model_path))
-                            model_card_select = gr.Radio(
-                                choices=model_card_choices,
-                                value=saved_primary_model_path if any(saved_primary_model_path == value for _, value in model_card_choices) else None,
-                                label="模型卡片",
-                                elem_classes=["segmented-control"],
-                            )
-                            apply_model_card_btn = gr.Button(
-                                "使用模型卡片",
-                                elem_classes=["secondary-action", "compact-button"],
-                            )
-                            settings_model_mode = gr.Radio(
-                                choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
-                                value=saved.model_mode if saved.enable_compare else MODEL_MODE_SINGLE,
-                                label="模型模式",
-                                elem_classes=["segmented-control"],
-                            )
-                            with gr.Accordion("高级模型路径设置", open=False):
-                                show_advanced_models = gr.Checkbox(
-                                    value=False,
-                                    label="显示高级模型 / 实验权重",
-                                    info=ADVANCED_MODEL_HINT,
-                                )
-                                with gr.Row(elem_classes=["path-row"]):
-                                    model_dir = gr.Textbox(
-                                        value=_model_dir_or_default(saved.model_dir),
-                                        label="模型目录",
-                                        lines=1,
-                                        max_lines=1,
-                                        scale=8,
-                                    )
-                                    open_model_dir_btn = gr.Button(
-                                        "...",
-                                        size="sm",
-                                        scale=1,
-                                        elem_classes=["icon-action"],
-                                    )
-                                    refresh_model_btn = gr.Button(
-                                        "刷新",
-                                        scale=2,
-                                        elem_classes=["secondary-action"],
-                                    )
-                                with gr.Row(elem_classes=["model-row"]):
-                                    model_file_select = gr.Dropdown(
-                                        choices=model_choices,
-                                        value=selected_model_choice,
-                                        label="目录内模型",
-                                        scale=8,
-                                    )
-                                    apply_model_btn = gr.Button(
-                                        "使用选中模型",
-                                        elem_classes=["secondary-action"],
-                                        scale=2,
-                                    )
-                                with gr.Row(elem_classes=["compact-row"]):
-                                    model_apply_target = gr.Radio(
-                                        choices=["主模型", "对比模型"],
-                                        value="主模型",
-                                        label="填入位置",
-                                        elem_classes=["segmented-control"],
-                                    )
-                                primary_model_path = gr.Textbox(
-                                    value=_model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH)),
-                                    label="主模型路径",
-                                    lines=1,
-                                    max_lines=1,
-                                )
-                                compare_model_path = gr.Textbox(
-                                    value=_model_path_or_default(
-                                        saved.compare_model_path,
-                                        str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
-                                    ),
-                                    label="对比模型路径",
-                                    lines=1,
-                                    max_lines=1,
-                                    visible=saved.enable_compare and saved.model_mode == MODEL_MODE_COMPARE,
-                                )
-                            with gr.Row(elem_classes=["compact-row"]):
-                                test_model_btn = gr.Button(
-                                    "测试模型",
-                                    elem_classes=["secondary-action", "compact-button"],
-                                )
-                            model_feedback = gr.Textbox(label="模型反馈", interactive=False, lines=2)
-                            with gr.Accordion("帮助", open=False):
-                                gr.Markdown(
-                                    "刷新会扫描模型目录及子目录中的受支持模型文件；三点按钮用于弹出路径选择器并切换模型目录。\n\n"
-                                    "YOLOv8m 原始结构是稳定 baseline，适合答辩演示时作为对照模型。\n\n"
-                                    "YOLOv8m C2f-Faster-lite 是优化模型，依赖同级目录 `../yolov8-train` 中的自定义 ultralytics 代码。"
-                                    "若迁移项目，请同时保留该目录；如果依赖缺失，建议先使用 baseline 模型演示。"
-                                )
-                    with gr.Tab("模型说明"):
-                        with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML(section_heading("模型说明", "识别类别、输入要求、适用边界与安全声明。"))
-                            model_info_markdown = gr.Markdown(_current_model_info_markdown(saved_primary_model_path))
-                            gr.HTML(legend_html())
-                    with gr.Tab("AI 建议"):
-                        with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML(section_heading("AI 建议", "配置检测后的辅助建议与追问能力。"))
-                            ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
-                            advice_style = gr.Dropdown(
-                                choices=["简洁版", "医生版", "患者版"],
-                                value=saved.advice_style,
-                                label="AI 建议风格",
-                            )
-                            with gr.Group(visible=saved.enabled, elem_classes=["panel-card"]) as ai_group:
-                                with gr.Row(elem_classes=["compact-row"]):
-                                    ai_model = gr.Textbox(value=saved.model, label="模型")
-                                    base_url = gr.Textbox(
-                                        value=saved.base_url,
-                                        label="Base URL",
-                                        info="仅支持 OpenAI 兼容 Chat Completions 接口。无路径时自动追加 /v1。",
-                                    )
-                                key_mode = gr.Radio(
-                                    choices=["环境变量", "直接 Key 值"],
-                                    value=saved.key_mode,
-                                    label="API Key 类型",
-                                    elem_classes=["segmented-control"],
-                                )
-                                env_api_key = gr.Textbox(
-                                    value=env_key_value,
-                                    label="环境变量名",
-                                    placeholder="例如：DEEPSEEK_API_KEY",
-                                    info="填写环境变量名称。",
-                                    visible=saved.key_mode == "环境变量",
-                                )
-                                direct_api_key_hidden = gr.Textbox(
-                                    value=direct_key_value,
-                                    label="直接 API Key",
-                                    type="password",
-                                    placeholder="请输入真实 API Key",
-                                    info="默认不保存真实 Key。",
-                                    visible=saved.key_mode == "直接 Key 值",
-                                )
-                                direct_api_key_visible = gr.Textbox(
-                                    value=direct_key_value,
-                                    label="直接 API Key",
-                                    type="text",
-                                    placeholder="请输入真实 API Key",
-                                    info="当前为明文显示。",
-                                    visible=False,
-                                )
-                                direct_key_visible = gr.State(False)
-                                with gr.Row(elem_classes=["compact-row"]):
-                                    show_direct_key_btn = gr.Button(
-                                        "显示 Key",
-                                        visible=saved.key_mode == "直接 Key 值",
-                                        size="sm",
-                                        elem_classes=["secondary-action", "compact-button"],
-                                    )
-                                    save_key = gr.Checkbox(value=saved.save_api_key, label="保存 API Key 到本地配置")
-                                custom_prompt = gr.Textbox(
-                                    value=saved.custom_prompt or DEFAULT_AI_PROMPT,
-                                    label="AI 建议 Prompt",
-                                    lines=7,
-                                    max_lines=12,
-                                )
-                                with gr.Row(elem_classes=["compact-row"]):
-                                    test_btn = gr.Button(
-                                        "测试接口",
-                                        elem_classes=["secondary-action", "compact-button"],
-                                    )
-                                test_result = gr.Textbox(label="测试反馈", interactive=False, lines=2)
-                                with gr.Accordion("接口说明", open=False):
-                                    gr.Markdown(
-                                        "兼容 OpenAI Chat Completions。测试请求仅发送 `请只回复 OK`，"
-                                        "字段限定为 `model`、`messages`、`temperature`、`max_tokens`。"
-                                    )
-                    with gr.Tab("对话记录"):
-                        with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML(section_heading("对话记录", "管理对话自动保存和数据目录。"))
-                            auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
-                            save_history = gr.Checkbox(value=saved.save_history, label="自动保存检测历史")
-                            history_limit = gr.Number(
-                                value=saved.history_limit,
-                                label="历史记录最多保留数量",
-                                precision=0,
-                                minimum=1,
-                                maximum=1000,
-                            )
-                            with gr.Row(elem_classes=["path-row"]):
-                                storage_dir = gr.Textbox(
-                                    value=saved.storage_dir,
-                                    label="存储目录",
-                                    lines=1,
-                                    max_lines=1,
-                                    scale=8,
-                                )
-                                open_storage_btn = gr.Button(
-                                    "...",
-                                    size="sm",
-                                    scale=1,
-                                    elem_classes=["icon-action"],
-                                )
-                                default_storage_btn = gr.Button(
-                                    "恢复默认",
-                                    scale=2,
-                                    elem_classes=["secondary-action"],
-                                )
-                            with gr.Accordion("帮助", open=False):
-                                gr.Markdown(
-                                    "对话、导出和病例记录会保存在该数据根目录下；更换目录后保存设置即可迁移。"
-                                    "三点按钮会弹出路径选择器；开启自动保存后每次检测都会生成对话记录文件。"
-                                    "检测历史默认只保存摘要和检测框，不保存原始上传图。"
-                                )
-                    with gr.Tab("高级接口"):
-                        with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML(section_heading("兼容接口", "用于接入兼容 OpenAI Chat Completions 的服务。"))
-                            with gr.Accordion("查看接口说明", open=False):
-                                gr.Markdown(
-                                    "第一版固定使用 `/v1/chat/completions`，"
-                                    "请求字段只使用 `model`、`messages`、`temperature`、`max_tokens`。"
-                                )
-                with gr.Row(elem_classes=["settings-actions"]):
-                    save_settings_btn = gr.Button(
-                        "保存设置",
-                        variant="primary",
-                        elem_classes=["primary-action", "compact-button"],
+                settings = build_settings_page(
+                    SettingsPageData(
+                        saved=saved,
+                        primary_model_path=saved_primary_model_path,
+                        model_cards_html=build_model_cards_html(
+                            _model_cards(saved_primary_model_path),
+                            saved_primary_model_path,
+                        ),
+                        model_card_choices=model_card_choices,
+                        model_choices=model_choices,
+                        selected_model_choice=selected_model_choice,
+                        model_dir=_model_dir_or_default(saved.model_dir),
+                        compare_model_path=_model_path_or_default(
+                            saved.compare_model_path,
+                            str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
+                        ),
+                        model_info_markdown=_current_model_info_markdown(saved_primary_model_path),
+                        env_api_key=env_key_value,
+                        direct_api_key=direct_key_value,
                     )
-                settings_feedback = gr.HTML()
+                )
 
+        enable_compare = settings.enable_compare
+        show_summary = settings.show_summary
+        model_cards_view = settings.model_cards_view
+        model_card_select = settings.model_card_select
+        apply_model_card_btn = settings.apply_model_card_btn
+        settings_model_mode = settings.settings_model_mode
+        show_advanced_models = settings.show_advanced_models
+        model_dir = settings.model_dir
+        open_model_dir_btn = settings.open_model_dir_btn
+        refresh_model_btn = settings.refresh_model_btn
+        model_file_select = settings.model_file_select
+        apply_model_btn = settings.apply_model_btn
+        model_apply_target = settings.model_apply_target
+        primary_model_path = settings.primary_model_path
+        compare_model_path = settings.compare_model_path
+        test_model_btn = settings.test_model_btn
+        model_feedback = settings.model_feedback
+        model_info_markdown = settings.model_info_markdown
+        ai_enabled = settings.ai_enabled
+        advice_style = settings.advice_style
+        ai_group = settings.ai_group
+        ai_model = settings.ai_model
+        base_url = settings.base_url
+        key_mode = settings.key_mode
+        env_api_key = settings.env_api_key
+        direct_api_key_hidden = settings.direct_api_key_hidden
+        direct_api_key_visible = settings.direct_api_key_visible
+        direct_key_visible = settings.direct_key_visible
+        show_direct_key_btn = settings.show_direct_key_btn
+        save_key = settings.save_key
+        custom_prompt = settings.custom_prompt
+        test_btn = settings.test_btn
+        test_result = settings.test_result
+        auto_save = settings.auto_save
+        save_history = settings.save_history
+        history_limit = settings.history_limit
+        storage_dir = settings.storage_dir
+        open_storage_btn = settings.open_storage_btn
+        default_storage_btn = settings.default_storage_btn
+        save_settings_btn = settings.save_settings_btn
+        settings_feedback = settings.settings_feedback
         common_inputs = common_input_components(
-            {
-                "model_mode": model_mode,
-                "primary_model_path": primary_model_path,
-                "compare_model_path": compare_model_path,
-                "conf": conf,
-                "iou": iou,
-                "device_choice": device_choice,
-                "use_clahe": use_clahe,
-                "enable_compare": enable_compare,
-                "show_summary": show_summary,
-                "ai_enabled": ai_enabled,
-                "base_url": base_url,
-                "ai_model": ai_model,
-                "key_mode": key_mode,
-                "env_api_key": env_api_key,
-                "direct_api_key_hidden": direct_api_key_hidden,
-                "direct_api_key_visible": direct_api_key_visible,
-                "direct_key_visible": direct_key_visible,
-                "save_key": save_key,
-                "auto_save": auto_save,
-                "storage_dir": storage_dir,
-                "custom_prompt": custom_prompt,
-                "advice_style": advice_style,
-                "save_history": save_history,
-                "history_limit": history_limit,
-            }
+            settings.common_input_map(
+                model_mode=model_mode,
+                conf=conf,
+                iou=iou,
+                device_choice=device_choice,
+                use_clahe=use_clahe,
+            )
         )
         common_outputs = common_output_components(
             {
@@ -3334,21 +3142,7 @@ def build_app() -> gr.Blocks:
         show_summary.change(fn=toggle_summary, inputs=show_summary, outputs=summary)
         test_btn.click(
             fn=test_ai_settings,
-            inputs=[
-                ai_enabled,
-                base_url,
-                ai_model,
-                key_mode,
-                env_api_key,
-                direct_api_key_hidden,
-                direct_api_key_visible,
-                direct_key_visible,
-                save_key,
-                auto_save,
-                storage_dir,
-                custom_prompt,
-                advice_style,
-            ],
+            inputs=settings.ai_request_inputs(),
             outputs=test_result,
         )
         save_settings_btn.click(
@@ -3392,44 +3186,12 @@ def build_app() -> gr.Blocks:
         )
         chat_btn.click(
             fn=continue_chat,
-            inputs=[
-                chat_input,
-                chat_state,
-                ai_enabled,
-                base_url,
-                ai_model,
-                key_mode,
-                env_api_key,
-                direct_api_key_hidden,
-                direct_api_key_visible,
-                direct_key_visible,
-                save_key,
-                auto_save,
-                storage_dir,
-                custom_prompt,
-                advice_style,
-            ],
+            inputs=[chat_input, chat_state, *settings.ai_request_inputs()],
             outputs=[chatbot, chat_state, chat_input, export_file, export_path],
         )
         chat_input.submit(
             fn=continue_chat,
-            inputs=[
-                chat_input,
-                chat_state,
-                ai_enabled,
-                base_url,
-                ai_model,
-                key_mode,
-                env_api_key,
-                direct_api_key_hidden,
-                direct_api_key_visible,
-                direct_key_visible,
-                save_key,
-                auto_save,
-                storage_dir,
-                custom_prompt,
-                advice_style,
-            ],
+            inputs=[chat_input, chat_state, *settings.ai_request_inputs()],
             outputs=[chatbot, chat_state, chat_input, export_file, export_path],
         )
         refresh_model_btn.click(

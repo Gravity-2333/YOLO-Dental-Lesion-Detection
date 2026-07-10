@@ -180,6 +180,7 @@ python scripts/capture_ui_screenshots.py --base-url http://127.0.0.1:7860 --outp
 - `assistant.py` 是旧导入路径的兼容入口；新增代码应直接导入上述职责模块。
 - `ui_contracts.py` 定义 Gradio 主流程输出顺序，新增或删除公共输出时必须同步更新契约和测试。
 - `ui_content.py` 集中维护页面标题、说明和安全文案，`ui_constants.py` 保存模型模式与检测表字段契约。
+- `ui_settings_page.py` 独立构建设置页并通过具名组件集合暴露事件绑定，避免在 `app.py` 中依赖脆弱的位置顺序。
 - `gradio_files.py` 集中管理导出文件白名单、下载组件状态和存储目录校验。
 
 ## 项目结构
