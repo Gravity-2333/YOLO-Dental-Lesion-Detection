@@ -27,7 +27,6 @@ from src.dental_detection.settings_store import (
     AiSettings,
     CONFIG_PATH,
     case_dir,
-    ensure_app_dirs,
     export_dir,
     load_settings,
     report_dir,
@@ -50,6 +49,15 @@ from src.dental_detection.history_store import (
     history_rows,
     load_history_record as load_history_record_data,
     update_history_report_paths,
+)
+from src.dental_detection.gradio_files import (
+    allowed_file_roots as _allowed_file_roots,
+    clear_file_output as _clear_file_output,
+    ensure_storage_root as _ensure_storage_root,
+    file_component_output as _file_component_output,
+    path_text as _path_text,
+    remember_allowed_file_root as _remember_allowed_file_root,
+    safe_existing_root as _safe_existing_root,
 )
 from src.dental_detection.error_messages import friendly_error_message
 from src.dental_detection.exporters import (
@@ -108,35 +116,30 @@ from src.dental_detection.text_utils import json_safe_value, text_value
 from src.dental_detection.ui_assets import load_workbench_css, load_workbench_js
 from src.dental_detection.ui_contracts import (
     COMMON_OUTPUT_QUALITY_INDEX,
+    common_input_components,
     common_output_components,
     common_output_values,
+)
+from src.dental_detection.ui_constants import (
+    DETECTION_TABLE_COLUMNS,
+    MODEL_MODE_COMPARE,
+    MODEL_MODE_SINGLE,
+    MODEL_SOURCE,
+)
+from src.dental_detection.ui_content import (
+    AI_CHAT_INTRO_HTML,
+    APP_HEADER_HTML,
+    CASE_INTRO_HTML,
+    RESULT_STAGE_HTML,
+    WORKBENCH_GUIDE_HTML,
+    WORKBENCH_HELP_TEXT,
+    section_heading,
 )
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from ultralytics import YOLO
 
-MODEL_SOURCE = "YOLOv8m 原始结构"
-TABLE_COLUMNS = ["class", "中文名称", "confidence", "关注等级", "图像区域", "置信度解释", "x1", "y1", "x2", "y2"]
 EXAMPLE_DIR = PROJECT_ROOT / "assets" / "examples" / "dental"
 EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
-STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
-MODEL_MODE_SINGLE = "单模型"
-MODEL_MODE_COMPARE = "对比模型"
-_EXTRA_ALLOWED_FILE_ROOTS: set[Path] = set()
-
-
-def _safe_existing_root(path: str | Path | None) -> Path | None:
-    if not path:
-        return None
-    try:
-        root = Path(path).expanduser().resolve()
-    except (OSError, TypeError, ValueError, RuntimeError):
-        return None
-    try:
-        if not root.exists():
-            return None
-        return root.parent if root.is_file() else root
-    except OSError:
-        return None
 
 
 def _workbench_theme():
@@ -145,88 +148,6 @@ def _workbench_theme():
         secondary_hue="orange",
         neutral_hue="slate",
     )
-
-
-def _allowed_file_roots() -> list[Path]:
-    # 动态读取当前设置中的 storage_dir，确保更换存储目录后导出下载入口仍然可用
-    try:
-        current_storage = _safe_existing_root(load_settings().storage_dir)
-    except Exception:
-        current_storage = None
-    roots = [
-        APP_HOME,
-        STARTUP_STORAGE_ROOT,
-        PROJECT_ROOT / "outputs",
-        *_EXTRA_ALLOWED_FILE_ROOTS,
-    ]
-    if current_storage:
-        roots.append(current_storage)
-    resolved: list[Path] = []
-    for root in roots:
-        path = _safe_existing_root(root)
-        if path and path not in resolved:
-            resolved.append(path)
-    return resolved
-
-
-def _sync_gradio_allowed_paths() -> None:
-    """Refresh the running Gradio app's static-file allowlist after storage changes."""
-    try:
-        from gradio.context import LocalContext
-    except Exception:
-        return
-    blocks = LocalContext.blocks.get(None)
-    if blocks is None:
-        return
-    try:
-        blocks.allowed_paths = [str(root) for root in _allowed_file_roots()]
-    except Exception:
-        return
-
-
-def _remember_allowed_file_root(path: str | Path | None) -> None:
-    root = _safe_existing_root(path)
-    if root is not None:
-        _EXTRA_ALLOWED_FILE_ROOTS.add(root)
-        _sync_gradio_allowed_paths()
-
-
-def _ensure_storage_root(storage_dir: str | None, context: str = "存储目录不可用") -> Path:
-    try:
-        root = ensure_app_dirs(storage_dir)
-    except (OSError, RuntimeError, ValueError, TypeError) as exc:
-        raise _friendly_gr_error(exc, context) from exc
-    _remember_allowed_file_root(root)
-    return root
-
-
-def _can_return_file(path: str | Path | None) -> bool:
-    if not path:
-        return False
-    try:
-        target = Path(path).expanduser().resolve()
-    except (OSError, TypeError, ValueError, RuntimeError):
-        return False
-    if not target.is_file():
-        return False
-    return any(target == root or root in target.parents for root in _allowed_file_roots())
-
-
-def _file_output(path: str | Path | None) -> str | None:
-    return str(path) if _can_return_file(path) else None
-
-
-def _file_component_output(path: str | Path | None):
-    file_path = _file_output(path)
-    return gr.update(value=file_path, visible=bool(file_path))
-
-
-def _path_text(path: Any) -> str:
-    return str(path or "") if path else ""
-
-
-def _clear_file_output():
-    return gr.update(value=None, visible=False)
 
 
 def _empty_table(message: str = "暂无检测结果") -> pd.DataFrame:
@@ -245,18 +166,18 @@ def _empty_table(message: str = "暂无检测结果") -> pd.DataFrame:
                 "y2": "",
             }
         ],
-        columns=TABLE_COLUMNS,
+        columns=DETECTION_TABLE_COLUMNS,
     )
 
 
 def _table_from_detections(detections: list[Detection]) -> pd.DataFrame:
     rows = _clean_detection_records((det.as_row() for det in detections), image_size=None)
-    return pd.DataFrame(rows, columns=TABLE_COLUMNS) if rows else _empty_table()
+    return pd.DataFrame(rows, columns=DETECTION_TABLE_COLUMNS) if rows else _empty_table()
 
 
 def _table_from_records(records: list[dict[str, Any]]) -> pd.DataFrame:
     rows = _clean_detection_records(records)
-    return pd.DataFrame(rows, columns=TABLE_COLUMNS) if rows else _empty_table()
+    return pd.DataFrame(rows, columns=DETECTION_TABLE_COLUMNS) if rows else _empty_table()
 
 
 def _records_from_detections(detections: list[Detection], image_size: tuple[int, int] | None = None) -> list[dict[str, Any]]:
@@ -1000,10 +921,10 @@ def _detections_html(detections: list[dict[str, Any]]) -> str:
     rows = []
     for det in detections:
         cells = "".join(
-            f"<td>{_html_escape(det.get(key, ''))}</td>" for key in TABLE_COLUMNS
+            f"<td>{_html_escape(det.get(key, ''))}</td>" for key in DETECTION_TABLE_COLUMNS
         )
         rows.append(f"<tr>{cells}</tr>")
-    headers = "".join(f"<th>{name}</th>" for name in TABLE_COLUMNS)
+    headers = "".join(f"<th>{name}</th>" for name in DETECTION_TABLE_COLUMNS)
     return f"<table><thead><tr>{headers}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
 
 
@@ -1247,7 +1168,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                                 "image_name": name,
                                 "display_name": display_name,
                                 "model": model_name,
-                                **{key: det.get(key, "") for key in TABLE_COLUMNS},
+                                **{key: det.get(key, "") for key in DETECTION_TABLE_COLUMNS},
                                 "suggestion_type": suggestion_type,
                             }
                         )
@@ -1257,7 +1178,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                             "image_name": name,
                             "display_name": display_name,
                             "model": model_name,
-                            **{key: "" for key in TABLE_COLUMNS},
+                            **{key: "" for key in DETECTION_TABLE_COLUMNS},
                             "suggestion_type": suggestion_type,
                         }
                     )
@@ -1283,7 +1204,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
 
         write_csv_file(
             work_dir / "detections.csv",
-            ["image_name", "display_name", "model", *TABLE_COLUMNS, "suggestion_type"],
+            ["image_name", "display_name", "model", *DETECTION_TABLE_COLUMNS, "suggestion_type"],
             csv_rows,
         )
 
@@ -1473,10 +1394,10 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
             model_detections = model_item["detections"]
             if model_detections:
                 for det in model_detections:
-                    single_csv_rows.append({"model": model, **{key: det.get(key, "") for key in TABLE_COLUMNS}})
+                    single_csv_rows.append({"model": model, **{key: det.get(key, "") for key in DETECTION_TABLE_COLUMNS}})
             else:
-                single_csv_rows.append({"model": model, **{key: "" for key in TABLE_COLUMNS}})
-        write_csv_file(work_dir / "detections.csv", ["model", *TABLE_COLUMNS], single_csv_rows)
+                single_csv_rows.append({"model": model, **{key: "" for key in DETECTION_TABLE_COLUMNS}})
+        write_csv_file(work_dir / "detections.csv", ["model", *DETECTION_TABLE_COLUMNS], single_csv_rows)
 
         write_json_file(
             work_dir / "detections.json",
@@ -2617,52 +2538,21 @@ def build_app() -> gr.Blocks:
     ) as demo:
         batch_state = gr.State([])
         chat_state = gr.State([])
-        gr.HTML(
-            """
-            <header class="app-header">
-              <div>
-                <div class="eyebrow">医院与个人辅助筛查工作台</div>
-                <h1 class="app-title">牙齿病变区域识别</h1>
-                <p class="app-subtitle">上传牙科影像，查看模型输入、检测框和辅助建议。结果仅供参考，不能替代专业牙科医生诊断。</p>
-              </div>
-              <span class="status-badge">Dental AI Workbench</span>
-            </header>
-            """
-        )
+        gr.HTML(APP_HEADER_HTML)
 
         with gr.Tabs(elem_classes=["main-tabs"]):
             with gr.Tab("检测工作台"):
                 with gr.Group(elem_classes=["section-card", "guide-card"]):
-                    gr.HTML(
-                        '<div class="guide-steps">'
-                        '<span>1. 上传影像</span>'
-                        '<span>2. 选择模型</span>'
-                        '<span>3. 开始分析</span>'
-                        '<span>4. 查看并导出</span>'
-                        '</div>'
-                        '<div class="workflow-hint">'
-                        '<strong>演示提示</strong>'
-                        '<span>baseline 适合稳定对照；C2f-Faster-lite 为优化模型，依赖同级 ../yolov8-train。模型切换在“设置 - 模型选择”中完成。</span>'
-                        '</div>'
-                    )
+                    gr.HTML(WORKBENCH_GUIDE_HTML)
                     workbench_model_status = gr.HTML(_workbench_model_status_html(saved_primary_model_path))
                     with gr.Accordion("使用说明", open=False):
-                        gr.Markdown(
-                            "支持 PNG、JPG、JPEG、BMP、WEBP、TIF、TIFF 格式图片。\n\n"
-                            "置信度表示模型对检测框的把握程度，不等同于疾病严重程度。\n\n"
-                            "CLAHE 适合低对比度牙片；如果图像本身清晰，可保持关闭。\n\n"
-                            "报告默认导出完整检测结果；界面中的类别显示开关只影响当前查看和结果图下载。\n\n"
-                            f"{SAFETY_NOTICE}"
-                        )
+                        gr.Markdown(WORKBENCH_HELP_TEXT)
                 with gr.Row(elem_classes=["workbench-grid"]):
                     with gr.Column(scale=4, elem_classes=["control-panel"]):
                         with gr.Group(elem_classes=["section-card", "upload-card"]):
                             with gr.Tabs(elem_classes=["sub-tabs"]):
                                 with gr.Tab("单张分析"):
-                                    gr.HTML(
-                                        '<div class="section-heading"><h2>上传影像</h2>'
-                                        '<p>请上传牙科影像或选择脱敏示例图开始检测。</p></div>'
-                                    )
+                                    gr.HTML(section_heading("上传影像", "请上传牙科影像或选择脱敏示例图开始检测。"))
                                     image = gr.Image(
                                         type="pil",
                                         label="上传牙科影像",
@@ -2694,10 +2584,7 @@ def build_app() -> gr.Blocks:
                                             lines=4,
                                         )
                                 with gr.Tab("批量分析"):
-                                    gr.HTML(
-                                        '<div class="section-heading"><h2>批量上传</h2>'
-                                        '<p>批量分析会按当前模型模式逐张检测，可在完成后导出结果包。</p></div>'
-                                    )
+                                    gr.HTML(section_heading("批量上传", "批量分析会按当前模型模式逐张检测，可在完成后导出结果包。"))
                                     batch_files = gr.File(
                                         label="批量上传图片",
                                         show_label=False,
@@ -2741,10 +2628,7 @@ def build_app() -> gr.Blocks:
                                     batch_overview = gr.HTML(visible=False)
 
                         with gr.Group(elem_classes=["section-card", "panel-card"]):
-                            gr.HTML(
-                                '<div class="section-heading"><h2>推理设置</h2>'
-                                '<p>常规演示保持默认参数即可；需要切换 baseline 或优化模型时，请到设置页选择模型卡片。</p></div>'
-                            )
+                            gr.HTML(section_heading("推理设置", "常规演示保持默认参数即可；需要切换 baseline 或优化模型时，请到设置页选择模型卡片。"))
                             model_mode = gr.Radio(
                                 choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
                                 value=saved.model_mode if saved.enable_compare else MODEL_MODE_SINGLE,
@@ -2775,12 +2659,7 @@ def build_app() -> gr.Blocks:
                             )
 
                     with gr.Column(scale=7, elem_classes=["result-panel"]):
-                        gr.HTML(
-                            '<div class="result-stage-note">'
-                            '<strong>结果区</strong>'
-                            '<span>未检测时这里会保持空状态；开始分析后将显示原图、模型输入、检测框、辅助建议和导出入口。</span>'
-                            '</div>'
-                        )
+                        gr.HTML(RESULT_STAGE_HTML)
                         with gr.Row(elem_classes=["image-grid"]):
                             with gr.Column(elem_classes=["image-panel"]):
                                 gr.HTML('<div class="image-title">原图</div>')
@@ -2856,7 +2735,7 @@ def build_app() -> gr.Blocks:
                             )
                             det_table = gr.Dataframe(
                                 value=_empty_table(),
-                                headers=TABLE_COLUMNS,
+                                headers=list(DETECTION_TABLE_COLUMNS),
                                 label="检测框",
                                 wrap=False,
                                 interactive=False,
@@ -2912,16 +2791,7 @@ def build_app() -> gr.Blocks:
 
             with gr.Tab("AI 问答"):
                 with gr.Group(elem_classes=["section-card", "chat-card"]):
-                    gr.HTML(
-                        '<div class="card-heading"><div><h2>AI 问答</h2>'
-                        '<p>完成检测后，可以继续追问关注区域和复查建议。</p></div>'
-                        '<span class="status-badge">自动保存可在设置中调整</span></div>'
-                        '<div class="notice-grid">'
-                        '<div class="notice-item privacy-note"><strong>隐私边界</strong><span>默认只发送检测文本摘要，不上传牙片图片。</span></div>'
-                        '<div class="notice-item clinical-note"><strong>安全边界</strong><span>AI 回复仅供辅助参考，不能替代专业牙科医生诊断。</span></div>'
-                        '<div class="notice-item settings-note"><strong>接口配置</strong><span>如需联网问答，请先在“设置 - AI 建议”中填写 Base URL、模型和 API Key。</span></div>'
-                        '</div>'
-                    )
+                    gr.HTML(AI_CHAT_INTRO_HTML)
                     chatbot = gr.Chatbot(
                         label="问答记录",
                         show_label=False,
@@ -2959,14 +2829,7 @@ def build_app() -> gr.Blocks:
 
             with gr.Tab("病例记录"):
                 with gr.Group(elem_classes=["section-card", "case-card"]):
-                    gr.HTML(
-                        '<div class="card-heading"><div><h2>病例记录</h2>'
-                        '<p>保存检测摘要、检测框和建议，便于后续复查。</p></div></div>'
-                        '<div class="notice-grid">'
-                        '<div class="notice-item privacy-note"><strong>本地保存</strong><span>病例记录保存在本机数据目录，默认不上传云端。</span></div>'
-                        '<div class="notice-item clinical-note"><strong>不保存原片</strong><span>记录仅保存摘要、检测框和建议，不自动保存原始牙片图片。</span></div>'
-                        '</div>'
-                    )
+                    gr.HTML(CASE_INTRO_HTML)
                     with gr.Row(elem_classes=["compact-row"]):
                         case_id = gr.Textbox(
                             label="病例编号 / 备注名称",
@@ -3074,7 +2937,7 @@ def build_app() -> gr.Blocks:
                 with gr.Tabs(elem_classes=["settings-tabs"]):
                     with gr.Tab("检测显示"):
                         with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML('<div class="section-heading"><h2>显示选项</h2><p>控制主工作台中展示的分析能力。</p></div>')
+                            gr.HTML(section_heading("显示选项", "控制主工作台中展示的分析能力。"))
                             enable_compare = gr.Checkbox(value=saved.enable_compare, label="允许对比模型模式")
                             show_summary = gr.Checkbox(value=saved.show_summary, label="显示参数分析摘要")
                             with gr.Accordion("帮助", open=False):
@@ -3082,8 +2945,10 @@ def build_app() -> gr.Blocks:
                     with gr.Tab("模型选择"):
                         with gr.Group(elem_classes=["settings-card"]):
                             gr.HTML(
-                                '<div class="section-heading"><h2>模型选择</h2>'
-                                '<p>优先使用模型卡片完成演示切换：baseline 用于稳定对照，C2f-Faster-lite 是优化模型并依赖同级 ../yolov8-train。</p></div>'
+                                section_heading(
+                                    "模型选择",
+                                    "优先使用模型卡片完成演示切换：baseline 用于稳定对照，C2f-Faster-lite 是优化模型并依赖同级 ../yolov8-train。",
+                                )
                                 + build_demo_recommendation_html()
                             )
                             model_cards_view = gr.HTML(build_model_cards_html(_model_cards(saved_primary_model_path), saved_primary_model_path))
@@ -3178,12 +3043,12 @@ def build_app() -> gr.Blocks:
                                 )
                     with gr.Tab("模型说明"):
                         with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML('<div class="section-heading"><h2>模型说明</h2><p>识别类别、输入要求、适用边界与安全声明。</p></div>')
+                            gr.HTML(section_heading("模型说明", "识别类别、输入要求、适用边界与安全声明。"))
                             model_info_markdown = gr.Markdown(_current_model_info_markdown(saved_primary_model_path))
                             gr.HTML(legend_html())
                     with gr.Tab("AI 建议"):
                         with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML('<div class="section-heading"><h2>AI 建议</h2><p>配置检测后的辅助建议与追问能力。</p></div>')
+                            gr.HTML(section_heading("AI 建议", "配置检测后的辅助建议与追问能力。"))
                             ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
                             advice_style = gr.Dropdown(
                                 choices=["简洁版", "医生版", "患者版"],
@@ -3255,7 +3120,7 @@ def build_app() -> gr.Blocks:
                                     )
                     with gr.Tab("对话记录"):
                         with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML('<div class="section-heading"><h2>对话记录</h2><p>管理对话自动保存和数据目录。</p></div>')
+                            gr.HTML(section_heading("对话记录", "管理对话自动保存和数据目录。"))
                             auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
                             save_history = gr.Checkbox(value=saved.save_history, label="自动保存检测历史")
                             history_limit = gr.Number(
@@ -3292,7 +3157,7 @@ def build_app() -> gr.Blocks:
                                 )
                     with gr.Tab("高级接口"):
                         with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML('<div class="section-heading"><h2>兼容接口</h2><p>用于接入兼容 OpenAI Chat Completions 的服务。</p></div>')
+                            gr.HTML(section_heading("兼容接口", "用于接入兼容 OpenAI Chat Completions 的服务。"))
                             with gr.Accordion("查看接口说明", open=False):
                                 gr.Markdown(
                                     "第一版固定使用 `/v1/chat/completions`，"
@@ -3306,32 +3171,34 @@ def build_app() -> gr.Blocks:
                     )
                 settings_feedback = gr.HTML()
 
-        common_inputs = [
-            model_mode,
-            primary_model_path,
-            compare_model_path,
-            conf,
-            iou,
-            device_choice,
-            use_clahe,
-            enable_compare,
-            show_summary,
-            ai_enabled,
-            base_url,
-            ai_model,
-            key_mode,
-            env_api_key,
-            direct_api_key_hidden,
-            direct_api_key_visible,
-            direct_key_visible,
-            save_key,
-            auto_save,
-            storage_dir,
-            custom_prompt,
-            advice_style,
-            save_history,
-            history_limit,
-        ]
+        common_inputs = common_input_components(
+            {
+                "model_mode": model_mode,
+                "primary_model_path": primary_model_path,
+                "compare_model_path": compare_model_path,
+                "conf": conf,
+                "iou": iou,
+                "device_choice": device_choice,
+                "use_clahe": use_clahe,
+                "enable_compare": enable_compare,
+                "show_summary": show_summary,
+                "ai_enabled": ai_enabled,
+                "base_url": base_url,
+                "ai_model": ai_model,
+                "key_mode": key_mode,
+                "env_api_key": env_api_key,
+                "direct_api_key_hidden": direct_api_key_hidden,
+                "direct_api_key_visible": direct_api_key_visible,
+                "direct_key_visible": direct_key_visible,
+                "save_key": save_key,
+                "auto_save": auto_save,
+                "storage_dir": storage_dir,
+                "custom_prompt": custom_prompt,
+                "advice_style": advice_style,
+                "save_history": save_history,
+                "history_limit": history_limit,
+            }
+        )
         common_outputs = common_output_components(
             {
                 "original": original_output,
@@ -3386,33 +3253,7 @@ def build_app() -> gr.Blocks:
         run_btn.click(fn=run_single_detection, inputs=[image, *common_inputs], outputs=common_outputs)
         batch_btn.click(
             fn=run_batch_detection,
-            inputs=[
-                batch_files,
-                model_mode,
-                primary_model_path,
-                compare_model_path,
-                conf,
-                iou,
-                device_choice,
-                use_clahe,
-                enable_compare,
-                show_summary,
-                ai_enabled,
-                base_url,
-                ai_model,
-                key_mode,
-                env_api_key,
-                direct_api_key_hidden,
-                direct_api_key_visible,
-                direct_key_visible,
-                save_key,
-                auto_save,
-                storage_dir,
-                custom_prompt,
-                advice_style,
-                save_history,
-                history_limit,
-            ],
+            inputs=[batch_files, *common_inputs],
             outputs=common_outputs,
         )
         batch_select.change(

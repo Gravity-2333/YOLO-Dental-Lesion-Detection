@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import inspect
 import unittest
 
+import app
 from src.dental_detection.ui_assets import CSS_BUNDLE_FILES, load_workbench_css, load_workbench_js
 from src.dental_detection.ui_contracts import (
+    COMMON_INPUT_KEYS,
     COMMON_OUTPUT_KEYS,
     COMMON_OUTPUT_QUALITY_INDEX,
+    common_input_components,
     common_output_values,
 )
+from src.dental_detection.ui_constants import DETECTION_TABLE_COLUMNS
+from src.dental_detection.ui_content import APP_HEADER_HTML, WORKBENCH_HELP_TEXT, section_heading
 
 
 class UiAssetTests(unittest.TestCase):
@@ -16,6 +22,7 @@ class UiAssetTests(unittest.TestCase):
         css = load_workbench_css()
         self.assertLess(css.index(":root"), css.index(".gradio-container"))
         self.assertIn("@media (max-width: 640px)", css)
+        self.assertIn(".settings-card > .settings-card", css)
 
     def test_javascript_bundle_loads(self) -> None:
         self.assertIn("MutationObserver", load_workbench_js())
@@ -30,8 +37,28 @@ class UiContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "缺少"):
             common_output_values({})
 
+    def test_common_input_contract_preserves_callback_signature_order(self) -> None:
+        values = {key: key for key in reversed(COMMON_INPUT_KEYS)}
+        self.assertEqual(tuple(common_input_components(values)), COMMON_INPUT_KEYS)
+        self.assertEqual(tuple(inspect.signature(app.run_single_detection).parameters)[1:], COMMON_INPUT_KEYS)
+        self.assertEqual(tuple(inspect.signature(app.run_batch_detection).parameters)[1:], COMMON_INPUT_KEYS)
+
     def test_quality_index_is_derived_from_contract(self) -> None:
         self.assertEqual(COMMON_OUTPUT_KEYS[COMMON_OUTPUT_QUALITY_INDEX], "quality")
+
+    def test_detection_table_contract_keeps_export_order(self) -> None:
+        self.assertEqual(DETECTION_TABLE_COLUMNS[0:3], ("class", "中文名称", "confidence"))
+
+
+class UiContentTests(unittest.TestCase):
+    def test_section_heading_escapes_dynamic_text(self) -> None:
+        html = section_heading("<标题>", "A&B")
+        self.assertIn("&lt;标题&gt;", html)
+        self.assertIn("A&amp;B", html)
+
+    def test_shared_content_keeps_brand_and_safety_copy(self) -> None:
+        self.assertIn("Dental AI Workbench", APP_HEADER_HTML)
+        self.assertIn("不能替代专业牙科医生诊断", WORKBENCH_HELP_TEXT)
 
 
 if __name__ == "__main__":

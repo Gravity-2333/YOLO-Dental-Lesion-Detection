@@ -179,6 +179,8 @@ python scripts/capture_ui_screenshots.py --base-url http://127.0.0.1:7860 --outp
 - `conversation_store.py` 负责对话记录持久化。
 - `assistant.py` 是旧导入路径的兼容入口；新增代码应直接导入上述职责模块。
 - `ui_contracts.py` 定义 Gradio 主流程输出顺序，新增或删除公共输出时必须同步更新契约和测试。
+- `ui_content.py` 集中维护页面标题、说明和安全文案，`ui_constants.py` 保存模型模式与检测表字段契约。
+- `gradio_files.py` 集中管理导出文件白名单、下载组件状态和存储目录校验。
 
 ## 项目结构
 

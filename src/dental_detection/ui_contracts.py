@@ -43,11 +43,38 @@ COMMON_OUTPUT_KEYS = (
     "save_case_button",
 )
 
+COMMON_INPUT_KEYS = (
+    "model_mode",
+    "primary_model_path",
+    "compare_model_path",
+    "conf",
+    "iou",
+    "device_choice",
+    "use_clahe",
+    "enable_compare",
+    "show_summary",
+    "ai_enabled",
+    "base_url",
+    "ai_model",
+    "key_mode",
+    "env_api_key",
+    "direct_api_key_hidden",
+    "direct_api_key_visible",
+    "direct_key_visible",
+    "save_key",
+    "auto_save",
+    "storage_dir",
+    "custom_prompt",
+    "advice_style",
+    "save_history",
+    "history_limit",
+)
+
 COMMON_OUTPUT_QUALITY_INDEX = COMMON_OUTPUT_KEYS.index("quality")
 
 
-def common_output_values(values: Mapping[str, Any]) -> tuple[Any, ...]:
-    expected = set(COMMON_OUTPUT_KEYS)
+def _ordered_values(keys: tuple[str, ...], values: Mapping[str, Any], label: str) -> tuple[Any, ...]:
+    expected = set(keys)
     actual = set(values)
     missing = expected - actual
     extra = actual - expected
@@ -57,9 +84,17 @@ def common_output_values(values: Mapping[str, Any]) -> tuple[Any, ...]:
             details.append(f"缺少：{', '.join(sorted(missing))}")
         if extra:
             details.append(f"未知：{', '.join(sorted(extra))}")
-        raise ValueError(f"主流程 UI 输出契约不匹配（{'；'.join(details)}）")
-    return tuple(values[key] for key in COMMON_OUTPUT_KEYS)
+        raise ValueError(f"{label}契约不匹配（{'；'.join(details)}）")
+    return tuple(values[key] for key in keys)
+
+
+def common_output_values(values: Mapping[str, Any]) -> tuple[Any, ...]:
+    return _ordered_values(COMMON_OUTPUT_KEYS, values, "主流程 UI 输出")
 
 
 def common_output_components(components: Mapping[str, Any]) -> list[Any]:
     return list(common_output_values(components))
+
+
+def common_input_components(components: Mapping[str, Any]) -> list[Any]:
+    return list(_ordered_values(COMMON_INPUT_KEYS, components, "主流程 UI 输入"))
