@@ -92,6 +92,7 @@ from src.dental_detection.model_ui import (
     build_model_cards_html,
     build_workbench_model_status_html,
 )
+from src.dental_detection.personal_workspace import ensure_personal_workspace
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.record_formatters import format_case_record, format_history_record
 from src.dental_detection.record_views import (
@@ -2513,6 +2514,7 @@ def build_app() -> gr.Blocks:
     except gr.Error:
         saved.storage_dir = str(APP_HOME)
         _ensure_storage_root(saved.storage_dir)
+    ensure_personal_workspace(saved.storage_dir)
     env_key_value, direct_key_value = _api_key_inputs(saved)
     model_choices = scan_model_files(
         saved.model_dir,

@@ -30,7 +30,7 @@ def _resolve_app_home() -> Path:
 APP_HOME = _resolve_app_home()
 CONFIG_PATH = APP_HOME / "settings.json"
 CONVERSATION_DIR = APP_HOME / "conversations"
-APP_DATA_DIR_NAMES = ("conversations", "exports", "cases", "cases_trash", "reports", "history")
+APP_DATA_DIR_NAMES = ("conversations", "exports", "cases", "cases_trash", "reports", "history", "workspace")
 @dataclass
 class AiSettings:
     enabled: bool = False
@@ -103,6 +103,7 @@ def ensure_app_dirs(storage_dir: str | None = None) -> Path:
     case_dir(str(root)).mkdir(parents=True, exist_ok=True)
     report_dir(str(root)).mkdir(parents=True, exist_ok=True)
     history_dir(str(root)).mkdir(parents=True, exist_ok=True)
+    (root / "workspace").mkdir(parents=True, exist_ok=True)
     return root
 
 
