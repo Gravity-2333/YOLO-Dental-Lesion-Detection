@@ -3,19 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-import sys
 from typing import Any
 
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
-from .config import CUSTOM_ULTRALYTICS_PATH
+from .runtime_paths import ensure_project_ultralytics_path
 from .visualization import as_rgb_image, label_box_layout, label_font_for_image
 
-if CUSTOM_ULTRALYTICS_PATH.exists():
-    sys.path.insert(0, str(CUSTOM_ULTRALYTICS_PATH))
-
+ensure_project_ultralytics_path()
 from ultralytics import YOLO
 
 

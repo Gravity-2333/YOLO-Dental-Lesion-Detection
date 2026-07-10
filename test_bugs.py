@@ -20,6 +20,7 @@ try:
     from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
     from src.dental_detection.batch_summary import build_batch_summary
     from src.dental_detection.record_formatters import format_case_record
+    from src.dental_detection.ui_assets import load_workbench_css
     print("✓ 模块导入成功")
 except Exception as e:
     print(f"✗ 模块导入失败: {e}")
@@ -903,7 +904,7 @@ except Exception as e:
 
 print("\n测试31: 检查紧凑工具行按钮底部对齐...")
 try:
-    css_text = (Path(__file__).parent / "assets" / "workbench.css").read_text(encoding="utf-8")
+    css_text = load_workbench_css()
     compact_rule = ".compact-row > .secondary-action,\n.compact-row > .primary-action,\n.compact-row > button"
     assert compact_rule in css_text, "应保留 compact-row 按钮对齐规则"
     rule_start = css_text.index(compact_rule)
@@ -920,7 +921,7 @@ print("\n测试32: 检查病例筛选短输入框不换行截断...")
 try:
     project_root = Path(__file__).parent
     app_text = (project_root / "app.py").read_text(encoding="utf-8")
-    css_text = (project_root / "assets" / "workbench.css").read_text(encoding="utf-8")
+    css_text = load_workbench_css()
     for label in ["病例编号 / 备注名称", "搜索病例", "开始日期", "结束日期"]:
         assert f'label="{label}"' in app_text, f"{label} 输入框应存在"
         label_index = app_text.index(f'label="{label}"')
@@ -939,7 +940,7 @@ except Exception as e:
 
 print("\n测试33: 检查路径输入框长文本省略规则覆盖 input...")
 try:
-    css_text = (Path(__file__).parent / "assets" / "workbench.css").read_text(encoding="utf-8")
+    css_text = load_workbench_css()
     path_rule_anchor = 'textarea[aria-label="报告路径"],'
     rule_start = css_text.index(path_rule_anchor)
     rule_end = css_text.index("}", rule_start)
@@ -1551,7 +1552,7 @@ except Exception as e:
 
 print("\n测试48: 检查移动端宽表格保留横向滚动宽度...")
 try:
-    css_text = (Path(__file__).parent / "assets" / "workbench.css").read_text(encoding="utf-8")
+    css_text = load_workbench_css()
     media_anchor = "@media (max-width: 640px)"
     media_start = css_text.index(media_anchor)
     table_rule_start = css_text.index("  table {", media_start)
@@ -1571,7 +1572,7 @@ except Exception as e:
 
 print("\n测试49: 检查移动端引导步骤文字允许换行...")
 try:
-    css_text = (Path(__file__).parent / "assets" / "workbench.css").read_text(encoding="utf-8")
+    css_text = load_workbench_css()
     media_start = css_text.index("@media (max-width: 760px)")
     guide_rule_start = css_text.index("  .guide-steps span {", media_start)
     guide_rule_end = css_text.index("  }", guide_rule_start)
@@ -2042,7 +2043,7 @@ except Exception as e:
 
 print("\n测试66: 检查桌面端下拉菜单不被工具行裁剪...")
 try:
-    css_text = (Path(__file__).parent / "assets" / "workbench.css").read_text(encoding="utf-8")
+    css_text = load_workbench_css()
     model_rule_start = css_text.index(".model-row {")
     model_rule_end = css_text.index("}", model_rule_start)
     model_rule = css_text[model_rule_start:model_rule_end]
@@ -2543,6 +2544,109 @@ try:
     print("✓ 主流程输出组件顺序正常")
 except Exception as e:
     print(f"✗ 主流程输出组件顺序测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试79: 检查模型 UI helper 输出关键展示状态...")
+try:
+    from src.dental_detection.config import DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJECT_ROOT
+    from src.dental_detection.model_info import build_model_cards
+    from src.dental_detection.model_ui import (
+        build_advanced_model_warning_html,
+        build_demo_recommendation_html,
+        build_model_path_compact_html,
+        build_workbench_model_status_html,
+        format_model_path_for_display,
+    )
+
+    cards = build_model_cards(MODEL_REGISTRY)
+    recommended_paths = {str(info["path"]) for info in MODEL_REGISTRY.values()}
+    baseline_path = str(MODEL_REGISTRY["YOLOv8m 原始结构"]["path"])
+    optimized_path = str(MODEL_REGISTRY["YOLOv8m C2f-Faster-lite"]["path"])
+
+    baseline_html = build_workbench_model_status_html(
+        baseline_path,
+        cards,
+        default_model_path=str(DEFAULT_MODEL_PATH),
+        recommended_paths=recommended_paths,
+    )
+    assert "稳定对照" in baseline_html, "baseline 状态应保留稳定对照提示"
+
+    optimized_html = build_workbench_model_status_html(
+        optimized_path,
+        cards,
+        default_model_path=str(DEFAULT_MODEL_PATH),
+        recommended_paths=recommended_paths,
+    )
+    assert "../yolov8-train" in optimized_html, "C2f 状态应提示同级 yolov8-train 依赖"
+
+    advanced_path = str(PROJECT_ROOT / "models" / "pretrained" / "yolov8n.pt")
+    advanced_html = build_workbench_model_status_html(
+        advanced_path,
+        cards,
+        default_model_path=str(DEFAULT_MODEL_PATH),
+        recommended_paths=recommended_paths,
+    )
+    assert "不建议答辩临时使用" in advanced_html, "高级模型状态应提示答辩风险"
+
+    long_path = "E:/" + "/".join(["very_long_model_directory"] * 8) + "/weights/best.pt"
+    compact_text = format_model_path_for_display(long_path, max_chars=60)
+    compact_html = build_model_path_compact_html(long_path)
+    assert "..." in compact_text and compact_text != long_path, "长路径展示文本应省略"
+    assert f'title="{long_path}"' in compact_html, "长路径 HTML 应保留完整 title 便于追踪"
+    assert build_demo_recommendation_html().strip(), "推荐演示说明不能为空"
+    assert build_advanced_model_warning_html().strip(), "高级模型提示不能为空"
+    print("✓ 模型 UI helper 输出正常")
+except Exception as e:
+    print(f"✗ 模型 UI helper 测试失败: {e}")
+    sys.exit(1)
+
+print("\n测试80: 检查导出 helper 文件组织和安全写入...")
+try:
+    from src.dental_detection.exporters import (
+        build_export_manifest,
+        create_zip_from_manifest,
+        safe_export_stem,
+        write_csv_file,
+        write_html_file,
+        write_json_file,
+    )
+
+    assert safe_export_stem("") == "image", "空文件名应回退为 image"
+    assert safe_export_stem("病例:测试?.png") == "病例_测试", "中文文件名应保留并过滤 Windows 禁用字符"
+    assert safe_export_stem("CON.png") == "CON_file", "Windows 保留名应追加后缀"
+
+    with TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        csv_path = write_csv_file(
+            root / "detections.csv",
+            ["name", "value"],
+            [{"name": "=HYPERLINK(\"http://bad\")", "value": "+SUM(1,2)"}],
+        )
+        csv_text = csv_path.read_text(encoding="utf-8-sig")
+        assert "'=HYPERLINK" in csv_text and "'+SUM" in csv_text, "CSV 写入应保留公式注入防护"
+
+        json_path = write_json_file(root / "数据.json", {"中文": "正常", "列表": [1, 2]})
+        assert '"中文": "正常"' in json_path.read_text(encoding="utf-8"), "JSON 写入应保留中文"
+
+        html_path = write_html_file(root / "report.html", "<html><body>牙齿报告</body></html>")
+        assert "牙齿报告" in html_path.read_text(encoding="utf-8"), "HTML 应使用 UTF-8 写入"
+
+        manifest = build_export_manifest(root)
+        archive_names = {item["archive_name"] for item in manifest}
+        assert {"detections.csv", "数据.json", "report.html"}.issubset(archive_names), "manifest 应包含预期文件"
+
+        missing = root / "missing.txt"
+        zip_path, skipped = create_zip_from_manifest(
+            root / "bundle.zip",
+            [*manifest, {"source_path": str(missing), "archive_name": "missing.txt"}],
+        )
+        assert str(missing) in skipped, "缺失文件加入 ZIP 时应被记录为跳过"
+        with zipfile.ZipFile(zip_path) as archive:
+            names = set(archive.namelist())
+        assert "detections.csv" in names and "missing.txt" not in names, "ZIP 应包含现有文件并跳过缺失文件"
+    print("✓ 导出 helper 文件组织正常")
+except Exception as e:
+    print(f"✗ 导出 helper 测试失败: {e}")
     sys.exit(1)
 
 print("\n" + "="*60)

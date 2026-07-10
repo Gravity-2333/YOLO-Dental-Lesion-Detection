@@ -1,0 +1,27 @@
+:root {
+  --app-bg: #f3f6fb;
+  --card-bg: #ffffff;
+  --card-border: #d6deea;
+  --soft-border: #dfe7f1;
+  --input-border: #cbd5e1;
+  --input-bg: #ffffff;
+  --input-muted-bg: #f8fafc;
+  --secondary-bg: #f8fafc;
+  --secondary-hover-bg: #eef4ff;
+  --secondary-hover-border: #93b7f4;
+  --text-main: #111827;
+  --text-muted: #64748b;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --accent: #2563eb;
+  --radius: 12px;
+  --radius-sm: 10px;
+  --button-height: 40px;
+  --primary-height: 44px;
+  --shadow-soft: 0 14px 44px rgba(15, 23, 42, 0.05);
+  --shadow-card: 0 4px 16px rgba(15, 23, 42, 0.04);
+  --surface-bg: #fbfcfe;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+}

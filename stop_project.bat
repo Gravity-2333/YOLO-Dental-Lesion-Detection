@@ -21,12 +21,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%PROJECT_ROOT%scripts\stop_
 
 set "STOP_CODE=%ERRORLEVEL%"
 if "%STOP_CODE%"=="2" (
-    if "%QUIET%"=="0" echo [信息] 当前没有发现可关闭的项目进程。
+    if "%QUIET%"=="0" echo [INFO] No project process found.
 ) else (
     if "%STOP_CODE%"=="0" (
-        if "%QUIET%"=="0" echo [信息] 项目进程已关闭。
+        if "%QUIET%"=="0" echo [INFO] Project process stopped.
     ) else (
-        echo [警告] 关闭命令返回异常代码：%STOP_CODE%。
+        echo [WARN] Stop command returned code: %STOP_CODE%.
     )
 )
 

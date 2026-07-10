@@ -1,0 +1,291 @@
+@media (max-width: 900px) {
+  .gradio-container {
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  .app-header {
+    display: block;
+    padding-top: 18px;
+  }
+
+  .status-badge {
+    margin-top: 12px;
+  }
+
+  .workbench-grid,
+  .image-grid,
+  .insight-grid,
+  .model-card-grid,
+  .result-legend,
+  .path-row,
+  .model-row,
+  .compact-row,
+  .chat-input-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .path-row,
+  .model-row,
+  .chat-input-row,
+  .export-toolbar .path-row,
+  .chat-card .path-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: stretch !important;
+    row-gap: 10px !important;
+    overflow: visible !important;
+  }
+
+  .workbench-grid {
+    padding: 12px !important;
+    overflow: hidden !important;
+  }
+
+  .workbench-grid > .column,
+  .workbench-grid > .control-panel,
+  .workbench-grid > .result-panel,
+  .result-panel,
+  .result-panel > .block,
+  .result-panel > .form,
+  .result-panel .image-grid,
+  .result-panel .insight-grid,
+  .result-panel .export-toolbar {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .image-grid,
+  .insight-grid {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .model-card-grid,
+  .result-legend {
+    grid-template-columns: 1fr !important;
+  }
+
+  .notice-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .path-row > *,
+  .model-row > *,
+  .chat-input-row > * {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .path-row .form,
+  .path-row .block,
+  .model-row .form,
+  .model-row .block,
+  .chat-input-row .form,
+  .chat-input-row .block,
+  .export-toolbar .path-row .form,
+  .export-toolbar .path-row .block,
+  .chat-card .path-row .form,
+  .chat-card .path-row .block {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .row.path-row > button,
+  .row.model-row > button,
+  .row.chat-input-row > button,
+  .row.compact-row > button,
+  .row.settings-actions > button,
+  .export-toolbar .path-row button,
+  .chat-card .path-row button,
+  .path-row > button.secondary-action,
+  .model-row > button.secondary-action,
+  .chat-input-row > button.primary-action,
+  .compact-row > button.secondary-action,
+  .compact-row > button.primary-action,
+  .settings-actions > button.primary-action {
+    flex: 1 1 100% !important;
+    align-self: stretch !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: none !important;
+  }
+
+  .path-row > .secondary-action,
+  .model-row > .secondary-action,
+  .chat-input-row > .primary-action {
+    margin-bottom: 0 !important;
+  }
+
+  .card-heading {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .control-panel {
+    max-width: none;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .compact-button button,
+  .secondary-action button,
+  .icon-action button {
+    width: 100% !important;
+  }
+
+  .icon-action button {
+    min-width: 100% !important;
+  }
+
+}
+
+@media (max-width: 640px) {
+  .gradio-container {
+    max-width: calc(100vw - 16px) !important;
+  }
+
+  .app-title {
+    font-size: 1.55rem;
+  }
+
+  .app-header {
+    padding-top: 14px;
+    padding-bottom: 10px;
+  }
+
+  .app-subtitle {
+    font-size: 0.94rem;
+    line-height: 1.55;
+  }
+
+  .guide-card {
+    margin-bottom: 10px;
+  }
+
+  .workflow-hint,
+  .result-stage-note,
+  .workbench-model-status {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 9px 10px;
+  }
+
+  .upload-input .image-container,
+  .result-card .image-container {
+    min-height: 180px !important;
+  }
+
+  .main-tabs [role="tablist"],
+  .settings-tabs [role="tablist"],
+  .sub-tabs [role="tablist"] {
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+    padding-bottom: 4px !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .main-tabs [role="tablist"]::-webkit-scrollbar,
+  .settings-tabs [role="tablist"]::-webkit-scrollbar,
+  .sub-tabs [role="tablist"]::-webkit-scrollbar {
+    display: none;
+  }
+
+  .main-tabs button[role="tab"],
+  .settings-tabs button[role="tab"],
+  .sub-tabs button[role="tab"] {
+    flex: 0 0 auto !important;
+    min-width: max-content !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    white-space: nowrap !important;
+  }
+
+  .main-tabs .overflow-menu > button,
+  .settings-tabs .overflow-menu > button,
+  .sub-tabs .overflow-menu > button {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    min-width: 64px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  .main-tabs .overflow-menu > button::after,
+  .settings-tabs .overflow-menu > button::after,
+  .sub-tabs .overflow-menu > button::after {
+    content: "更多";
+    font-size: 0.82rem;
+    font-weight: 650;
+  }
+
+  .card-heading h2,
+  .section-heading h2 {
+    word-break: keep-all;
+    overflow-wrap: normal;
+  }
+
+  .section-card,
+  .settings-card,
+  .chat-card,
+  .case-card {
+    padding: 10px !important;
+  }
+
+  .guide-card .workbench-model-status span {
+    display: none;
+  }
+
+  .guide-card .workflow-hint {
+    display: none;
+  }
+
+  .guide-card .workbench-model-status strong {
+    line-height: 1.4;
+  }
+
+  .guide-card > .form,
+  .guide-card > .block,
+  .guide-card .workflow-hint,
+  .guide-card .workbench-model-status {
+    margin-bottom: 6px !important;
+  }
+
+  .guide-steps {
+    gap: 6px;
+  }
+
+  .guide-steps span {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  table {
+    width: max-content !important;
+    min-width: 560px !important;
+    font-size: 0.72rem !important;
+  }
+
+  .batch-overview-panel table {
+    min-width: 720px !important;
+  }
+
+  th,
+  td {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+
+  th:nth-child(2),
+  td:nth-child(2) {
+    min-width: 78px !important;
+  }
+}

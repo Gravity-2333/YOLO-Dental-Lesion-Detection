@@ -5,17 +5,17 @@ setlocal EnableExtensions
 set "PROJECT_ROOT=%~dp0"
 call "%PROJECT_ROOT%scripts\project_config.bat"
 
-echo [信息] 项目目录：%PROJECT_ROOT%
-echo [信息] 正在检查端口 %SERVER_PORT% 上是否已有项目进程...
+echo [INFO] Project directory: %PROJECT_ROOT%
+echo [INFO] Checking existing project process on port %SERVER_PORT%...
 call "%PROJECT_ROOT%stop_project.bat" --from-start
 
 if not exist "%YOLO_CONFIG_DIR%" mkdir "%YOLO_CONFIG_DIR%"
 
-echo [信息] 正在启动 Gradio 前端服务...
-echo [信息] 新窗口会显示后端运行日志和可能的报错；关闭该窗口也会停止前端服务。
-start "YOLO Dental Gradio" cmd /k call "%PROJECT_ROOT%scripts\run_gradio_server.bat"
+echo [INFO] Starting Gradio frontend service...
+echo [INFO] A backend log window will open. Close that window to stop the service.
+start "YOLO Dental Gradio" "%ComSpec%" /k ""%PROJECT_ROOT%scripts\run_gradio_server.bat""
 
-echo [信息] 前端访问地址：http://%SERVER_NAME%:%SERVER_PORT%
-echo [信息] 如果页面暂时打不开，请等待几秒钟，模型和 Gradio 服务需要一点启动时间。
+echo [INFO] Frontend URL: http://%SERVER_NAME%:%SERVER_PORT%
+echo [INFO] If the page is not ready, wait a few seconds for model and Gradio startup.
 
 endlocal

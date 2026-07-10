@@ -1,8 +1,4 @@
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-WORKSPACE_ROOT = PROJECT_ROOT.parent
-CUSTOM_ULTRALYTICS_PATH = WORKSPACE_ROOT / "yolov8-train"
+from .runtime_paths import CUSTOM_ULTRALYTICS_PATH, PROJECT_ROOT, WORKSPACE_ROOT
 
 MODEL_REGISTRY = {
     "YOLOv8m 原始结构": {

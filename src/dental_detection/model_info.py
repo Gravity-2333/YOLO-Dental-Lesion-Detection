@@ -6,7 +6,9 @@ from typing import Any
 
 from .config import DEFAULT_MODEL_NAME
 from .model_files import is_supported_model_artifact
+from .model_ui import build_model_cards_html
 from .result_levels import CLASS_DISPLAY_NAMES
+from .runtime_paths import CUSTOM_ULTRALYTICS_PATH
 
 
 CLASS_LEGEND = [
@@ -40,20 +42,45 @@ def _path_exists(value: Any) -> bool:
 
 def build_model_cards(model_registry: dict[str, dict[str, Any]], default_model_name: str = DEFAULT_MODEL_NAME) -> list[dict[str, Any]]:
     cards: list[dict[str, Any]] = []
+    custom_ultralytics_available = (CUSTOM_ULTRALYTICS_PATH / "ultralytics").is_dir()
     for name, info in model_registry.items():
         path = Path(info.get("path", ""))
         architecture = str(info.get("architecture", "YOLOv8"))
         role = str(info.get("role", "候选模型"))
         is_default = name == default_model_name
+        is_baseline = "原始" in name or architecture == "YOLOv8m"
+        needs_custom_ultralytics = "C2f-Faster-lite" in name or "C2f-Faster-lite" in architecture
+        artifact_available = _path_exists(path)
+        dependency_available = (not needs_custom_ultralytics) or custom_ultralytics_available
+        available = artifact_available and dependency_available
         if is_default:
-            title = "推荐模型"
+            title = "优化模型"
             description = "综合速度、资源占用和识别表现，适合日常辅助筛查。"
         elif "lite" in architecture.casefold() or "优化" in role:
             title = "轻量优化模型"
             description = "结构更轻，推理资源消耗更低，适合优先考虑运行效率的场景。"
         else:
-            title = "原始模型"
-            description = "YOLOv8m 原始结构候选模型，适合与优化模型进行效果对照。"
+            title = "Baseline 模型"
+            description = "YOLOv8m 原始结构候选模型，适合演示稳定 baseline 和效果对照。"
+        if needs_custom_ultralytics:
+            dependency_note = "依赖同级目录 ../yolov8-train 中的自定义 ultralytics 代码。"
+            demo_note = (
+                "自定义依赖可用，推荐展示优化模型，并保留 baseline 对比。"
+                if custom_ultralytics_available
+                else "自定义依赖缺失，演示时建议改用 baseline 模型。"
+            )
+        else:
+            dependency_note = "不依赖自定义 ultralytics，迁移展示时更稳妥。"
+            demo_note = "适合作为稳定 baseline；可与优化模型进行答辩对照。"
+        if not artifact_available:
+            status_text = "缺失"
+            status_class = "missing"
+        elif not dependency_available:
+            status_text = "依赖缺失"
+            status_class = "dependency-missing"
+        else:
+            status_text = "可用"
+            status_class = "available"
         cards.append(
             {
                 "title": title,
@@ -62,8 +89,17 @@ def build_model_cards(model_registry: dict[str, dict[str, Any]], default_model_n
                 "architecture": architecture,
                 "role": role,
                 "path": str(path),
-                "available": _path_exists(path),
-                "tag": "推荐" if is_default else role,
+                "available": available,
+                "artifact_available": artifact_available,
+                "dependency_available": dependency_available,
+                "dependency_note": dependency_note,
+                "demo_note": demo_note,
+                "is_default": is_default,
+                "is_baseline": is_baseline,
+                "needs_custom_ultralytics": needs_custom_ultralytics,
+                "status_text": status_text,
+                "status_class": status_class,
+                "tag": "默认" if is_default else ("baseline" if is_baseline else role),
                 "classes": "、".join(CLASS_DISPLAY_NAMES.values()),
                 "metrics": info.get("metrics", {}),
             }
@@ -90,13 +126,21 @@ def format_model_info_markdown(model_info: dict[str, Any]) -> str:
     name = escape(str(model_info.get("name", "未知模型")))
     architecture = escape(str(model_info.get("architecture", "YOLOv8 目标检测模型")))
     role = escape(str(model_info.get("role", "牙齿病变区域辅助识别")))
-    status_text = "可用" if model_info.get("available") else "不可用或格式不支持"
+    status_text = escape(str(model_info.get("status_text") or ("可用" if model_info.get("available") else "不可用或格式不支持")))
+    dependency_note = escape(str(model_info.get("dependency_note") or "无额外自定义依赖说明。"))
+    demo_note = escape(str(model_info.get("demo_note") or "演示前请确认模型文件可加载。"))
+    path = escape(str(model_info.get("path", "")))
     return f"""## 当前模型：{name}
 
 - 模型类型：{architecture}
 - 模型定位：{role}
 - 可识别类别：{"、".join(CLASS_DISPLAY_NAMES.values())}
 - 模型状态：{status_text}
+- 模型路径：`{path}`
+
+### 演示与依赖提示
+- {demo_note}
+- {dependency_note}
 
 ### 输入图片要求
 - 建议使用清晰、完整、曝光正常的牙科影像。
@@ -125,31 +169,7 @@ def format_model_info_markdown(model_info: dict[str, Any]) -> str:
 
 
 def model_cards_html(cards: list[dict[str, Any]], selected_path: str | None = None) -> str:
-    chunks = ['<div class="model-card-grid">']
-    for card in cards:
-        selected = str(selected_path or "") == str(card.get("path") or "")
-        status_class = "available" if card.get("available") else "missing"
-        title = escape(str(card.get("title", "")))
-        name = escape(str(card.get("name", "")))
-        description = escape(str(card.get("description", "")))
-        classes = escape(str(card.get("classes", "")))
-        architecture = escape(str(card.get("architecture", "")))
-        chunks.append(
-            f"""
-<div class="model-info-card {'selected' if selected else ''}">
-  <div class="model-card-top">
-    <span class="model-card-title">{title}</span>
-    <span class="model-card-tag {status_class}">{'可用' if card.get('available') else '缺失'}</span>
-  </div>
-  <strong>{name}</strong>
-  <p>{description}</p>
-  <div class="model-card-meta">类别：{classes}</div>
-  <div class="model-card-meta">结构：{architecture}</div>
-</div>
-"""
-        )
-    chunks.append("</div>")
-    return "".join(chunks)
+    return build_model_cards_html(cards, selected_path)
 
 
 def legend_html() -> str:

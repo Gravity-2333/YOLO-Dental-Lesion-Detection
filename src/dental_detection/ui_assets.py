@@ -1,0 +1,37 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from .config import PROJECT_ROOT
+
+
+ASSET_ROOT = PROJECT_ROOT / "assets"
+STYLE_ROOT = ASSET_ROOT / "styles"
+
+# Loading order is part of the frontend contract: tokens first, responsive
+# overrides last. New UI work should extend the narrowest matching module.
+CSS_BUNDLE_FILES = (
+    STYLE_ROOT / "00-tokens.css",
+    STYLE_ROOT / "10-foundation.css",
+    STYLE_ROOT / "20-layout.css",
+    STYLE_ROOT / "30-components.css",
+    STYLE_ROOT / "40-responsive.css",
+    STYLE_ROOT / "50-utilities.css",
+)
+JS_BUNDLE_FILES = (ASSET_ROOT / "workbench.js",)
+
+
+def load_text_bundle(paths: tuple[Path, ...]) -> str:
+    missing = [path for path in paths if not path.is_file()]
+    if missing:
+        missing_text = "、".join(str(path) for path in missing)
+        raise FileNotFoundError(f"前端资源文件缺失：{missing_text}")
+    return "\n\n".join(path.read_text(encoding="utf-8").rstrip() for path in paths) + "\n"
+
+
+def load_workbench_css() -> str:
+    return load_text_bundle(CSS_BUNDLE_FILES)
+
+
+def load_workbench_js() -> str:
+    return load_text_bundle(JS_BUNDLE_FILES)

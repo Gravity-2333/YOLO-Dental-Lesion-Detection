@@ -1,614 +1,132 @@
-from __future__ import annotations
+"""Compatibility facade for AI, advice, settings, and conversation helpers.
 
-from dataclasses import dataclass, fields
-from datetime import datetime
-import ipaddress
-import json
-import os
-from pathlib import Path
-import shutil
-from typing import Any
-from urllib.parse import urlparse
+New code should import the owning module directly. Existing callers can keep
+using this module while the application is migrated incrementally.
+"""
 
-from .config import PROJECT_ROOT
-from .result_levels import (
-    CLASS_DISPLAY_NAMES,
-    enrich_detection_row,
-    has_detection_payload,
-    iter_detection_items,
-    normalize_class_name,
-    parse_confidence,
+from .advice import _normalize_class_name, default_advice, detection_prompt
+from .ai_client import (
+    chat_completion,
+    is_private_base_url,
+    normalize_base_url,
+    resolve_api_key,
+    test_chat_completion,
+    validate_ai_request,
 )
-from .text_utils import json_safe_value
-
-APP_DIR_NAME = "YOLO-Dental-Lesion-Detection"
-
-
-def _resolve_app_home() -> Path:
-    primary = Path.home() / APP_DIR_NAME
-    try:
-        primary.mkdir(parents=True, exist_ok=True)
-        probe = primary / ".write_test"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink(missing_ok=True)
-        return primary
-    except OSError:
-        fallback = PROJECT_ROOT.parent / f"{APP_DIR_NAME}-user-data"
-        fallback.mkdir(parents=True, exist_ok=True)
-        return fallback
-
-
-APP_HOME = _resolve_app_home()
-CONFIG_PATH = APP_HOME / "settings.json"
-CONVERSATION_DIR = APP_HOME / "conversations"
-APP_DATA_DIR_NAMES = ("conversations", "exports", "cases", "cases_trash", "reports", "history")
-SAFETY_NOTICE = "本结果仅供辅助参考，不能替代专业牙科医生诊断。"
-DEFAULT_AI_BASE_URL = "https://api.deepseek.com/v1"
-DEFAULT_AI_MODEL = "deepseek-chat"
-DEFAULT_AI_KEY_ENV = "DEEPSEEK_API_KEY"
-DEFAULT_AI_PROMPT = (
-    "你是牙科影像检测结果解释助手。你只能基于用户提供的 YOLO 检测结果文本生成辅助建议，"
-    "不接收、不分析、不猜测牙片图片本身。不要输出最终诊断，不要给处方，不要给具体药物剂量，"
-    "不要建议自行用药，也不要使用“确诊、一定、必须治疗”等绝对表达。"
-    "请固定使用以下中文栏目输出：检测摘要、需要关注的位置、复查建议、注意事项、安全声明。"
-    "安全声明必须包含原句：本结果仅供辅助参考，不能替代专业牙科医生诊断。"
-    "如检测结果为空，请说明模型未检测到明确目标框，但仍需结合症状、原始影像质量和专业牙科检查复核。"
-    "输出不超过 300 字。"
+from .ai_defaults import (
+    CLASS_ADVICE,
+    DEFAULT_AI_BASE_URL,
+    DEFAULT_AI_KEY_ENV,
+    DEFAULT_AI_MODEL,
+    DEFAULT_AI_PROMPT,
+    SAFETY_NOTICE,
 )
-CLASS_ADVICE = {
-    "Caries": "疑似龋坏相关区域。建议关注该区域是否有冷热刺激痛、食物嵌塞或颜色改变，并预约牙科检查确认。",
-    "Periapical Lesion": "疑似根尖周相关异常区域。建议结合疼痛、咬合不适、牙龈肿胀等症状，由牙科医生复查根尖区域。",
-    "Impacted": "疑似阻生牙相关区域。建议关注局部清洁难度、反复发炎或邻牙受影响风险，并咨询牙科医生评估。",
-}
-_normalize_class_name = normalize_class_name
+from . import conversation_store as _conversation_store
+from . import settings_store as _settings_store
+from .settings_store import (
+    APP_DATA_DIR_NAMES,
+    APP_DIR_NAME,
+    APP_HOME,
+    CONFIG_PATH,
+    CONVERSATION_DIR,
+    AiSettings,
+)
 
 
-@dataclass
-class AiSettings:
-    enabled: bool = False
-    base_url: str = DEFAULT_AI_BASE_URL
-    model: str = DEFAULT_AI_MODEL
-    key_mode: str = "环境变量"
-    api_key: str = DEFAULT_AI_KEY_ENV
-    save_api_key: bool = False
-    auto_save: bool = True
-    storage_dir: str = str(APP_HOME)
-    custom_prompt: str = DEFAULT_AI_PROMPT
-    advice_style: str = "简洁版"
-    model_mode: str = "单模型"
-    enable_compare: bool = True
-    show_summary: bool = False
-    save_history: bool = True
-    history_limit: int = 100
-    model_dir: str = str(PROJECT_ROOT / "models")
-    primary_model_path: str = str(
-        PROJECT_ROOT
-        / "models"
-        / "final_candidates"
-        / "yolov8m_c2f_faster_lite_1280_full"
-        / "weights"
-        / "best.pt"
-    )
-    compare_model_path: str = str(
-        PROJECT_ROOT
-        / "models"
-        / "final_candidates"
-        / "yolov8m_1280_full"
-        / "weights"
-        / "best.pt"
-    )
+def _sync_settings_globals() -> None:
+    # Some integrations historically replaced these module globals in tests or
+    # embedding code. Keep that behavior while settings_store owns the logic.
+    _settings_store.APP_HOME = APP_HOME
+    _settings_store.CONFIG_PATH = CONFIG_PATH
+    _settings_store.CONVERSATION_DIR = CONVERSATION_DIR
 
 
-def storage_root(storage_dir: str | None = None) -> Path:
-    if storage_dir is None:
-        return APP_HOME
-    value = str(storage_dir).strip()
-    return Path(value).expanduser() if value else APP_HOME
+def storage_root(storage_dir: str | None = None):
+    _sync_settings_globals()
+    return _settings_store.storage_root(storage_dir)
 
 
-def conversation_dir(storage_dir: str | None = None) -> Path:
-    return storage_root(storage_dir) / "conversations"
+def conversation_dir(storage_dir: str | None = None):
+    _sync_settings_globals()
+    return _settings_store.conversation_dir(storage_dir)
 
 
-def export_dir(storage_dir: str | None = None) -> Path:
-    return storage_root(storage_dir) / "exports"
+def export_dir(storage_dir: str | None = None):
+    _sync_settings_globals()
+    return _settings_store.export_dir(storage_dir)
 
 
-def case_dir(storage_dir: str | None = None) -> Path:
-    return storage_root(storage_dir) / "cases"
+def case_dir(storage_dir: str | None = None):
+    _sync_settings_globals()
+    return _settings_store.case_dir(storage_dir)
 
 
-def report_dir(storage_dir: str | None = None) -> Path:
-    return storage_root(storage_dir) / "reports"
+def report_dir(storage_dir: str | None = None):
+    _sync_settings_globals()
+    return _settings_store.report_dir(storage_dir)
 
 
-def history_dir(storage_dir: str | None = None) -> Path:
-    return storage_root(storage_dir) / "history"
+def history_dir(storage_dir: str | None = None):
+    _sync_settings_globals()
+    return _settings_store.history_dir(storage_dir)
 
 
-def ensure_app_dirs(storage_dir: str | None = None) -> Path:
-    APP_HOME.mkdir(parents=True, exist_ok=True)
-    root = storage_root(storage_dir)
-    root.mkdir(parents=True, exist_ok=True)
-    conversation_dir(str(root)).mkdir(parents=True, exist_ok=True)
-    export_dir(str(root)).mkdir(parents=True, exist_ok=True)
-    case_dir(str(root)).mkdir(parents=True, exist_ok=True)
-    report_dir(str(root)).mkdir(parents=True, exist_ok=True)
-    history_dir(str(root)).mkdir(parents=True, exist_ok=True)
-    return root
+def ensure_app_dirs(storage_dir: str | None = None):
+    _sync_settings_globals()
+    return _settings_store.ensure_app_dirs(storage_dir)
 
 
-def _unique_corrupt_settings_backup() -> Path:
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    backup = CONFIG_PATH.with_name(f"{CONFIG_PATH.stem}.{stamp}.corrupt{CONFIG_PATH.suffix}")
-    counter = 1
-    while backup.exists():
-        backup = CONFIG_PATH.with_name(
-            f"{CONFIG_PATH.stem}.{stamp}_{counter:02d}.corrupt{CONFIG_PATH.suffix}"
-        )
-        counter += 1
-    return backup
+def load_settings():
+    _sync_settings_globals()
+    return _settings_store.load_settings()
 
 
-def load_settings() -> AiSettings:
-    if not CONFIG_PATH.exists():
-        return AiSettings()
-    try:
-        data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        # 保留损坏文件的备份，方便用户恢复
-        try:
-            corrupt_backup = _unique_corrupt_settings_backup()
-            CONFIG_PATH.replace(corrupt_backup)
-        except OSError:
-            pass
-        return AiSettings()
-    if not isinstance(data, dict):
-        return AiSettings()
-    allowed = {field.name for field in fields(AiSettings)}
-    defaults = AiSettings().__dict__
-
-    # 类型校验：防止损坏的 settings.json 在模块导入阶段导致 Path(123) 等 TypeError
-    _STRING_FIELDS = {
-        "base_url", "model", "key_mode", "api_key",
-        "custom_prompt", "advice_style", "model_mode",
-    }
-    _PATH_FIELDS = {
-        "storage_dir", "model_dir",
-        "primary_model_path", "compare_model_path",
-    }
-    _BOOL_FIELDS = {"enabled", "save_api_key", "auto_save", "enable_compare", "show_summary", "save_history"}
-    _INT_FIELDS = {"history_limit"}
-
-    filtered: dict[str, Any] = {}
-    for key, value in data.items():
-        if key not in allowed:
-            continue
-        if key in _STRING_FIELDS:
-            if isinstance(value, (int, float, bool)):
-                filtered[key] = str(value)
-            elif isinstance(value, str):
-                filtered[key] = value
-            # 非字符串/数字/布尔类型（列表、字典等）丢弃，使用默认值
-        elif key in _PATH_FIELDS:
-            if isinstance(value, str) and value.strip():
-                filtered[key] = value
-        elif key in _BOOL_FIELDS:
-            if isinstance(value, bool):
-                filtered[key] = value
-            elif isinstance(value, str):
-                filtered[key] = value.lower() in {"true", "1", "yes", "on"}
-            elif isinstance(value, (int, float)):
-                filtered[key] = bool(value)
-            # 其他类型丢弃
-        elif key in _INT_FIELDS:
-            try:
-                filtered[key] = max(1, min(1000, int(value)))
-            except (TypeError, ValueError):
-                pass
-        else:
-            filtered[key] = value
-    if filtered.get("key_mode") not in {"环境变量", "直接 Key 值"}:
-        filtered.pop("key_mode", None)
-    if filtered.get("model_mode") not in {"单模型", "对比模型"}:
-        filtered.pop("model_mode", None)
-    if filtered.get("advice_style") not in {"简洁版", "医生版", "患者版"}:
-        filtered.pop("advice_style", None)
-    return AiSettings(**{**defaults, **filtered})
-
-
-def save_settings(settings: AiSettings, *, migrate_data: bool = True) -> Path:
-    previous = load_settings() if CONFIG_PATH.exists() else AiSettings()
-    if migrate_data:
-        migrate_storage(previous.storage_dir, settings.storage_dir)
-    ensure_app_dirs(settings.storage_dir)
-    data = settings.__dict__.copy()
-    if settings.key_mode == "直接 Key 值" and not settings.save_api_key:
-        data["api_key"] = ""
-
-    # 原子写入：先写临时文件，成功后再替换，防止写入中断导致配置损坏
-    content = json.dumps(data, ensure_ascii=False, indent=2)
-    tmp_path = CONFIG_PATH.with_suffix(".tmp")
-    tmp_path.write_text(content, encoding="utf-8")
-    tmp_path.replace(CONFIG_PATH)
-    return CONFIG_PATH
-
-
-def _is_empty_dir(path: Path) -> bool:
-    return path.exists() and path.is_dir() and not any(path.iterdir())
-
-
-def _same_resolved_path(left: Path, right: Path) -> bool:
-    try:
-        return left.resolve() == right.resolve()
-    except (OSError, RuntimeError):
-        return False
-
-
-def _contains_path(parent: Path, child: Path) -> bool:
-    try:
-        parent_resolved = parent.resolve()
-        child_resolved = child.resolve()
-    except (OSError, RuntimeError):
-        return False
-    return parent_resolved == child_resolved or parent_resolved in child_resolved.parents
-
-
-def _move_contents(source: Path, target: Path, skip_roots: set[Path] | None = None) -> None:
-    if _same_resolved_path(source, target):
-        return
-    target.mkdir(parents=True, exist_ok=True)
-    for child in source.iterdir():
-        if skip_roots and any(_contains_path(skip_root, child) for skip_root in skip_roots):
-            continue
-        destination = target / child.name
-        if child.is_dir() and destination.exists() and destination.is_dir():
-            _move_contents(child, destination, skip_roots)
-            if _is_empty_dir(child):
-                child.rmdir()
-        elif not destination.exists():
-            shutil.move(str(child), str(destination))
-        else:
-            suffix = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            shutil.move(str(child), str(target / f"{child.stem}_{suffix}{child.suffix}"))
-
-
-def _move_app_data_dirs(old_root: Path, new_root: Path) -> None:
-    skip_roots = {new_root} if old_root in new_root.parents else None
-    for child_name in APP_DATA_DIR_NAMES:
-        source = old_root / child_name
-        if not source.exists() or not source.is_dir():
-            continue
-        try:
-            source_resolved = source.resolve()
-        except OSError:
-            continue
-        if source_resolved == new_root or new_root in source_resolved.parents:
-            continue
-        _move_contents(source, new_root / child_name, skip_roots)
-        if _is_empty_dir(source):
-            source.rmdir()
-
-
-def _managed_data_target(source: Path, new_root: Path) -> Path | None:
-    name = source.name
-    if name not in APP_DATA_DIR_NAMES:
-        return None
-    return new_root / name
+def save_settings(settings: AiSettings, *, migrate_data: bool = True):
+    _sync_settings_globals()
+    return _settings_store.save_settings(settings, migrate_data=migrate_data)
 
 
 def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) -> None:
-    old_root = storage_root(old_storage_dir).resolve()
-    new_root = storage_root(new_storage_dir).resolve()
-    if old_root == new_root or not old_root.exists() or not old_root.is_dir():
-        return
-    direct_target = _managed_data_target(old_root, new_root)
-    if direct_target is not None:
-        if _same_resolved_path(old_root, direct_target):
-            return
-        skip_roots = {new_root} if old_root in new_root.parents else None
-        _move_contents(old_root, direct_target, skip_roots)
-        if _is_empty_dir(old_root):
-            old_root.rmdir()
-        return
-    if old_root == APP_HOME.resolve():
-        _move_app_data_dirs(old_root, new_root)
-        return
-    if old_root in new_root.parents:
-        # 新目录位于旧目录内部时，只迁移项目管理的数据目录，并跳过新目录自身。
-        new_root.mkdir(parents=True, exist_ok=True)
-        for child_name in APP_DATA_DIR_NAMES:
-            child = old_root / child_name
-            if not child.exists() or not child.is_dir():
-                continue
-            try:
-                child_resolved = child.resolve()
-            except OSError:
-                continue
-            if child_resolved == new_root or new_root in child_resolved.parents:
-                continue
-            destination = new_root / child.name
-            if child.is_dir() and destination.exists() and destination.is_dir():
-                _move_contents(child, destination)
-                if _is_empty_dir(child):
-                    child.rmdir()
-            elif not destination.exists():
-                shutil.move(str(child), str(destination))
-            else:
-                suffix = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-                shutil.move(str(child), str(new_root / f"{child.stem}_{suffix}{child.suffix}"))
-        return
-
-    if _is_empty_dir(old_root):
-        old_root.rmdir()
-        return
-    _move_app_data_dirs(old_root, new_root)
-    if _is_empty_dir(old_root):
-        old_root.rmdir()
+    _sync_settings_globals()
+    _settings_store.migrate_storage(old_storage_dir, new_storage_dir)
 
 
-def _base_url_origin(base_url: str) -> str:
-    value = str(base_url or "").strip()
-    parsed = urlparse(value if "://" in value else f"//{value}")
-    if parsed.hostname:
-        return parsed.hostname.strip("[]")
-    netloc = (parsed.netloc or value.split("/", 1)[0]).split("@")[-1]
-    if netloc.startswith("[") and "]" in netloc:
-        return netloc[1 : netloc.index("]")]
-    if netloc == "::1" or netloc.startswith("::1:"):
-        return "::1"
-    return netloc.split(":")[0].strip("[]")
+def save_conversation(messages, storage_dir: str | None = None):
+    _sync_settings_globals()
+    return _conversation_store.save_conversation(messages, storage_dir)
 
 
-def _normalize_ipv6_netloc(value: str) -> str:
-    netloc, sep, suffix = value.partition("/")
-    if netloc.startswith("["):
-        return value
-    if netloc == "::1":
-        return f"[::1]{sep}{suffix}" if sep else "[::1]"
-    if netloc.startswith("::1:"):
-        port = netloc.removeprefix("::1:")
-        if port.isdigit():
-            normalized = f"[::1]:{port}"
-            return f"{normalized}{sep}{suffix}" if sep else normalized
-    return value
-
-
-def normalize_base_url(base_url: str) -> str:
-    value = (base_url or "").strip().rstrip("/") or DEFAULT_AI_BASE_URL
-    if not value.lower().startswith(("http://", "https://")):
-        value = _normalize_ipv6_netloc(value)
-        host = _base_url_origin(value).lower()
-        scheme = "http" if host in {"localhost", "127.0.0.1", "::1"} else "https"
-        try:
-            if ipaddress.ip_address(host).is_private:
-                scheme = "http"
-        except ValueError:
-            pass
-        value = f"{scheme}://{value}"
-    lowered = value.lower()
-    if lowered.endswith("/chat/completions"):
-        value = value[: -len("/chat/completions")]
-    parsed = urlparse(value)
-    if parsed.scheme and parsed.netloc and not parsed.path.strip("/"):
-        value = f"{value}/v1"
-    return value.rstrip("/")
-
-
-def is_private_base_url(base_url: str) -> bool:
-    host = _base_url_origin(base_url).lower()
-    if host in {"localhost", "127.0.0.1", "::1"}:
-        return True
-    try:
-        return ipaddress.ip_address(host).is_private
-    except ValueError:
-        return False
-
-
-def resolve_api_key(settings: AiSettings) -> str:
-    value = str(settings.api_key or "").strip()
-    if settings.key_mode == "环境变量":
-        return os.getenv(value, "") if value else ""
-    return value
-
-
-def validate_ai_request(settings: AiSettings) -> tuple[bool, str, str]:
-    api_key = resolve_api_key(settings)
-    if api_key:
-        return True, api_key, ""
-    if is_private_base_url(normalize_base_url(settings.base_url)):
-        return True, "EMPTY", ""
-    return False, "", "公网 API 地址需要填写 API Key，或在环境变量模式中填写环境变量名。"
-
-
-AI_REQUEST_TIMEOUT = 30.0  # 秒，OpenAI-compatible API 请求超时
-
-
-def _client(settings: AiSettings, api_key: str) -> OpenAI:
-    from openai import OpenAI
-
-    return OpenAI(
-        base_url=normalize_base_url(settings.base_url),
-        api_key=api_key,
-        timeout=AI_REQUEST_TIMEOUT,
-        max_retries=1,
-    )
-
-
-def _friendly_ai_error(exc: Exception) -> ValueError:
-    name = exc.__class__.__name__
-    text = str(exc)
-    if name in {"APITimeoutError", "TimeoutException"} or "timed out" in text.lower():
-        return ValueError("AI 服务响应超时，请检查网络或接口配置。")
-    if name in {"APIConnectionError", "ConnectError", "ConnectTimeout"}:
-        return ValueError("无法连接 AI 服务，请检查网络、Base URL 或代理配置。")
-    return ValueError(text or "AI 服务请求失败，请检查接口配置。")
-
-
-def chat_completion(
-    settings: AiSettings,
-    messages: list[dict[str, str]],
-    temperature: float = 0.2,
-    max_tokens: int = 500,
-) -> str:
-    ok, api_key, error = validate_ai_request(settings)
-    if not ok:
-        raise ValueError(error)
-    try:
-        response = _client(settings, api_key).chat.completions.create(
-            model=settings.model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-    except Exception as exc:
-        raise _friendly_ai_error(exc) from exc
-    return response.choices[0].message.content or ""
-
-
-def test_chat_completion(settings: AiSettings) -> str:
-    content = chat_completion(
-        settings,
-        messages=[{"role": "user", "content": "请只回复 OK"}],
-        temperature=0,
-        max_tokens=8,
-    ).strip()
-    if not content:
-        raise ValueError("接口返回为空。")
-    return f"测试成功：{content}"
-
-
-def _prompt_safe_detections(detections: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    safe_rows: list[dict[str, Any]] = []
-    for row in iter_detection_items(json_safe_value(detections)):
-        item = dict(row)
-        if "confidence" in item:
-            confidence = parse_confidence(item.get("confidence"))
-            item["confidence"] = round(confidence, 4) if confidence is not None else ""
-        safe_rows.append(item)
-    return safe_rows
-
-
-def detection_prompt(
-    detections: list[dict[str, Any]], custom_prompt: str | None = None
-) -> list[dict[str, str]]:
-    summary = json.dumps(_prompt_safe_detections(detections), ensure_ascii=False, indent=2, allow_nan=False)
-    system_prompt = (custom_prompt or "").strip() or DEFAULT_AI_PROMPT
-    return [
-        {
-            "role": "system",
-            "content": system_prompt,
-        },
-        {
-            "role": "user",
-            "content": f"请根据以下 YOLO 牙齿病变检测结果生成简洁建议：\n{summary}",
-        },
-    ]
-
-
-def default_advice(detections: list[dict[str, Any]]) -> str:
-    detection_items = list(iter_detection_items(detections))
-    if not detection_items:
-        return (
-            "检测摘要：本次未检测到明确的目标病变框。\n\n"
-            "需要关注的位置：未形成可定位的检测框；若原始影像存在可疑区域，应以专业阅片为准。\n\n"
-            "复查建议：如仍有疼痛、肿胀、冷热刺激痛或影像质量较差，建议携带原始牙片咨询专业牙科医生复核。\n\n"
-            "注意事项：未检测到目标不代表不存在病变，本系统不提供治疗方案、处方或药物剂量建议。\n\n"
-            f"安全声明：{SAFETY_NOTICE}"
-        )
-
-    grouped: dict[str, list[dict[str, Any]]] = {}
-    for det in detection_items:
-        if not has_detection_payload(det):
-            continue
-        row = enrich_detection_row(det)
-        label = str(row.get("class") or "未知区域")
-        grouped.setdefault(label, []).append(row)
-    if not grouped:
-        return default_advice([])
-
-    summary_lines = []
-    focus_lines = []
-    for label, items in sorted(grouped.items()):
-        confidences = []
-        for item in items:
-            confidence = parse_confidence(item.get("confidence"))
-            if confidence is not None:
-                confidences.append(confidence)
-        high_conf = max(confidences) if confidences else None
-        if high_conf is None:
-            level = "置信度未知，仅供参考"
-            confidence_text = "未知"
-        elif high_conf >= 0.70:
-            level = "重点关注"
-            confidence_text = f"{high_conf:.2f}"
-        elif high_conf >= 0.40:
-            level = "建议复查确认"
-            confidence_text = f"{high_conf:.2f}"
-        else:
-            level = "低置信度，仅供参考"
-            confidence_text = f"{high_conf:.2f}"
-
-        normalized = _normalize_class_name(label)
-        advice = CLASS_ADVICE.get(
-            normalized,
-            CLASS_ADVICE.get(
-                label,
-                "检测到模型标记的可疑区域。建议结合原始影像、症状和医生检查进行复核。",
-            ),
-        )
-        display = CLASS_DISPLAY_NAMES.get(normalized, label)
-        summary_lines.append(f"{display} {len(items)} 处，最高置信度约 {confidence_text}，{level}。")
-        focus_lines.append(f"{display}：{advice}")
-
-    return "\n\n".join(
-        [
-            "检测摘要：" + " ".join(summary_lines),
-            "需要关注的位置：" + " ".join(focus_lines),
-            "复查建议：请保留原始影像和检测结果，必要时携带给专业牙科医生复查确认。",
-            "注意事项：本建议不构成最终诊断，不提供治疗方案、处方或具体药物剂量。置信度不等同于疾病严重程度。",
-            f"安全声明：{SAFETY_NOTICE}",
-        ]
-    )
-
-
-def _normalize_messages(messages: Any) -> list[dict[str, str]]:
-    normalized: list[dict[str, str]] = []
-    for message in messages or []:
-        if isinstance(message, dict):
-            role = str(message.get("role") or "assistant")
-            if role not in {"system", "user", "assistant"}:
-                role = "assistant"
-            normalized.append({"role": role, "content": str(message.get("content", ""))})
-        elif isinstance(message, (list, tuple)) and len(message) >= 2:
-            user_content, assistant_content = message[0], message[1]
-            if user_content is not None and user_content != "":
-                normalized.append({"role": "user", "content": str(user_content)})
-            if assistant_content is not None and assistant_content != "":
-                normalized.append({"role": "assistant", "content": str(assistant_content)})
-        elif message is not None and message != "":
-            normalized.append({"role": "assistant", "content": str(message)})
-    return normalized
-
-
-def save_conversation(messages: list[dict[str, str]], storage_dir: str | None = None) -> Path:
-    ensure_app_dirs(storage_dir)
-    target_dir = conversation_dir(storage_dir)
-    now = datetime.now()
-    stamp = now.strftime("%Y%m%d_%H%M%S_%f")  # 微秒级精度防止同秒覆盖
-    path = target_dir / f"dental_chat_{stamp}.json"
-    # 若极端情况下仍存在同名文件，追加序号
-    if path.exists():
-        counter = 1
-        while path.exists():
-            path = target_dir / f"dental_chat_{stamp}_{counter:02d}.json"
-            counter += 1
-    payload = {
-        "created_at": now.isoformat(timespec="seconds"),
-        "safety_notice": SAFETY_NOTICE,
-        "messages": _normalize_messages(messages),
-    }
-    tmp_path = path.with_name(f".{path.name}.tmp")
-    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp_path.replace(path)
-    return path
+__all__ = [
+    "APP_DATA_DIR_NAMES",
+    "APP_DIR_NAME",
+    "APP_HOME",
+    "CLASS_ADVICE",
+    "CONFIG_PATH",
+    "CONVERSATION_DIR",
+    "DEFAULT_AI_BASE_URL",
+    "DEFAULT_AI_KEY_ENV",
+    "DEFAULT_AI_MODEL",
+    "DEFAULT_AI_PROMPT",
+    "SAFETY_NOTICE",
+    "AiSettings",
+    "_normalize_class_name",
+    "case_dir",
+    "chat_completion",
+    "conversation_dir",
+    "default_advice",
+    "detection_prompt",
+    "ensure_app_dirs",
+    "export_dir",
+    "history_dir",
+    "is_private_base_url",
+    "load_settings",
+    "migrate_storage",
+    "normalize_base_url",
+    "report_dir",
+    "resolve_api_key",
+    "save_conversation",
+    "save_settings",
+    "storage_root",
+    "test_chat_completion",
+    "validate_ai_request",
+]

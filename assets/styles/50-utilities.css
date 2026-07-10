@@ -1,0 +1,242 @@
+@keyframes app-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes app-toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+    pointer-events: none;
+  }
+}
+
+/* 加载状态动画 */
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: var(--input-border);
+  }
+  50% {
+    border-color: var(--primary);
+  }
+}
+
+.uploading,
+.processing {
+  animation: pulse-border 1.5s ease-in-out infinite;
+}
+
+/* 改进的上传区域 */
+.upload-input .image-container:hover {
+  border-color: var(--primary) !important;
+  background: #fafcfe !important;
+  transition: all 0.2s ease;
+}
+
+/* 改进的表格样式 */
+.gradio-container .table-wrap {
+  overflow-x: auto !important;
+  border-radius: var(--radius-sm) !important;
+  border-color: var(--soft-border) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* 改进的聊天窗口 */
+.chat-window {
+  background: #ffffff !important;
+  border: 1px solid var(--input-border) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* 滚动条优化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--input-muted-bg);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 改进的焦点状态 */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+  transition: all 0.2s ease !important;
+}
+
+/* 改进的禁用状态 */
+button[disabled],
+button[aria-disabled="true"] {
+  background: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+}
+
+/* 状态徽章变体 */
+.status-badge.success {
+  background: #d1fae5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.status-badge.warning {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.status-badge.error {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+/* 工具提示样式 */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  background: #1f2937;
+  color: white;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 1000;
+  margin-bottom: 5px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 空状态改进 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.empty-state svg {
+  opacity: 0.3;
+  margin-bottom: 16px;
+}
+
+/* 卡片悬停效果 */
+.settings-card:hover,
+.chat-card:hover,
+.case-card:hover {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
+  transition: box-shadow 0.3s ease !important;
+}
+
+
+/* 修复下拉框箭头被遮挡问题 */
+.gradio-container .dropdown,
+.gradio-container select,
+.gradio-container .wrap.svelte-1gfkn6j {
+  position: relative !important;
+}
+
+/* 确保下拉框有足够的padding为箭头留空间 */
+.gradio-container select,
+.gradio-container .dropdown .wrap input {
+  padding-right: 36px !important;
+}
+
+/* 下拉框容器 */
+.gradio-container .dropdown {
+  min-width: 0 !important;
+}
+
+.gradio-container .dropdown input,
+.gradio-container .dropdown .single-select,
+.gradio-container .dropdown [data-testid="dropdown-input"],
+.gradio-container .dropdown [role="combobox"] {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  padding-right: 48px !important;
+}
+
+.gradio-container .dropdown .wrap,
+.gradio-container .dropdown .container,
+.gradio-container .dropdown .input-container {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+/* 下拉框选项容器 */
+.gradio-container .dropdown .options {
+  max-height: 300px !important;
+  overflow-y: auto !important;
+}
+
+
+/* 工具行按输入框本体底部对齐，按钮保留 10px 补偿以避开 Gradio 标签外壳 */
+.guide-card {
+  margin-bottom: 14px;
+}
+
+.guide-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.guide-steps span {
+  border: 1px solid var(--soft-border);
+  border-radius: 8px;
+  background: var(--surface-bg);
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+  padding: 10px 12px;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .guide-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .guide-steps span {
+    font-size: 12px;
+    padding-left: 8px;
+    padding-right: 8px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

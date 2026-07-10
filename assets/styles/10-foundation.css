@@ -1,0 +1,94 @@
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box !important;
+}
+
+body,
+.gradio-container {
+  background: var(--app-bg) !important;
+  color: var(--text-main) !important;
+  font-family: "Microsoft YaHei", "微软雅黑", Arial, sans-serif !important;
+}
+
+.gradio-container {
+  width: 1360px !important;
+  max-width: calc(100vw - 48px) !important;
+  margin: 0 auto !important;
+  min-height: 100vh !important;
+  box-sizing: border-box !important;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 22px 0 16px;
+}
+
+.eyebrow {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+
+.app-title {
+  color: var(--text-main);
+  font-size: 2rem;
+  line-height: 1.15;
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.app-subtitle {
+  color: #334155;
+  font-size: 1rem;
+  line-height: 1.7;
+  margin: 12px 0 0;
+  max-width: 760px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.82rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.main-tabs > .tab-nav,
+.settings-tabs > .tab-nav,
+.sub-tabs > .tab-nav {
+  border-bottom: 1px solid var(--soft-border) !important;
+}
+
+.main-tabs > .tab-nav,
+.settings-tabs > .tab-nav,
+.sub-tabs > .tab-nav,
+.main-tabs [role="tablist"],
+.settings-tabs [role="tablist"],
+.sub-tabs [role="tablist"] {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: thin;
+}
+
+.tabs button[role="tab"] {
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0 !important;
+  color: #334155 !important;
+  font-weight: 600 !important;
+}
+
+.tabs button[role="tab"][aria-selected="true"] {
+  color: var(--primary) !important;
+  border-color: var(--accent) !important;
+}

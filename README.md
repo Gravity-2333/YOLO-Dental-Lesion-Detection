@@ -8,8 +8,8 @@
 
 | 模型 | 用途 | 权重 |
 | --- | --- | --- |
-| YOLOv8m 原始结构 | 高精度候选 | `models/final_candidates/yolov8m_1280_full/weights/best.pt` |
-| YOLOv8m C2f-Faster-lite | 优化结构候选 | `models/final_candidates/yolov8m_c2f_faster_lite_1280_full/weights/best.pt` |
+| YOLOv8m 原始结构 | baseline，稳定对照，兼容性高 | `models/final_candidates/yolov8m_1280_full/weights/best.pt` |
+| YOLOv8m C2f-Faster-lite | 优化模型，展示结构改进效果 | `models/final_candidates/yolov8m_c2f_faster_lite_1280_full/weights/best.pt` |
 
 界面支持单模型检测、双模型对比选项、批量图片逐张查看，以及低对比度牙片的可选 CLAHE 增强推理。
 
@@ -22,6 +22,24 @@
 ```
 
 `YOLOv8m C2f-Faster-lite` 权重依赖自定义 `C2fFasterLite` 模块。应用会优先加载同级工作区中的 `../yolov8-train` 源码，因此在当前目录结构下可以直接运行。
+
+## 答辩演示建议
+
+推荐演示流程：
+
+1. 先使用 `YOLOv8m 原始结构` 作为 baseline，展示系统基础识别流程。
+2. 再切换到 `YOLOv8m C2f-Faster-lite`，展示优化模型效果。
+3. 如需对照，可在设置页开启对比模型模式。
+
+设置页的高级模型路径默认只显示推荐模型，避免误选 `last.pt`、预训练权重或早期实验权重。确实需要复现实验时，可勾选“显示高级模型 / 实验权重”查看全部可扫描模型；答辩演示请优先使用推荐模型卡片。
+
+如果迁移项目到其他机器，优化模型需要同时保留同级目录：
+
+```text
+../yolov8-train
+```
+
+若该目录缺失，建议先使用 baseline 模型完成演示。
 
 ## 环境
 
@@ -100,10 +118,73 @@ mamba activate yolo
 python scripts/check_model.py
 ```
 
+## 展示前检查
+
+答辩或演示前可运行一键检查：
+
+```powershell
+python scripts/pre_demo_check.py
+```
+
+如需同时生成截图回归：
+
+```powershell
+python scripts/pre_demo_check.py --with-screenshots --screenshot-output outputs/ui-regression
+```
+
+该检查会先运行 `tests/` 中的模块化单元测试，再执行模型、兼容回归和综合检查。
+
+也可以只检查新抽离的 helper：
+
+```powershell
+python scripts/check_model_ui_helpers.py
+python scripts/check_export_helpers.py
+```
+
+## UI 截图回归
+
+启动服务后，可运行正式截图脚本生成回归截图：
+
+```powershell
+mamba activate yolo
+python scripts/capture_ui_screenshots.py --output outputs/ui-regression
+```
+
+默认访问 `http://127.0.0.1:7860`。如需指定地址：
+
+```powershell
+python scripts/capture_ui_screenshots.py --base-url http://127.0.0.1:7860 --output outputs/ui-regression
+```
+
+## 前端样式开发
+
+运行时样式由 `src/dental_detection/ui_assets.py` 按固定顺序加载，样式文件位于 `assets/styles/`：
+
+```text
+00-tokens.css       颜色、间距、圆角和阴影设计变量
+10-foundation.css   页面基础样式、标题和主导航
+20-layout.css       工作台、卡片和页面区域布局
+30-components.css   模型卡片、按钮、表格、输入控件等组件
+40-responsive.css   桌面/移动端响应式规则
+50-utilities.css    Gradio 兼容修正、状态和辅助效果
+```
+
+调整整体风格时优先修改设计变量；新增组件样式放入 `30-components.css`，不要继续向兼容入口 `assets/workbench.css` 堆叠规则。
+
+## 代码模块约定
+
+- `settings_store.py` 只负责本地设置、应用目录和存储迁移。
+- `ai_client.py` 只负责 OpenAI-compatible 地址、鉴权和请求。
+- `advice.py` 负责检测结果提示词和离线建议。
+- `conversation_store.py` 负责对话记录持久化。
+- `assistant.py` 是旧导入路径的兼容入口；新增代码应直接导入上述职责模块。
+- `ui_contracts.py` 定义 Gradio 主流程输出顺序，新增或删除公共输出时必须同步更新契约和测试。
+
 ## 项目结构
 
 ```text
 assets/examples/              示例图片
+assets/styles/                模块化前端样式
 data/                         数据集配置和本地数据占位
 docs/文档索引.md              项目文档索引
 docs/项目进度/                AI 协作进度、任务总结和优化变更日志
@@ -119,6 +200,7 @@ models/configs/               自定义模型 yaml 备份
 models/pretrained/            YOLO 官方预训练权重
 scripts/                      工具脚本
 src/dental_detection/         推理核心代码
+tests/                        可独立运行的标准库单元测试
 app.py                        Gradio Web 应用入口
 ```
 

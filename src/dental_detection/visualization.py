@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from .assistant import ensure_app_dirs, export_dir
+from .settings_store import ensure_app_dirs, export_dir
 from .result_levels import enrich_detection_row, iter_detection_items
 
 LABEL_FONT_SCALE = 2.0

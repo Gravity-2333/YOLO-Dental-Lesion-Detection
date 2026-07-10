@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from .assistant import ensure_app_dirs, storage_root
+from .settings_store import ensure_app_dirs, storage_root
 from .result_levels import enrich_detection_row, get_confidence_level, has_detection_payload, iter_detection_items, parse_confidence
 from .result_items import item_model_results, iter_model_result_items, model_result_detections, model_result_name, model_result_path
 from .text_utils import json_safe_value, text_value

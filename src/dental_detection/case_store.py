@@ -6,7 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .assistant import SAFETY_NOTICE, case_dir, ensure_app_dirs, report_dir, storage_root
+from .ai_defaults import SAFETY_NOTICE
+from .settings_store import case_dir, ensure_app_dirs, report_dir, storage_root
 from .model_info import legend_markdown
 from .result_items import iter_model_result_items, model_result_detections, model_result_name
 from .result_levels import (

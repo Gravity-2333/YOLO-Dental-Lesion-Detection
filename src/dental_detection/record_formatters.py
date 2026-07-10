@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .assistant import SAFETY_NOTICE
+from .ai_defaults import SAFETY_NOTICE
 from .result_items import iter_model_result_items, model_result_detections, model_result_name, model_result_path
 from .result_levels import enrich_detection_row, has_detection_payload, iter_detection_items
 from .text_utils import text_value

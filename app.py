@@ -2,41 +2,36 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-import csv
 from datetime import datetime
 import json
 import math
 from pathlib import Path
-import re
-import shutil
 from typing import Any
-import zipfile
 
 import gradio as gr
 import pandas as pd
 import torch
 
-from src.dental_detection.assistant import (
-    APP_HOME,
-    AiSettings,
-    CONFIG_PATH,
-    SAFETY_NOTICE,
-    case_dir,
-    default_advice,
-    detection_prompt,
-    ensure_app_dirs,
-    export_dir,
-    load_settings,
-    normalize_base_url,
-    report_dir,
-    save_conversation,
-    save_settings,
-    test_chat_completion,
-    chat_completion,
-    DEFAULT_AI_PROMPT,
+from src.dental_detection.advice import default_advice, detection_prompt
+from src.dental_detection.ai_client import chat_completion, normalize_base_url, test_chat_completion
+from src.dental_detection.ai_defaults import (
     DEFAULT_AI_BASE_URL,
     DEFAULT_AI_KEY_ENV,
     DEFAULT_AI_MODEL,
+    DEFAULT_AI_PROMPT,
+    SAFETY_NOTICE,
+)
+from src.dental_detection.conversation_store import save_conversation
+from src.dental_detection.settings_store import (
+    APP_HOME,
+    AiSettings,
+    CONFIG_PATH,
+    case_dir,
+    ensure_app_dirs,
+    export_dir,
+    load_settings,
+    report_dir,
+    save_settings,
 )
 from src.dental_detection.case_store import (
     export_case_report,
@@ -57,20 +52,38 @@ from src.dental_detection.history_store import (
     update_history_report_paths,
 )
 from src.dental_detection.error_messages import friendly_error_message
+from src.dental_detection.exporters import (
+    cleanup_payload_dir,
+    create_zip_from_directory,
+    ensure_export_dir,
+    remove_empty_export_root,
+    safe_export_stem,
+    unique_export_root,
+    write_csv_file,
+    write_html_file,
+    write_json_file,
+    write_text_file,
+    zip_path_for_root,
+)
 from src.dental_detection.image_quality import assess_image_quality_detail, format_quality_text
 from src.dental_detection.inference import Detection, run_inference
 from src.dental_detection.model_info import (
     build_model_cards,
     format_model_info_markdown,
     legend_html,
-    model_cards_html,
 )
 from src.dental_detection.model_files import (
+    ADVANCED_MODEL_HINT,
     SUPPORTED_MODEL_DIR_SUFFIXES,
     SUPPORTED_MODEL_SUFFIXES,
     model_label_from_path,
     scan_model_files,
     supported_suffix_text,
+)
+from src.dental_detection.model_ui import (
+    build_demo_recommendation_html,
+    build_model_cards_html,
+    build_workbench_model_status_html,
 )
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.record_formatters import format_case_record, format_history_record
@@ -91,20 +104,23 @@ from src.dental_detection.result_items import (
     model_result_name,
     model_result_path,
 )
-from src.dental_detection.text_utils import csv_safe_row, json_safe_value, text_value
+from src.dental_detection.text_utils import json_safe_value, text_value
+from src.dental_detection.ui_assets import load_workbench_css, load_workbench_js
+from src.dental_detection.ui_contracts import (
+    COMMON_OUTPUT_QUALITY_INDEX,
+    common_output_components,
+    common_output_values,
+)
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from ultralytics import YOLO
 
 MODEL_SOURCE = "YOLOv8m 原始结构"
 TABLE_COLUMNS = ["class", "中文名称", "confidence", "关注等级", "图像区域", "置信度解释", "x1", "y1", "x2", "y2"]
-CSS_PATH = PROJECT_ROOT / "assets" / "workbench.css"
-JS_PATH = PROJECT_ROOT / "assets" / "workbench.js"
 EXAMPLE_DIR = PROJECT_ROOT / "assets" / "examples" / "dental"
 EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
 STARTUP_STORAGE_ROOT = Path(load_settings().storage_dir).expanduser()
 MODEL_MODE_SINGLE = "单模型"
 MODEL_MODE_COMPARE = "对比模型"
-COMMON_OUTPUT_QUALITY_INDEX = 12
 _EXTRA_ALLOWED_FILE_ROOTS: set[Path] = set()
 
 
@@ -121,18 +137,6 @@ def _safe_existing_root(path: str | Path | None) -> Path | None:
         return root.parent if root.is_file() else root
     except OSError:
         return None
-
-
-def _load_workbench_css() -> str:
-    if CSS_PATH.exists():
-        return CSS_PATH.read_text(encoding="utf-8")
-    return ""
-
-
-def _load_workbench_js() -> str:
-    if JS_PATH.exists():
-        return JS_PATH.read_text(encoding="utf-8")
-    return ""
 
 
 def _workbench_theme():
@@ -458,8 +462,22 @@ def _validate_model_files(models: list[tuple[str, Path]]) -> None:
         _validate_model_artifact(path, role)
 
 
-def refresh_model_choices(model_dir: str, current_value: str | None = None):
-    choices = scan_model_files(model_dir)
+def _recommended_model_paths() -> set[str]:
+    paths: set[str] = set()
+    for info in MODEL_REGISTRY.values():
+        try:
+            paths.add(str(Path(info["path"]).expanduser().resolve()))
+        except (OSError, RuntimeError, ValueError, TypeError, KeyError):
+            continue
+    return paths
+
+
+def refresh_model_choices(model_dir: str, current_value: str | None = None, include_advanced: bool = False):
+    choices = scan_model_files(
+        model_dir,
+        include_advanced=bool(include_advanced),
+        recommended_paths=_recommended_model_paths(),
+    )
     # 保留用户已选模型，仅当原模型不在新列表中时才回退第一个
     value = current_value
     if value and not any(value == c[1] for c in choices):
@@ -467,7 +485,10 @@ def refresh_model_choices(model_dir: str, current_value: str | None = None):
     if not value:
         value = choices[0][1] if choices else None
     suffixes = supported_suffix_text()
-    message = f"已扫描到 {len(choices)} 个模型文件。" if choices else f"当前目录未发现支持的模型文件（{suffixes}），请确认路径。"
+    scope = "全部模型" if include_advanced else "推荐模型"
+    message = f"已扫描到 {len(choices)} 个{scope}文件。" if choices else f"当前目录未发现{scope}（{suffixes}），请确认路径。"
+    if include_advanced:
+        message += f"\n{ADVANCED_MODEL_HINT}"
     return gr.update(choices=choices, value=value), message
 
 
@@ -485,7 +506,7 @@ def apply_selected_model(selected_path: str, target: str):
     return (
         gr.update(value=path),
         gr.update(),
-        model_cards_html(_model_cards(path), path),
+        build_model_cards_html(_model_cards(path), path),
         _current_model_info_markdown(path),
         f"已填入主模型：{path}",
     )
@@ -495,10 +516,20 @@ def _model_cards(selected_path: str | None = None) -> list[dict[str, Any]]:
     return build_model_cards(MODEL_REGISTRY)
 
 
+def _workbench_model_status_html(selected_path: str | None) -> str:
+    path = _model_path_or_default(selected_path, str(DEFAULT_MODEL_PATH))
+    return build_workbench_model_status_html(
+        path,
+        _model_cards(path),
+        default_model_path=str(DEFAULT_MODEL_PATH),
+        recommended_paths=_recommended_model_paths(),
+    )
+
+
 def _model_card_choices() -> list[tuple[str, str]]:
     choices = []
     for card in _model_cards():
-        suffix = "可用" if card.get("available") else "缺失"
+        suffix = str(card.get("status_text") or ("可用" if card.get("available") else "缺失"))
         choices.append((f"{card['title']} - {card['name']}（{suffix}）", card["path"]))
     return choices
 
@@ -529,22 +560,28 @@ def _current_model_info_markdown(selected_path: str | None = None) -> str:
     return format_model_info_markdown(cards[0])
 
 
-def apply_model_card(selected_path: str, model_dir: str | None = None):
+def apply_model_card(selected_path: str, model_dir: str | None = None, include_advanced: bool = False):
     if not selected_path:
         raise gr.Error("请先选择一个模型卡片。")
     card = next((item for item in _model_cards() if item.get("path") == selected_path), None)
     if not card:
         raise gr.Error("所选模型卡片无效，请刷新页面后重试。")
     if not card.get("available"):
+        if card.get("status_text") == "依赖缺失":
+            raise gr.Error("该模型依赖同级目录 ../yolov8-train 中的自定义 ultralytics 代码。当前依赖缺失，建议先使用 baseline 模型演示。")
         raise _friendly_gr_error(f"model file not found: {card.get('path')}", "模型文件不存在")
     path = str(Path(card["path"]).expanduser().resolve())
-    choices = scan_model_files(_model_dir_or_default(model_dir))
+    choices = scan_model_files(
+        _model_dir_or_default(model_dir),
+        include_advanced=bool(include_advanced),
+        recommended_paths=_recommended_model_paths(),
+    )
     if not any(path == value for _, value in choices):
         choices = [(f"{model_label_from_path(path)}  |  {path}", path), *choices]
     return (
         gr.update(value=path),
         gr.update(choices=choices, value=path),
-        model_cards_html(_model_cards(path), path),
+        build_model_cards_html(_model_cards(path), path),
         _current_model_info_markdown(path),
         f"已选择{card['title']}：{card['name']}",
     )
@@ -582,7 +619,7 @@ def _choose_directory_dialog(title: str, initial_dir: str | Path) -> str | None:
     return selected or None
 
 
-def choose_model_dir(model_dir: str, current_value: str | None = None):
+def choose_model_dir(model_dir: str, current_value: str | None = None, include_advanced: bool = False):
     selected = _choose_directory_dialog("选择模型目录", model_dir or PROJECT_ROOT / "models")
     if not selected:
         return gr.update(), gr.update(), "未选择模型目录。"
@@ -590,13 +627,20 @@ def choose_model_dir(model_dir: str, current_value: str | None = None):
     if root is None:
         return gr.update(), gr.update(), "选择的模型目录不可访问，请手动检查路径后重试。"
     path = str(root)
-    choices = scan_model_files(path)
+    choices = scan_model_files(
+        path,
+        include_advanced=bool(include_advanced),
+        recommended_paths=_recommended_model_paths(),
+    )
     value = current_value if current_value and any(current_value == c[1] for c in choices) else None
     value = value or (choices[0][1] if choices else None)
     suffixes = supported_suffix_text()
-    message = f"已选择模型目录：{path}。扫描到 {len(choices)} 个模型文件。"
+    scope = "全部模型" if include_advanced else "推荐模型"
+    message = f"已选择模型目录：{path}。扫描到 {len(choices)} 个{scope}文件。"
     if not choices:
         message += f" 请确认该目录或其子目录中存在支持的模型文件（{suffixes}）。"
+    if include_advanced:
+        message += f"\n{ADVANCED_MODEL_HINT}"
     return gr.update(value=path), gr.update(choices=choices, value=value), message
 
 
@@ -778,21 +822,7 @@ def _suggestion_type(ai_enabled: bool) -> str:
 
 
 def _safe_stem(name: str) -> str:
-    stem = Path(name).stem or "image"
-    # 保留 Unicode 字母/数字、空格、中文等非 ASCII 字符，只过滤路径分隔符和控制字符
-    # Windows 禁用字符 < > : " / \\ | ? * 也被过滤
-    safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", stem).strip(" ._")
-    if safe.upper() in {
-        "CON",
-        "PRN",
-        "AUX",
-        "NUL",
-        *(f"COM{index}" for index in range(1, 10)),
-        *(f"LPT{index}" for index in range(1, 10)),
-    }:
-        safe = f"{safe}_file"
-    safe = safe or "image"
-    return safe[:120].rstrip(" ._") or "image"
+    return safe_export_stem(name)
 
 
 def _matches_item_name(item: dict[str, Any], selected_name: Any) -> bool:
@@ -846,10 +876,7 @@ def _validate_case_date_filters(date_from: str, date_to: str) -> tuple[str, str]
 
 
 def _write_text(path: Path, content: str, encoding: str = "utf-8") -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_name(f".{path.name}.tmp")
-    tmp_path.write_text(content, encoding=encoding)
-    tmp_path.replace(path)
+    write_text_file(path, content, encoding=encoding)
 
 
 def _html_escape(value: Any) -> str:
@@ -1005,13 +1032,8 @@ def _model_result_images_html(model_items: list[dict[str, Any]]) -> str:
 
 
 def _unique_report_paths(storage_dir: str, stamp: str) -> tuple[Path, Path]:
-    base = report_dir(storage_dir)
-    root = base / f"single_report_{stamp}"
-    counter = 1
-    while root.exists():
-        root = base / f"single_report_{stamp}_{counter:02d}"
-        counter += 1
-    return root, root / f"{root.name}.zip"
+    root = unique_export_root(report_dir(storage_dir), "single_report", stamp)
+    return root, zip_path_for_root(root)
 
 
 def _item_results(item: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1117,14 +1139,8 @@ def _summary_lines(batch_state: list[dict[str, Any]], export_info: dict[str, Any
 
 
 def _unique_batch_export_paths(storage_dir: str, stamp: str) -> tuple[Path, Path]:
-    export_base = export_dir(storage_dir)
-    export_root = export_base / f"batch_result_{stamp}"
-    counter = 1
-    while export_root.exists():
-        export_root = export_base / f"batch_result_{stamp}_{counter:02d}"
-        counter += 1
-    zip_path = export_root / f"{export_root.name}.zip"
-    return export_root, zip_path
+    export_root = unique_export_root(export_dir(storage_dir), "batch_result", stamp)
+    return export_root, zip_path_for_root(export_root)
 
 
 def _unique_case_path(storage_dir: str, stamp: str, safe_case: str) -> Path:
@@ -1148,12 +1164,12 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     _ensure_storage_root(storage_dir)
     export_root, zip_path = _unique_batch_export_paths(storage_dir, stamp)
-    export_root.mkdir(parents=True, exist_ok=True)
+    ensure_export_dir(export_root)
     work_dir = export_root / "payload"
     images_dir = work_dir / "images"
     suggestions_dir = work_dir / "suggestions"
-    images_dir.mkdir(parents=True, exist_ok=True)
-    suggestions_dir.mkdir(parents=True, exist_ok=True)
+    ensure_export_dir(images_dir)
+    ensure_export_dir(suggestions_dir)
 
     first_summary = batch_state[0].get("summary", {})
     first_summary = first_summary if isinstance(first_summary, dict) else {}
@@ -1265,38 +1281,30 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
                 }
             )
 
-        csv_path = work_dir / "detections.csv"
-        with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
-            writer = csv.DictWriter(
-                handle,
-                fieldnames=["image_name", "display_name", "model", *TABLE_COLUMNS, "suggestion_type"],
-            )
-            writer.writeheader()
-            writer.writerows(csv_safe_row(row) for row in csv_rows)
+        write_csv_file(
+            work_dir / "detections.csv",
+            ["image_name", "display_name", "model", *TABLE_COLUMNS, "suggestion_type"],
+            csv_rows,
+        )
 
-        _write_text(
+        write_json_file(
             work_dir / "detections.json",
-            json.dumps(
-                json_safe_value({"export": export_info, "overview": batch_overview, "items": json_items}),
-                ensure_ascii=False,
-                indent=2,
-                allow_nan=False,
-            ),
+            {"export": export_info, "overview": batch_overview, "items": json_items},
         )
-        _write_text(
+        write_json_file(
             work_dir / "batch_overview.json",
-            json.dumps(json_safe_value(batch_overview), ensure_ascii=False, indent=2, allow_nan=False),
+            batch_overview,
         )
-        _write_text(
+        write_json_file(
             work_dir / "批量检测总览.json",
-            json.dumps(json_safe_value(batch_overview), ensure_ascii=False, indent=2, allow_nan=False),
+            batch_overview,
         )
         _write_text(
             work_dir / "批量检测总览.csv",
             batch_overview_csv_text(batch_overview),
             encoding="utf-8-sig",
         )
-        _write_text(
+        write_html_file(
             work_dir / "批量检测总览.html",
             f"""<!doctype html>
 <html lang="zh-CN">
@@ -1328,17 +1336,16 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
 </html>
 """,
         )
-        with (work_dir / "class_stats.csv").open("w", encoding="utf-8-sig", newline="") as handle:
-            writer = csv.DictWriter(
-                handle,
-                fieldnames=["类别", "中文名称", "检测框数量", "涉及图片数", "平均置信度", "最高置信度"],
-            )
-            writer.writeheader()
-            writer.writerows(csv_safe_row(row) for row in batch_overview.get("类别统计", []))
-        with (work_dir / "focus_images.csv").open("w", encoding="utf-8-sig", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=["排名", "图片名称", "最高类别", "原始类别", "最高置信度", "检测框数量", "关注等级"])
-            writer.writeheader()
-            writer.writerows(csv_safe_row(row) for row in batch_overview.get("重点关注图片", []))
+        write_csv_file(
+            work_dir / "class_stats.csv",
+            ["类别", "中文名称", "检测框数量", "涉及图片数", "平均置信度", "最高置信度"],
+            batch_overview.get("类别统计", []),
+        )
+        write_csv_file(
+            work_dir / "focus_images.csv",
+            ["排名", "图片名称", "最高类别", "原始类别", "最高置信度", "检测框数量", "关注等级"],
+            batch_overview.get("重点关注图片", []),
+        )
         _write_text(
             work_dir / "failed_images.txt",
             "\n".join(str(item) for item in batch_overview.get("失败图片", [])) + "\n",
@@ -1356,19 +1363,14 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             "\n".join(_summary_lines(batch_state, export_info)) + "\n",
         )
 
-        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            for path in work_dir.rglob("*"):
-                if path.is_file():
-                    archive.write(path, path.relative_to(work_dir).as_posix())
+        create_zip_from_directory(zip_path, work_dir)
     finally:
         try:
-            if work_dir.exists():
-                shutil.rmtree(work_dir)
+            cleanup_payload_dir(work_dir)
         except OSError:
             pass  # 清理失败不掩盖导出成功
         try:
-            if not zip_path.exists() and export_root.exists() and not any(export_root.iterdir()):
-                export_root.rmdir()
+            remove_empty_export_root(export_root, zip_path)
         except OSError:
             pass
     _sync_report_path(batch_state, batch_state, zip_path, "zip_report_path")
@@ -1386,11 +1388,7 @@ def export_batch_word_report(batch_state: list[dict[str, Any]], storage_dir: str
     overview["生成时间"] = datetime.now().isoformat(timespec="seconds")
     _ensure_storage_root(storage_dir)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = report_dir(storage_dir) / f"batch_word_report_{stamp}"
-    counter = 1
-    while output_dir.exists():
-        output_dir = report_dir(storage_dir) / f"batch_word_report_{stamp}_{counter:02d}"
-        counter += 1
+    output_dir = unique_export_root(report_dir(storage_dir), "batch_word_report", stamp)
     try:
         path = export_batch_docx_report(batch_state, overview, output_dir)
     except Exception as exc:
@@ -1407,10 +1405,10 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     _ensure_storage_root(storage_dir)
     report_root, zip_path = _unique_report_paths(storage_dir, stamp)
-    report_root.mkdir(parents=True, exist_ok=True)
+    ensure_export_dir(report_root)
     work_dir = report_root / "payload"
     images_dir = work_dir / "images"
-    images_dir.mkdir(parents=True, exist_ok=True)
+    ensure_export_dir(images_dir)
 
     name = item.get("name") or item.get("image_name") or "当前单图"
     display_name = _item_display_name(item, str(name))
@@ -1469,35 +1467,26 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
             )
         total_detections = sum(len(model_item["detections"]) for model_item in model_items)
 
-        csv_path = work_dir / "detections.csv"
-        with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=["model", *TABLE_COLUMNS])
-            writer.writeheader()
-            for model_item in model_items:
-                model = model_item["model"]
-                model_detections = model_item["detections"]
-                if model_detections:
-                    for det in model_detections:
-                        writer.writerow(csv_safe_row({"model": model, **{key: det.get(key, "") for key in TABLE_COLUMNS}}))
-                else:
-                    writer.writerow(csv_safe_row({"model": model, **{key: "" for key in TABLE_COLUMNS}}))
+        single_csv_rows: list[dict[str, Any]] = []
+        for model_item in model_items:
+            model = model_item["model"]
+            model_detections = model_item["detections"]
+            if model_detections:
+                for det in model_detections:
+                    single_csv_rows.append({"model": model, **{key: det.get(key, "") for key in TABLE_COLUMNS}})
+            else:
+                single_csv_rows.append({"model": model, **{key: "" for key in TABLE_COLUMNS}})
+        write_csv_file(work_dir / "detections.csv", ["model", *TABLE_COLUMNS], single_csv_rows)
 
-        _write_text(
+        write_json_file(
             work_dir / "detections.json",
-            json.dumps(
-                json_safe_value(
-                    {
+            {
                     "report": export_info,
                     "summary": summary_data,
                     "models": model_items,
                     "detections": detections,
                     "image_files": image_files,
-                    }
-                ),
-                ensure_ascii=False,
-                indent=2,
-                allow_nan=False,
-            ),
+            },
         )
         _write_text(work_dir / "suggestion.txt", advice)
         _write_text(
@@ -1562,21 +1551,16 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
 </body>
 </html>
 """
-        _write_text(work_dir / "report.html", html)
+        write_html_file(work_dir / "report.html", html)
 
-        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            for path in work_dir.rglob("*"):
-                if path.is_file():
-                    archive.write(path, path.relative_to(work_dir).as_posix())
+        create_zip_from_directory(zip_path, work_dir)
     finally:
         try:
-            if work_dir.exists():
-                shutil.rmtree(work_dir)
+            cleanup_payload_dir(work_dir)
         except OSError:
             pass  # 清理失败不掩盖导出成功
         try:
-            if not zip_path.exists() and report_root.exists() and not any(report_root.iterdir()):
-                report_root.rmdir()
+            remove_empty_export_root(report_root, zip_path)
         except OSError:
             pass
     _sync_report_path(batch_state, [item], zip_path, "zip_report_path")
@@ -1606,11 +1590,7 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
 
     _ensure_storage_root(storage_dir)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = report_dir(storage_dir) / f"word_report_{stamp}_{_safe_stem(name)}"
-    counter = 1
-    while output_dir.exists():
-        output_dir = report_dir(storage_dir) / f"word_report_{stamp}_{_safe_stem(name)}_{counter:02d}"
-        counter += 1
+    output_dir = unique_export_root(report_dir(storage_dir), "word_report", stamp, str(name))
 
     report_data = SingleReportData(
         image_name=f"{display_name}（原始文件：{name}）" if display_name != str(name) else str(name),
@@ -1861,41 +1841,43 @@ def clear_all_history_records(storage_dir: str):
 
 
 def clear_outputs():
-    return (
-        None,
-        None,
-        None,
-        None,
-        [],
-        "暂无疑似区域局部图",
-        _clear_file_output(),
-        "",
-        gr.update(value="下载检测结果图", interactive=False),
-        gr.update(choices=[], value=[], interactive=False),
-        _empty_table(),
-        "",
-        "等待上传图像",
-        gr.update(value={}, visible=False),  # summary: 同时重置可见性
-        gr.update(value="", visible=False),
-        [],
-        gr.update(choices=[], value=None),
-        gr.update(),       # chatbot: 保留对话，不静默清空
-        gr.update(),       # chat_state: 保留对话状态
-        _clear_file_output(),
-        "",
-        gr.update(interactive=False),
-        _clear_file_output(),
-        "",
-        gr.update(interactive=False),
-        _clear_file_output(),
-        "",
-        _clear_file_output(),
-        "",
-        gr.update(value="导出 Word 报告", interactive=False),
-        _clear_file_output(),
-        "",
-        gr.update(value="导出 ZIP 数据包", interactive=False),
-        gr.update(value="完成检测后可保存", interactive=False),
+    return common_output_values(
+        {
+            "original": None,
+            "model_input": None,
+            "result": None,
+            "highres_result": None,
+            "crop_gallery": [],
+            "crop_status": "暂无疑似区域局部图",
+            "result_image_file": _clear_file_output(),
+            "result_image_path": "",
+            "download_result_button": gr.update(value="下载检测结果图", interactive=False),
+            "visible_class_filter": gr.update(choices=[], value=[], interactive=False),
+            "detection_table": _empty_table(),
+            "advice": "",
+            "quality": "等待上传图像",
+            "summary": gr.update(value={}, visible=False),
+            "batch_overview": gr.update(value="", visible=False),
+            "batch_state": [],
+            "batch_select": gr.update(choices=[], value=None),
+            "chatbot": gr.update(),
+            "chat_state": gr.update(),
+            "batch_export_file": _clear_file_output(),
+            "batch_export_path": "",
+            "batch_export_button": gr.update(interactive=False),
+            "batch_word_file": _clear_file_output(),
+            "batch_word_path": "",
+            "batch_word_button": gr.update(interactive=False),
+            "chat_export_file": _clear_file_output(),
+            "chat_export_path": "",
+            "word_report_file": _clear_file_output(),
+            "word_report_path": "",
+            "word_export_button": gr.update(value="导出 Word 报告", interactive=False),
+            "zip_report_file": _clear_file_output(),
+            "zip_report_path": "",
+            "zip_export_button": gr.update(value="导出 ZIP 数据包", interactive=False),
+            "save_case_button": gr.update(value="完成检测后可保存", interactive=False),
+        }
     )
 
 
@@ -2012,41 +1994,43 @@ def run_single_detection(
             chat_history = _conversation_from_advice(advice)
             batch_state[0]["advice"] = advice
     highres_image, crop_items, crop_text = _result_visual_outputs(primary)
-    return (
-        primary["original"],
-        primary["model_input"],
-        primary["annotated"],
-        highres_image,
-        crop_items,
-        crop_text,
-        _clear_file_output(),
-        "",
-        gr.update(value="下载检测结果图", interactive=True),
-        _visible_class_update(primary),
-        primary["table"],
-        advice,
-        quality_text,
-        gr.update(value=summary, visible=show_summary),
-        gr.update(value="", visible=False),
-        batch_state,
-        gr.update(choices=["当前单图"], value="当前单图"),
-        chat_history,
-        chat_history,
-        _clear_file_output(),
-        "",
-        gr.update(interactive=False),
-        _clear_file_output(),
-        "",
-        gr.update(interactive=False),
-        _clear_file_output(),
-        "",
-        _clear_file_output(),
-        "",
-        gr.update(value="导出 Word 报告", interactive=True),
-        _clear_file_output(),
-        "",
-        gr.update(value="导出 ZIP 数据包", interactive=True),
-        gr.update(value="保存病例", interactive=True),
+    return common_output_values(
+        {
+            "original": primary["original"],
+            "model_input": primary["model_input"],
+            "result": primary["annotated"],
+            "highres_result": highres_image,
+            "crop_gallery": crop_items,
+            "crop_status": crop_text,
+            "result_image_file": _clear_file_output(),
+            "result_image_path": "",
+            "download_result_button": gr.update(value="下载检测结果图", interactive=True),
+            "visible_class_filter": _visible_class_update(primary),
+            "detection_table": primary["table"],
+            "advice": advice,
+            "quality": quality_text,
+            "summary": gr.update(value=summary, visible=show_summary),
+            "batch_overview": gr.update(value="", visible=False),
+            "batch_state": batch_state,
+            "batch_select": gr.update(choices=["当前单图"], value="当前单图"),
+            "chatbot": chat_history,
+            "chat_state": chat_history,
+            "batch_export_file": _clear_file_output(),
+            "batch_export_path": "",
+            "batch_export_button": gr.update(interactive=False),
+            "batch_word_file": _clear_file_output(),
+            "batch_word_path": "",
+            "batch_word_button": gr.update(interactive=False),
+            "chat_export_file": _clear_file_output(),
+            "chat_export_path": "",
+            "word_report_file": _clear_file_output(),
+            "word_report_path": "",
+            "word_export_button": gr.update(value="导出 Word 报告", interactive=True),
+            "zip_report_file": _clear_file_output(),
+            "zip_report_path": "",
+            "zip_export_button": gr.update(value="导出 ZIP 数据包", interactive=True),
+            "save_case_button": gr.update(value="保存病例", interactive=True),
+        }
     )
 
 
@@ -2171,41 +2155,43 @@ def run_batch_detection(
             first["advice"] = f"{first['advice']}\n\n{history_warning}"
             chat_history = _conversation_from_advice(first["advice"])
     highres_image, crop_items, crop_text = _result_visual_outputs(first["result"])
-    return (
-        first["result"]["original"],
-        first["result"]["model_input"],
-        first["result"]["annotated"],
-        highres_image,
-        crop_items,
-        crop_text,
-        _clear_file_output(),
-        "",
-        gr.update(value="下载检测结果图", interactive=True),
-        _visible_class_update(first["result"]),
-        first["result"]["table"],
-        first["advice"],
-        first.get("quality_text") or assess_image_quality(first["result"]["original"]),
-        gr.update(value=first["summary"], visible=show_summary),
-        gr.update(value=batch_overview_html(overview), visible=True),
-        batch_state,
-        gr.update(choices=choices, value=choices[0]),
-        chat_history,
-        chat_history,
-        _clear_file_output(),
-        "",
-        gr.update(interactive=True),
-        _clear_file_output(),
-        "",
-        gr.update(interactive=True),
-        _clear_file_output(),
-        "",
-        _clear_file_output(),
-        "",
-        gr.update(value="导出 Word 报告", interactive=True),
-        _clear_file_output(),
-        "",
-        gr.update(value="导出 ZIP 数据包", interactive=True),
-        gr.update(value="保存病例", interactive=True),
+    return common_output_values(
+        {
+            "original": first["result"]["original"],
+            "model_input": first["result"]["model_input"],
+            "result": first["result"]["annotated"],
+            "highres_result": highres_image,
+            "crop_gallery": crop_items,
+            "crop_status": crop_text,
+            "result_image_file": _clear_file_output(),
+            "result_image_path": "",
+            "download_result_button": gr.update(value="下载检测结果图", interactive=True),
+            "visible_class_filter": _visible_class_update(first["result"]),
+            "detection_table": first["result"]["table"],
+            "advice": first["advice"],
+            "quality": first.get("quality_text") or assess_image_quality(first["result"]["original"]),
+            "summary": gr.update(value=first["summary"], visible=show_summary),
+            "batch_overview": gr.update(value=batch_overview_html(overview), visible=True),
+            "batch_state": batch_state,
+            "batch_select": gr.update(choices=choices, value=choices[0]),
+            "chatbot": chat_history,
+            "chat_state": chat_history,
+            "batch_export_file": _clear_file_output(),
+            "batch_export_path": "",
+            "batch_export_button": gr.update(interactive=True),
+            "batch_word_file": _clear_file_output(),
+            "batch_word_path": "",
+            "batch_word_button": gr.update(interactive=True),
+            "chat_export_file": _clear_file_output(),
+            "chat_export_path": "",
+            "word_report_file": _clear_file_output(),
+            "word_report_path": "",
+            "word_export_button": gr.update(value="导出 Word 报告", interactive=True),
+            "zip_report_file": _clear_file_output(),
+            "zip_report_path": "",
+            "zip_export_button": gr.update(value="导出 ZIP 数据包", interactive=True),
+            "save_case_button": gr.update(value="保存病例", interactive=True),
+        }
     )
 
 
@@ -2609,7 +2595,11 @@ def build_app() -> gr.Blocks:
         saved.storage_dir = str(APP_HOME)
         _ensure_storage_root(saved.storage_dir)
     env_key_value, direct_key_value = _api_key_inputs(saved)
-    model_choices = scan_model_files(saved.model_dir)
+    model_choices = scan_model_files(
+        saved.model_dir,
+        include_advanced=False,
+        recommended_paths=_recommended_model_paths(),
+    )
     model_choice_values = {value for _, value in model_choices}
     initial_case_rows = list_case_records(saved.storage_dir)
     initial_history_rows = history_rows(saved.storage_dir)
@@ -2646,11 +2636,16 @@ def build_app() -> gr.Blocks:
                     gr.HTML(
                         '<div class="guide-steps">'
                         '<span>1. 上传影像</span>'
-                        '<span>2. 开始分析</span>'
-                        '<span>3. 查看结果</span>'
-                        '<span>4. 保存或导出</span>'
+                        '<span>2. 选择模型</span>'
+                        '<span>3. 开始分析</span>'
+                        '<span>4. 查看并导出</span>'
+                        '</div>'
+                        '<div class="workflow-hint">'
+                        '<strong>演示提示</strong>'
+                        '<span>baseline 适合稳定对照；C2f-Faster-lite 为优化模型，依赖同级 ../yolov8-train。模型切换在“设置 - 模型选择”中完成。</span>'
                         '</div>'
                     )
+                    workbench_model_status = gr.HTML(_workbench_model_status_html(saved_primary_model_path))
                     with gr.Accordion("使用说明", open=False):
                         gr.Markdown(
                             "支持 PNG、JPG、JPEG、BMP、WEBP、TIF、TIFF 格式图片。\n\n"
@@ -2666,7 +2661,7 @@ def build_app() -> gr.Blocks:
                                 with gr.Tab("单张分析"):
                                     gr.HTML(
                                         '<div class="section-heading"><h2>上传影像</h2>'
-                                        '<p>拖拽牙科影像到此处，支持常见图片格式。</p></div>'
+                                        '<p>请上传牙科影像或选择脱敏示例图开始检测。</p></div>'
                                     )
                                     image = gr.Image(
                                         type="pil",
@@ -2746,7 +2741,10 @@ def build_app() -> gr.Blocks:
                                     batch_overview = gr.HTML(visible=False)
 
                         with gr.Group(elem_classes=["section-card", "panel-card"]):
-                            gr.HTML('<div class="section-heading"><h2>推理设置</h2></div>')
+                            gr.HTML(
+                                '<div class="section-heading"><h2>推理设置</h2>'
+                                '<p>常规演示保持默认参数即可；需要切换 baseline 或优化模型时，请到设置页选择模型卡片。</p></div>'
+                            )
                             model_mode = gr.Radio(
                                 choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
                                 value=saved.model_mode if saved.enable_compare else MODEL_MODE_SINGLE,
@@ -2777,6 +2775,12 @@ def build_app() -> gr.Blocks:
                             )
 
                     with gr.Column(scale=7, elem_classes=["result-panel"]):
+                        gr.HTML(
+                            '<div class="result-stage-note">'
+                            '<strong>结果区</strong>'
+                            '<span>未检测时这里会保持空状态；开始分析后将显示原图、模型输入、检测框、辅助建议和导出入口。</span>'
+                            '</div>'
+                        )
                         with gr.Row(elem_classes=["image-grid"]):
                             with gr.Column(elem_classes=["image-panel"]):
                                 gr.HTML('<div class="image-title">原图</div>')
@@ -2912,6 +2916,11 @@ def build_app() -> gr.Blocks:
                         '<div class="card-heading"><div><h2>AI 问答</h2>'
                         '<p>完成检测后，可以继续追问关注区域和复查建议。</p></div>'
                         '<span class="status-badge">自动保存可在设置中调整</span></div>'
+                        '<div class="notice-grid">'
+                        '<div class="notice-item privacy-note"><strong>隐私边界</strong><span>默认只发送检测文本摘要，不上传牙片图片。</span></div>'
+                        '<div class="notice-item clinical-note"><strong>安全边界</strong><span>AI 回复仅供辅助参考，不能替代专业牙科医生诊断。</span></div>'
+                        '<div class="notice-item settings-note"><strong>接口配置</strong><span>如需联网问答，请先在“设置 - AI 建议”中填写 Base URL、模型和 API Key。</span></div>'
+                        '</div>'
                     )
                     chatbot = gr.Chatbot(
                         label="问答记录",
@@ -2953,6 +2962,10 @@ def build_app() -> gr.Blocks:
                     gr.HTML(
                         '<div class="card-heading"><div><h2>病例记录</h2>'
                         '<p>保存检测摘要、检测框和建议，便于后续复查。</p></div></div>'
+                        '<div class="notice-grid">'
+                        '<div class="notice-item privacy-note"><strong>本地保存</strong><span>病例记录保存在本机数据目录，默认不上传云端。</span></div>'
+                        '<div class="notice-item clinical-note"><strong>不保存原片</strong><span>记录仅保存摘要、检测框和建议，不自动保存原始牙片图片。</span></div>'
+                        '</div>'
                     )
                     with gr.Row(elem_classes=["compact-row"]):
                         case_id = gr.Textbox(
@@ -2977,7 +2990,10 @@ def build_app() -> gr.Blocks:
                     with gr.Accordion("说明", open=False):
                         gr.Markdown("病例记录仅保存检测摘要、检测框和建议，不自动保存原始牙片图片。")
                 with gr.Group(elem_classes=["section-card", "case-card"]):
-                    gr.HTML('<div class="section-heading"><h2>已保存病例</h2><p>选择记录后查看结构化详情。</p></div>')
+                    gr.HTML(
+                        '<div class="section-heading"><h2>已保存病例</h2>'
+                        '<p>选择记录后查看结构化详情；暂无记录时可先完成一次检测并点击保存病例。</p></div>'
+                    )
                     with gr.Row(elem_classes=["compact-row"]):
                         case_keyword = gr.Textbox(
                             label="搜索病例",
@@ -3065,8 +3081,12 @@ def build_app() -> gr.Blocks:
                                 gr.Markdown("对比模型会在单张分析时运行两组模型；参数摘要用于查看推理配置和检测数量。")
                     with gr.Tab("模型选择"):
                         with gr.Group(elem_classes=["settings-card"]):
-                            gr.HTML('<div class="section-heading"><h2>模型选择</h2><p>普通用户可直接选择推荐卡片，高级路径配置保留在下方。</p></div>')
-                            model_cards_view = gr.HTML(model_cards_html(_model_cards(saved_primary_model_path), saved_primary_model_path))
+                            gr.HTML(
+                                '<div class="section-heading"><h2>模型选择</h2>'
+                                '<p>优先使用模型卡片完成演示切换：baseline 用于稳定对照，C2f-Faster-lite 是优化模型并依赖同级 ../yolov8-train。</p></div>'
+                                + build_demo_recommendation_html()
+                            )
+                            model_cards_view = gr.HTML(build_model_cards_html(_model_cards(saved_primary_model_path), saved_primary_model_path))
                             model_card_select = gr.Radio(
                                 choices=model_card_choices,
                                 value=saved_primary_model_path if any(saved_primary_model_path == value for _, value in model_card_choices) else None,
@@ -3084,6 +3104,11 @@ def build_app() -> gr.Blocks:
                                 elem_classes=["segmented-control"],
                             )
                             with gr.Accordion("高级模型路径设置", open=False):
+                                show_advanced_models = gr.Checkbox(
+                                    value=False,
+                                    label="显示高级模型 / 实验权重",
+                                    info=ADVANCED_MODEL_HINT,
+                                )
                                 with gr.Row(elem_classes=["path-row"]):
                                     model_dir = gr.Textbox(
                                         value=_model_dir_or_default(saved.model_dir),
@@ -3145,7 +3170,12 @@ def build_app() -> gr.Blocks:
                                 )
                             model_feedback = gr.Textbox(label="模型反馈", interactive=False, lines=2)
                             with gr.Accordion("帮助", open=False):
-                                gr.Markdown("刷新会扫描模型目录及子目录中的受支持模型文件；三点按钮用于弹出路径选择器并切换模型目录。")
+                                gr.Markdown(
+                                    "刷新会扫描模型目录及子目录中的受支持模型文件；三点按钮用于弹出路径选择器并切换模型目录。\n\n"
+                                    "YOLOv8m 原始结构是稳定 baseline，适合答辩演示时作为对照模型。\n\n"
+                                    "YOLOv8m C2f-Faster-lite 是优化模型，依赖同级目录 `../yolov8-train` 中的自定义 ultralytics 代码。"
+                                    "若迁移项目，请同时保留该目录；如果依赖缺失，建议先使用 baseline 模型演示。"
+                                )
                     with gr.Tab("模型说明"):
                         with gr.Group(elem_classes=["settings-card"]):
                             gr.HTML('<div class="section-heading"><h2>模型说明</h2><p>识别类别、输入要求、适用边界与安全声明。</p></div>')
@@ -3302,48 +3332,51 @@ def build_app() -> gr.Blocks:
             save_history,
             history_limit,
         ]
-        common_outputs = [
-            original_output,
-            model_input_output,
-            result_output,
-            highres_result_output,
-            crop_gallery,
-            crop_status,
-            result_image_file,
-            result_image_path,
-            download_result_btn,
-            visible_class_filter,
-            det_table,
-            advice_box,
-            quality_box,
-            summary,
-            batch_overview,
-            batch_state,
-            batch_select,
-            chatbot,
-            chat_state,
-            batch_export_file,
-            batch_export_path,
-            export_batch_btn,
-            batch_word_file,
-            batch_word_path,
-            export_batch_word_btn,
-            export_file,
-            export_path,
-            word_report_file,
-            word_report_path,
-            export_word_btn,
-            report_file,
-            report_path,
-            export_report_btn,
-            save_case_btn,
-        ]
+        common_outputs = common_output_components(
+            {
+                "original": original_output,
+                "model_input": model_input_output,
+                "result": result_output,
+                "highres_result": highres_result_output,
+                "crop_gallery": crop_gallery,
+                "crop_status": crop_status,
+                "result_image_file": result_image_file,
+                "result_image_path": result_image_path,
+                "download_result_button": download_result_btn,
+                "visible_class_filter": visible_class_filter,
+                "detection_table": det_table,
+                "advice": advice_box,
+                "quality": quality_box,
+                "summary": summary,
+                "batch_overview": batch_overview,
+                "batch_state": batch_state,
+                "batch_select": batch_select,
+                "chatbot": chatbot,
+                "chat_state": chat_state,
+                "batch_export_file": batch_export_file,
+                "batch_export_path": batch_export_path,
+                "batch_export_button": export_batch_btn,
+                "batch_word_file": batch_word_file,
+                "batch_word_path": batch_word_path,
+                "batch_word_button": export_batch_word_btn,
+                "chat_export_file": export_file,
+                "chat_export_path": export_path,
+                "word_report_file": word_report_file,
+                "word_report_path": word_report_path,
+                "word_export_button": export_word_btn,
+                "zip_report_file": report_file,
+                "zip_report_path": report_path,
+                "zip_export_button": export_report_btn,
+                "save_case_button": save_case_btn,
+            }
+        )
 
         image.change(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
         batch_files.change(fn=clear_outputs, outputs=common_outputs)
         stale_result_controls = [primary_model_path, compare_model_path, conf, iou, device_choice, use_clahe]
         for control in stale_result_controls:
             control.change(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
+        primary_model_path.change(fn=_workbench_model_status_html, inputs=primary_model_path, outputs=workbench_model_status)
         example_select.change(fn=_example_preview_text, inputs=example_select, outputs=example_info)
         load_example_btn.click(fn=load_demo_example, inputs=example_select, outputs=[image, example_info]).then(
             fn=clear_outputs_with_quality,
@@ -3560,12 +3593,17 @@ def build_app() -> gr.Blocks:
         )
         refresh_model_btn.click(
             fn=refresh_model_choices,
-            inputs=[model_dir, model_file_select],
+            inputs=[model_dir, model_file_select, show_advanced_models],
+            outputs=[model_file_select, model_feedback],
+        )
+        show_advanced_models.change(
+            fn=refresh_model_choices,
+            inputs=[model_dir, model_file_select, show_advanced_models],
             outputs=[model_file_select, model_feedback],
         )
         open_model_dir_btn.click(
             fn=choose_model_dir,
-            inputs=[model_dir, model_file_select],
+            inputs=[model_dir, model_file_select, show_advanced_models],
             outputs=[model_dir, model_file_select, model_feedback],
         )
         apply_model_btn.click(
@@ -3573,14 +3611,22 @@ def build_app() -> gr.Blocks:
             inputs=[model_file_select, model_apply_target],
             outputs=[primary_model_path, compare_model_path, model_cards_view, model_info_markdown, model_feedback],
         ).then(
+            fn=_workbench_model_status_html,
+            inputs=primary_model_path,
+            outputs=workbench_model_status,
+        ).then(
             fn=clear_outputs_with_quality,
             inputs=image,
             outputs=common_outputs,
         )
         apply_model_card_btn.click(
             fn=apply_model_card,
-            inputs=[model_card_select, model_dir],
+            inputs=[model_card_select, model_dir, show_advanced_models],
             outputs=[primary_model_path, model_file_select, model_cards_view, model_info_markdown, model_feedback],
+        ).then(
+            fn=_workbench_model_status_html,
+            inputs=primary_model_path,
+            outputs=workbench_model_status,
         ).then(
             fn=clear_outputs_with_quality,
             inputs=image,
@@ -3725,7 +3771,7 @@ if __name__ == "__main__":
         server_port=args.server_port,
         share=args.share,
         theme=_workbench_theme(),
-        css=_load_workbench_css(),
-        js=_load_workbench_js(),
+        css=load_workbench_css(),
+        js=load_workbench_js(),
         allowed_paths=[str(root) for root in _allowed_file_roots()],
     )
