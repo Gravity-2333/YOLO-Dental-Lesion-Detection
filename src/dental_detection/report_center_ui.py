@@ -1,0 +1,224 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+import shutil
+import sqlite3
+
+import gradio as gr
+
+from .error_messages import friendly_error_message
+from .gradio_files import clear_file_output, file_component_output
+from .personal_workspace import (
+    delete_personal_report,
+    ensure_personal_workspace,
+    get_personal_report,
+    list_personal_reports,
+)
+from .settings_store import storage_root
+from .workspace_models import ReportAsset
+from .workspace_store import WorkspaceError
+
+REPORT_TABLE_COLUMNS = ["生成时间", "文件名", "格式", "模型", "文件状态"]
+
+
+@dataclass(frozen=True, slots=True)
+class ReportCenterComponents:
+    report_select: gr.Dropdown
+    report_table: gr.Dataframe
+    report_detail: gr.Textbox
+    report_file: gr.File
+    report_feedback: gr.Textbox
+    refresh_button: gr.Button
+    trash_button: gr.Button
+
+
+def _report_path(storage_dir: str, report: ReportAsset) -> Path:
+    root = storage_root(storage_dir).expanduser().resolve()
+    path = (root / report.storage_key).resolve()
+    if path == root or root not in path.parents:
+        raise ValueError("报告文件路径超出当前数据目录。")
+    return path
+
+
+def _local_timestamp(value: str) -> str:
+    try:
+        parsed = datetime.fromisoformat(str(value or ""))
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone()
+        return parsed.strftime("%Y-%m-%d %H:%M:%S")
+    except (TypeError, ValueError):
+        return str(value or "")
+
+
+def _file_status(storage_dir: str, report: ReportAsset) -> str:
+    try:
+        return "可用" if _report_path(storage_dir, report).is_file() else "文件缺失"
+    except (OSError, RuntimeError, ValueError):
+        return "路径无效"
+
+
+def _report_choices(storage_dir: str, reports: list[ReportAsset]) -> list[tuple[str, str]]:
+    choices = []
+    for report in reports:
+        label = f"{report.file_name} · {_local_timestamp(report.created_at)}"
+        if _file_status(storage_dir, report) != "可用":
+            label += " · 文件缺失"
+        choices.append((label, report.id))
+    return choices
+
+
+def _report_table(storage_dir: str, reports: list[ReportAsset]) -> list[list[str]]:
+    return [
+        [
+            _local_timestamp(report.created_at),
+            report.file_name,
+            report.report_format.upper(),
+            report.model_version or "未记录",
+            _file_status(storage_dir, report),
+        ]
+        for report in reports
+    ]
+
+
+def _report_detail(storage_dir: str, report: ReportAsset | None) -> str:
+    if report is None:
+        return "暂无报告记录。"
+    status = _file_status(storage_dir, report)
+    return "\n".join(
+        [
+            f"文件名：{report.file_name}",
+            f"格式：{report.report_format.upper()}",
+            f"生成时间：{_local_timestamp(report.created_at)}",
+            f"模型：{report.model_version or '未记录'}",
+            f"检测任务：{report.task_id}",
+            f"文件状态：{status}",
+        ]
+    )
+
+
+def _report_file_output(storage_dir: str, report: ReportAsset | None):
+    if report is None:
+        return clear_file_output()
+    try:
+        path = _report_path(storage_dir, report)
+    except (OSError, RuntimeError, ValueError):
+        return clear_file_output()
+    return file_component_output(path) if path.is_file() else clear_file_output()
+
+
+def _load_reports(storage_dir: str, patient_id: str) -> list[ReportAsset]:
+    return list_personal_reports(storage_dir, patient_id, limit=200)
+
+
+def build_report_center(storage_dir: str, patient_id: str) -> ReportCenterComponents:
+    reports = _load_reports(storage_dir, patient_id)
+    choices = _report_choices(storage_dir, reports)
+    selected_id = choices[0][1] if choices else None
+    selected = reports[0] if reports else None
+    with gr.Group(elem_classes=["section-card", "case-card"]):
+        gr.HTML(
+            '<div class="card-heading"><div><h2>报告中心</h2>'
+            '<p>集中查看当前患者已生成的 Word 和 ZIP 报告。</p></div></div>'
+        )
+        with gr.Row(elem_classes=["compact-row"]):
+            refresh_button = gr.Button("刷新报告", elem_classes=["secondary-action", "compact-button"])
+            trash_button = gr.Button(
+                "移入回收站",
+                interactive=bool(selected),
+                elem_classes=["secondary-action", "compact-button"],
+            )
+        report_feedback = gr.Textbox(label="报告反馈", interactive=False, lines=2)
+        report_select = gr.Dropdown(label="已生成报告", choices=choices, value=selected_id)
+        report_table = gr.Dataframe(
+            value=_report_table(storage_dir, reports),
+            headers=REPORT_TABLE_COLUMNS,
+            label="报告列表",
+            wrap=False,
+            interactive=False,
+        )
+        initial_file = _report_file_output(storage_dir, selected)
+        report_file = gr.File(
+            value=initial_file["value"],
+            label="下载报告",
+            visible=bool(initial_file["visible"]),
+        )
+        report_detail = gr.Textbox(
+            value=_report_detail(storage_dir, selected),
+            label="报告详情",
+            interactive=False,
+            lines=7,
+        )
+    return ReportCenterComponents(
+        report_select=report_select,
+        report_table=report_table,
+        report_detail=report_detail,
+        report_file=report_file,
+        report_feedback=report_feedback,
+        refresh_button=refresh_button,
+        trash_button=trash_button,
+    )
+
+
+def refresh_report_center(storage_dir: str, patient_id: str, feedback: str = ""):
+    try:
+        reports = _load_reports(storage_dir, patient_id)
+        choices = _report_choices(storage_dir, reports)
+    except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
+        raise gr.Error(friendly_error_message(exc, "报告记录读取失败")) from exc
+    selected_id = choices[0][1] if choices else None
+    selected = reports[0] if reports else None
+    return (
+        gr.update(choices=choices, value=selected_id),
+        _report_table(storage_dir, reports),
+        _report_detail(storage_dir, selected),
+        _report_file_output(storage_dir, selected),
+        feedback,
+        gr.update(interactive=bool(selected)),
+    )
+
+
+def load_report_center_item(report_id: str, storage_dir: str, patient_id: str):
+    if not str(report_id or "").strip():
+        return "暂无报告记录。", clear_file_output(), "", gr.update(interactive=False)
+    try:
+        report = get_personal_report(storage_dir, patient_id, report_id)
+        path = _report_path(storage_dir, report)
+    except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
+        raise gr.Error(friendly_error_message(exc, "报告记录读取失败")) from exc
+    if not path.is_file():
+        return (
+            _report_detail(storage_dir, report),
+            clear_file_output(),
+            "报告文件已不存在，可以将这条失效记录移入回收站。",
+            gr.update(interactive=True),
+        )
+    return _report_detail(storage_dir, report), file_component_output(path), "", gr.update(interactive=True)
+
+
+def trash_report_center_item(report_id: str, storage_dir: str, patient_id: str):
+    if not str(report_id or "").strip():
+        raise gr.Error("请先选择一条报告记录。")
+    moved_to: Path | None = None
+    original_path: Path | None = None
+    try:
+        report = get_personal_report(storage_dir, patient_id, report_id)
+        original_path = _report_path(storage_dir, report)
+        if original_path.is_file():
+            trash_dir = ensure_personal_workspace(storage_dir).store.root / "reports_trash"
+            trash_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            moved_to = trash_dir / f"{original_path.stem}_{stamp}{original_path.suffix}"
+            shutil.move(str(original_path), str(moved_to))
+        delete_personal_report(storage_dir, patient_id, report.id)
+    except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
+        if moved_to is not None and original_path is not None and moved_to.exists() and not original_path.exists():
+            try:
+                original_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(moved_to), str(original_path))
+            except OSError:
+                pass
+        raise gr.Error(friendly_error_message(exc, "报告移入回收站失败")) from exc
+    message = "报告已移入回收站。" if moved_to is not None else "失效的报告记录已移除。"
+    return refresh_report_center(storage_dir, patient_id, message)

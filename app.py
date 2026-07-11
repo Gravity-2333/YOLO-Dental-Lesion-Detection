@@ -108,6 +108,12 @@ from src.dental_detection.personal_workspace import (
     record_completed_detection,
     register_personal_report,
 )
+from src.dental_detection.report_center_ui import (
+    build_report_center,
+    load_report_center_item,
+    refresh_report_center,
+    trash_report_center_item,
+)
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.record_formatters import format_case_record, format_history_record
 from src.dental_detection.record_views import (
@@ -2956,6 +2962,10 @@ def build_app() -> gr.Blocks:
                         interactive=False,
                         lines=14,
                     )
+                report_center = build_report_center(
+                    saved.storage_dir,
+                    personal_workspace.patient.id,
+                )
 
             with gr.Tab("设置"):
                 settings = build_settings_page(
@@ -3113,6 +3123,14 @@ def build_app() -> gr.Blocks:
             case_report_path,
         ]
         history_list_outputs = [history_select, history_table, history_detail, history_feedback]
+        report_list_outputs = [
+            report_center.report_select,
+            report_center.report_table,
+            report_center.report_detail,
+            report_center.report_file,
+            report_center.report_feedback,
+            report_center.trash_button,
+        ]
 
         clear_session_btn.click(
             fn=clear_patient_session,
@@ -3134,6 +3152,10 @@ def build_app() -> gr.Blocks:
             fn=load_patient_profile_form,
             inputs=[patient_select, storage_dir],
             outputs=[edit_patient_name, edit_patient_reference, archive_patient_btn],
+        ).then(
+            fn=refresh_report_center,
+            inputs=[storage_dir, patient_select],
+            outputs=report_list_outputs,
         )
         case_patient_select.input(
             fn=sync_patient_selections,
@@ -3151,6 +3173,10 @@ def build_app() -> gr.Blocks:
             fn=load_patient_profile_form,
             inputs=[case_patient_select, storage_dir],
             outputs=[edit_patient_name, edit_patient_reference, archive_patient_btn],
+        ).then(
+            fn=refresh_report_center,
+            inputs=[storage_dir, case_patient_select],
+            outputs=report_list_outputs,
         )
         history_patient_select.input(
             fn=sync_patient_selections,
@@ -3168,6 +3194,10 @@ def build_app() -> gr.Blocks:
             fn=load_patient_profile_form,
             inputs=[history_patient_select, storage_dir],
             outputs=[edit_patient_name, edit_patient_reference, archive_patient_btn],
+        ).then(
+            fn=refresh_report_center,
+            inputs=[storage_dir, history_patient_select],
+            outputs=report_list_outputs,
         )
         add_patient_btn.click(
             fn=add_patient_profile,
@@ -3192,6 +3222,10 @@ def build_app() -> gr.Blocks:
             fn=load_patient_profile_form,
             inputs=[case_patient_select, storage_dir],
             outputs=[edit_patient_name, edit_patient_reference, archive_patient_btn],
+        ).then(
+            fn=refresh_report_center,
+            inputs=[storage_dir, case_patient_select],
+            outputs=report_list_outputs,
         )
         save_patient_btn.click(
             fn=update_patient_profile,
@@ -3231,6 +3265,10 @@ def build_app() -> gr.Blocks:
             fn=refresh_history_records,
             inputs=[storage_dir, case_patient_select],
             outputs=history_list_outputs,
+        ).then(
+            fn=refresh_report_center,
+            inputs=[storage_dir, case_patient_select],
+            outputs=report_list_outputs,
         )
         restore_patient_btn.click(
             fn=restore_patient_profile,
@@ -3257,6 +3295,10 @@ def build_app() -> gr.Blocks:
             fn=refresh_history_records,
             inputs=[storage_dir, case_patient_select],
             outputs=history_list_outputs,
+        ).then(
+            fn=refresh_report_center,
+            inputs=[storage_dir, case_patient_select],
+            outputs=report_list_outputs,
         )
         image.change(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
         batch_files.change(fn=clear_outputs, outputs=common_outputs)
@@ -3403,6 +3445,10 @@ def build_app() -> gr.Blocks:
                 archive_patient_btn,
                 restore_patient_btn,
             ],
+        ).then(
+            fn=refresh_report_center,
+            inputs=[storage_dir, history_patient_select],
+            outputs=report_list_outputs,
         )
         chat_btn.click(
             fn=continue_chat,
@@ -3477,6 +3523,10 @@ def build_app() -> gr.Blocks:
             fn=export_word_report,
             inputs=[batch_state, batch_select, storage_dir],
             outputs=[word_report_file, word_report_path, batch_state],
+        ).then(
+            fn=refresh_report_center,
+            inputs=[storage_dir, history_patient_select],
+            outputs=report_list_outputs,
         )
         download_result_btn.click(
             fn=download_result_image,
@@ -3487,6 +3537,10 @@ def build_app() -> gr.Blocks:
             fn=export_single_report,
             inputs=[batch_state, batch_select, storage_dir],
             outputs=[report_file, report_path, batch_state],
+        ).then(
+            fn=refresh_report_center,
+            inputs=[storage_dir, history_patient_select],
+            outputs=report_list_outputs,
         )
         save_case_btn.click(
             fn=save_case_record,
@@ -3554,6 +3608,26 @@ def build_app() -> gr.Blocks:
             fn=clear_all_history_records,
             inputs=[storage_dir, history_patient_select],
             outputs=history_list_outputs,
+        )
+        report_center.refresh_button.click(
+            fn=refresh_report_center,
+            inputs=[storage_dir, history_patient_select],
+            outputs=report_list_outputs,
+        )
+        report_center.report_select.change(
+            fn=load_report_center_item,
+            inputs=[report_center.report_select, storage_dir, history_patient_select],
+            outputs=[
+                report_center.report_detail,
+                report_center.report_file,
+                report_center.report_feedback,
+                report_center.trash_button,
+            ],
+        )
+        report_center.trash_button.click(
+            fn=trash_report_center_item,
+            inputs=[report_center.report_select, storage_dir, history_patient_select],
+            outputs=report_list_outputs,
         )
 
     return demo

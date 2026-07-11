@@ -207,3 +207,39 @@ def register_personal_report(
         storage_key=storage_key,
         model_version=model_version,
     )
+
+
+def list_personal_reports(
+    storage_dir: str | Path | None,
+    patient_id: str,
+    *,
+    limit: int = 100,
+) -> list[ReportAsset]:
+    workspace = ensure_personal_workspace(storage_dir)
+    return workspace.store.list_report_assets(
+        workspace.user.id,
+        patient_id=patient_id,
+        limit=limit,
+    )
+
+
+def get_personal_report(
+    storage_dir: str | Path | None,
+    patient_id: str,
+    report_id: str,
+) -> ReportAsset:
+    workspace = ensure_personal_workspace(storage_dir)
+    report = workspace.store.get_report_asset(workspace.user.id, report_id)
+    if report.patient_id != str(patient_id or "").strip():
+        raise RecordNotFoundError("报告记录不属于该患者档案。")
+    return report
+
+
+def delete_personal_report(
+    storage_dir: str | Path | None,
+    patient_id: str,
+    report_id: str,
+) -> ReportAsset:
+    workspace = ensure_personal_workspace(storage_dir)
+    report = get_personal_report(storage_dir, patient_id, report_id)
+    return workspace.store.delete_report_asset(workspace.user.id, report.id)

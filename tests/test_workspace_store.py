@@ -139,6 +139,11 @@ class WorkspaceStoreTests(unittest.TestCase):
             self.store.get_image_asset(other.id, image.id)
         with self.assertRaises(RecordNotFoundError):
             self.store.get_report_asset(other.id, report.id)
+        with self.assertRaises(RecordNotFoundError):
+            self.store.delete_report_asset(other.id, report.id)
+        self.assertEqual(self.store.delete_report_asset(self.owner.id, report.id), report)
+        with self.assertRaises(RecordNotFoundError):
+            self.store.get_report_asset(self.owner.id, report.id)
 
     def test_storage_keys_reject_absolute_and_traversal_paths(self) -> None:
         self.assertEqual(normalize_storage_key("users/a/report.docx"), "users/a/report.docx")

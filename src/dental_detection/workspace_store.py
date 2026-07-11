@@ -627,6 +627,17 @@ class WorkspaceStore:
             rows = connection.execute(query, parameters).fetchall()
         return [self._report_from_row(row) for row in rows]
 
+    def delete_report_asset(self, owner_user_id: str, report_id: str) -> ReportAsset:
+        report = self.get_report_asset(owner_user_id, report_id)
+        with self._connection() as connection:
+            cursor = connection.execute(
+                "DELETE FROM report_assets WHERE id = ? AND owner_user_id = ?",
+                (report.id, report.owner_user_id),
+            )
+            if cursor.rowcount != 1:
+                raise RecordNotFoundError("报告记录不存在。")
+        return report
+
     @staticmethod
     def _user_from_row(row: sqlite3.Row) -> UserAccount:
         return UserAccount(
