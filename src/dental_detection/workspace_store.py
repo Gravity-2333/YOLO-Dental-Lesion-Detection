@@ -319,6 +319,49 @@ class WorkspaceStore:
             rows = connection.execute(query, parameters).fetchall()
         return [self._patient_from_row(row) for row in rows]
 
+    def update_patient(
+        self,
+        owner_user_id: str,
+        patient_id: str,
+        *,
+        display_name: str,
+        external_reference: str = "",
+        notes: str | None = None,
+    ) -> PatientProfile:
+        current = self.get_patient(owner_user_id, patient_id)
+        updated_notes = current.notes if notes is None else _optional_text(notes, max_length=4000)
+        with self._connection() as connection:
+            connection.execute(
+                """UPDATE patients
+                   SET display_name = ?, external_reference = ?, notes = ?, updated_at = ?
+                   WHERE id = ? AND owner_user_id = ?""",
+                (
+                    _required_text(display_name, "患者档案名称", max_length=120),
+                    _optional_text(external_reference, max_length=120),
+                    updated_notes,
+                    _now(),
+                    current.id,
+                    current.owner_user_id,
+                ),
+            )
+        return self.get_patient(owner_user_id, patient_id)
+
+    def set_patient_archived(
+        self,
+        owner_user_id: str,
+        patient_id: str,
+        *,
+        archived: bool,
+    ) -> PatientProfile:
+        current = self.get_patient(owner_user_id, patient_id)
+        with self._connection() as connection:
+            connection.execute(
+                """UPDATE patients SET is_archived = ?, updated_at = ?
+                   WHERE id = ? AND owner_user_id = ?""",
+                (int(bool(archived)), _now(), current.id, current.owner_user_id),
+            )
+        return self.get_patient(owner_user_id, patient_id)
+
     def create_detection_task(
         self,
         owner_user_id: str,

@@ -69,6 +69,27 @@ def personal_patient_choices(storage_dir: str | Path | None = None) -> list[tupl
     ]
 
 
+def personal_archived_patient_choices(storage_dir: str | Path | None = None) -> list[tuple[str, str]]:
+    workspace = ensure_personal_workspace(storage_dir)
+    return [
+        (
+            patient.display_name
+            + (f" · {patient.external_reference}" if patient.external_reference else ""),
+            patient.id,
+        )
+        for patient in workspace.store.list_patients(workspace.user.id, include_archived=True)
+        if patient.is_archived
+    ]
+
+
+def get_personal_patient(
+    storage_dir: str | Path | None,
+    patient_id: str,
+) -> PatientProfile:
+    workspace = ensure_personal_workspace(storage_dir)
+    return workspace.store.get_patient(workspace.user.id, patient_id)
+
+
 def create_personal_patient(
     storage_dir: str | Path | None,
     display_name: str,
@@ -82,6 +103,49 @@ def create_personal_patient(
         display_name,
         external_reference=external_reference,
         notes=notes,
+    )
+
+
+def update_personal_patient(
+    storage_dir: str | Path | None,
+    patient_id: str,
+    *,
+    display_name: str,
+    external_reference: str = "",
+) -> PatientProfile:
+    workspace = ensure_personal_workspace(storage_dir)
+    return workspace.store.update_patient(
+        workspace.user.id,
+        patient_id,
+        display_name=display_name,
+        external_reference=external_reference,
+    )
+
+
+def archive_personal_patient(
+    storage_dir: str | Path | None,
+    patient_id: str,
+) -> PatientProfile:
+    selected_patient_id = str(patient_id or "").strip()
+    if selected_patient_id == PERSONAL_PATIENT_ID:
+        raise ValueError("默认的“本人”档案不能归档。")
+    workspace = ensure_personal_workspace(storage_dir)
+    return workspace.store.set_patient_archived(
+        workspace.user.id,
+        selected_patient_id,
+        archived=True,
+    )
+
+
+def restore_personal_patient(
+    storage_dir: str | Path | None,
+    patient_id: str,
+) -> PatientProfile:
+    workspace = ensure_personal_workspace(storage_dir)
+    return workspace.store.set_patient_archived(
+        workspace.user.id,
+        patient_id,
+        archived=False,
     )
 
 

@@ -7,11 +7,16 @@ import unittest
 from src.dental_detection.personal_workspace import (
     PERSONAL_PATIENT_ID,
     PERSONAL_USER_ID,
+    archive_personal_patient,
     create_personal_patient,
     ensure_personal_workspace,
+    get_personal_patient,
+    personal_archived_patient_choices,
     personal_patient_choices,
     record_completed_detection,
     register_personal_report,
+    restore_personal_patient,
+    update_personal_patient,
 )
 from src.dental_detection.workspace_models import TaskStatus, UserRole
 from src.dental_detection.workspace_store import (
@@ -77,6 +82,27 @@ class WorkspaceStoreTests(unittest.TestCase):
         self.assertIsNotNone(completed.completed_at)
         with self.assertRaises(InvalidTaskTransitionError):
             self.store.update_task_status(self.owner.id, task.id, TaskStatus.FAILED)
+
+    def test_patient_updates_and_archives_stay_owner_scoped(self) -> None:
+        other = self.store.create_user("other-owner", "其他所有者")
+        updated = self.store.update_patient(
+            self.owner.id,
+            self.patient.id,
+            display_name="更新名称",
+            external_reference="P-100",
+        )
+        archived = self.store.set_patient_archived(
+            self.owner.id,
+            self.patient.id,
+            archived=True,
+        )
+
+        self.assertEqual(updated.display_name, "更新名称")
+        self.assertEqual(updated.external_reference, "P-100")
+        self.assertTrue(archived.is_archived)
+        self.assertEqual(self.store.list_patients(self.owner.id), [])
+        with self.assertRaises(RecordNotFoundError):
+            self.store.update_patient(other.id, self.patient.id, display_name="越权修改")
 
     def test_image_and_report_records_keep_private_relative_keys(self) -> None:
         task = self.store.create_detection_task(self.owner.id, self.patient.id, "model-a")
@@ -148,6 +174,21 @@ class WorkspaceStoreTests(unittest.TestCase):
             workspace.store.get_detection_task(workspace.user.id, task.id).result_summary,
             {"detection_count": 1},
         )
+
+        updated_patient = update_personal_patient(
+            self.temp_dir.name,
+            patient.id,
+            display_name="家庭成员",
+            external_reference="P-003",
+        )
+        self.assertEqual(get_personal_patient(self.temp_dir.name, patient.id), updated_patient)
+        archive_personal_patient(self.temp_dir.name, patient.id)
+        self.assertNotIn(patient.id, {value for _, value in personal_patient_choices(self.temp_dir.name)})
+        self.assertIn(patient.id, {value for _, value in personal_archived_patient_choices(self.temp_dir.name)})
+        restore_personal_patient(self.temp_dir.name, patient.id)
+        self.assertIn(patient.id, {value for _, value in personal_patient_choices(self.temp_dir.name)})
+        with self.assertRaisesRegex(ValueError, "本人"):
+            archive_personal_patient(self.temp_dir.name, PERSONAL_PATIENT_ID)
 
         report_path = Path(self.temp_dir.name) / "reports" / "single.docx"
         report_path.parent.mkdir(parents=True, exist_ok=True)

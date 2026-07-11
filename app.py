@@ -93,9 +93,17 @@ from src.dental_detection.model_ui import (
     build_model_cards_html,
     build_workbench_model_status_html,
 )
+from src.dental_detection.patient_profile_ui import (
+    add_patient_profile,
+    archive_patient_profile,
+    load_patient_profile_form,
+    restore_patient_profile,
+    sync_patient_selections,
+    update_patient_profile,
+)
 from src.dental_detection.personal_workspace import (
-    create_personal_patient,
     ensure_personal_workspace,
+    personal_archived_patient_choices,
     personal_patient_choices,
     record_completed_detection,
     register_personal_report,
@@ -902,34 +910,6 @@ def _example_preview_text(path_text: str | None) -> str:
                 ]
             ).strip()
     return "未找到该示例说明。"
-
-
-def sync_patient_selections(patient_id: str | None):
-    value = str(patient_id or "").strip() or None
-    return gr.update(value=value), gr.update(value=value)
-
-
-def add_patient_profile(display_name: str, external_reference: str, storage_dir: str):
-    name = str(display_name or "").strip()
-    if not name:
-        raise gr.Error("请输入患者档案名称。")
-    try:
-        patient = create_personal_patient(
-            storage_dir,
-            name,
-            external_reference=str(external_reference or "").strip(),
-        )
-        choices = personal_patient_choices(storage_dir)
-    except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
-        raise _friendly_gr_error(exc, "患者档案创建失败") from exc
-    return (
-        gr.update(choices=choices, value=patient.id),
-        gr.update(choices=choices, value=patient.id),
-        gr.update(choices=choices, value=patient.id),
-        "",
-        "",
-        _toast(f"已创建患者档案：{patient.display_name}", "success"),
-    )
 
 
 def load_demo_example(path_text: str | None):
@@ -2519,6 +2499,7 @@ def save_ui_settings(
     try:
         workspace = ensure_personal_workspace(settings.storage_dir)
         patient_choices = personal_patient_choices(settings.storage_dir)
+        archived_choices = personal_archived_patient_choices(settings.storage_dir)
     except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
         raise _friendly_gr_error(exc, "患者工作区初始化失败") from exc
     case_rows = list_case_records(settings.storage_dir, workspace.patient.id)
@@ -2546,6 +2527,14 @@ def save_ui_settings(
         gr.update(choices=patient_choices, value=workspace.patient.id),
         gr.update(choices=patient_choices, value=workspace.patient.id),
         gr.update(choices=patient_choices, value=workspace.patient.id),
+        gr.update(
+            choices=archived_choices,
+            value=archived_choices[0][1] if archived_choices else None,
+        ),
+        workspace.patient.display_name,
+        workspace.patient.external_reference,
+        gr.update(interactive=False),
+        gr.update(interactive=bool(archived_choices)),
     )
 
 
@@ -2721,6 +2710,7 @@ def build_app() -> gr.Blocks:
         _ensure_storage_root(saved.storage_dir)
     personal_workspace = ensure_personal_workspace(saved.storage_dir)
     patient_choices = personal_patient_choices(saved.storage_dir)
+    archived_patient_choices = personal_archived_patient_choices(saved.storage_dir)
     env_key_value, direct_key_value = _api_key_inputs(saved)
     model_choices = scan_model_files(
         saved.model_dir,
@@ -2824,7 +2814,43 @@ def build_app() -> gr.Blocks:
                                 "添加档案",
                                 elem_classes=["secondary-action", "compact-button"],
                             )
-                        patient_feedback = gr.HTML()
+                    with gr.Accordion("管理当前档案", open=False):
+                        with gr.Row(elem_classes=["compact-row"]):
+                            edit_patient_name = gr.Textbox(
+                                value=personal_workspace.patient.display_name,
+                                label="档案名称",
+                                lines=1,
+                                max_lines=1,
+                            )
+                            edit_patient_reference = gr.Textbox(
+                                value=personal_workspace.patient.external_reference,
+                                label="档案编号（可选）",
+                                lines=1,
+                                max_lines=1,
+                            )
+                        with gr.Row(elem_classes=["compact-row"]):
+                            save_patient_btn = gr.Button(
+                                "保存档案",
+                                elem_classes=["secondary-action", "compact-button"],
+                            )
+                            archive_patient_btn = gr.Button(
+                                "归档当前档案",
+                                interactive=False,
+                                elem_classes=["secondary-action", "compact-button"],
+                            )
+                    with gr.Accordion("恢复已归档档案", open=False):
+                        with gr.Row(elem_classes=["compact-row"]):
+                            archived_patient_select = gr.Dropdown(
+                                label="已归档档案",
+                                choices=archived_patient_choices,
+                                value=archived_patient_choices[0][1] if archived_patient_choices else None,
+                            )
+                            restore_patient_btn = gr.Button(
+                                "恢复档案",
+                                interactive=bool(archived_patient_choices),
+                                elem_classes=["secondary-action", "compact-button"],
+                            )
+                    patient_feedback = gr.HTML()
                     with gr.Row(elem_classes=["compact-row"]):
                         case_id = gr.Textbox(
                             label="病例编号 / 备注名称",
@@ -3104,6 +3130,10 @@ def build_app() -> gr.Blocks:
             fn=refresh_history_records,
             inputs=[storage_dir, patient_select],
             outputs=history_list_outputs,
+        ).then(
+            fn=load_patient_profile_form,
+            inputs=[patient_select, storage_dir],
+            outputs=[edit_patient_name, edit_patient_reference, archive_patient_btn],
         )
         case_patient_select.input(
             fn=sync_patient_selections,
@@ -3117,6 +3147,10 @@ def build_app() -> gr.Blocks:
             fn=refresh_history_records,
             inputs=[storage_dir, case_patient_select],
             outputs=history_list_outputs,
+        ).then(
+            fn=load_patient_profile_form,
+            inputs=[case_patient_select, storage_dir],
+            outputs=[edit_patient_name, edit_patient_reference, archive_patient_btn],
         )
         history_patient_select.input(
             fn=sync_patient_selections,
@@ -3130,6 +3164,10 @@ def build_app() -> gr.Blocks:
             fn=refresh_history_records,
             inputs=[storage_dir, history_patient_select],
             outputs=history_list_outputs,
+        ).then(
+            fn=load_patient_profile_form,
+            inputs=[history_patient_select, storage_dir],
+            outputs=[edit_patient_name, edit_patient_reference, archive_patient_btn],
         )
         add_patient_btn.click(
             fn=add_patient_profile,
@@ -3143,6 +3181,75 @@ def build_app() -> gr.Blocks:
                 patient_feedback,
             ],
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
+            fn=refresh_case_records,
+            inputs=[storage_dir, case_patient_select],
+            outputs=case_list_outputs,
+        ).then(
+            fn=refresh_history_records,
+            inputs=[storage_dir, case_patient_select],
+            outputs=history_list_outputs,
+        ).then(
+            fn=load_patient_profile_form,
+            inputs=[case_patient_select, storage_dir],
+            outputs=[edit_patient_name, edit_patient_reference, archive_patient_btn],
+        )
+        save_patient_btn.click(
+            fn=update_patient_profile,
+            inputs=[case_patient_select, edit_patient_name, edit_patient_reference, storage_dir],
+            outputs=[
+                patient_select,
+                case_patient_select,
+                history_patient_select,
+                edit_patient_name,
+                edit_patient_reference,
+                archive_patient_btn,
+                patient_feedback,
+            ],
+        )
+        archive_patient_btn.click(
+            fn=archive_patient_profile,
+            inputs=[case_patient_select, storage_dir],
+            outputs=[
+                patient_select,
+                case_patient_select,
+                history_patient_select,
+                archived_patient_select,
+                edit_patient_name,
+                edit_patient_reference,
+                archive_patient_btn,
+                restore_patient_btn,
+                patient_feedback,
+            ],
+        ).then(
+            fn=clear_patient_session,
+            outputs=[image, batch_files, *common_outputs, case_id, case_note],
+        ).then(
+            fn=refresh_case_records,
+            inputs=[storage_dir, case_patient_select],
+            outputs=case_list_outputs,
+        ).then(
+            fn=refresh_history_records,
+            inputs=[storage_dir, case_patient_select],
+            outputs=history_list_outputs,
+        )
+        restore_patient_btn.click(
+            fn=restore_patient_profile,
+            inputs=[archived_patient_select, storage_dir],
+            outputs=[
+                patient_select,
+                case_patient_select,
+                history_patient_select,
+                archived_patient_select,
+                edit_patient_name,
+                edit_patient_reference,
+                archive_patient_btn,
+                restore_patient_btn,
+                patient_feedback,
+            ],
+        ).then(
+            fn=clear_patient_session,
+            outputs=[image, batch_files, *common_outputs, case_id, case_note],
+        ).then(
             fn=refresh_case_records,
             inputs=[storage_dir, case_patient_select],
             outputs=case_list_outputs,
@@ -3290,6 +3397,11 @@ def build_app() -> gr.Blocks:
                 patient_select,
                 case_patient_select,
                 history_patient_select,
+                archived_patient_select,
+                edit_patient_name,
+                edit_patient_reference,
+                archive_patient_btn,
+                restore_patient_btn,
             ],
         )
         chat_btn.click(
