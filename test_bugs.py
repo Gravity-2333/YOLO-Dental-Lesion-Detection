@@ -1026,6 +1026,7 @@ try:
             outputs = app.run_batch_detection(
                 [FakeFile("ok.png"), FakeFile("bad.png")],
                 app.MODEL_MODE_SINGLE,
+                "personal-self",
                 str(model_path),
                 str(model_path),
                 0.25,
@@ -2481,6 +2482,7 @@ try:
         single_outputs = app.run_single_detection(
             image,
             app.MODEL_MODE_SINGLE,
+            "personal-self",
             baseline,
             baseline,
             0.25,
@@ -2506,6 +2508,8 @@ try:
             100,
         )
         assert_common_outputs_aligned(single_outputs)
+        assert single_outputs[15][0].get("task_id"), "单图检测应生成工作区任务记录"
+        assert single_outputs[15][0].get("patient_id") == "personal-self", "单图任务应关联当前患者档案"
 
         with TemporaryDirectory() as temp_dir:
             image_path = Path(temp_dir) / "batch.png"
@@ -2513,6 +2517,7 @@ try:
             batch_outputs = app.run_batch_detection(
                 [str(image_path)],
                 app.MODEL_MODE_SINGLE,
+                "personal-self",
                 baseline,
                 baseline,
                 0.25,
@@ -2538,6 +2543,8 @@ try:
                 100,
             )
         assert_common_outputs_aligned(batch_outputs)
+        assert batch_outputs[15][0].get("task_id"), "批量检测应逐图生成工作区任务记录"
+        assert batch_outputs[15][0].get("patient_id") == "personal-self", "批量任务应关联当前患者档案"
         assert_common_outputs_aligned(app.clear_outputs())
     finally:
         app._detect_model_path = original_detect

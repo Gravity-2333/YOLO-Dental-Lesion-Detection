@@ -93,6 +93,7 @@ class SettingsComponents:
         self,
         *,
         model_mode: Any,
+        patient_id: Any,
         conf: Any,
         iou: Any,
         device_choice: Any,
@@ -100,6 +101,7 @@ class SettingsComponents:
     ) -> dict[str, Any]:
         return {
             "model_mode": model_mode,
+            "patient_id": patient_id,
             "primary_model_path": self.primary_model_path,
             "compare_model_path": self.compare_model_path,
             "conf": conf,

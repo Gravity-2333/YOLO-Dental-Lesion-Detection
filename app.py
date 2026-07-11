@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 import math
 from pathlib import Path
+import sqlite3
 from typing import Any
 
 import gradio as gr
@@ -92,7 +93,12 @@ from src.dental_detection.model_ui import (
     build_model_cards_html,
     build_workbench_model_status_html,
 )
-from src.dental_detection.personal_workspace import ensure_personal_workspace
+from src.dental_detection.personal_workspace import (
+    create_personal_patient,
+    ensure_personal_workspace,
+    personal_patient_choices,
+    record_completed_detection,
+)
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.record_formatters import format_case_record, format_history_record
 from src.dental_detection.record_views import (
@@ -135,6 +141,7 @@ from src.dental_detection.ui_content import (
 from src.dental_detection.ui_settings_page import SettingsPageData, build_settings_page
 from src.dental_detection.ui_workbench_page import WorkbenchPageData, build_workbench_page
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
+from src.dental_detection.workspace_store import WorkspaceError
 from ultralytics import YOLO
 
 EXAMPLE_DIR = PROJECT_ROOT / "assets" / "examples" / "dental"
@@ -767,10 +774,14 @@ def _current_item(batch_state: list[dict[str, Any]], selected_name: str | None =
     return batch_state[0]
 
 
-def _case_detail_from_choice(choice: str | None, storage_dir: str) -> str:
+def _case_detail_from_choice(
+    choice: str | None,
+    storage_dir: str,
+    patient_id: str | None = None,
+) -> str:
     if not choice:
         return format_case_record(None)
-    return load_case_record(choice, storage_dir)
+    return load_case_record(choice, storage_dir, patient_id)
 
 
 def _case_file_name_from_choice(choice: str) -> str:
@@ -890,6 +901,34 @@ def _example_preview_text(path_text: str | None) -> str:
                 ]
             ).strip()
     return "未找到该示例说明。"
+
+
+def sync_patient_selections(patient_id: str | None):
+    value = str(patient_id or "").strip() or None
+    return gr.update(value=value), gr.update(value=value)
+
+
+def add_patient_profile(display_name: str, external_reference: str, storage_dir: str):
+    name = str(display_name or "").strip()
+    if not name:
+        raise gr.Error("请输入患者档案名称。")
+    try:
+        patient = create_personal_patient(
+            storage_dir,
+            name,
+            external_reference=str(external_reference or "").strip(),
+        )
+        choices = personal_patient_choices(storage_dir)
+    except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
+        raise _friendly_gr_error(exc, "患者档案创建失败") from exc
+    return (
+        gr.update(choices=choices, value=patient.id),
+        gr.update(choices=choices, value=patient.id),
+        gr.update(choices=choices, value=patient.id),
+        "",
+        "",
+        _toast(f"已创建患者档案：{patient.display_name}", "success"),
+    )
 
 
 def load_demo_example(path_text: str | None):
@@ -1582,6 +1621,8 @@ def save_case_record(
         "note": case_note_text,
         "image_name": image_name,
         "display_name": _item_display_name(item, image_name),
+        "patient_id": item.get("patient_id", ""),
+        "task_id": item.get("task_id", ""),
         "summary": item.get("summary", {}),
         "model_results": _model_result_records(item),
         "detections": _clean_detection_records(model_result_detections(result)),
@@ -1595,7 +1636,7 @@ def save_case_record(
         "safety_notice": SAFETY_NOTICE,
     }
     _write_text(path, json.dumps(json_safe_value(payload), ensure_ascii=False, indent=2, allow_nan=False))
-    rows = list_case_records(storage_dir)
+    rows = list_case_records(storage_dir, item.get("patient_id"))
     choices = _case_choices_from_rows(rows)
     # 精确匹配：choices 格式为 "created_at | case_id | image_name | filename.json"
     selected = next(
@@ -1612,15 +1653,15 @@ def save_case_record(
     )
 
 
-def refresh_case_records(storage_dir: str):
+def refresh_case_records(storage_dir: str, patient_id: str | None = None):
     _ensure_storage_root(storage_dir)
-    rows = list_case_records(storage_dir)
+    rows = list_case_records(storage_dir, patient_id)
     choices = _case_choices_from_rows(rows)
     selected = choices[0] if choices else None
     return (
         gr.update(choices=choices, value=selected),
         _case_table(rows),
-        _case_detail_from_choice(selected, storage_dir),
+        _case_detail_from_choice(selected, storage_dir, patient_id),
         "已刷新病例记录。" if choices else "暂无病例记录。",
         _clear_file_output(),
         "",
@@ -1634,17 +1675,26 @@ def search_case_records_ui(
     date_from: str,
     date_to: str,
     storage_dir: str,
+    patient_id: str | None = None,
 ):
     _ensure_storage_root(storage_dir)
     date_from, date_to = _validate_case_date_filters(date_from, date_to)
-    rows = search_case_records(storage_dir, keyword, class_filter, level_filter, date_from, date_to)
+    rows = search_case_records(
+        storage_dir,
+        keyword,
+        class_filter,
+        level_filter,
+        date_from,
+        date_to,
+        patient_id,
+    )
     choices = _case_choices_from_rows(rows)
     selected = choices[0] if choices else None
     message = f"已筛选到 {len(rows)} 条病例记录。" if rows else "未找到匹配病例记录。"
     return (
         gr.update(choices=choices, value=selected),
         _case_table(rows),
-        _case_detail_from_choice(selected, storage_dir),
+        _case_detail_from_choice(selected, storage_dir, patient_id),
         message,
         _clear_file_output(),
         "",
@@ -1659,6 +1709,7 @@ def delete_selected_case_record(
     date_from: str,
     date_to: str,
     storage_dir: str,
+    patient_id: str | None = None,
 ):
     if not choice:
         raise gr.Error("请先选择要移入回收站的病例记录。")
@@ -1666,36 +1717,52 @@ def delete_selected_case_record(
     date_from, date_to = _validate_case_date_filters(date_from, date_to)
     file_name = _case_file_name_from_choice(choice)
     try:
-        trash_path = move_case_to_trash(storage_dir, file_name)
+        trash_path = move_case_to_trash(storage_dir, file_name, patient_id)
     except (OSError, ValueError, FileNotFoundError) as exc:
         raise gr.Error(str(exc)) from exc
-    rows = search_case_records(storage_dir, keyword, class_filter, level_filter, date_from, date_to)
+    rows = search_case_records(
+        storage_dir,
+        keyword,
+        class_filter,
+        level_filter,
+        date_from,
+        date_to,
+        patient_id,
+    )
     choices = _case_choices_from_rows(rows)
     selected = choices[0] if choices else None
     return (
         gr.update(choices=choices, value=selected),
         _case_table(rows),
         f"病例已移入回收站：{trash_path}",
-        _case_detail_from_choice(selected, storage_dir),
+        _case_detail_from_choice(selected, storage_dir, patient_id),
         _clear_file_output(),
         "",
     )
 
 
-def export_selected_case_record(choice: str, storage_dir: str):
+def export_selected_case_record(
+    choice: str,
+    storage_dir: str,
+    patient_id: str | None = None,
+):
     if not choice:
         raise gr.Error("请先选择要导出的病例记录。")
     _ensure_storage_root(storage_dir)
     file_name = _case_file_name_from_choice(choice)
     try:
-        path = export_case_report(storage_dir, file_name)
+        path = export_case_report(storage_dir, file_name, patient_id)
     except (OSError, UnicodeDecodeError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
         raise gr.Error(f"病例文件损坏或无法读取：{exc}") from exc
     _remember_allowed_file_root(path.parent)
     return _file_component_output(path), f"已导出病例报告：{path}"
 
 
-def load_case_record(choice: str, storage_dir: str):
+def load_case_record(
+    choice: str,
+    storage_dir: str,
+    patient_id: str | None = None,
+):
     if not choice:
         return format_case_record({"提示": "暂无病例详情。选择已保存病例后，会在这里显示检测摘要、检测框和辅助建议。"})
     try:
@@ -1707,56 +1774,60 @@ def load_case_record(choice: str, storage_dir: str):
     except gr.Error:
         return format_case_record({"错误": "病例选择无效，请刷新病例列表后重试。"})
     try:
-        return format_case_record(load_case_record_data(storage_dir, file_name))
+        return format_case_record(load_case_record_data(storage_dir, file_name, patient_id))
     except (OSError, UnicodeDecodeError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
         return format_case_record({"错误": f"病例文件损坏或无法读取：{exc}"})
 
 
-def load_case_record_and_clear_export(choice: str, storage_dir: str):
-    return load_case_record(choice, storage_dir), _clear_file_output(), ""
+def load_case_record_and_clear_export(
+    choice: str,
+    storage_dir: str,
+    patient_id: str | None = None,
+):
+    return load_case_record(choice, storage_dir, patient_id), _clear_file_output(), ""
 
 
-def refresh_history_records(storage_dir: str):
+def refresh_history_records(storage_dir: str, patient_id: str | None = None):
     _ensure_storage_root(storage_dir)
-    rows = history_rows(storage_dir)
+    rows = history_rows(storage_dir, patient_id)
     choices = _history_choices_from_rows(rows)
     selected = choices[0] if choices else None
     return (
         gr.update(choices=choices, value=selected),
         _history_table_from_rows(rows),
-        load_history_record(selected, storage_dir) if selected else format_history_record(None),
+        load_history_record(selected, storage_dir, patient_id) if selected else format_history_record(None),
         "历史记录已刷新。" if choices else "暂无检测历史。",
     )
 
 
-def load_history_record(choice: str, storage_dir: str) -> str:
+def load_history_record(choice: str, storage_dir: str, patient_id: str | None = None) -> str:
     try:
         _ensure_storage_root(storage_dir)
     except gr.Error as exc:
         return str(exc)
-    return format_history_record(load_history_record_data(_history_id(choice), storage_dir))
+    return format_history_record(load_history_record_data(_history_id(choice), storage_dir, patient_id))
 
 
-def delete_selected_history_record(choice: str, storage_dir: str):
+def delete_selected_history_record(choice: str, storage_dir: str, patient_id: str | None = None):
     _ensure_storage_root(storage_dir)
     record_id = _history_id(choice)
     if not record_id:
-        history_select, table, detail, message = refresh_history_records(storage_dir)
+        history_select, table, detail, message = refresh_history_records(storage_dir, patient_id)
         return history_select, table, detail, "请选择要删除的历史记录。"
-    deleted = delete_history_record(record_id, storage_dir)
-    history_select, table, detail, message = refresh_history_records(storage_dir)
+    deleted = delete_history_record(record_id, storage_dir, patient_id)
+    history_select, table, detail, message = refresh_history_records(storage_dir, patient_id)
     feedback = "已删除所选历史记录。" if deleted else "未找到所选历史记录，请刷新后重试。"
     return history_select, table, detail, feedback or message
 
 
-def clear_all_history_records(storage_dir: str):
+def clear_all_history_records(storage_dir: str, patient_id: str | None = None):
     _ensure_storage_root(storage_dir)
-    clear_history_records(storage_dir)
+    clear_history_records(storage_dir, patient_id)
     return (
         gr.update(choices=[], value=None),
         _history_table_from_rows([]),
         "请选择一条检测历史。",
-        "历史记录已清空。病例记录不会被删除。",
+        "当前患者的检测历史已清空。病例记录不会被删除。",
     )
 
 
@@ -1807,9 +1878,51 @@ def clear_outputs_with_quality(image):
     return tuple(values)
 
 
+def clear_patient_session():
+    return (None, *clear_outputs(), "", "")
+
+
+def _record_workspace_detection(
+    storage_dir: str,
+    patient_id: str,
+    selected_models: list[tuple[str, str]],
+    *,
+    parameters: dict[str, Any],
+    result: dict[str, Any],
+    quality_level: str,
+) -> tuple[str, str]:
+    detections = _clean_detection_records(result.get("detections", []))
+    classes = sorted(
+        {
+            str(row.get("中文名称") or row.get("class") or "未知类别")
+            for row in detections
+        }
+    )
+    try:
+        task = record_completed_detection(
+            storage_dir,
+            patient_id,
+            "、".join(name for name, _ in selected_models),
+            parameters=json_safe_value(parameters),
+            result_summary=json_safe_value(
+                {
+                    "detection_count": len(detections),
+                    "classes": classes,
+                    "quality_level": quality_level,
+                    "models": [name for name, _ in selected_models],
+                }
+            ),
+        )
+    except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
+        message = friendly_error_message(exc, "检测任务记录保存失败").splitlines()[0]
+        return "", f"检测已经完成，但未能保存到患者档案：{message}"
+    return task.id, ""
+
+
 def run_single_detection(
     image,
     model_mode: str,
+    patient_id: str,
     primary_model_path: str,
     compare_model_path: str,
     conf: float,
@@ -1894,10 +2007,29 @@ def run_single_detection(
             for item in all_results
         ],
     }
+    task_id, workspace_warning = _record_workspace_detection(
+        settings.storage_dir,
+        patient_id,
+        selected_models,
+        parameters={
+            "model_mode": model_mode if enable_compare else MODEL_MODE_SINGLE,
+            "conf": conf,
+            "iou": iou,
+            "device": device_choice,
+            "use_clahe": bool(use_clahe),
+        },
+        result=primary,
+        quality_level=quality_level,
+    )
+    if workspace_warning:
+        advice = f"{advice}\n\n{workspace_warning}"
+        chat_history = _conversation_from_advice(advice)
 
     batch_state = [
         {
             "name": "当前单图",
+            "task_id": task_id,
+            "patient_id": patient_id,
             "result": primary,
             "all_results": all_results,
             "advice": advice,
@@ -1962,6 +2094,7 @@ def _file_name(file_obj) -> str:
 def run_batch_detection(
     files,
     model_mode: str,
+    patient_id: str,
     primary_model_path: str,
     compare_model_path: str,
     conf: float,
@@ -2009,6 +2142,7 @@ def run_batch_detection(
     _validate_model_files(selected_models)
     batch_state: list[dict[str, Any]] = []
     batch_errors: list[str] = []
+    workspace_warnings: list[str] = []
     for index, file_obj in enumerate(files, start=1):
         path = getattr(file_obj, "name", None) or file_obj
         file_name = _file_name(file_obj)
@@ -2023,32 +2157,52 @@ def run_batch_detection(
         except Exception as exc:
             batch_errors.append(f"{file_name}: {friendly_error_message(exc, '图片处理失败').splitlines()[0]}")
             continue
+        item_summary = {
+            "文件": file_name,
+            "模型模式": model_mode if enable_compare else MODEL_MODE_SINGLE,
+            "模型结果": [
+                {
+                    "模型": item["model"],
+                    "模型路径": item.get("model_path", ""),
+                    "检测数量": len(item["detections"]),
+                    "类别映射": item["class_names"],
+                }
+                for item in all_results
+            ],
+            "CLAHE增强": bool(use_clahe),
+            "conf": conf,
+            "iou": iou,
+        }
+        task_id, workspace_warning = _record_workspace_detection(
+            settings.storage_dir,
+            patient_id,
+            selected_models,
+            parameters={
+                "model_mode": model_mode if enable_compare else MODEL_MODE_SINGLE,
+                "conf": conf,
+                "iou": iou,
+                "device": device_choice,
+                "use_clahe": bool(use_clahe),
+                "file_name": file_name,
+            },
+            result=result,
+            quality_level=quality_level,
+        )
+        if workspace_warning:
+            workspace_warnings.append(f"{file_name}：{workspace_warning}")
         batch_state.append(
             {
                 "name": file_name,
                 "display_name": f"{index:03d} - {file_name}",
+                "task_id": task_id,
+                "patient_id": patient_id,
                 "result": result,
                 "all_results": all_results,
                 "advice": advice,
                 "suggestion_type": _suggestion_type(settings.enabled),
                 "quality_text": quality_text,
                 "quality_level": quality_level,
-                "summary": {
-                    "文件": file_name,
-                    "模型模式": model_mode if enable_compare else MODEL_MODE_SINGLE,
-                    "模型结果": [
-                        {
-                            "模型": item["model"],
-                            "模型路径": item.get("model_path", ""),
-                            "检测数量": len(item["detections"]),
-                            "类别映射": item["class_names"],
-                        }
-                        for item in all_results
-                    ],
-                    "CLAHE增强": bool(use_clahe),
-                    "conf": conf,
-                    "iou": iou,
-                },
+                "summary": item_summary,
             }
         )
 
@@ -2062,6 +2216,8 @@ def run_batch_detection(
     choices = [item["display_name"] for item in batch_state]
     first["batch_errors"] = batch_errors
     overview = build_batch_summary(batch_state, batch_errors)
+    if workspace_warnings:
+        first["advice"] = f"{first['advice']}\n\n" + "\n".join(workspace_warnings[:5])
     chat_history = _conversation_from_advice(first["advice"])
     auto_save_warning = ""
     if settings.auto_save:
@@ -2321,11 +2477,16 @@ def save_ui_settings(
         raise _friendly_gr_error(exc, context) from exc
     _ensure_storage_root(settings.storage_dir)
     feedback = [f"设置已保存：{path}"]
-    case_rows = list_case_records(settings.storage_dir)
+    try:
+        workspace = ensure_personal_workspace(settings.storage_dir)
+        patient_choices = personal_patient_choices(settings.storage_dir)
+    except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
+        raise _friendly_gr_error(exc, "患者工作区初始化失败") from exc
+    case_rows = list_case_records(settings.storage_dir, workspace.patient.id)
     case_choices = _case_choices_from_rows(case_rows)
     case_selected = case_choices[0] if case_choices else None
     case_message = "病例列表已同步到当前存储位置。" if case_choices else "当前存储位置暂无病例记录。"
-    history_table = history_rows(settings.storage_dir)
+    history_table = history_rows(settings.storage_dir, workspace.patient.id)
     history_choices = _history_choices_from_rows(history_table)
     history_selected = history_choices[0] if history_choices else None
     history_message = "检测历史已同步到当前存储位置。" if history_choices else "当前存储位置暂无检测历史。"
@@ -2333,14 +2494,19 @@ def save_ui_settings(
         _toast("\n".join(feedback), "success"),
         gr.update(choices=case_choices, value=case_selected),
         _case_table(case_rows),
-        _case_detail_from_choice(case_selected, settings.storage_dir),
+        _case_detail_from_choice(case_selected, settings.storage_dir, workspace.patient.id),
         case_message,
         gr.update(choices=history_choices, value=history_selected),
         _history_table_from_rows(history_table),
-        load_history_record(history_selected, settings.storage_dir) if history_selected else format_history_record(None),
+        load_history_record(history_selected, settings.storage_dir, workspace.patient.id)
+        if history_selected
+        else format_history_record(None),
         history_message,
         _clear_file_output(),
         "",
+        gr.update(choices=patient_choices, value=workspace.patient.id),
+        gr.update(choices=patient_choices, value=workspace.patient.id),
+        gr.update(choices=patient_choices, value=workspace.patient.id),
     )
 
 
@@ -2514,7 +2680,8 @@ def build_app() -> gr.Blocks:
     except gr.Error:
         saved.storage_dir = str(APP_HOME)
         _ensure_storage_root(saved.storage_dir)
-    ensure_personal_workspace(saved.storage_dir)
+    personal_workspace = ensure_personal_workspace(saved.storage_dir)
+    patient_choices = personal_patient_choices(saved.storage_dir)
     env_key_value, direct_key_value = _api_key_inputs(saved)
     model_choices = scan_model_files(
         saved.model_dir,
@@ -2522,8 +2689,8 @@ def build_app() -> gr.Blocks:
         recommended_paths=_recommended_model_paths(),
     )
     model_choice_values = {value for _, value in model_choices}
-    initial_case_rows = list_case_records(saved.storage_dir)
-    initial_history_rows = history_rows(saved.storage_dir)
+    initial_case_rows = list_case_records(saved.storage_dir, personal_workspace.patient.id)
+    initial_history_rows = history_rows(saved.storage_dir, personal_workspace.patient.id)
     saved_primary_model_path = _model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH))
     model_card_choices = _model_card_choices()
     selected_model_choice = (
@@ -2546,6 +2713,8 @@ def build_app() -> gr.Blocks:
                     WorkbenchPageData(
                         saved=saved,
                         model_status_html=_workbench_model_status_html(saved_primary_model_path),
+                        patient_choices=patient_choices,
+                        selected_patient_id=personal_workspace.patient.id,
                         example_choices=_example_choices(),
                         device_choices=device_choices,
                         default_device_choice=_default_device_choice(),
@@ -2593,6 +2762,30 @@ def build_app() -> gr.Blocks:
             with gr.Tab("病例记录"):
                 with gr.Group(elem_classes=["section-card", "case-card"]):
                     gr.HTML(CASE_INTRO_HTML)
+                    case_patient_select = gr.Dropdown(
+                        label="当前患者档案",
+                        choices=patient_choices,
+                        value=personal_workspace.patient.id,
+                    )
+                    with gr.Accordion("添加患者档案", open=False):
+                        with gr.Row(elem_classes=["compact-row"]):
+                            new_patient_name = gr.Textbox(
+                                label="档案名称",
+                                placeholder="例如：本人、儿童或家人",
+                                lines=1,
+                                max_lines=1,
+                            )
+                            new_patient_reference = gr.Textbox(
+                                label="档案编号（可选）",
+                                placeholder="例如：P-002",
+                                lines=1,
+                                max_lines=1,
+                            )
+                            add_patient_btn = gr.Button(
+                                "添加档案",
+                                elem_classes=["secondary-action", "compact-button"],
+                            )
+                        patient_feedback = gr.HTML()
                     with gr.Row(elem_classes=["compact-row"]):
                         case_id = gr.Textbox(
                             label="病例编号 / 备注名称",
@@ -2671,6 +2864,11 @@ def build_app() -> gr.Blocks:
                         '<div class="card-heading"><div><h2>检测历史</h2>'
                         '<p>自动保存最近检测摘要，默认不保存原始上传图。</p></div></div>'
                     )
+                    history_patient_select = gr.Dropdown(
+                        label="当前患者档案",
+                        choices=patient_choices,
+                        value=personal_workspace.patient.id,
+                    )
                     with gr.Row(elem_classes=["compact-row"]):
                         refresh_history_btn = gr.Button("刷新历史", elem_classes=["secondary-action", "compact-button"])
                         delete_history_btn = gr.Button("删除所选", elem_classes=["secondary-action", "compact-button"])
@@ -2718,6 +2916,7 @@ def build_app() -> gr.Blocks:
                 )
 
         workbench_model_status = workbench.workbench_model_status
+        patient_select = workbench.patient_select
         image = workbench.image
         run_btn = workbench.run_btn
         example_select = workbench.example_select
@@ -2839,7 +3038,75 @@ def build_app() -> gr.Blocks:
                 "save_case_button": save_case_btn,
             }
         )
+        case_list_outputs = [
+            case_select,
+            case_table,
+            case_detail,
+            case_feedback,
+            case_report_file,
+            case_report_path,
+        ]
+        history_list_outputs = [history_select, history_table, history_detail, history_feedback]
 
+        patient_select.input(
+            fn=sync_patient_selections,
+            inputs=patient_select,
+            outputs=[case_patient_select, history_patient_select],
+        ).then(fn=clear_patient_session, outputs=[image, *common_outputs, case_id, case_note]).then(
+            fn=refresh_case_records,
+            inputs=[storage_dir, patient_select],
+            outputs=case_list_outputs,
+        ).then(
+            fn=refresh_history_records,
+            inputs=[storage_dir, patient_select],
+            outputs=history_list_outputs,
+        )
+        case_patient_select.input(
+            fn=sync_patient_selections,
+            inputs=case_patient_select,
+            outputs=[patient_select, history_patient_select],
+        ).then(fn=clear_patient_session, outputs=[image, *common_outputs, case_id, case_note]).then(
+            fn=refresh_case_records,
+            inputs=[storage_dir, case_patient_select],
+            outputs=case_list_outputs,
+        ).then(
+            fn=refresh_history_records,
+            inputs=[storage_dir, case_patient_select],
+            outputs=history_list_outputs,
+        )
+        history_patient_select.input(
+            fn=sync_patient_selections,
+            inputs=history_patient_select,
+            outputs=[patient_select, case_patient_select],
+        ).then(fn=clear_patient_session, outputs=[image, *common_outputs, case_id, case_note]).then(
+            fn=refresh_case_records,
+            inputs=[storage_dir, history_patient_select],
+            outputs=case_list_outputs,
+        ).then(
+            fn=refresh_history_records,
+            inputs=[storage_dir, history_patient_select],
+            outputs=history_list_outputs,
+        )
+        add_patient_btn.click(
+            fn=add_patient_profile,
+            inputs=[new_patient_name, new_patient_reference, storage_dir],
+            outputs=[
+                patient_select,
+                case_patient_select,
+                history_patient_select,
+                new_patient_name,
+                new_patient_reference,
+                patient_feedback,
+            ],
+        ).then(fn=clear_patient_session, outputs=[image, *common_outputs, case_id, case_note]).then(
+            fn=refresh_case_records,
+            inputs=[storage_dir, case_patient_select],
+            outputs=case_list_outputs,
+        ).then(
+            fn=refresh_history_records,
+            inputs=[storage_dir, case_patient_select],
+            outputs=history_list_outputs,
+        )
         image.change(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
         batch_files.change(fn=clear_outputs, outputs=common_outputs)
         stale_result_controls = [primary_model_path, compare_model_path, conf, iou, device_choice, use_clahe]
@@ -2976,6 +3243,9 @@ def build_app() -> gr.Blocks:
                 history_feedback,
                 case_report_file,
                 case_report_path,
+                patient_select,
+                case_patient_select,
+                history_patient_select,
             ],
         )
         chat_btn.click(
@@ -3069,13 +3339,21 @@ def build_app() -> gr.Blocks:
         )
         refresh_case_btn.click(
             fn=refresh_case_records,
-            inputs=storage_dir,
-            outputs=[case_select, case_table, case_detail, case_feedback, case_report_file, case_report_path],
+            inputs=[storage_dir, case_patient_select],
+            outputs=case_list_outputs,
         )
         search_case_btn.click(
             fn=search_case_records_ui,
-            inputs=[case_keyword, case_class_filter, case_level_filter, case_date_from, case_date_to, storage_dir],
-            outputs=[case_select, case_table, case_detail, case_feedback, case_report_file, case_report_path],
+            inputs=[
+                case_keyword,
+                case_class_filter,
+                case_level_filter,
+                case_date_from,
+                case_date_to,
+                storage_dir,
+                case_patient_select,
+            ],
+            outputs=case_list_outputs,
         )
         delete_case_btn.click(
             fn=delete_selected_case_record,
@@ -3087,38 +3365,39 @@ def build_app() -> gr.Blocks:
                 case_date_from,
                 case_date_to,
                 storage_dir,
+                case_patient_select,
             ],
             outputs=[case_select, case_table, case_feedback, case_detail, case_report_file, case_report_path],
         )
         export_case_btn.click(
             fn=export_selected_case_record,
-            inputs=[case_select, storage_dir],
+            inputs=[case_select, storage_dir, case_patient_select],
             outputs=[case_report_file, case_report_path],
         )
         case_select.change(
             fn=load_case_record_and_clear_export,
-            inputs=[case_select, storage_dir],
+            inputs=[case_select, storage_dir, case_patient_select],
             outputs=[case_detail, case_report_file, case_report_path],
         )
         refresh_history_btn.click(
             fn=refresh_history_records,
-            inputs=storage_dir,
-            outputs=[history_select, history_table, history_detail, history_feedback],
+            inputs=[storage_dir, history_patient_select],
+            outputs=history_list_outputs,
         )
         history_select.change(
             fn=load_history_record,
-            inputs=[history_select, storage_dir],
+            inputs=[history_select, storage_dir, history_patient_select],
             outputs=history_detail,
         )
         delete_history_btn.click(
             fn=delete_selected_history_record,
-            inputs=[history_select, storage_dir],
-            outputs=[history_select, history_table, history_detail, history_feedback],
+            inputs=[history_select, storage_dir, history_patient_select],
+            outputs=history_list_outputs,
         )
         clear_history_btn.click(
             fn=clear_all_history_records,
-            inputs=storage_dir,
-            outputs=[history_select, history_table, history_detail, history_feedback],
+            inputs=[storage_dir, history_patient_select],
+            outputs=history_list_outputs,
         )
 
     return demo

@@ -56,6 +56,12 @@ class UiContractTests(unittest.TestCase):
     def test_quality_index_is_derived_from_contract(self) -> None:
         self.assertEqual(COMMON_OUTPUT_KEYS[COMMON_OUTPUT_QUALITY_INDEX], "quality")
 
+    def test_patient_switch_clears_image_and_all_detection_outputs(self) -> None:
+        values = app.clear_patient_session()
+        self.assertIsNone(values[0])
+        self.assertEqual(values[-2:], ("", ""))
+        self.assertEqual(len(values), len(COMMON_OUTPUT_KEYS) + 3)
+
     def test_detection_table_contract_keeps_export_order(self) -> None:
         self.assertEqual(DETECTION_TABLE_COLUMNS[0:3], ("class", "中文名称", "confidence"))
 
@@ -63,6 +69,7 @@ class UiContractTests(unittest.TestCase):
         components = SettingsComponents(**{field.name: field.name for field in fields(SettingsComponents)})
         common_inputs = components.common_input_map(
             model_mode="workbench_model_mode",
+            patient_id="patient_id",
             conf="conf",
             iou="iou",
             device_choice="device_choice",
@@ -71,6 +78,7 @@ class UiContractTests(unittest.TestCase):
 
         self.assertEqual(set(common_inputs), set(COMMON_INPUT_KEYS))
         self.assertEqual(common_inputs["model_mode"], "workbench_model_mode")
+        self.assertEqual(common_inputs["patient_id"], "patient_id")
         self.assertEqual(components.ai_request_inputs(), list(AI_REQUEST_KEYS))
 
     def test_workbench_components_supply_detection_inputs_by_name(self) -> None:

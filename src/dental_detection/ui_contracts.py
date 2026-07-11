@@ -45,6 +45,7 @@ COMMON_OUTPUT_KEYS = (
 
 COMMON_INPUT_KEYS = (
     "model_mode",
+    "patient_id",
     "primary_model_path",
     "compare_model_path",
     "conf",

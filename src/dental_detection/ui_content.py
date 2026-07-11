@@ -27,7 +27,7 @@ APP_HEADER_HTML = """
 
 WORKBENCH_GUIDE_HTML = """
 <div class="guide-steps">
-  <span>1. 上传影像</span>
+  <span>1. 选择档案与影像</span>
   <span>2. 调整参数</span>
   <span>3. 开始分析</span>
   <span>4. 查看并导出</span>

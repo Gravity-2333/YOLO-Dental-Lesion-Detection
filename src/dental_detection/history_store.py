@@ -82,11 +82,17 @@ def _model_name(item: dict[str, Any], result: dict[str, Any], summary: dict[str,
 
 
 def _record_match_key(item: dict[str, Any]) -> str:
+    task_id = str(item.get("task_id") or "").strip()
+    if task_id:
+        return f"task:{task_id}"
     return str(item.get("display_name") or item.get("image_name") or "").strip()
 
 
 def _source_match_key(source: Any) -> str:
     if isinstance(source, dict):
+        task_id = str(source.get("task_id") or "").strip()
+        if task_id:
+            return f"task:{task_id}"
         return str(source.get("display_name") or source.get("name") or source.get("image_name") or "").strip()
     return str(source or "").strip()
 
@@ -109,6 +115,8 @@ def build_history_record(item: dict[str, Any]) -> dict[str, Any]:
     classes = sorted({row.get("中文名称") or row.get("class") or "未知类别" for row in rows})
     return {
         "id": uuid4().hex,
+        "patient_id": item.get("patient_id") or "personal-self",
+        "task_id": item.get("task_id") or "",
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "image_name": item.get("name") or item.get("image_name") or "未命名图片",
         "display_name": item.get("display_name") or item.get("name") or item.get("image_name") or "未命名图片",
@@ -176,8 +184,19 @@ def append_history_records(
     return _write_records(records, storage_dir)
 
 
-def list_history_records(storage_dir: str | None = None) -> list[dict[str, Any]]:
-    return list(reversed(_load_raw_records(storage_dir)))
+def list_history_records(
+    storage_dir: str | None = None,
+    patient_id: str | None = None,
+) -> list[dict[str, Any]]:
+    records = _load_raw_records(storage_dir)
+    selected_patient = str(patient_id or "").strip()
+    if selected_patient:
+        records = [
+            item
+            for item in records
+            if str(item.get("patient_id") or "personal-self") == selected_patient
+        ]
+    return list(reversed(records))
 
 
 def _classes_text(value: Any) -> str:
@@ -189,9 +208,9 @@ def _classes_text(value: Any) -> str:
     return "无"
 
 
-def history_rows(storage_dir: str | None = None) -> list[dict[str, Any]]:
+def history_rows(storage_dir: str | None = None, patient_id: str | None = None) -> list[dict[str, Any]]:
     rows = []
-    for item in list_history_records(storage_dir):
+    for item in list_history_records(storage_dir, patient_id):
         display_name = text_value(item.get("display_name") or item.get("image_name"))
         rows.append(
             {
@@ -208,28 +227,51 @@ def history_rows(storage_dir: str | None = None) -> list[dict[str, Any]]:
     return rows
 
 
-def load_history_record(record_id: str, storage_dir: str | None = None) -> dict[str, Any] | None:
+def load_history_record(
+    record_id: str,
+    storage_dir: str | None = None,
+    patient_id: str | None = None,
+) -> dict[str, Any] | None:
     wanted = str(record_id or "").strip()
     if not wanted:
         return None
     for item in _load_raw_records(storage_dir):
-        if text_value(item.get("id")).strip() == wanted:
+        matches_patient = not patient_id or str(item.get("patient_id") or "personal-self") == str(patient_id)
+        if matches_patient and text_value(item.get("id")).strip() == wanted:
             return item
     return None
 
 
-def delete_history_record(record_id: str, storage_dir: str | None = None) -> bool:
+def delete_history_record(
+    record_id: str,
+    storage_dir: str | None = None,
+    patient_id: str | None = None,
+) -> bool:
     wanted = str(record_id or "").strip()
     records = _load_raw_records(storage_dir)
-    kept = [item for item in records if text_value(item.get("id")).strip() != wanted]
+    kept = [
+        item
+        for item in records
+        if not (
+            text_value(item.get("id")).strip() == wanted
+            and (not patient_id or str(item.get("patient_id") or "personal-self") == str(patient_id))
+        )
+    ]
     if len(kept) == len(records):
         return False
     _write_records(kept, storage_dir)
     return True
 
 
-def clear_history_records(storage_dir: str | None = None) -> Path:
-    return _write_records([], storage_dir)
+def clear_history_records(storage_dir: str | None = None, patient_id: str | None = None) -> Path:
+    if not patient_id:
+        return _write_records([], storage_dir)
+    kept = [
+        item
+        for item in _load_raw_records(storage_dir)
+        if str(item.get("patient_id") or "personal-self") != str(patient_id)
+    ]
+    return _write_records(kept, storage_dir)
 
 
 def update_history_report_paths(

@@ -15,6 +15,8 @@ from .ui_content import WORKBENCH_GUIDE_HTML, WORKBENCH_HELP_TEXT, section_headi
 class WorkbenchPageData:
     saved: AiSettings
     model_status_html: str
+    patient_choices: list[tuple[str, str]]
+    selected_patient_id: str
     example_choices: list[tuple[str, str]]
     device_choices: list[str | tuple[str, str]]
     default_device_choice: str
@@ -24,6 +26,7 @@ class WorkbenchPageData:
 @dataclass(frozen=True, slots=True)
 class WorkbenchComponents:
     workbench_model_status: Any
+    patient_select: Any
     image: Any
     run_btn: Any
     example_select: Any
@@ -68,6 +71,7 @@ class WorkbenchComponents:
     def common_input_map(self, settings: Any) -> dict[str, Any]:
         return settings.common_input_map(
             model_mode=self.model_mode,
+            patient_id=self.patient_select,
             conf=self.conf,
             iou=self.iou,
             device_choice=self.device_choice,
@@ -85,6 +89,12 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
     with gr.Row(elem_classes=["workbench-grid"]):
         with gr.Column(scale=4, elem_classes=["control-panel"]):
             with gr.Group(elem_classes=["section-card", "upload-card"]):
+                patient_select = gr.Dropdown(
+                    label="当前患者档案",
+                    choices=data.patient_choices,
+                    value=data.selected_patient_id,
+                    elem_classes=["compact-control"],
+                )
                 with gr.Tabs(elem_classes=["sub-tabs"]):
                     with gr.Tab("单张分析"):
                         gr.HTML(section_heading("上传影像", "请上传牙科影像或选择脱敏示例图开始检测。"))
@@ -335,6 +345,7 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
 
     return WorkbenchComponents(
         workbench_model_status=workbench_model_status,
+        patient_select=patient_select,
         image=image,
         run_btn=run_btn,
         example_select=example_select,

@@ -7,7 +7,10 @@ import unittest
 from src.dental_detection.personal_workspace import (
     PERSONAL_PATIENT_ID,
     PERSONAL_USER_ID,
+    create_personal_patient,
     ensure_personal_workspace,
+    personal_patient_choices,
+    record_completed_detection,
 )
 from src.dental_detection.workspace_models import TaskStatus, UserRole
 from src.dental_detection.workspace_store import (
@@ -121,6 +124,29 @@ class WorkspaceStoreTests(unittest.TestCase):
         database_path = self.store.initialize().resolve()
         self.assertEqual(database_path.parent.name, "workspace")
         self.assertIn(Path(self.temp_dir.name).resolve(), database_path.parents)
+
+    def test_personal_helpers_create_profiles_and_completed_tasks(self) -> None:
+        workspace = ensure_personal_workspace(self.temp_dir.name)
+        patient = create_personal_patient(
+            self.temp_dir.name,
+            "家人",
+            external_reference="P-002",
+        )
+        task = record_completed_detection(
+            self.temp_dir.name,
+            patient.id,
+            "model-a",
+            parameters={"conf": 0.25},
+            result_summary={"detection_count": 1},
+        )
+
+        self.assertIn(("家人 · P-002", patient.id), personal_patient_choices(self.temp_dir.name))
+        self.assertEqual(task.status, TaskStatus.SUCCEEDED)
+        self.assertEqual(task.patient_id, patient.id)
+        self.assertEqual(
+            workspace.store.get_detection_task(workspace.user.id, task.id).result_summary,
+            {"detection_count": 1},
+        )
 
 
 if __name__ == "__main__":

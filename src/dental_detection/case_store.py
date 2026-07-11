@@ -39,6 +39,16 @@ def _read_case_file(path: Path) -> dict[str, Any]:
     return data
 
 
+def _case_patient_id(data: dict[str, Any]) -> str:
+    return text_value(data.get("patient_id"), "personal-self")
+
+
+def _require_case_patient(data: dict[str, Any], patient_id: str | None) -> None:
+    selected_patient = str(patient_id or "").strip()
+    if selected_patient and _case_patient_id(data) != selected_patient:
+        raise FileNotFoundError("病例记录不存在。")
+
+
 def _case_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
     model_results = list(iter_model_result_items(data.get("model_results")))
     if model_results:
@@ -94,17 +104,24 @@ def _row_from_case(path: Path, data: dict[str, Any]) -> dict[str, Any]:
         "关注等级": "、".join(levels) if levels else "无检测结果",
         "最高置信度": _highest_confidence(detections),
         "文件名": path.name,
+        "患者档案ID": _case_patient_id(data),
         "_data": data,
     }
 
 
-def list_case_records(storage_dir: str) -> list[dict[str, Any]]:
+def list_case_records(storage_dir: str, patient_id: str | None = None) -> list[dict[str, Any]]:
     ensure_app_dirs(storage_dir)
+    selected_patient = str(patient_id or "").strip()
     rows: list[dict[str, Any]] = []
     for path in sorted(case_dir(storage_dir).glob("case_*.json"), reverse=True):
         try:
-            rows.append(_row_from_case(path, _read_case_file(path)))
+            row = _row_from_case(path, _read_case_file(path))
+            if selected_patient and row["患者档案ID"] != selected_patient:
+                continue
+            rows.append(row)
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            if selected_patient and selected_patient != "personal-self":
+                continue
             rows.append(
                 {
                     "保存时间": "",
@@ -115,6 +132,7 @@ def list_case_records(storage_dir: str) -> list[dict[str, Any]]:
                     "关注等级": "",
                     "最高置信度": "",
                     "文件名": path.name,
+                    "患者档案ID": "personal-self",
                     "_data": {"错误": f"病例文件损坏或无法读取：{path.name}"},
                 }
             )
@@ -128,6 +146,7 @@ def search_case_records(
     level_filter: str,
     date_from: str,
     date_to: str,
+    patient_id: str | None = None,
 ) -> list[dict[str, Any]]:
     keyword_text = str(keyword or "").strip().casefold()
     class_value = str(class_filter or "全部")
@@ -135,7 +154,7 @@ def search_case_records(
     start = str(date_from or "").strip()
     end = str(date_to or "").strip()
     rows = []
-    for row in list_case_records(storage_dir):
+    for row in list_case_records(storage_dir, patient_id):
         data = row.get("_data", {})
         detections = _case_detections(data)
         searchable = "\n".join(
@@ -172,7 +191,11 @@ def search_case_records(
     return rows
 
 
-def load_case_record(storage_dir: str, file_name: str) -> dict[str, Any]:
+def load_case_record(
+    storage_dir: str,
+    file_name: str,
+    patient_id: str | None = None,
+) -> dict[str, Any]:
     safe_name = _safe_case_file_name(file_name)
     root = case_dir(storage_dir).resolve()
     path = (root / safe_name).resolve()
@@ -180,10 +203,16 @@ def load_case_record(storage_dir: str, file_name: str) -> dict[str, Any]:
         raise ValueError("病例文件路径无效。")
     if not path.exists():
         raise FileNotFoundError(f"病例文件不存在：{safe_name}")
-    return _read_case_file(path)
+    data = _read_case_file(path)
+    _require_case_patient(data, patient_id)
+    return data
 
 
-def move_case_to_trash(storage_dir: str, file_name: str) -> Path:
+def move_case_to_trash(
+    storage_dir: str,
+    file_name: str,
+    patient_id: str | None = None,
+) -> Path:
     safe_name = _safe_case_file_name(file_name)
     ensure_app_dirs(storage_dir)
     source_root = case_dir(storage_dir).resolve()
@@ -192,6 +221,7 @@ def move_case_to_trash(storage_dir: str, file_name: str) -> Path:
         raise ValueError("病例文件路径无效。")
     if not source.exists():
         raise FileNotFoundError(f"病例文件不存在：{safe_name}")
+    _require_case_patient(_read_case_file(source), patient_id)
     trash = _case_trash_dir(storage_dir)
     trash.mkdir(parents=True, exist_ok=True)
     target = trash / safe_name
@@ -202,8 +232,12 @@ def move_case_to_trash(storage_dir: str, file_name: str) -> Path:
     return target
 
 
-def export_case_report(storage_dir: str, file_name: str) -> Path:
-    data = load_case_record(storage_dir, file_name)
+def export_case_report(
+    storage_dir: str,
+    file_name: str,
+    patient_id: str | None = None,
+) -> Path:
+    data = load_case_record(storage_dir, file_name, patient_id)
     output_dir = report_dir(storage_dir) / "case_reports"
     output_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
