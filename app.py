@@ -98,6 +98,7 @@ from src.dental_detection.personal_workspace import (
     ensure_personal_workspace,
     personal_patient_choices,
     record_completed_detection,
+    register_personal_report,
 )
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.record_formatters import format_case_record, format_history_record
@@ -1524,7 +1525,11 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
             pass
     _sync_report_path(batch_state, [item], zip_path, "zip_report_path")
     update_history_report_paths([item], zip_path, storage_dir)
-    return _file_component_output(zip_path), f"已导出单图报告：{zip_path}", batch_state
+    workspace_warning = _register_workspace_report(item, zip_path, storage_dir, "zip")
+    message = f"已导出单图报告：{zip_path}"
+    if workspace_warning:
+        message = f"{message}\n{workspace_warning}"
+    return _file_component_output(zip_path), message, batch_state
 
 
 def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
@@ -1579,7 +1584,11 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
         raise _friendly_gr_error(exc, "Word 报告导出失败") from exc
     _sync_report_path(batch_state, [item], path, "word_report_path")
     update_history_report_paths([item], path, storage_dir)
-    return _file_component_output(path), f"已导出 Word 报告：{path}", batch_state
+    workspace_warning = _register_workspace_report(item, path, storage_dir, "docx")
+    message = f"已导出 Word 报告：{path}"
+    if workspace_warning:
+        message = f"{message}\n{workspace_warning}"
+    return _file_component_output(path), message, batch_state
 
 
 def download_result_image(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
@@ -1879,7 +1888,7 @@ def clear_outputs_with_quality(image):
 
 
 def clear_patient_session():
-    return (None, *clear_outputs(), "", "")
+    return (None, None, *clear_outputs(), "", "")
 
 
 def _record_workspace_detection(
@@ -1917,6 +1926,36 @@ def _record_workspace_detection(
         message = friendly_error_message(exc, "检测任务记录保存失败").splitlines()[0]
         return "", f"检测已经完成，但未能保存到患者档案：{message}"
     return task.id, ""
+
+
+def _register_workspace_report(
+    item: dict[str, Any],
+    report_path: str | Path,
+    storage_dir: str,
+    report_format: str,
+) -> str:
+    patient_id = str(item.get("patient_id") or "").strip()
+    task_id = str(item.get("task_id") or "").strip()
+    if not patient_id or not task_id:
+        return ""
+    models = [model_result_name(result) for result in _item_results(item)]
+    model_version = "、".join(model for model in models if model)
+    try:
+        report = register_personal_report(
+            storage_dir,
+            patient_id,
+            task_id,
+            report_path,
+            report_format=report_format,
+            model_version=model_version,
+        )
+    except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
+        message = friendly_error_message(exc, "报告记录保存失败").splitlines()[0]
+        return f"报告文件已生成，但未能写入患者档案：{message}"
+    report_assets = item.setdefault("report_asset_ids", {})
+    if isinstance(report_assets, dict):
+        report_assets[report_format] = report.id
+    return ""
 
 
 def run_single_detection(
@@ -2917,6 +2956,7 @@ def build_app() -> gr.Blocks:
 
         workbench_model_status = workbench.workbench_model_status
         patient_select = workbench.patient_select
+        clear_session_btn = workbench.clear_session_btn
         image = workbench.image
         run_btn = workbench.run_btn
         example_select = workbench.example_select
@@ -3048,11 +3088,15 @@ def build_app() -> gr.Blocks:
         ]
         history_list_outputs = [history_select, history_table, history_detail, history_feedback]
 
+        clear_session_btn.click(
+            fn=clear_patient_session,
+            outputs=[image, batch_files, *common_outputs, case_id, case_note],
+        )
         patient_select.input(
             fn=sync_patient_selections,
             inputs=patient_select,
             outputs=[case_patient_select, history_patient_select],
-        ).then(fn=clear_patient_session, outputs=[image, *common_outputs, case_id, case_note]).then(
+        ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
             fn=refresh_case_records,
             inputs=[storage_dir, patient_select],
             outputs=case_list_outputs,
@@ -3065,7 +3109,7 @@ def build_app() -> gr.Blocks:
             fn=sync_patient_selections,
             inputs=case_patient_select,
             outputs=[patient_select, history_patient_select],
-        ).then(fn=clear_patient_session, outputs=[image, *common_outputs, case_id, case_note]).then(
+        ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
             fn=refresh_case_records,
             inputs=[storage_dir, case_patient_select],
             outputs=case_list_outputs,
@@ -3078,7 +3122,7 @@ def build_app() -> gr.Blocks:
             fn=sync_patient_selections,
             inputs=history_patient_select,
             outputs=[patient_select, case_patient_select],
-        ).then(fn=clear_patient_session, outputs=[image, *common_outputs, case_id, case_note]).then(
+        ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
             fn=refresh_case_records,
             inputs=[storage_dir, history_patient_select],
             outputs=case_list_outputs,
@@ -3098,7 +3142,7 @@ def build_app() -> gr.Blocks:
                 new_patient_reference,
                 patient_feedback,
             ],
-        ).then(fn=clear_patient_session, outputs=[image, *common_outputs, case_id, case_note]).then(
+        ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
             fn=refresh_case_records,
             inputs=[storage_dir, case_patient_select],
             outputs=case_list_outputs,

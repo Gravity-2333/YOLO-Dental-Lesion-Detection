@@ -559,6 +559,31 @@ class WorkspaceStore:
             raise RecordNotFoundError("报告记录不存在。")
         return self._report_from_row(row)
 
+    def list_report_assets(
+        self,
+        owner_user_id: str,
+        *,
+        patient_id: str | None = None,
+        task_id: str | None = None,
+        limit: int = 100,
+    ) -> list[ReportAsset]:
+        self.get_user(owner_user_id)
+        query = "SELECT * FROM report_assets WHERE owner_user_id = ?"
+        parameters: list[Any] = [_identifier(owner_user_id)]
+        if patient_id is not None:
+            self.get_patient(owner_user_id, patient_id)
+            query += " AND patient_id = ?"
+            parameters.append(_identifier(patient_id))
+        if task_id is not None:
+            self.get_detection_task(owner_user_id, task_id)
+            query += " AND task_id = ?"
+            parameters.append(_identifier(task_id))
+        query += " ORDER BY created_at DESC, id DESC LIMIT ?"
+        parameters.append(max(1, min(1000, int(limit))))
+        with self._connection() as connection:
+            rows = connection.execute(query, parameters).fetchall()
+        return [self._report_from_row(row) for row in rows]
+
     @staticmethod
     def _user_from_row(row: sqlite3.Row) -> UserAccount:
         return UserAccount(

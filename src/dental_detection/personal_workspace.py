@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from .workspace_models import DetectionTask, PatientProfile, TaskStatus, UserAccount, UserRole
+from .workspace_models import DetectionTask, PatientProfile, ReportAsset, TaskStatus, UserAccount, UserRole
 from .workspace_store import RecordNotFoundError, WorkspaceStore
 
 PERSONAL_USER_ID = "personal-owner"
@@ -108,4 +108,38 @@ def record_completed_detection(
         task.id,
         TaskStatus.SUCCEEDED,
         result_summary=result_summary,
+    )
+
+
+def register_personal_report(
+    storage_dir: str | Path | None,
+    patient_id: str,
+    task_id: str,
+    report_path: str | Path,
+    *,
+    report_format: str,
+    model_version: str = "",
+) -> ReportAsset:
+    workspace = ensure_personal_workspace(storage_dir)
+    selected_patient_id = str(patient_id or "").strip()
+    selected_task_id = str(task_id or "").strip()
+    workspace.store.get_patient(workspace.user.id, selected_patient_id)
+    task = workspace.store.get_detection_task(workspace.user.id, selected_task_id)
+    if task.patient_id != selected_patient_id:
+        raise RecordNotFoundError("检测任务不属于该患者档案。")
+    path = Path(report_path).expanduser().resolve()
+    try:
+        storage_key = path.relative_to(workspace.store.root.resolve()).as_posix()
+    except ValueError as exc:
+        raise ValueError("报告文件必须位于当前患者数据目录中。") from exc
+    if not path.is_file():
+        raise FileNotFoundError(f"报告文件不存在：{path.name}")
+    return workspace.store.register_report(
+        workspace.user.id,
+        selected_patient_id,
+        selected_task_id,
+        file_name=path.name,
+        report_format=report_format,
+        storage_key=storage_key,
+        model_version=model_version,
     )

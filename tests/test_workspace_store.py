@@ -11,6 +11,7 @@ from src.dental_detection.personal_workspace import (
     ensure_personal_workspace,
     personal_patient_choices,
     record_completed_detection,
+    register_personal_report,
 )
 from src.dental_detection.workspace_models import TaskStatus, UserRole
 from src.dental_detection.workspace_store import (
@@ -147,6 +148,46 @@ class WorkspaceStoreTests(unittest.TestCase):
             workspace.store.get_detection_task(workspace.user.id, task.id).result_summary,
             {"detection_count": 1},
         )
+
+        report_path = Path(self.temp_dir.name) / "reports" / "single.docx"
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_bytes(b"report")
+        report = register_personal_report(
+            self.temp_dir.name,
+            patient.id,
+            task.id,
+            report_path,
+            report_format="docx",
+            model_version="model-a@1",
+        )
+
+        self.assertEqual(report.patient_id, patient.id)
+        self.assertEqual(report.task_id, task.id)
+        self.assertEqual(
+            workspace.store.list_report_assets(workspace.user.id, task_id=task.id),
+            [report],
+        )
+
+    def test_personal_report_rejects_files_outside_storage_root(self) -> None:
+        workspace = ensure_personal_workspace(self.temp_dir.name)
+        task = record_completed_detection(
+            self.temp_dir.name,
+            workspace.patient.id,
+            "model-a",
+            parameters={},
+            result_summary={},
+        )
+        with TemporaryDirectory() as outside_dir:
+            outside_path = Path(outside_dir) / "outside.docx"
+            outside_path.write_bytes(b"report")
+            with self.assertRaisesRegex(ValueError, "数据目录"):
+                register_personal_report(
+                    self.temp_dir.name,
+                    workspace.patient.id,
+                    task.id,
+                    outside_path,
+                    report_format="docx",
+                )
 
 
 if __name__ == "__main__":

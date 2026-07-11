@@ -27,6 +27,7 @@ class WorkbenchPageData:
 class WorkbenchComponents:
     workbench_model_status: Any
     patient_select: Any
+    clear_session_btn: Any
     image: Any
     run_btn: Any
     example_select: Any
@@ -89,12 +90,19 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
     with gr.Row(elem_classes=["workbench-grid"]):
         with gr.Column(scale=4, elem_classes=["control-panel"]):
             with gr.Group(elem_classes=["section-card", "upload-card"]):
-                patient_select = gr.Dropdown(
-                    label="当前患者档案",
-                    choices=data.patient_choices,
-                    value=data.selected_patient_id,
-                    elem_classes=["compact-control"],
-                )
+                with gr.Row(elem_classes=["compact-row"]):
+                    patient_select = gr.Dropdown(
+                        label="当前患者档案",
+                        choices=data.patient_choices,
+                        value=data.selected_patient_id,
+                        scale=8,
+                        elem_classes=["compact-control"],
+                    )
+                    clear_session_btn = gr.Button(
+                        "清空会话",
+                        scale=2,
+                        elem_classes=["secondary-action", "compact-button"],
+                    )
                 with gr.Tabs(elem_classes=["sub-tabs"]):
                     with gr.Tab("单张分析"):
                         gr.HTML(section_heading("上传影像", "请上传牙科影像或选择脱敏示例图开始检测。"))
@@ -346,6 +354,7 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
     return WorkbenchComponents(
         workbench_model_status=workbench_model_status,
         patient_select=patient_select,
+        clear_session_btn=clear_session_btn,
         image=image,
         run_btn=run_btn,
         example_select=example_select,

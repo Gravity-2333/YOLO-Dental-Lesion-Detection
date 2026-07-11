@@ -59,8 +59,9 @@ class UiContractTests(unittest.TestCase):
     def test_patient_switch_clears_image_and_all_detection_outputs(self) -> None:
         values = app.clear_patient_session()
         self.assertIsNone(values[0])
+        self.assertIsNone(values[1])
         self.assertEqual(values[-2:], ("", ""))
-        self.assertEqual(len(values), len(COMMON_OUTPUT_KEYS) + 3)
+        self.assertEqual(len(values), len(COMMON_OUTPUT_KEYS) + 4)
 
     def test_detection_table_contract_keeps_export_order(self) -> None:
         self.assertEqual(DETECTION_TABLE_COLUMNS[0:3], ("class", "中文名称", "confidence"))
