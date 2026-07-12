@@ -734,13 +734,19 @@ td {
   padding: 20px !important;
   background: #fff !important;
   border: 1px solid var(--card-border) !important;
-  border-radius: var(--radius) !important;
+  border-radius: var(--radius) var(--radius) 0 0 !important;
 }
 
 .settings-actions {
+  width: min(1120px, 100%) !important;
   max-width: 1120px !important;
-  justify-content: flex-start !important;
-  margin: 14px auto 0 0 !important;
+  justify-content: flex-end !important;
+  margin: -1px auto 0 !important;
+  padding: 12px 18px !important;
+  background: #fff !important;
+  border: 1px solid var(--card-border) !important;
+  border-top: 0 !important;
+  border-radius: 0 0 var(--radius) var(--radius) !important;
 }
 
 .chat-card,
@@ -780,8 +786,7 @@ td {
   font-weight: 650 !important;
 }
 
-.case-card .block:has(> button.label-wrap),
-.guide-card .block:has(> button.label-wrap) {
+.compact-accordion {
   padding: 0 !important;
   border: 0 !important;
   background: transparent !important;

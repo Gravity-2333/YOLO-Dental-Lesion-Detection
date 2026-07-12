@@ -176,7 +176,7 @@
     margin-bottom: 6px;
   }
 
-  .guide-card .block:has(> button.label-wrap) {
+  .guide-card .compact-accordion {
     display: none !important;
   }
 

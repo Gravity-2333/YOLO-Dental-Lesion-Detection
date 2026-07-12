@@ -1576,7 +1576,7 @@ try:
     css_text = load_workbench_css()
     assert ".guide-steps" not in css_text, "已移除的流程提示不应继续占用首屏空间"
     media_start = css_text.index("@media (max-width: 640px)")
-    guide_rule_start = css_text.index("  .guide-card .block:has(> button.label-wrap) {", media_start)
+    guide_rule_start = css_text.index("  .guide-card .compact-accordion {", media_start)
     guide_rule_end = css_text.index("  }", guide_rule_start)
     guide_rule = css_text[guide_rule_start:guide_rule_end]
     assert "display: none" in guide_rule, "移动端应隐藏折叠说明，只保留当前模型状态"

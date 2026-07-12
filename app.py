@@ -2811,7 +2811,7 @@ def build_app() -> gr.Blocks:
                         choices=patient_choices,
                         value=personal_workspace.patient.id,
                     )
-                    with gr.Accordion("添加患者档案", open=False):
+                    with gr.Accordion("添加患者档案", open=False, elem_classes=["compact-accordion"]):
                         with gr.Row(elem_classes=["compact-row"]):
                             new_patient_name = gr.Textbox(
                                 label="档案名称",
@@ -2829,7 +2829,7 @@ def build_app() -> gr.Blocks:
                                 "添加档案",
                                 elem_classes=["secondary-action", "compact-button"],
                             )
-                    with gr.Accordion("管理当前档案", open=False):
+                    with gr.Accordion("管理当前档案", open=False, elem_classes=["compact-accordion"]):
                         with gr.Row(elem_classes=["compact-row"]):
                             edit_patient_name = gr.Textbox(
                                 value=personal_workspace.patient.display_name,
@@ -2853,7 +2853,7 @@ def build_app() -> gr.Blocks:
                                 interactive=False,
                                 elem_classes=["secondary-action", "compact-button"],
                             )
-                    with gr.Accordion("恢复已归档档案", open=False):
+                    with gr.Accordion("恢复已归档档案", open=False, elem_classes=["compact-accordion"]):
                         with gr.Row(elem_classes=["compact-row"]):
                             archived_patient_select = gr.Dropdown(
                                 label="已归档档案",

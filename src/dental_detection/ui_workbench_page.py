@@ -83,7 +83,7 @@ class WorkbenchComponents:
 def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
     with gr.Group(elem_classes=["section-card", "guide-card"]):
         workbench_model_status = gr.HTML(data.model_status_html)
-        with gr.Accordion("识别说明", open=False):
+        with gr.Accordion("识别说明", open=False, elem_classes=["compact-accordion"]):
             gr.Markdown(WORKBENCH_HELP_TEXT)
 
     with gr.Row(elem_classes=["workbench-grid"]):
