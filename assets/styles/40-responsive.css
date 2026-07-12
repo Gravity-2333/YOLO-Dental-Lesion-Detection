@@ -8,10 +8,6 @@
     padding-top: 18px;
   }
 
-  .status-badge {
-    margin-top: 12px;
-  }
-
   .workbench-grid,
   .image-grid,
   .insight-grid,
@@ -63,12 +59,23 @@
     flex-direction: column !important;
   }
 
+  .clinical-viewer .comparison-strip {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
   .model-card-grid,
   .result-legend {
     grid-template-columns: 1fr !important;
   }
 
   .notice-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .ai-context-strip {
     grid-template-columns: 1fr !important;
   }
 
@@ -155,8 +162,9 @@
   }
 
   .app-header {
+    min-height: 60px;
     padding-top: 14px;
-    padding-bottom: 10px;
+    padding-bottom: 6px;
   }
 
   .app-subtitle {
@@ -165,7 +173,11 @@
   }
 
   .guide-card {
-    margin-bottom: 10px;
+    margin-bottom: 6px;
+  }
+
+  .guide-card .block:has(> button.label-wrap) {
+    display: none !important;
   }
 
   .workflow-hint,
@@ -181,6 +193,16 @@
     min-height: 180px !important;
   }
 
+  .upload-input {
+    height: 220px !important;
+    max-height: 220px !important;
+  }
+
+  .primary-result-card {
+    height: 320px !important;
+    max-height: 320px !important;
+  }
+
   .main-tabs [role="tablist"],
   .settings-tabs [role="tablist"],
   .sub-tabs [role="tablist"] {
@@ -190,6 +212,10 @@
     padding-bottom: 4px !important;
     scrollbar-width: none;
     -ms-overflow-style: none;
+  }
+
+  .main-tabs [role="tablist"] {
+    min-height: 40px;
   }
 
   .main-tabs [role="tablist"]::-webkit-scrollbar,
@@ -257,15 +283,6 @@
   .guide-card .workflow-hint,
   .guide-card .workbench-model-status {
     margin-bottom: 6px !important;
-  }
-
-  .guide-steps {
-    gap: 6px;
-  }
-
-  .guide-steps span {
-    padding-top: 8px;
-    padding-bottom: 8px;
   }
 
   table {

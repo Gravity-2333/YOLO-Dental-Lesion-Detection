@@ -129,7 +129,12 @@ def build_report_center(storage_dir: str, patient_id: str) -> ReportCenterCompon
                 interactive=bool(selected),
                 elem_classes=["secondary-action", "compact-button"],
             )
-        report_feedback = gr.Textbox(label="报告反馈", interactive=False, lines=2)
+        report_feedback = gr.Textbox(
+            label="报告反馈",
+            interactive=False,
+            lines=1,
+            elem_classes=["inline-feedback"],
+        )
         report_select = gr.Dropdown(label="已生成报告", choices=choices, value=selected_id)
         report_table = gr.Dataframe(
             value=_report_table(storage_dir, reports),

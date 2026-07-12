@@ -134,15 +134,15 @@ class SettingsComponents:
 def build_settings_page(data: SettingsPageData) -> SettingsComponents:
     saved = data.saved
     with gr.Tabs(elem_classes=["settings-tabs"]):
-        with gr.Tab("检测显示"):
+        with gr.Tab("工作台"):
             with gr.Group(elem_classes=["settings-card"]):
                 gr.HTML(section_heading("显示选项", "控制主工作台中展示的分析能力。"))
                 enable_compare = gr.Checkbox(value=saved.enable_compare, label="允许对比模型模式")
                 show_summary = gr.Checkbox(value=saved.show_summary, label="显示参数分析摘要")
-                with gr.Accordion("帮助", open=False):
+                with gr.Accordion("说明", open=False):
                     gr.Markdown("对比模型会在单张分析时运行两组模型；参数摘要用于查看推理配置和检测数量。")
 
-        with gr.Tab("模型选择"):
+        with gr.Tab("模型与推理"):
             with gr.Group(elem_classes=["settings-card"]):
                 gr.HTML(
                     section_heading(
@@ -225,7 +225,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                         "测试模型", elem_classes=["secondary-action", "compact-button"]
                     )
                 model_feedback = gr.Textbox(label="模型反馈", interactive=False, lines=2)
-                with gr.Accordion("帮助", open=False):
+                with gr.Accordion("说明", open=False):
                     gr.Markdown(
                         "刷新会扫描模型目录及子目录中的受支持模型文件；三点按钮用于弹出路径选择器并切换模型目录。\n\n"
                         "优化模型适合常规检测；兼容模型不依赖自定义结构，可在优化模型无法加载时使用。\n\n"
@@ -238,7 +238,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                 model_info_markdown = gr.Markdown(data.model_info_markdown)
                 gr.HTML(legend_html())
 
-        with gr.Tab("AI 建议"):
+        with gr.Tab("AI 接口"):
             with gr.Group(elem_classes=["settings-card"]):
                 gr.HTML(section_heading("AI 建议", "配置检测后的辅助建议与追问能力。"))
                 ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
@@ -310,9 +310,9 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                             "字段限定为 `model`、`messages`、`temperature`、`max_tokens`。"
                         )
 
-        with gr.Tab("对话记录"):
+        with gr.Tab("存储与隐私"):
             with gr.Group(elem_classes=["settings-card"]):
-                gr.HTML(section_heading("对话记录", "管理对话自动保存和数据目录。"))
+                gr.HTML(section_heading("存储与隐私", "管理本地记录和数据目录。"))
                 auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
                 save_history = gr.Checkbox(value=saved.save_history, label="自动保存检测历史")
                 history_limit = gr.Number(
@@ -336,20 +336,11 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                     default_storage_btn = gr.Button(
                         "恢复默认", scale=2, elem_classes=["secondary-action"]
                     )
-                with gr.Accordion("帮助", open=False):
+                with gr.Accordion("说明", open=False):
                     gr.Markdown(
-                        "对话、导出和病例记录会保存在该数据根目录下；更换目录后保存设置即可迁移。"
-                        "三点按钮会弹出路径选择器；开启自动保存后每次检测都会生成对话记录文件。"
+                        "对话、导出和病例记录会保存在该数据根目录下。更换目录会切换后续保存位置，"
+                        "不会自动搬移旧目录数据。三点按钮会弹出路径选择器；开启自动保存后每次检测都会生成对话记录文件。"
                         "检测历史默认只保存摘要和检测框，不保存原始上传图。"
-                    )
-
-        with gr.Tab("高级接口"):
-            with gr.Group(elem_classes=["settings-card"]):
-                gr.HTML(section_heading("兼容接口", "用于接入兼容 OpenAI Chat Completions 的服务。"))
-                with gr.Accordion("查看接口说明", open=False):
-                    gr.Markdown(
-                        "第一版固定使用 `/v1/chat/completions`，"
-                        "请求字段只使用 `model`、`messages`、`temperature`、`max_tokens`。"
                     )
 
     with gr.Row(elem_classes=["settings-actions"]):

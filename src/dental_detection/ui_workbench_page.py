@@ -8,7 +8,7 @@ import gradio as gr
 from .model_info import legend_html
 from .settings_store import AiSettings
 from .ui_constants import DETECTION_TABLE_COLUMNS, MODEL_MODE_COMPARE, MODEL_MODE_SINGLE
-from .ui_content import WORKBENCH_GUIDE_HTML, WORKBENCH_HELP_TEXT, section_heading
+from .ui_content import WORKBENCH_HELP_TEXT, section_heading
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,9 +82,8 @@ class WorkbenchComponents:
 
 def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
     with gr.Group(elem_classes=["section-card", "guide-card"]):
-        gr.HTML(WORKBENCH_GUIDE_HTML)
         workbench_model_status = gr.HTML(data.model_status_html)
-        with gr.Accordion("使用说明", open=False):
+        with gr.Accordion("识别说明", open=False):
             gr.Markdown(WORKBENCH_HELP_TEXT)
 
     with gr.Row(elem_classes=["workbench-grid"]):
@@ -132,9 +131,9 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                             )
                             example_info = gr.Textbox(
                                 label="示例说明",
-                                value="选择示例后会在这里显示说明。",
+                                value="",
                                 interactive=False,
-                                lines=4,
+                                lines=2,
                             )
 
                     with gr.Tab("批量分析"):
@@ -184,8 +183,8 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
             with gr.Group(elem_classes=["section-card", "panel-card"]):
                 gr.HTML(
                     section_heading(
-                        "推理设置",
-                        "调整检测模式、运行设备和阈值。",
+                        "检测设置",
+                        "选择模式和运行设备。",
                     )
                 )
                 model_mode = gr.Radio(
@@ -208,47 +207,49 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                         label="推理设备",
                         elem_classes=["segmented-control"],
                     )
-                with gr.Row(elem_classes=["compact-row"]):
-                    conf = gr.Slider(0.05, 0.95, value=0.25, step=0.05, label="置信度")
-                    iou = gr.Slider(0.1, 0.9, value=0.7, step=0.05, label="IoU")
-                use_clahe = gr.Checkbox(
-                    value=False,
-                    label="CLAHE 增强",
-                    info="适合低对比度牙片，默认关闭。",
-                )
+                with gr.Accordion("高级参数", open=False):
+                    with gr.Row(elem_classes=["compact-row"]):
+                        conf = gr.Slider(0.05, 0.95, value=0.25, step=0.05, label="置信度")
+                        iou = gr.Slider(0.1, 0.9, value=0.7, step=0.05, label="IoU")
+                    use_clahe = gr.Checkbox(
+                        value=False,
+                        label="CLAHE 增强",
+                        info="适合低对比度牙片，默认关闭。",
+                    )
 
         with gr.Column(scale=7, elem_classes=["result-panel"]):
-            with gr.Row(elem_classes=["image-grid"]):
-                with gr.Column(elem_classes=["image-panel"]):
-                    gr.HTML('<div class="image-title">原图</div>')
-                    original_output = gr.Image(
-                        type="pil",
-                        label="原图",
-                        show_label=False,
-                        height=240,
-                        placeholder="等待上传",
-                        elem_classes=["result-card"],
-                    )
-                with gr.Column(elem_classes=["image-panel"]):
-                    gr.HTML('<div class="image-title">模型输入</div>')
-                    model_input_output = gr.Image(
-                        type="pil",
-                        label="模型输入",
-                        show_label=False,
-                        height=240,
-                        placeholder="完成检测后显示",
-                        elem_classes=["result-card"],
-                    )
-                with gr.Column(elem_classes=["image-panel"]):
-                    gr.HTML('<div class="image-title">检测结果</div>')
+            with gr.Row(elem_classes=["image-grid", "clinical-viewer"]):
+                with gr.Column(scale=7, elem_classes=["image-panel", "primary-image-panel"]):
+                    gr.HTML('<div class="image-title">AI 检测结果</div>')
                     result_output = gr.Image(
                         type="pil",
                         label="检测结果",
                         show_label=False,
-                        height=240,
+                        height=420,
                         placeholder="完成检测后显示",
-                        elem_classes=["result-card"],
+                        elem_classes=["result-card", "primary-result-card"],
                     )
+                with gr.Column(scale=3, elem_classes=["comparison-strip"]):
+                    with gr.Group(elem_classes=["image-panel", "comparison-image-panel"]):
+                        gr.HTML('<div class="image-title">原始影像</div>')
+                        original_output = gr.Image(
+                            type="pil",
+                            label="原图",
+                            show_label=False,
+                            height=194,
+                            placeholder="等待上传",
+                            elem_classes=["result-card"],
+                        )
+                    with gr.Group(elem_classes=["image-panel", "comparison-image-panel"]):
+                        gr.HTML('<div class="image-title">模型输入</div>')
+                        model_input_output = gr.Image(
+                            type="pil",
+                            label="模型输入",
+                            show_label=False,
+                            height=194,
+                            placeholder="完成检测后显示",
+                            elem_classes=["result-card"],
+                        )
 
             with gr.Accordion("查看高清结果与疑似区域", open=False):
                 highres_result_output = gr.Image(

@@ -81,7 +81,7 @@ textarea:focus,
 select:focus {
   outline: none !important;
   border-color: var(--primary) !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1) !important;
   transition: all 0.2s ease !important;
 }
 
@@ -152,15 +152,6 @@ button[aria-disabled="true"] {
   margin-bottom: 16px;
 }
 
-/* 卡片悬停效果 */
-.settings-card:hover,
-.chat-card:hover,
-.case-card:hover {
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
-  transition: box-shadow 0.3s ease !important;
-}
-
-
 /* 修复下拉框箭头被遮挡问题 */
 .gradio-container .dropdown,
 .gradio-container select,
@@ -217,37 +208,11 @@ button[aria-disabled="true"] {
 }
 
 .guide-card {
-  margin-bottom: 14px;
-}
-
-.guide-steps {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.guide-steps span {
-  border: 1px solid var(--soft-border);
-  border-radius: 8px;
-  background: var(--surface-bg);
-  color: var(--text-main);
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 1.35;
-  padding: 10px 12px;
-  text-align: center;
+  margin: 10px 0 12px;
 }
 
 @media (max-width: 760px) {
-  .guide-steps {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .guide-steps span {
-    font-size: 12px;
-    padding-left: 8px;
-    padding-right: 8px;
-    white-space: normal;
-    overflow-wrap: anywhere;
+  .guide-card {
+    margin-top: 6px;
   }
 }

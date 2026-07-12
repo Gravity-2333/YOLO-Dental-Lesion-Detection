@@ -15,7 +15,7 @@
 
 .model-info-card.selected {
   border-color: var(--primary);
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.18);
+  box-shadow: 0 0 0 1px rgba(15, 118, 110, 0.18);
 }
 
 .model-card-top {
@@ -77,8 +77,8 @@
 
 .selected-badge,
 .default-badge {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #edf7f5;
+  color: #115e59;
 }
 
 .baseline-badge {
@@ -194,14 +194,14 @@ button[aria-disabled="true"] {
 button.primary:hover,
 .primary-action button:hover {
   background: var(--primary-hover) !important;
-  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.25) !important;
+  box-shadow: 0 8px 24px rgba(15, 118, 110, 0.25) !important;
   transform: translateY(-1px) !important;
 }
 
 button.primary:active,
 .primary-action button:active {
   transform: translateY(0) !important;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2) !important;
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.2) !important;
 }
 
 button.secondary,
@@ -223,8 +223,8 @@ button.secondary:not([disabled]):hover,
 .icon-action button:not([disabled]):hover {
   background: var(--secondary-hover-bg) !important;
   border-color: var(--secondary-hover-border) !important;
-  color: #174ea6 !important;
-  box-shadow: 0 7px 18px rgba(37, 99, 235, 0.12) !important;
+  color: #0f615b !important;
+  box-shadow: 0 7px 18px rgba(15, 118, 110, 0.12) !important;
   transform: translateY(-1px);
 }
 
@@ -232,7 +232,7 @@ button.secondary:not([disabled]):active,
 .secondary-action button:not([disabled]):active,
 .icon-action button:not([disabled]):active {
   transform: translateY(0);
-  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.1) !important;
+  box-shadow: 0 3px 10px rgba(15, 118, 110, 0.1) !important;
 }
 
 .compact-button,
@@ -486,7 +486,7 @@ input[aria-label="对比模型路径"],
   padding: 12px !important;
   background: #ffffff !important;
   border: 1px solid var(--card-border) !important;
-  border-radius: 14px !important;
+  border-radius: var(--radius) !important;
   box-shadow: var(--shadow-card) !important;
 }
 
@@ -506,6 +506,50 @@ input[aria-label="对比模型路径"],
   overflow: hidden !important;
   background: var(--input-muted-bg) !important;
   border: 1px solid var(--soft-border) !important;
+}
+
+.clinical-viewer {
+  align-items: stretch !important;
+  padding: 12px !important;
+  background: #161b1f !important;
+  border-color: #2d373e !important;
+  box-shadow: 0 12px 28px rgba(10, 18, 22, 0.16) !important;
+}
+
+.clinical-viewer .image-title {
+  color: #dce5e3;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.clinical-viewer .primary-image-panel .image-title {
+  color: #8ed3c8;
+}
+
+.clinical-viewer .result-card,
+.clinical-viewer .result-card .image-container,
+.clinical-viewer .result-card [data-testid="image"] {
+  background: #0b0f12 !important;
+  border-color: #303a41 !important;
+}
+
+.clinical-viewer .result-card .image-container {
+  border-style: solid !important;
+}
+
+.clinical-viewer .comparison-strip {
+  min-width: 220px !important;
+  gap: 12px !important;
+}
+
+.clinical-viewer .comparison-image-panel {
+  min-width: 0 !important;
+  gap: 6px !important;
+}
+
+.clinical-viewer .result-card svg {
+  color: #82908f !important;
+  opacity: 0.45 !important;
 }
 
 .highres-result-card {
@@ -684,29 +728,29 @@ td {
 }
 
 .settings-card {
-  width: min(960px, 100%) !important;
-  max-width: 960px !important;
-  margin: 18px auto 0 0 !important;
-  padding: 18px !important;
+  width: min(1120px, 100%) !important;
+  max-width: 1120px !important;
+  margin: 14px auto 0 !important;
+  padding: 20px !important;
   background: #fff !important;
   border: 1px solid var(--card-border) !important;
-  border-radius: 14px !important;
+  border-radius: var(--radius) !important;
 }
 
 .settings-actions {
-  max-width: 960px !important;
+  max-width: 1120px !important;
   justify-content: flex-start !important;
   margin: 14px auto 0 0 !important;
 }
 
 .chat-card,
 .case-card {
-  max-width: 960px !important;
-  margin: 18px auto 0 !important;
-  padding: 18px !important;
+  max-width: 1120px !important;
+  margin: 14px auto 0 !important;
+  padding: 20px !important;
   background: #fff !important;
   border: 1px solid var(--card-border) !important;
-  border-radius: 14px !important;
+  border-radius: var(--radius) !important;
 }
 
 .chat-card [role="log"],
@@ -720,7 +764,38 @@ td {
 .chat-window {
   background: #ffffff !important;
   border: 1px solid var(--input-border) !important;
-  border-radius: 12px !important;
+  border-radius: var(--radius) !important;
+}
+
+.case-card .block > button.label-wrap,
+.guide-card .block > button.label-wrap {
+  min-height: 38px !important;
+  justify-content: space-between !important;
+  padding: 8px 12px !important;
+  border: 1px solid var(--soft-border) !important;
+  border-radius: var(--radius-sm) !important;
+  background: #f8faf9 !important;
+  color: #33413e !important;
+  font-size: 0.88rem !important;
+  font-weight: 650 !important;
+}
+
+.case-card .block:has(> button.label-wrap),
+.guide-card .block:has(> button.label-wrap) {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.case-card .block > button.label-wrap:hover,
+.guide-card .block > button.label-wrap:hover {
+  border-color: #a8ccc6 !important;
+  background: #f1f7f5 !important;
+}
+
+.inline-feedback textarea {
+  min-height: 40px !important;
+  height: 40px !important;
 }
 
 .chat-window [data-testid="block-label"] {
@@ -729,6 +804,11 @@ td {
 
 .chat-input-row {
   margin-top: 12px !important;
+}
+
+.chat-toolbar {
+  justify-content: flex-end !important;
+  margin: -2px 0 10px !important;
 }
 
 .settings-card > .form,

@@ -18,7 +18,6 @@ from src.dental_detection.ui_content import (
     AI_CHAT_INTRO_HTML,
     APP_HEADER_HTML,
     CASE_INTRO_HTML,
-    WORKBENCH_GUIDE_HTML,
     WORKBENCH_HELP_TEXT,
     section_heading,
 )
@@ -100,14 +99,20 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("A&amp;B", html)
 
     def test_shared_content_keeps_brand_and_safety_copy(self) -> None:
-        self.assertIn("Dental AI Workbench", APP_HEADER_HTML)
+        self.assertIn("牙齿病变区域识别", APP_HEADER_HTML)
         self.assertIn("不能替代专业牙科医生诊断", WORKBENCH_HELP_TEXT)
 
     def test_user_facing_copy_avoids_internal_demo_instructions(self) -> None:
-        visible_copy = "".join((WORKBENCH_GUIDE_HTML, AI_CHAT_INTRO_HTML, CASE_INTRO_HTML))
+        visible_copy = "".join((APP_HEADER_HTML, AI_CHAT_INTRO_HTML, CASE_INTRO_HTML))
         self.assertNotIn("答辩", visible_copy)
         self.assertNotIn("../yolov8-train", visible_copy)
         self.assertNotIn("演示提示", visible_copy)
+
+    def test_new_chat_clears_conversation_and_export_state(self) -> None:
+        chatbot, state, message, file_update, path = app.clear_current_chat()
+        self.assertEqual((chatbot, state, message, path), ([], [], "", ""))
+        self.assertIsNone(file_update["value"])
+        self.assertFalse(file_update["visible"])
 
 
 if __name__ == "__main__":

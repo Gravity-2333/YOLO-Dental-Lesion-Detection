@@ -2615,6 +2615,10 @@ def continue_chat(
     return history, history, "" if clear_input else user_message, _clear_file_output(), ""
 
 
+def clear_current_chat():
+    return [], [], "", _clear_file_output(), ""
+
+
 def export_chat(history: list[dict[str, str]], storage_dir: str):
     history = _normalize_chat_history(history)
     if not history:
@@ -2759,6 +2763,11 @@ def build_app() -> gr.Blocks:
             with gr.Tab("AI 问答"):
                 with gr.Group(elem_classes=["section-card", "chat-card"]):
                     gr.HTML(AI_CHAT_INTRO_HTML)
+                    with gr.Row(elem_classes=["chat-toolbar"]):
+                        clear_chat_btn = gr.Button(
+                            "新建对话",
+                            elem_classes=["secondary-action", "compact-button"],
+                        )
                     chatbot = gr.Chatbot(
                         label="问答记录",
                         show_label=False,
@@ -2876,7 +2885,12 @@ def build_app() -> gr.Blocks:
                             "刷新记录",
                             elem_classes=["secondary-action", "compact-button"],
                         )
-                    case_feedback = gr.Textbox(label="病例反馈", interactive=False, lines=3)
+                    case_feedback = gr.Textbox(
+                        label="病例反馈",
+                        interactive=False,
+                        lines=1,
+                        elem_classes=["inline-feedback"],
+                    )
                 with gr.Group(elem_classes=["section-card", "case-card"]):
                     gr.HTML(
                         '<div class="section-heading"><h2>已保存病例</h2>'
@@ -2944,7 +2958,12 @@ def build_app() -> gr.Blocks:
                         refresh_history_btn = gr.Button("刷新历史", elem_classes=["secondary-action", "compact-button"])
                         delete_history_btn = gr.Button("删除所选", elem_classes=["secondary-action", "compact-button"])
                         clear_history_btn = gr.Button("清空历史", elem_classes=["secondary-action", "compact-button"])
-                    history_feedback = gr.Textbox(label="历史反馈", interactive=False, lines=2)
+                    history_feedback = gr.Textbox(
+                        label="历史反馈",
+                        interactive=False,
+                        lines=1,
+                        elem_classes=["inline-feedback"],
+                    )
                     history_select = gr.Dropdown(
                         label="检测历史",
                         choices=_history_choices_from_rows(initial_history_rows),
@@ -3458,6 +3477,10 @@ def build_app() -> gr.Blocks:
         chat_input.submit(
             fn=continue_chat,
             inputs=[chat_input, chat_state, *settings.ai_request_inputs()],
+            outputs=[chatbot, chat_state, chat_input, export_file, export_path],
+        )
+        clear_chat_btn.click(
+            fn=clear_current_chat,
             outputs=[chatbot, chat_state, chat_input, export_file, export_path],
         )
         refresh_model_btn.click(

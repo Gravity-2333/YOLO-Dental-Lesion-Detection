@@ -17,21 +17,10 @@ def section_heading(title: str, description: str) -> str:
 APP_HEADER_HTML = """
 <header class="app-header">
   <div>
-    <div class="eyebrow">医院与个人辅助筛查工作台</div>
     <h1 class="app-title">牙齿病变区域识别</h1>
-    <p class="app-subtitle">上传牙科影像，查看模型输入、检测框和辅助建议。结果仅供参考，不能替代专业牙科医生诊断。</p>
+    <p class="app-subtitle">牙科影像辅助筛查、记录与报告管理</p>
   </div>
-  <span class="status-badge">Dental AI Workbench</span>
 </header>
-"""
-
-WORKBENCH_GUIDE_HTML = """
-<div class="guide-steps">
-  <span>1. 选择档案与影像</span>
-  <span>2. 调整参数</span>
-  <span>3. 开始分析</span>
-  <span>4. 查看并导出</span>
-</div>
 """
 
 WORKBENCH_HELP_TEXT = (
@@ -45,16 +34,14 @@ WORKBENCH_HELP_TEXT = (
 AI_CHAT_INTRO_HTML = """
 <div class="card-heading">
   <div><h2>AI 问答</h2><p>完成检测后，可以继续追问关注区域和复查建议。</p></div>
-  <span class="status-badge">自动保存可在设置中调整</span>
 </div>
-<div class="notice-grid">
-  <div class="notice-item privacy-note"><strong>隐私与安全</strong><span>默认仅发送检测文本摘要，不上传原始影像；回复不能替代专业诊断。</span></div>
+<div class="ai-context-strip">
+  <div><strong>检测上下文</strong><span>完成检测后自动带入当前结果摘要</span></div>
+  <div><strong>发送范围</strong><span>仅发送文字，不上传牙科影像</span></div>
+  <div><strong>使用边界</strong><span>回复仅供辅助参考，不替代专业诊断</span></div>
 </div>
 """
 
 CASE_INTRO_HTML = """
 <div class="card-heading"><div><h2>病例记录</h2><p>保存检测摘要、检测框和建议，便于后续复查。</p></div></div>
-<div class="notice-grid">
-  <div class="notice-item privacy-note"><strong>本地保存</strong><span>默认仅保存检测信息，不保存原始影像，也不上传云端。</span></div>
-</div>
 """

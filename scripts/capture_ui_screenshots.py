@@ -53,7 +53,16 @@ def wait_ready(page, base_url: str) -> None:
 
 
 def click_tab(page, tab_name: str) -> None:
-    page.get_by_role("tab", name=tab_name).first.click(timeout=15000)
+    tab = page.get_by_role("tab", name=tab_name).first
+    try:
+        tab.click(timeout=15000)
+    except Exception:
+        tab.evaluate("element => element.click()")
+    page.wait_for_function(
+        "element => element.getAttribute('aria-selected') === 'true'",
+        arg=tab.element_handle(),
+        timeout=15000,
+    )
     page.wait_for_timeout(1500)
 
 
@@ -61,6 +70,19 @@ def save(page, output_dir: Path, filename: str, *, full: bool = False) -> None:
     path = output_dir / filename
     page.screenshot(path=str(path), full_page=full)
     print(f"saved {path}")
+
+
+def check_horizontal_overflow(page, label: str) -> None:
+    dimensions = page.evaluate(
+        """() => ({
+            clientWidth: document.documentElement.clientWidth,
+            scrollWidth: document.documentElement.scrollWidth,
+        })"""
+    )
+    if dimensions["scrollWidth"] > dimensions["clientWidth"] + 2:
+        raise RuntimeError(
+            f"{label} 存在横向溢出：{dimensions['scrollWidth']} > {dimensions['clientWidth']}"
+        )
 
 
 def capture(args: argparse.Namespace) -> None:
@@ -77,11 +99,12 @@ def capture(args: argparse.Namespace) -> None:
         page = browser.new_page(viewport={"width": 1440, "height": 950})
         try:
             wait_ready(page, base_url)
-            save(page, output_dir, name("01-workbench-home.png", suffix))
+            check_horizontal_overflow(page, "桌面工作台")
+            save(page, output_dir, name("01-workbench-desktop.png", suffix))
 
             try:
                 click_tab(page, "设置")
-                click_tab(page, "模型选择")
+                click_tab(page, "模型与推理")
                 try:
                     page.get_by_text("高级模型路径设置", exact=True).click(timeout=5000)
                     page.wait_for_timeout(800)
@@ -92,10 +115,10 @@ def capture(args: argparse.Namespace) -> None:
                     page.wait_for_timeout(1200)
                 except Exception as exc:
                     print(f"model dropdown open failed: {exc}")
-                save(page, output_dir, name("02-workbench-model-dropdown.png", suffix))
+                save(page, output_dir, name("02-workbench-model-selection.png", suffix))
             except Exception as exc:
                 print(f"02 screenshot failed: {exc}")
-                save(page, output_dir, name("02-workbench-model-dropdown.png", suffix))
+                save(page, output_dir, name("02-workbench-model-selection.png", suffix))
 
             try:
                 click_tab(page, "检测工作台")
@@ -109,27 +132,35 @@ def capture(args: argparse.Namespace) -> None:
                 page.get_by_role("button", name="开始分析").first.click(timeout=15000)
                 page.get_by_text("牙齿辅助建议").wait_for(timeout=120000)
                 page.wait_for_timeout(12000)
-                save(page, output_dir, name("03-workbench-after-example-or-upload.png", suffix))
+                save(page, output_dir, name("03-workbench-detection-result.png", suffix))
             except Exception as exc:
                 print(f"03 detection/upload screenshot failed: {exc}")
-                save(page, output_dir, name("03-workbench-after-example-or-upload.png", suffix))
+                save(page, output_dir, name("03-workbench-detection-result.png", suffix))
 
-            for tab_name, filename in [
-                ("AI 问答", "04-ai-chat.png"),
-                ("病例记录", "05-cases.png"),
-                ("设置", "06-settings.png"),
-            ]:
+            try:
+                click_tab(page, "AI 问答")
+                save(page, output_dir, name("04-ai-chat.png", suffix))
+            except Exception as exc:
+                print(f"04-ai-chat.png screenshot failed: {exc}")
+                save(page, output_dir, name("04-ai-chat.png", suffix))
+
+            for tab_name, filename in [("病例记录", "05-cases.png"), ("设置", "06-settings.png")]:
+                detail_page = browser.new_page(viewport={"width": 1440, "height": 950})
                 try:
-                    click_tab(page, tab_name)
-                    save(page, output_dir, name(filename, suffix))
+                    wait_ready(detail_page, base_url)
+                    click_tab(detail_page, tab_name)
+                    save(detail_page, output_dir, name(filename, suffix))
                 except Exception as exc:
                     print(f"{filename} screenshot failed: {exc}")
-                    save(page, output_dir, name(filename, suffix))
+                    save(detail_page, output_dir, name(filename, suffix))
+                finally:
+                    detail_page.close()
 
             mobile = browser.new_page(viewport={"width": 390, "height": 900}, is_mobile=True)
             try:
                 wait_ready(mobile, base_url)
-                save(mobile, output_dir, name("07-mobile-workbench.png", suffix))
+                check_horizontal_overflow(mobile, "移动端工作台")
+                save(mobile, output_dir, name("07-workbench-mobile.png", suffix))
             finally:
                 mobile.close()
         finally:

@@ -1571,19 +1571,18 @@ except Exception as e:
     print(f"✗ 移动端宽表格样式测试失败: {e}")
     sys.exit(1)
 
-print("\n测试49: 检查移动端引导步骤文字允许换行...")
+print("\n测试49: 检查移动端顶部状态区保持紧凑...")
 try:
     css_text = load_workbench_css()
-    media_start = css_text.index("@media (max-width: 760px)")
-    guide_rule_start = css_text.index("  .guide-steps span {", media_start)
+    assert ".guide-steps" not in css_text, "已移除的流程提示不应继续占用首屏空间"
+    media_start = css_text.index("@media (max-width: 640px)")
+    guide_rule_start = css_text.index("  .guide-card .block:has(> button.label-wrap) {", media_start)
     guide_rule_end = css_text.index("  }", guide_rule_start)
     guide_rule = css_text[guide_rule_start:guide_rule_end]
-    assert "white-space: normal" in guide_rule, "移动端引导步骤不应强制单行显示"
-    assert "overflow-wrap: anywhere" in guide_rule, "移动端引导步骤长文字应允许断行"
-    assert "white-space: nowrap" not in guide_rule, "移动端引导步骤长文字不应撑破容器"
-    print("✓ 移动端引导步骤文字换行正常")
+    assert "display: none" in guide_rule, "移动端应隐藏折叠说明，只保留当前模型状态"
+    print("✓ 移动端顶部状态区收敛正常")
 except Exception as e:
-    print(f"✗ 移动端引导步骤文字样式测试失败: {e}")
+    print(f"✗ 移动端顶部状态区样式测试失败: {e}")
     sys.exit(1)
 
 print("\n测试50: 检查病例无效选择在各入口提示一致...")
