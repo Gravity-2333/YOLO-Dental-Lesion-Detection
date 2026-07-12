@@ -114,6 +114,11 @@ class UiContentTests(unittest.TestCase):
         self.assertIsNone(file_update["value"])
         self.assertFalse(file_update["visible"])
 
+    def test_case_table_is_lazy_until_user_expands_it(self) -> None:
+        source = inspect.getsource(app.build_app)
+        self.assertIn('"结构化病例列表"', source)
+        self.assertIn('open=False,\n                        elem_classes=["compact-accordion"]', source)
+
 
 if __name__ == "__main__":
     unittest.main()

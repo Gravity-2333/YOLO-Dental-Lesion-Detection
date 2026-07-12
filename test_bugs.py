@@ -912,6 +912,16 @@ try:
     rule_body = css_text[rule_start:rule_end]
     assert "align-self: end" in rule_body, "compact-row 内按钮应与输入框底部对齐"
     assert "align-self: center" not in rule_body, "compact-row 内按钮不应垂直居中导致偏上"
+    path_rule = (
+        ".path-row > .icon-action,\n.path-row > .secondary-action,\n"
+        ".model-row > .secondary-action,\n.chat-input-row > .primary-action"
+    )
+    assert path_rule in css_text, "路径行图标按钮和命令按钮应使用同一底部补偿规则"
+    path_rule_start = css_text.index(path_rule)
+    path_rule_end = css_text.index("}", path_rule_start)
+    assert "margin-bottom: 10px" in css_text[path_rule_start:path_rule_end], (
+        "路径选择按钮应与输入框和相邻命令按钮保持同一基线"
+    )
     print("✓ 紧凑工具行按钮底部对齐正常")
 except Exception as e:
     print(f"✗ 紧凑工具行按钮对齐测试失败: {e}")
@@ -974,6 +984,12 @@ try:
     assert "const start = () =>" in js_text, "前端脚本应封装启动逻辑"
     assert "if (!document.body)" in js_text and "requestAnimationFrame(start)" in js_text, (
         "MutationObserver 注册前应等待 document.body 可用"
+    )
+    assert "scheduleMenuLabeling" in js_text and "labelingScheduled" in js_text, (
+        "大量组件切换时应按动画帧合并菜单标记任务，避免重复扫描整个页面"
+    )
+    assert "new MutationObserver(scheduleMenuLabeling)" in js_text, (
+        "DOM 观察器不应在每批变更中同步扫描全部菜单"
     )
     assert "DOMContentLoaded" in js_text and "{ once: true }" in js_text, "脚本应兼容提前注入场景"
     print("✓ 前端更多菜单脚本加载时机正常")

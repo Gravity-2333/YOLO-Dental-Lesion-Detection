@@ -85,6 +85,24 @@ def check_horizontal_overflow(page, label: str) -> None:
         )
 
 
+def check_visible_path_row_alignment(page, label: str) -> None:
+    rows = page.evaluate(
+        """() => [...document.querySelectorAll('.path-row')]
+            .filter(row => row.offsetParent)
+            .map(row => {
+                const controls = [...row.children]
+                    .map(element => element.matches('button,input,textarea')
+                        ? element
+                        : element.querySelector('button,input,textarea'))
+                    .filter(Boolean);
+                const bottoms = controls.map(element => Math.round(element.getBoundingClientRect().bottom));
+                return bottoms.length ? Math.max(...bottoms) - Math.min(...bottoms) : 0;
+            })"""
+    )
+    if any(delta > 1 for delta in rows):
+        raise RuntimeError(f"{label} 路径工具行未对齐：{rows}")
+
+
 def capture(args: argparse.Namespace) -> None:
     base_url = str(args.base_url).rstrip("/")
     output_dir = Path(args.output).expanduser()
@@ -110,6 +128,7 @@ def capture(args: argparse.Namespace) -> None:
                     page.wait_for_timeout(800)
                 except Exception as exc:
                     print(f"advanced accordion click skipped/failed: {exc}")
+                check_visible_path_row_alignment(page, "模型路径")
                 try:
                     page.get_by_label("目录内模型").click(timeout=8000)
                     page.wait_for_timeout(1200)
@@ -150,6 +169,9 @@ def capture(args: argparse.Namespace) -> None:
                     wait_ready(detail_page, base_url)
                     click_tab(detail_page, tab_name)
                     save(detail_page, output_dir, name(filename, suffix))
+                    if tab_name == "设置":
+                        click_tab(detail_page, "存储与隐私")
+                        check_visible_path_row_alignment(detail_page, "存储路径")
                 except Exception as exc:
                     print(f"{filename} screenshot failed: {exc}")
                     save(detail_page, output_dir, name(filename, suffix))

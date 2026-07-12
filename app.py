@@ -2921,13 +2921,18 @@ def build_app() -> gr.Blocks:
                         delete_case_btn = gr.Button("移入回收站", elem_classes=["secondary-action", "compact-button"])
                         export_case_btn = gr.Button("导出病例报告", elem_classes=["secondary-action", "compact-button"])
                     case_select = gr.Dropdown(label="已保存病例", choices=_case_choices_from_rows(initial_case_rows))
-                    case_table = gr.Dataframe(
-                        value=_case_table(initial_case_rows),
-                        headers=CASE_TABLE_COLUMNS,
-                        label="病例列表",
-                        wrap=False,
-                        interactive=False,
-                    )
+                    with gr.Accordion(
+                        "结构化病例列表",
+                        open=False,
+                        elem_classes=["compact-accordion"],
+                    ):
+                        case_table = gr.Dataframe(
+                            value=_case_table(initial_case_rows),
+                            headers=CASE_TABLE_COLUMNS,
+                            label="病例列表",
+                            wrap=False,
+                            interactive=False,
+                        )
                     case_report_file = gr.File(label="病例报告 Word", visible=False)
                     case_report_path = gr.Textbox(
                         label="病例报告路径",

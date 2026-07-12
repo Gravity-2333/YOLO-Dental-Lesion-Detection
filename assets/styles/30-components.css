@@ -415,6 +415,7 @@ button[aria-disabled="true"] {
   min-width: 0 !important;
 }
 
+.path-row > .icon-action,
 .path-row > .secondary-action,
 .model-row > .secondary-action,
 .chat-input-row > .primary-action {
