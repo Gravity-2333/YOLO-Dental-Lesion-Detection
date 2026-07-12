@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import re
 import sys
+from time import perf_counter
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -66,6 +68,11 @@ def click_tab(page, tab_name: str) -> None:
     page.wait_for_timeout(1500)
 
 
+def click_accordion(page, label: str) -> None:
+    page.get_by_role("button", name=re.compile(rf"^{re.escape(label)}")).first.click(timeout=15000)
+    page.wait_for_timeout(800)
+
+
 def save(page, output_dir: Path, filename: str, *, full: bool = False) -> None:
     path = output_dir / filename
     page.screenshot(path=str(path), full_page=full)
@@ -103,6 +110,16 @@ def check_visible_path_row_alignment(page, label: str) -> None:
         raise RuntimeError(f"{label} 路径工具行未对齐：{rows}")
 
 
+def check_navigation_responsiveness(page, max_seconds: float = 3.0) -> None:
+    for label in ["AI 问答", "病例记录", "检测历史", "设置", "检测工作台"]:
+        started = perf_counter()
+        page.get_by_role("tab", name=label).first.click(timeout=10000)
+        elapsed = perf_counter() - started
+        if elapsed > max_seconds:
+            raise RuntimeError(f"页面切换过慢：{label} 用时 {elapsed:.2f}s")
+        page.wait_for_timeout(200)
+
+
 def capture(args: argparse.Namespace) -> None:
     base_url = str(args.base_url).rstrip("/")
     output_dir = Path(args.output).expanduser()
@@ -118,11 +135,12 @@ def capture(args: argparse.Namespace) -> None:
         try:
             wait_ready(page, base_url)
             check_horizontal_overflow(page, "桌面工作台")
+            check_navigation_responsiveness(page)
             save(page, output_dir, name("01-workbench-desktop.png", suffix))
 
             try:
                 click_tab(page, "设置")
-                click_tab(page, "模型与推理")
+                click_accordion(page, "模型与推理")
                 try:
                     page.get_by_text("高级模型路径设置", exact=True).click(timeout=5000)
                     page.wait_for_timeout(800)
@@ -170,7 +188,7 @@ def capture(args: argparse.Namespace) -> None:
                     click_tab(detail_page, tab_name)
                     save(detail_page, output_dir, name(filename, suffix))
                     if tab_name == "设置":
-                        click_tab(detail_page, "存储与隐私")
+                        click_accordion(detail_page, "存储与隐私")
                         check_visible_path_row_alignment(detail_page, "存储路径")
                 except Exception as exc:
                     print(f"{filename} screenshot failed: {exc}")

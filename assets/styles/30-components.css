@@ -738,16 +738,52 @@ td {
   border-radius: var(--radius) var(--radius) 0 0 !important;
 }
 
+.settings-sections {
+  width: min(1120px, 100%) !important;
+  max-width: 1120px !important;
+  margin: 14px auto 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.settings-section {
+  margin-bottom: 8px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: #fff !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: var(--radius) !important;
+}
+
+.settings-section > button.label-wrap {
+  min-height: 46px !important;
+  justify-content: space-between !important;
+  padding: 10px 14px !important;
+  background: #f8faf9 !important;
+  color: #263532 !important;
+  font-weight: 700 !important;
+}
+
+.settings-section .settings-card {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 18px !important;
+  border: 0 !important;
+  border-top: 1px solid var(--soft-border) !important;
+  border-radius: 0 !important;
+}
+
 .settings-actions {
   width: min(1120px, 100%) !important;
   max-width: 1120px !important;
   justify-content: flex-end !important;
-  margin: -1px auto 0 !important;
+  margin: 10px auto 0 !important;
   padding: 12px 18px !important;
   background: #fff !important;
   border: 1px solid var(--card-border) !important;
-  border-top: 0 !important;
-  border-radius: 0 0 var(--radius) var(--radius) !important;
+  border-radius: var(--radius) !important;
 }
 
 .chat-card,

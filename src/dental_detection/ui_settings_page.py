@@ -133,8 +133,8 @@ class SettingsComponents:
 
 def build_settings_page(data: SettingsPageData) -> SettingsComponents:
     saved = data.saved
-    with gr.Tabs(elem_classes=["settings-tabs"]):
-        with gr.Tab("工作台"):
+    with gr.Group(elem_classes=["settings-sections"]):
+        with gr.Accordion("工作台", open=True, elem_classes=["settings-section"]):
             with gr.Group(elem_classes=["settings-card"]):
                 gr.HTML(section_heading("显示选项", "控制主工作台中展示的分析能力。"))
                 enable_compare = gr.Checkbox(value=saved.enable_compare, label="允许对比模型模式")
@@ -142,7 +142,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                 with gr.Accordion("说明", open=False):
                     gr.Markdown("对比模型会在单张分析时运行两组模型；参数摘要用于查看推理配置和检测数量。")
 
-        with gr.Tab("模型与推理"):
+        with gr.Accordion("模型与推理", open=False, elem_classes=["settings-section"]):
             with gr.Group(elem_classes=["settings-card"]):
                 gr.HTML(
                     section_heading(
@@ -232,13 +232,13 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                         "高级路径设置主要用于维护和实验权重，普通使用无需展开。"
                     )
 
-        with gr.Tab("模型说明"):
+        with gr.Accordion("模型说明", open=False, elem_classes=["settings-section"]):
             with gr.Group(elem_classes=["settings-card"]):
                 gr.HTML(section_heading("模型说明", "识别类别、输入要求、适用边界与安全声明。"))
                 model_info_markdown = gr.Markdown(data.model_info_markdown)
                 gr.HTML(legend_html())
 
-        with gr.Tab("AI 接口"):
+        with gr.Accordion("AI 接口", open=False, elem_classes=["settings-section"]):
             with gr.Group(elem_classes=["settings-card"]):
                 gr.HTML(section_heading("AI 建议", "配置检测后的辅助建议与追问能力。"))
                 ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
@@ -310,7 +310,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                             "字段限定为 `model`、`messages`、`temperature`、`max_tokens`。"
                         )
 
-        with gr.Tab("存储与隐私"):
+        with gr.Accordion("存储与隐私", open=False, elem_classes=["settings-section"]):
             with gr.Group(elem_classes=["settings-card"]):
                 gr.HTML(section_heading("存储与隐私", "管理本地记录和数据目录。"))
                 auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")

@@ -136,13 +136,18 @@ def build_report_center(storage_dir: str, patient_id: str) -> ReportCenterCompon
             elem_classes=["inline-feedback"],
         )
         report_select = gr.Dropdown(label="已生成报告", choices=choices, value=selected_id)
-        report_table = gr.Dataframe(
-            value=_report_table(storage_dir, reports),
-            headers=REPORT_TABLE_COLUMNS,
-            label="报告列表",
-            wrap=False,
-            interactive=False,
-        )
+        with gr.Accordion(
+            "结构化报告列表",
+            open=False,
+            elem_classes=["compact-accordion"],
+        ):
+            report_table = gr.Dataframe(
+                value=_report_table(storage_dir, reports),
+                headers=REPORT_TABLE_COLUMNS,
+                label="报告列表",
+                wrap=False,
+                interactive=False,
+            )
         initial_file = _report_file_output(storage_dir, selected)
         report_file = gr.File(
             value=initial_file["value"],

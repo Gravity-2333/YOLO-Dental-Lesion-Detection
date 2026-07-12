@@ -2973,13 +2973,18 @@ def build_app() -> gr.Blocks:
                         label="检测历史",
                         choices=_history_choices_from_rows(initial_history_rows),
                     )
-                    history_table = gr.Dataframe(
-                        value=_history_table_from_rows(initial_history_rows),
-                        headers=HISTORY_TABLE_COLUMNS,
-                        label="历史列表",
-                        wrap=False,
-                        interactive=False,
-                    )
+                    with gr.Accordion(
+                        "结构化历史列表",
+                        open=False,
+                        elem_classes=["compact-accordion"],
+                    ):
+                        history_table = gr.Dataframe(
+                            value=_history_table_from_rows(initial_history_rows),
+                            headers=HISTORY_TABLE_COLUMNS,
+                            label="历史列表",
+                            wrap=False,
+                            interactive=False,
+                        )
                     history_detail = gr.Textbox(
                         value=format_history_record(None),
                         label="历史详情",
