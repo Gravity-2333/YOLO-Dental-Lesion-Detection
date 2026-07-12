@@ -117,13 +117,11 @@ from src.dental_detection.report_center_ui import (
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.record_formatters import format_case_record, format_history_record
 from src.dental_detection.record_views import (
-    CASE_TABLE_COLUMNS,
-    HISTORY_TABLE_COLUMNS,
     case_choices_from_rows as _case_choices_from_rows,
-    case_table as _case_table,
+    case_table_html as _case_table_html,
     history_choices_from_rows as _history_choices_from_rows,
     history_id as _history_id,
-    history_table_from_rows as _history_table_from_rows,
+    history_table_html as _history_table_html,
 )
 from src.dental_detection.result_levels import enrich_detection_row, has_detection_payload, iter_detection_items
 from src.dental_detection.result_items import (
@@ -1641,7 +1639,7 @@ def save_case_record(
     return (
         f"病例记录已保存：{path}",
         gr.update(choices=choices, value=selected),
-        _case_table(rows),
+        _case_table_html(rows),
         format_case_record(payload),
         _clear_file_output(),
         "",
@@ -1655,7 +1653,7 @@ def refresh_case_records(storage_dir: str, patient_id: str | None = None):
     selected = choices[0] if choices else None
     return (
         gr.update(choices=choices, value=selected),
-        _case_table(rows),
+        _case_table_html(rows),
         _case_detail_from_choice(selected, storage_dir, patient_id),
         "已刷新病例记录。" if choices else "暂无病例记录。",
         _clear_file_output(),
@@ -1688,7 +1686,7 @@ def search_case_records_ui(
     message = f"已筛选到 {len(rows)} 条病例记录。" if rows else "未找到匹配病例记录。"
     return (
         gr.update(choices=choices, value=selected),
-        _case_table(rows),
+        _case_table_html(rows),
         _case_detail_from_choice(selected, storage_dir, patient_id),
         message,
         _clear_file_output(),
@@ -1728,7 +1726,7 @@ def delete_selected_case_record(
     selected = choices[0] if choices else None
     return (
         gr.update(choices=choices, value=selected),
-        _case_table(rows),
+        _case_table_html(rows),
         f"病例已移入回收站：{trash_path}",
         _case_detail_from_choice(selected, storage_dir, patient_id),
         _clear_file_output(),
@@ -1789,7 +1787,7 @@ def refresh_history_records(storage_dir: str, patient_id: str | None = None):
     selected = choices[0] if choices else None
     return (
         gr.update(choices=choices, value=selected),
-        _history_table_from_rows(rows),
+        _history_table_html(rows),
         load_history_record(selected, storage_dir, patient_id) if selected else format_history_record(None),
         "历史记录已刷新。" if choices else "暂无检测历史。",
     )
@@ -1820,7 +1818,7 @@ def clear_all_history_records(storage_dir: str, patient_id: str | None = None):
     clear_history_records(storage_dir, patient_id)
     return (
         gr.update(choices=[], value=None),
-        _history_table_from_rows([]),
+        _history_table_html([]),
         "请选择一条检测历史。",
         "当前患者的检测历史已清空。病例记录不会被删除。",
     )
@@ -2519,11 +2517,11 @@ def save_ui_settings(
     return (
         _toast("\n".join(feedback), "success"),
         gr.update(choices=case_choices, value=case_selected),
-        _case_table(case_rows),
+        _case_table_html(case_rows),
         _case_detail_from_choice(case_selected, settings.storage_dir, workspace.patient.id),
         case_message,
         gr.update(choices=history_choices, value=history_selected),
-        _history_table_from_rows(history_table),
+        _history_table_html(history_table),
         load_history_record(history_selected, settings.storage_dir, workspace.patient.id)
         if history_selected
         else format_history_record(None),
@@ -2926,12 +2924,9 @@ def build_app() -> gr.Blocks:
                         open=False,
                         elem_classes=["compact-accordion"],
                     ):
-                        case_table = gr.Dataframe(
-                            value=_case_table(initial_case_rows),
-                            headers=CASE_TABLE_COLUMNS,
-                            label="病例列表",
-                            wrap=False,
-                            interactive=False,
+                        case_table = gr.HTML(
+                            value=_case_table_html(initial_case_rows),
+                            elem_classes=["record-table-shell"],
                         )
                     case_report_file = gr.File(label="病例报告 Word", visible=False)
                     case_report_path = gr.Textbox(
@@ -2978,12 +2973,9 @@ def build_app() -> gr.Blocks:
                         open=False,
                         elem_classes=["compact-accordion"],
                     ):
-                        history_table = gr.Dataframe(
-                            value=_history_table_from_rows(initial_history_rows),
-                            headers=HISTORY_TABLE_COLUMNS,
-                            label="历史列表",
-                            wrap=False,
-                            interactive=False,
+                        history_table = gr.HTML(
+                            value=_history_table_html(initial_history_rows),
+                            elem_classes=["record-table-shell"],
                         )
                     history_detail = gr.Textbox(
                         value=format_history_record(None),

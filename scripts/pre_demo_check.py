@@ -76,6 +76,17 @@ def main(argv: list[str] | None = None) -> int:
             failures.append("截图前服务检查")
         else:
             print(f"\n[PASS] 截图前服务检查：{message}")
+            responsive_ok, _ = run_command(
+                "UI 响应与布局压力检查",
+                [
+                    sys.executable,
+                    "scripts/check_ui_responsiveness.py",
+                    "--base-url",
+                    str(args.base_url).rstrip("/"),
+                ],
+            )
+            if not responsive_ok:
+                failures.append("UI 响应与布局压力检查")
             screenshot_ok, _ = run_command(
                 "UI 截图回归",
                 [

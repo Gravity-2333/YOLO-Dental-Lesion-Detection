@@ -52,7 +52,8 @@ class ReportCenterUiTests(unittest.TestCase):
             refreshed = refresh_report_center(temp_dir, workspace.patient.id)
             self.assertEqual(len(refreshed), 6)
             self.assertEqual(refreshed[0]["value"], report.id)
-            self.assertEqual(refreshed[1][0][1], path.name)
+            self.assertIn(path.name, refreshed[1])
+            self.assertIn("record-table", refreshed[1])
             self.assertTrue(refreshed[3]["visible"])
 
             detail, file_update, feedback, trash_update = load_report_center_item(

@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 
 import gradio as gr
+import pandas as pd
 
 from .error_messages import friendly_error_message
 from .gradio_files import clear_file_output, file_component_output
@@ -16,6 +17,7 @@ from .personal_workspace import (
     get_personal_report,
     list_personal_reports,
 )
+from .record_views import dataframe_table_html
 from .settings_store import storage_root
 from .workspace_models import ReportAsset
 from .workspace_store import WorkspaceError
@@ -26,7 +28,7 @@ REPORT_TABLE_COLUMNS = ["生成时间", "文件名", "格式", "模型", "文件
 @dataclass(frozen=True, slots=True)
 class ReportCenterComponents:
     report_select: gr.Dropdown
-    report_table: gr.Dataframe
+    report_table: gr.HTML
     report_detail: gr.Textbox
     report_file: gr.File
     report_feedback: gr.Textbox
@@ -69,8 +71,8 @@ def _report_choices(storage_dir: str, reports: list[ReportAsset]) -> list[tuple[
     return choices
 
 
-def _report_table(storage_dir: str, reports: list[ReportAsset]) -> list[list[str]]:
-    return [
+def _report_table_html(storage_dir: str, reports: list[ReportAsset]) -> str:
+    rows = [
         [
             _local_timestamp(report.created_at),
             report.file_name,
@@ -80,6 +82,8 @@ def _report_table(storage_dir: str, reports: list[ReportAsset]) -> list[list[str
         ]
         for report in reports
     ]
+    frame = pd.DataFrame(rows, columns=REPORT_TABLE_COLUMNS)
+    return dataframe_table_html(frame, "当前患者暂无报告记录。")
 
 
 def _report_detail(storage_dir: str, report: ReportAsset | None) -> str:
@@ -141,12 +145,9 @@ def build_report_center(storage_dir: str, patient_id: str) -> ReportCenterCompon
             open=False,
             elem_classes=["compact-accordion"],
         ):
-            report_table = gr.Dataframe(
-                value=_report_table(storage_dir, reports),
-                headers=REPORT_TABLE_COLUMNS,
-                label="报告列表",
-                wrap=False,
-                interactive=False,
+            report_table = gr.HTML(
+                value=_report_table_html(storage_dir, reports),
+                elem_classes=["record-table-shell"],
             )
         initial_file = _report_file_output(storage_dir, selected)
         report_file = gr.File(
@@ -181,7 +182,7 @@ def refresh_report_center(storage_dir: str, patient_id: str, feedback: str = "")
     selected = reports[0] if reports else None
     return (
         gr.update(choices=choices, value=selected_id),
-        _report_table(storage_dir, reports),
+        _report_table_html(storage_dir, reports),
         _report_detail(storage_dir, selected),
         _report_file_output(storage_dir, selected),
         feedback,

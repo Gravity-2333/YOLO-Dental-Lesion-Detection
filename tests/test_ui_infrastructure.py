@@ -5,6 +5,7 @@ from dataclasses import fields
 import unittest
 
 import app
+from src.dental_detection.record_views import case_table_html
 from src.dental_detection.ui_assets import CSS_BUNDLE_FILES, load_workbench_css, load_workbench_js
 from src.dental_detection.ui_contracts import (
     COMMON_INPUT_KEYS,
@@ -114,7 +115,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIsNone(file_update["value"])
         self.assertFalse(file_update["visible"])
 
-    def test_record_tables_are_lazy_until_user_expands_them(self) -> None:
+    def test_record_tables_are_lightweight_and_lazy_until_expanded(self) -> None:
         source = inspect.getsource(app.build_app)
         self.assertIn('"结构化病例列表"', source)
         self.assertIn('"结构化历史列表"', source)
@@ -122,6 +123,12 @@ class UiContentTests(unittest.TestCase):
         report_source = inspect.getsource(app.build_report_center)
         self.assertIn('"结构化报告列表"', report_source)
         self.assertIn('open=False,\n            elem_classes=["compact-accordion"]', report_source)
+        self.assertNotIn("gr.Dataframe", report_source)
+
+    def test_record_table_html_escapes_untrusted_values(self) -> None:
+        html = case_table_html([{"病例编号": '<script>alert("x")</script>'}])
+        self.assertIn("&lt;script&gt;", html)
+        self.assertNotIn("<script>", html)
 
 
 if __name__ == "__main__":

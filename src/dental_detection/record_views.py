@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape
 from typing import Any
 
 import pandas as pd
@@ -30,6 +31,31 @@ def case_choices_from_rows(rows: list[dict[str, Any]]) -> list[str]:
 
 def history_table_from_rows(rows: list[dict[str, Any]]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=HISTORY_TABLE_COLUMNS)
+
+
+def dataframe_table_html(frame: pd.DataFrame, empty_message: str) -> str:
+    if frame.empty:
+        return f'<div class="record-table-empty">{escape(empty_message)}</div>'
+    headers = "".join(f"<th>{escape(str(column))}</th>" for column in frame.columns)
+    body = []
+    for values in frame.itertuples(index=False, name=None):
+        cells = "".join(
+            f"<td>{escape('' if pd.isna(value) else str(value))}</td>"
+            for value in values
+        )
+        body.append(f"<tr>{cells}</tr>")
+    return (
+        '<div class="record-table-scroll"><table class="record-table">'
+        f"<thead><tr>{headers}</tr></thead><tbody>{''.join(body)}</tbody></table></div>"
+    )
+
+
+def case_table_html(rows: list[dict[str, Any]]) -> str:
+    return dataframe_table_html(case_table(rows), "当前患者暂无病例记录。")
+
+
+def history_table_html(rows: list[dict[str, Any]]) -> str:
+    return dataframe_table_html(history_table_from_rows(rows), "当前患者暂无检测历史。")
 
 
 def history_choices_from_rows(rows: list[dict[str, Any]]) -> list[str]:
