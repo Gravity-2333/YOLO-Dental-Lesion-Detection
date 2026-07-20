@@ -126,6 +126,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("initial_history_rows: list[dict[str, Any]] = []", source)
         self.assertIn("case_tab.select(", source)
         self.assertIn("history_tab.select(", source)
+        self.assertIn("limit=CASE_UI_LIMIT", inspect.getsource(app.refresh_case_records))
         self.assertIn('open=False,\n                        elem_classes=["compact-accordion"]', source)
         report_source = inspect.getsource(app.build_report_center)
         self.assertIn('"结构化报告列表"', report_source)
@@ -165,7 +166,7 @@ class UiContentTests(unittest.TestCase):
             patch.object(app, "list_case_records", return_value=[]) as case_rows_mock,
             patch.object(app, "history_rows", return_value=[]) as history_rows_mock,
         ):
-            app.save_ui_settings(
+            result = app.save_ui_settings(
                 False,
                 "",
                 "",
@@ -193,6 +194,15 @@ class UiContentTests(unittest.TestCase):
         self.assertFalse(save_mock.call_args.kwargs["migrate_data"])
         case_rows_mock.assert_not_called()
         history_rows_mock.assert_not_called()
+        self.assertEqual(len(result), 22)
+        self.assertEqual(result[-3:], (False, False, True))
+
+    def test_unchanged_storage_skips_report_rescan(self) -> None:
+        with patch.object(app, "refresh_report_center") as refresh_mock:
+            result = app.refresh_report_center_after_storage_change(False, "unused", "patient-1")
+
+        self.assertEqual(len(result), 6)
+        refresh_mock.assert_not_called()
 
     def test_record_tab_lazy_refresh_skips_repeat_archive_scans(self) -> None:
         case_result = app.lazy_refresh_case_records(True, "unused", "patient-1")

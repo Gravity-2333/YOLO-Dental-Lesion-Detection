@@ -53,6 +53,33 @@ class CaseStoreProfileTests(unittest.TestCase):
                 move_case_to_trash(temp_dir, "case_family.json", "personal-self")
             self.assertTrue((root / "case_family.json").exists())
 
+    def test_case_list_and_search_limits_stop_large_ui_payloads(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            ensure_app_dirs(temp_dir)
+            root = case_dir(temp_dir)
+            for index in range(5):
+                payload = {
+                    "case_id": f"case-{index}",
+                    "image_name": f"image-{index}.png",
+                    "patient_id": "personal-self",
+                }
+                (root / f"case_{index:02d}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+            rows = list_case_records(temp_dir, "personal-self", limit=2)
+            matches = search_case_records(
+                temp_dir,
+                "case",
+                "全部",
+                "全部",
+                "",
+                "",
+                "personal-self",
+                limit=1,
+            )
+
+            self.assertEqual([row["病例编号"] for row in rows], ["case-4", "case-3"])
+            self.assertEqual([row["病例编号"] for row in matches], ["case-4"])
+
 
 if __name__ == "__main__":
     unittest.main()

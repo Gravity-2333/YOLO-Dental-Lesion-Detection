@@ -161,6 +161,7 @@ from ultralytics import YOLO
 EXAMPLE_DIR = PROJECT_ROOT / "assets" / "examples" / "dental"
 EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
 INFERENCE_CONCURRENCY_ID = "dental-inference"
+CASE_UI_LIMIT = 200
 
 
 def _workbench_theme():
@@ -1631,7 +1632,7 @@ def save_case_record(
         "safety_notice": SAFETY_NOTICE,
     }
     _write_text(path, json.dumps(json_safe_value(payload), ensure_ascii=False, indent=2, allow_nan=False))
-    rows = list_case_records(storage_dir, item.get("patient_id"))
+    rows = list_case_records(storage_dir, item.get("patient_id"), limit=CASE_UI_LIMIT)
     choices = _case_choices_from_rows(rows)
     # 精确匹配：choices 格式为 "created_at | case_id | image_name | filename.json"
     selected = next(
@@ -1650,14 +1651,18 @@ def save_case_record(
 
 def refresh_case_records(storage_dir: str, patient_id: str | None = None):
     _ensure_storage_root(storage_dir)
-    rows = list_case_records(storage_dir, patient_id)
+    rows = list_case_records(storage_dir, patient_id, limit=CASE_UI_LIMIT)
     choices = _case_choices_from_rows(rows)
     selected = choices[0] if choices else None
     return (
         gr.update(choices=choices, value=selected),
         _case_table_html(rows),
         _case_detail_from_choice(selected, storage_dir, patient_id),
-        "已刷新病例记录。" if choices else "暂无病例记录。",
+        (
+            f"已刷新病例记录，当前最多显示最近 {CASE_UI_LIMIT} 条。"
+            if len(rows) >= CASE_UI_LIMIT
+            else ("已刷新病例记录。" if choices else "暂无病例记录。")
+        ),
         _clear_file_output(),
         "",
     )
@@ -1693,10 +1698,15 @@ def search_case_records_ui(
         date_from,
         date_to,
         patient_id,
+        limit=CASE_UI_LIMIT,
     )
     choices = _case_choices_from_rows(rows)
     selected = choices[0] if choices else None
-    message = f"已筛选到 {len(rows)} 条病例记录。" if rows else "未找到匹配病例记录。"
+    message = (
+        f"已显示前 {CASE_UI_LIMIT} 条匹配病例，请继续缩小筛选范围。"
+        if len(rows) >= CASE_UI_LIMIT
+        else (f"已筛选到 {len(rows)} 条病例记录。" if rows else "未找到匹配病例记录。")
+    )
     return (
         gr.update(choices=choices, value=selected),
         _case_table_html(rows),
@@ -1734,6 +1744,7 @@ def delete_selected_case_record(
         date_from,
         date_to,
         patient_id,
+        limit=CASE_UI_LIMIT,
     )
     choices = _case_choices_from_rows(rows)
     selected = choices[0] if choices else None
@@ -1819,6 +1830,16 @@ def lazy_refresh_history_page(
         *refresh_report_center(storage_dir, patient_id),
         True,
     )
+
+
+def refresh_report_center_after_storage_change(
+    storage_changed: bool,
+    storage_dir: str,
+    patient_id: str,
+):
+    if not storage_changed:
+        return tuple(gr.update() for _ in range(6))
+    return refresh_report_center(storage_dir, patient_id)
 
 
 def load_history_record(choice: str, storage_dir: str, patient_id: str | None = None) -> str:
@@ -2545,7 +2566,8 @@ def save_ui_settings(
         # buttons or tab entry will load records when needed.
         return (
             _toast("\n".join(feedback), "success"),
-            *([gr.update()] * 18),
+            *([gr.update()] * 20),
+            False,
         )
     try:
         workspace = ensure_personal_workspace(settings.storage_dir)
@@ -2582,6 +2604,9 @@ def save_ui_settings(
         workspace.patient.external_reference,
         gr.update(interactive=False),
         gr.update(interactive=bool(archived_choices)),
+        False,
+        False,
+        True,
     )
 
 
@@ -2790,6 +2815,7 @@ def build_app() -> gr.Blocks:
         chat_state = gr.State([])
         case_loaded_state = gr.State(False)
         history_loaded_state = gr.State(False)
+        storage_changed_state = gr.State(False)
         gr.HTML(APP_HEADER_HTML)
 
         with gr.Tabs(elem_classes=["main-tabs"]):
@@ -3541,10 +3567,13 @@ def build_app() -> gr.Blocks:
                 edit_patient_reference,
                 archive_patient_btn,
                 restore_patient_btn,
+                case_loaded_state,
+                history_loaded_state,
+                storage_changed_state,
             ],
         ).then(
-            fn=refresh_report_center,
-            inputs=[storage_dir, history_patient_select],
+            fn=refresh_report_center_after_storage_change,
+            inputs=[storage_changed_state, storage_dir, history_patient_select],
             outputs=report_list_outputs,
         )
         chat_btn.click(

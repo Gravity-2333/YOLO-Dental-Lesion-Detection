@@ -4,7 +4,7 @@ import json
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from .ai_defaults import SAFETY_NOTICE
 from .settings_store import case_dir, ensure_app_dirs, report_dir, storage_root
@@ -109,33 +109,44 @@ def _row_from_case(path: Path, data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def list_case_records(storage_dir: str, patient_id: str | None = None) -> list[dict[str, Any]]:
+def _iter_case_records(storage_dir: str, patient_id: str | None = None) -> Iterator[dict[str, Any]]:
     ensure_app_dirs(storage_dir)
     selected_patient = str(patient_id or "").strip()
-    rows: list[dict[str, Any]] = []
     for path in sorted(case_dir(storage_dir).glob("case_*.json"), reverse=True):
         try:
             row = _row_from_case(path, _read_case_file(path))
             if selected_patient and row["患者档案ID"] != selected_patient:
                 continue
-            rows.append(row)
+            yield row
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
             if selected_patient and selected_patient != "personal-self":
                 continue
-            rows.append(
-                {
-                    "保存时间": "",
-                    "病例编号": "损坏病例文件",
-                    "图片名称": "",
-                    "检测数量": "",
-                    "涉及类别": "",
-                    "关注等级": "",
-                    "最高置信度": "",
-                    "文件名": path.name,
-                    "患者档案ID": "personal-self",
-                    "_data": {"错误": f"病例文件损坏或无法读取：{path.name}"},
-                }
-            )
+            yield {
+                "保存时间": "",
+                "病例编号": "损坏病例文件",
+                "图片名称": "",
+                "检测数量": "",
+                "涉及类别": "",
+                "关注等级": "",
+                "最高置信度": "",
+                "文件名": path.name,
+                "患者档案ID": "personal-self",
+                "_data": {"错误": f"病例文件损坏或无法读取：{path.name}"},
+            }
+
+
+def list_case_records(
+    storage_dir: str,
+    patient_id: str | None = None,
+    *,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    max_rows = max(1, int(limit)) if limit is not None else None
+    rows: list[dict[str, Any]] = []
+    for row in _iter_case_records(storage_dir, patient_id):
+        rows.append(row)
+        if max_rows is not None and len(rows) >= max_rows:
+            break
     return rows
 
 
@@ -147,14 +158,17 @@ def search_case_records(
     date_from: str,
     date_to: str,
     patient_id: str | None = None,
+    *,
+    limit: int | None = None,
 ) -> list[dict[str, Any]]:
     keyword_text = str(keyword or "").strip().casefold()
     class_value = str(class_filter or "全部")
     level_value = str(level_filter or "全部")
     start = str(date_from or "").strip()
     end = str(date_to or "").strip()
+    max_rows = max(1, int(limit)) if limit is not None else None
     rows = []
-    for row in list_case_records(storage_dir, patient_id):
+    for row in _iter_case_records(storage_dir, patient_id):
         data = row.get("_data", {})
         detections = _case_detections(data)
         searchable = "\n".join(
@@ -188,6 +202,8 @@ def search_case_records(
         if end and created_at[:10] > end:
             continue
         rows.append(row)
+        if max_rows is not None and len(rows) >= max_rows:
+            break
     return rows
 
 
