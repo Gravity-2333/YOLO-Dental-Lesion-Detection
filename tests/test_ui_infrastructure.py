@@ -130,6 +130,14 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("&lt;script&gt;", html)
         self.assertNotIn("<script>", html)
 
+    def test_user_inputs_do_not_retrigger_callbacks_from_function_updates(self) -> None:
+        source = inspect.getsource(app.build_app)
+        self.assertIn("model_mode.input(fn=sync_model_mode", source)
+        self.assertIn("settings_model_mode.input(fn=sync_model_mode", source)
+        self.assertIn("batch_select.input(", source)
+        self.assertNotIn("model_mode.change(fn=sync_model_mode", source)
+        self.assertNotIn("settings_model_mode.change(fn=sync_model_mode", source)
+
 
 if __name__ == "__main__":
     unittest.main()

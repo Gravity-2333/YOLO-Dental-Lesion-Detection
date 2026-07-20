@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.dental_detection.browser_fallback import launch_chromium_with_fallback
+from src.dental_detection.ui_constants import MODEL_MODE_COMPARE, MODEL_MODE_SINGLE
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,12 +44,45 @@ def timed_click(page, locator, label: str, maximum: float, timings: list[tuple[s
         raise RuntimeError(f"{label} 响应过慢：{elapsed:.2f}s > {maximum:.2f}s")
 
 
+def ensure_accordion_open(page, locator, label: str, maximum: float, timings: list[tuple[str, float]]) -> None:
+    if locator.get_attribute("aria-expanded") != "true":
+        timed_click(page, locator, label, maximum, timings)
+
+
 def top_tab(page, name: str):
     return page.get_by_role("tab", name=name, exact=True).first
 
 
 def accordion(page, name: str):
     return page.get_by_role("button", name=re.compile(rf"^{re.escape(name)}")).first
+
+
+def first_visible(matches, name: str):
+    for index in range(matches.count()):
+        candidate = matches.nth(index)
+        if candidate.is_visible():
+            return candidate
+    raise RuntimeError(f"未找到可见控件：{name}")
+
+
+def visible_radio(page, value: str):
+    matches = page.locator('input[type="radio"]')
+    visible_values = []
+    for index in range(matches.count()):
+        candidate = matches.nth(index)
+        if candidate.is_visible():
+            visible_values.append(candidate.input_value())
+            if candidate.input_value() == value:
+                return candidate
+    raise RuntimeError(f"未找到可见单选项：{value}；可见值={visible_values}")
+
+
+def has_visible_radio(page, value: str) -> bool:
+    matches = page.locator('input[type="radio"]')
+    return any(
+        matches.nth(index).is_visible() and matches.nth(index).input_value() == value
+        for index in range(matches.count())
+    )
 
 
 def assert_no_page_overflow(page, label: str) -> None:
@@ -133,6 +167,23 @@ def main() -> int:
         for name in ["设置", "检测工作台", "检测历史", "病例记录", "AI 问答"]:
             timed_click(page, top_tab(page, name), f"重组件后导航/{name}", args.max_seconds, timings)
         assert_no_page_overflow(page, "重组件展开后的桌面页面")
+
+        timed_click(page, top_tab(page, "设置"), "进入设置/模式回归", args.max_seconds, timings)
+        model_accordion = accordion(page, "模型与推理")
+        ensure_accordion_open(page, model_accordion, "展开设置/模式回归", args.max_seconds, timings)
+        if not has_visible_radio(page, MODEL_MODE_COMPARE):
+            # Gradio may restore the accordion's stale aria state after a tab switch;
+            # one guarded retry keeps this check focused on the visible control.
+            timed_click(page, model_accordion, "重试展开设置/模式回归", args.max_seconds, timings)
+        compare_toggle = first_visible(page.get_by_label("允许对比模型模式", exact=True), "允许对比模型模式")
+        if compare_toggle.is_checked() is False:
+            timed_click(page, compare_toggle, "启用对比模型模式", args.max_seconds, timings)
+        compare_radio = visible_radio(page, MODEL_MODE_COMPARE)
+        if compare_radio.is_checked() is False:
+            timed_click(page, compare_radio, "切换双模型对比", args.max_seconds, timings)
+        single_radio = visible_radio(page, MODEL_MODE_SINGLE)
+        if single_radio.is_checked() is False:
+            timed_click(page, single_radio, "切回单模型检测", args.max_seconds, timings)
 
         mobile = browser.new_page(viewport={"width": 390, "height": 900}, is_mobile=True)
         mobile.goto(base_url, wait_until="domcontentloaded", timeout=90000)

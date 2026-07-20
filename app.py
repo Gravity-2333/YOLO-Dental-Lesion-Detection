@@ -3321,13 +3321,17 @@ def build_app() -> gr.Blocks:
             inputs=[storage_dir, case_patient_select],
             outputs=report_list_outputs,
         )
-        image.change(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
-        batch_files.change(fn=clear_outputs, outputs=common_outputs)
+        # User-only listeners avoid reprocessing when another callback updates a component.
+        # This is important for large images and model outputs: Gradio's `.change()` also
+        # fires for function updates, which can create duplicate redraws or event loops.
+        image.input(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
+        batch_files.upload(fn=clear_outputs, outputs=common_outputs)
+        batch_files.clear(fn=clear_outputs, outputs=common_outputs)
         stale_result_controls = [primary_model_path, compare_model_path, conf, iou, device_choice, use_clahe]
         for control in stale_result_controls:
-            control.change(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
-        primary_model_path.change(fn=_workbench_model_status_html, inputs=primary_model_path, outputs=workbench_model_status)
-        example_select.change(fn=_example_preview_text, inputs=example_select, outputs=example_info)
+            control.input(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
+        primary_model_path.input(fn=_workbench_model_status_html, inputs=primary_model_path, outputs=workbench_model_status)
+        example_select.input(fn=_example_preview_text, inputs=example_select, outputs=example_info)
         load_example_btn.click(fn=load_demo_example, inputs=example_select, outputs=[image, example_info]).then(
             fn=clear_outputs_with_quality,
             inputs=image,
@@ -3339,7 +3343,7 @@ def build_app() -> gr.Blocks:
             inputs=[batch_files, *common_inputs],
             outputs=common_outputs,
         )
-        batch_select.change(
+        batch_select.input(
             fn=select_batch_item,
             inputs=[batch_select, batch_state, show_summary],
             outputs=[
@@ -3370,7 +3374,7 @@ def build_app() -> gr.Blocks:
                 save_case_btn,
             ],
         )
-        visible_class_filter.change(
+        visible_class_filter.input(
             fn=update_detection_visibility,
             inputs=[visible_class_filter, batch_select, batch_state],
             outputs=[
@@ -3384,8 +3388,8 @@ def build_app() -> gr.Blocks:
                 result_image_path,
             ],
         )
-        ai_enabled.change(fn=toggle_ai_settings, inputs=ai_enabled, outputs=ai_group)
-        key_mode.change(
+        ai_enabled.input(fn=toggle_ai_settings, inputs=ai_enabled, outputs=ai_group)
+        key_mode.input(
             fn=set_api_key_mode,
             inputs=key_mode,
             outputs=[env_api_key, direct_api_key_hidden, direct_api_key_visible, show_direct_key_btn, direct_key_visible],
@@ -3395,17 +3399,17 @@ def build_app() -> gr.Blocks:
             inputs=[direct_api_key_hidden, direct_api_key_visible, direct_key_visible],
             outputs=[direct_api_key_hidden, direct_api_key_visible, show_direct_key_btn, direct_key_visible],
         )
-        model_mode.change(fn=sync_model_mode, inputs=model_mode, outputs=[settings_model_mode, compare_model_path]).then(
+        model_mode.input(fn=sync_model_mode, inputs=model_mode, outputs=[settings_model_mode, compare_model_path]).then(
             fn=clear_outputs_with_quality,
             inputs=image,
             outputs=common_outputs,
         )
-        settings_model_mode.change(fn=sync_model_mode, inputs=settings_model_mode, outputs=[model_mode, compare_model_path]).then(
+        settings_model_mode.input(fn=sync_model_mode, inputs=settings_model_mode, outputs=[model_mode, compare_model_path]).then(
             fn=clear_outputs_with_quality,
             inputs=image,
             outputs=common_outputs,
         )
-        enable_compare.change(
+        enable_compare.input(
             fn=on_enable_compare_change,
             inputs=enable_compare,
             outputs=[model_mode, settings_model_mode, compare_model_path],
@@ -3414,7 +3418,7 @@ def build_app() -> gr.Blocks:
             inputs=image,
             outputs=common_outputs,
         )
-        show_summary.change(fn=toggle_summary, inputs=show_summary, outputs=summary)
+        show_summary.input(fn=toggle_summary, inputs=show_summary, outputs=summary)
         test_btn.click(
             fn=test_ai_settings,
             inputs=settings.ai_request_inputs(),
@@ -3490,7 +3494,7 @@ def build_app() -> gr.Blocks:
             inputs=[model_dir, model_file_select, show_advanced_models],
             outputs=[model_file_select, model_feedback],
         )
-        show_advanced_models.change(
+        show_advanced_models.input(
             fn=refresh_model_choices,
             inputs=[model_dir, model_file_select, show_advanced_models],
             outputs=[model_file_select, model_feedback],
@@ -3609,7 +3613,7 @@ def build_app() -> gr.Blocks:
             inputs=[case_select, storage_dir, case_patient_select],
             outputs=[case_report_file, case_report_path],
         )
-        case_select.change(
+        case_select.input(
             fn=load_case_record_and_clear_export,
             inputs=[case_select, storage_dir, case_patient_select],
             outputs=[case_detail, case_report_file, case_report_path],
@@ -3619,7 +3623,7 @@ def build_app() -> gr.Blocks:
             inputs=[storage_dir, history_patient_select],
             outputs=history_list_outputs,
         )
-        history_select.change(
+        history_select.input(
             fn=load_history_record,
             inputs=[history_select, storage_dir, history_patient_select],
             outputs=history_detail,
@@ -3639,7 +3643,7 @@ def build_app() -> gr.Blocks:
             inputs=[storage_dir, history_patient_select],
             outputs=report_list_outputs,
         )
-        report_center.report_select.change(
+        report_center.report_select.input(
             fn=load_report_center_item,
             inputs=[report_center.report_select, storage_dir, history_patient_select],
             outputs=[

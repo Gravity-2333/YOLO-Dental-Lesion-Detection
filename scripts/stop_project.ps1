@@ -21,7 +21,15 @@ $items = Get-CimInstance Win32_Process | Where-Object {
         -and $_.CommandLine -match $portPattern
 }
 
-if (-not $items) {
+$runnerPattern = [regex]::Escape((Join-Path $PSScriptRoot "run_gradio_server.bat"))
+$runners = Get-CimInstance Win32_Process | Where-Object {
+    $_.ProcessId -ne $PID `
+        -and $_.Name.ToLowerInvariant() -eq "cmd.exe" `
+        -and $_.CommandLine `
+        -and $_.CommandLine -match $runnerPattern
+}
+
+if (-not $items -and -not $runners) {
     exit 2
 }
 
@@ -29,6 +37,15 @@ foreach ($item in $items) {
     Stop-Process -Id $item.ProcessId -Force -ErrorAction SilentlyContinue
     if (-not $Quiet) {
         Write-Host ("[INFO] Stopped process PID " + $item.ProcessId)
+    }
+}
+
+# The visible `/k` runner window is not matched by app.py's command line.
+# Close it explicitly so repeated restarts do not leave stale console windows.
+foreach ($runner in $runners) {
+    Stop-Process -Id $runner.ProcessId -Force -ErrorAction SilentlyContinue
+    if (-not $Quiet) {
+        Write-Host ("[INFO] Closed project runner window PID " + $runner.ProcessId)
     }
 }
 
