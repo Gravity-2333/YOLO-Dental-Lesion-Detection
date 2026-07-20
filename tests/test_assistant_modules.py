@@ -75,6 +75,20 @@ class AdviceAndConversationTests(unittest.TestCase):
             self.assertEqual(payload["messages"], messages)
             self.assertEqual(payload["safety_notice"], SAFETY_NOTICE)
 
+    def test_auto_conversation_retention_removes_oldest_files(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            messages = [{"role": "user", "content": "保留测试"}]
+            manual = save_conversation(messages, temp_dir)
+            first = save_conversation(messages, temp_dir, retain_limit=2)
+            second = save_conversation(messages, temp_dir, retain_limit=2)
+            third = save_conversation(messages, temp_dir, retain_limit=2)
+
+            self.assertTrue(manual.exists())
+            self.assertFalse(first.exists())
+            self.assertTrue(second.exists())
+            self.assertTrue(third.exists())
+            self.assertEqual(len(list(first.parent.glob("dental_chat_auto_*.json"))), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

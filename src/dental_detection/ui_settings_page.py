@@ -317,7 +317,8 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                 save_history = gr.Checkbox(value=saved.save_history, label="自动保存检测历史")
                 history_limit = gr.Number(
                     value=saved.history_limit,
-                    label="历史记录最多保留数量",
+                    label="自动记录最多保留数量",
+                    info="同时用于检测历史和自动保存的对话记录。",
                     precision=0,
                     minimum=1,
                     maximum=1000,
@@ -339,7 +340,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                 with gr.Accordion("说明", open=False):
                     gr.Markdown(
                         "对话、导出和病例记录会保存在该数据根目录下。更换目录会切换后续保存位置，"
-                        "不会自动搬移旧目录数据。三点按钮会弹出路径选择器；开启自动保存后每次检测都会生成对话记录文件。"
+                        "不会自动搬移旧目录数据。三点按钮会弹出路径选择器；自动保存的对话和检测历史会按上述数量保留。"
                         "检测历史默认只保存摘要和检测框，不保存原始上传图。"
                     )
 

@@ -203,6 +203,12 @@ def capture(args: argparse.Namespace) -> None:
                     if tab_name == "设置":
                         click_accordion(detail_page, "存储与隐私")
                         check_visible_path_row_alignment(detail_page, "存储路径")
+                        save(
+                            detail_page,
+                            output_dir,
+                            name("06-settings-storage.png", suffix),
+                            full=True,
+                        )
                 except Exception as exc:
                     print(f"{filename} screenshot failed: {exc}")
                     save(detail_page, output_dir, name(filename, suffix))

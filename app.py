@@ -724,7 +724,8 @@ def _conversation_from_advice(advice: str) -> list[dict[str, str]]:
 
 def _auto_save_conversation(history: list[dict[str, str]], storage_dir: str) -> str:
     try:
-        save_conversation(history, storage_dir)
+        retain_limit = _normalize_history_limit(load_settings().history_limit)
+        save_conversation(history, storage_dir, retain_limit=retain_limit)
     except Exception as exc:
         message = friendly_error_message(exc, "自动保存对话失败")
         return f"自动保存对话失败，检测或回复结果已保留。\n{message}"

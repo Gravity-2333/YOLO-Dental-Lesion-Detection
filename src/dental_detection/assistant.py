@@ -91,9 +91,9 @@ def migrate_storage(old_storage_dir: str | None, new_storage_dir: str | None) ->
     _settings_store.migrate_storage(old_storage_dir, new_storage_dir)
 
 
-def save_conversation(messages, storage_dir: str | None = None):
+def save_conversation(messages, storage_dir: str | None = None, *, retain_limit: int | None = None):
     _sync_settings_globals()
-    return _conversation_store.save_conversation(messages, storage_dir)
+    return _conversation_store.save_conversation(messages, storage_dir, retain_limit=retain_limit)
 
 
 __all__ = [

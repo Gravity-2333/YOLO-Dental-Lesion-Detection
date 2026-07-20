@@ -204,6 +204,16 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(len(result), 6)
         refresh_mock.assert_not_called()
 
+    def test_auto_conversation_save_uses_configured_retention_limit(self) -> None:
+        with (
+            patch.object(app, "load_settings", return_value=app.AiSettings(history_limit=37)),
+            patch.object(app, "save_conversation") as save_mock,
+        ):
+            warning = app._auto_save_conversation([], "storage-root")
+
+        self.assertEqual(warning, "")
+        save_mock.assert_called_once_with([], "storage-root", retain_limit=37)
+
     def test_record_tab_lazy_refresh_skips_repeat_archive_scans(self) -> None:
         case_result = app.lazy_refresh_case_records(True, "unused", "patient-1")
         history_result = app.lazy_refresh_history_page(True, "unused", "patient-1")
