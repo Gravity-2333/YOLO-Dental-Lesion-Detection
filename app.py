@@ -159,6 +159,7 @@ from ultralytics import YOLO
 
 EXAMPLE_DIR = PROJECT_ROOT / "assets" / "examples" / "dental"
 EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
+INFERENCE_CONCURRENCY_ID = "dental-inference"
 
 
 def _workbench_theme():
@@ -3337,11 +3338,21 @@ def build_app() -> gr.Blocks:
             inputs=image,
             outputs=common_outputs,
         )
-        run_btn.click(fn=run_single_detection, inputs=[image, *common_inputs], outputs=common_outputs)
+        run_btn.click(
+            fn=run_single_detection,
+            inputs=[image, *common_inputs],
+            outputs=common_outputs,
+            concurrency_limit=1,
+            concurrency_id=INFERENCE_CONCURRENCY_ID,
+            show_progress="minimal",
+        )
         batch_btn.click(
             fn=run_batch_detection,
             inputs=[batch_files, *common_inputs],
             outputs=common_outputs,
+            concurrency_limit=1,
+            concurrency_id=INFERENCE_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         batch_select.input(
             fn=select_batch_item,

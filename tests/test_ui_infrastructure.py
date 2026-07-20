@@ -135,6 +135,8 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("model_mode.input(fn=sync_model_mode", source)
         self.assertIn("settings_model_mode.input(fn=sync_model_mode", source)
         self.assertIn("batch_select.input(", source)
+        self.assertIn('concurrency_id=INFERENCE_CONCURRENCY_ID', source)
+        self.assertIn('concurrency_limit=1', source)
         self.assertNotIn("model_mode.change(fn=sync_model_mode", source)
         self.assertNotIn("settings_model_mode.change(fn=sync_model_mode", source)
 

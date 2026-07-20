@@ -166,9 +166,22 @@ def capture(args: argparse.Namespace) -> None:
                     raise RuntimeError("no file input found")
                 file_inputs.first.set_input_files(str(example))
                 page.wait_for_timeout(2500)
+                result_images = page.locator(".primary-result-card img")
+                before_result_src = (
+                    result_images.first.get_attribute("src") if result_images.count() else ""
+                )
                 page.get_by_role("button", name="开始分析").first.click(timeout=15000)
-                page.get_by_text("牙齿辅助建议").wait_for(timeout=120000)
+                page.wait_for_function(
+                    """before => {
+                        const image = document.querySelector('.primary-result-card img');
+                        return Boolean(image && image.complete && image.naturalWidth > 0
+                            && image.src && (!before || image.src !== before));
+                    }""",
+                    arg=before_result_src,
+                    timeout=120000,
+                )
                 page.wait_for_timeout(12000)
+                check_navigation_responsiveness(page)
                 save(page, output_dir, name("03-workbench-detection-result.png", suffix))
             except Exception as exc:
                 print(f"03 detection/upload screenshot failed: {exc}")

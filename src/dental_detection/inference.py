@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from threading import RLock
 from typing import Any
 
 import cv2
@@ -79,6 +80,9 @@ class DentalDetector:
         self.model_path = Path(model_path)
         self.model = YOLO(str(self.model_path))
         self.names = self.model.names
+        # Ultralytics model instances keep mutable prediction state and are not
+        # safe to use concurrently across Gradio sessions.
+        self._predict_lock = RLock()
 
     def predict(
         self,
@@ -96,14 +100,15 @@ class DentalDetector:
             model_array = preprocess_image(normalized_image, use_clahe=True)
         else:
             model_array = original_array
-        results = self.model.predict(
-            source=model_array,
-            conf=conf,
-            iou=iou,
-            imgsz=imgsz,
-            device=device,
-            verbose=False,
-        )
+        with self._predict_lock:
+            results = self.model.predict(
+                source=model_array,
+                conf=conf,
+                iou=iou,
+                imgsz=imgsz,
+                device=device,
+                verbose=False,
+            )
         detections = self._parse_result(results[0])
         model_image = Image.fromarray(model_array)
         annotated = self._draw_detections(model_image, detections)
