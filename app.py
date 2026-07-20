@@ -32,6 +32,7 @@ from src.dental_detection.settings_store import (
     load_settings,
     report_dir,
     save_settings,
+    storage_root,
 )
 from src.dental_detection.case_store import (
     export_case_report,
@@ -1662,6 +1663,17 @@ def refresh_case_records(storage_dir: str, patient_id: str | None = None):
     )
 
 
+def lazy_refresh_case_records(
+    loaded: bool,
+    storage_dir: str,
+    patient_id: str | None = None,
+):
+    """Load the case archive once per browser session/tab lifecycle."""
+    if loaded:
+        return (*([gr.update()] * 6), True)
+    return (*refresh_case_records(storage_dir, patient_id), True)
+
+
 def search_case_records_ui(
     keyword: str,
     class_filter: str,
@@ -1791,6 +1803,21 @@ def refresh_history_records(storage_dir: str, patient_id: str | None = None):
         _history_table_html(rows),
         load_history_record(selected, storage_dir, patient_id) if selected else format_history_record(None),
         "历史记录已刷新。" if choices else "暂无检测历史。",
+    )
+
+
+def lazy_refresh_history_page(
+    loaded: bool,
+    storage_dir: str,
+    patient_id: str | None = None,
+):
+    """Load history and reports once; explicit refresh buttons remain available."""
+    if loaded:
+        return (*([gr.update()] * 10), True)
+    return (
+        *refresh_history_records(storage_dir, patient_id),
+        *refresh_report_center(storage_dir, patient_id),
+        True,
     )
 
 
@@ -2460,6 +2487,7 @@ def save_ui_settings(
     save_history: bool,
     history_limit: int | float,
 ):
+    previous_settings = load_settings()
     settings = _ai_settings(
         ai_enabled,
         base_url,
@@ -2490,7 +2518,9 @@ def save_ui_settings(
     settings.save_history = bool(save_history)
     settings.history_limit = _normalize_history_limit(history_limit)
     try:
-        path = save_settings(settings)
+        # Switching the active data root must stay a fast, non-destructive
+        # settings operation. Bulk migration remains an explicit helper.
+        path = save_settings(settings, migrate_data=False)
     except (OSError, RuntimeError, ValueError, TypeError) as exc:
         text = str(exc).casefold()
         context = (
@@ -2502,30 +2532,42 @@ def save_ui_settings(
     _ensure_storage_root(settings.storage_dir)
     feedback = [f"设置已保存：{path}"]
     try:
+        storage_changed = storage_root(previous_settings.storage_dir).resolve() != storage_root(
+            settings.storage_dir
+        ).resolve()
+    except (OSError, RuntimeError, ValueError):
+        storage_changed = previous_settings.storage_dir != settings.storage_dir
+    if storage_changed:
+        feedback.append("数据目录已切换；旧目录内容未自动搬移。")
+    if not storage_changed:
+        # Saving model/AI preferences must not rescan the case and history
+        # archives. Existing selectors remain valid and explicit refresh
+        # buttons or tab entry will load records when needed.
+        return (
+            _toast("\n".join(feedback), "success"),
+            *([gr.update()] * 18),
+        )
+    try:
         workspace = ensure_personal_workspace(settings.storage_dir)
         patient_choices = personal_patient_choices(settings.storage_dir)
         archived_choices = personal_archived_patient_choices(settings.storage_dir)
     except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
         raise _friendly_gr_error(exc, "患者工作区初始化失败") from exc
-    case_rows = list_case_records(settings.storage_dir, workspace.patient.id)
-    case_choices = _case_choices_from_rows(case_rows)
-    case_selected = case_choices[0] if case_choices else None
-    case_message = "病例列表已同步到当前存储位置。" if case_choices else "当前存储位置暂无病例记录。"
-    history_table = history_rows(settings.storage_dir, workspace.patient.id)
-    history_choices = _history_choices_from_rows(history_table)
-    history_selected = history_choices[0] if history_choices else None
-    history_message = "检测历史已同步到当前存储位置。" if history_choices else "当前存储位置暂无检测历史。"
+    # The new root is intentionally presented empty here; the record tabs
+    # populate themselves lazily on first navigation.
+    case_choices: list[tuple[str, str]] = []
+    history_choices: list[tuple[str, str]] = []
+    case_message = "当前存储位置暂无病例记录。"
+    history_message = "当前存储位置暂无检测历史。"
     return (
         _toast("\n".join(feedback), "success"),
-        gr.update(choices=case_choices, value=case_selected),
-        _case_table_html(case_rows),
-        _case_detail_from_choice(case_selected, settings.storage_dir, workspace.patient.id),
+        gr.update(choices=case_choices, value=None),
+        _case_table_html([]),
+        _case_detail_from_choice(None, settings.storage_dir, workspace.patient.id),
         case_message,
-        gr.update(choices=history_choices, value=history_selected),
-        _history_table_html(history_table),
-        load_history_record(history_selected, settings.storage_dir, workspace.patient.id)
-        if history_selected
-        else format_history_record(None),
+        gr.update(choices=history_choices, value=None),
+        _history_table_html([]),
+        format_history_record(None),
         history_message,
         _clear_file_output(),
         "",
@@ -2727,8 +2769,11 @@ def build_app() -> gr.Blocks:
         recommended_paths=_recommended_model_paths(),
     )
     model_choice_values = {value for _, value in model_choices}
-    initial_case_rows = list_case_records(saved.storage_dir, personal_workspace.patient.id)
-    initial_history_rows = history_rows(saved.storage_dir, personal_workspace.patient.id)
+    # Record stores are intentionally loaded on first navigation instead of
+    # during app construction. Large personal data roots must not block the
+    # Gradio page from becoming interactive.
+    initial_case_rows: list[dict[str, Any]] = []
+    initial_history_rows: list[dict[str, Any]] = []
     saved_primary_model_path = _model_path_or_default(saved.primary_model_path, str(DEFAULT_MODEL_PATH))
     model_card_choices = _model_card_choices()
     selected_model_choice = (
@@ -2743,6 +2788,8 @@ def build_app() -> gr.Blocks:
     ) as demo:
         batch_state = gr.State([])
         chat_state = gr.State([])
+        case_loaded_state = gr.State(False)
+        history_loaded_state = gr.State(False)
         gr.HTML(APP_HEADER_HTML)
 
         with gr.Tabs(elem_classes=["main-tabs"]):
@@ -2770,7 +2817,7 @@ def build_app() -> gr.Blocks:
                     chatbot = gr.Chatbot(
                         label="问答记录",
                         show_label=False,
-                        height=500,
+                        height=420,
                         placeholder="暂无对话。完成检测后，可以继续追问病变位置、可能风险和复查建议。",
                         elem_classes=["chat-window"],
                     )
@@ -2802,7 +2849,7 @@ def build_app() -> gr.Blocks:
                         )
                         export_file = gr.File(label="导出的对话文件", visible=False)
 
-            with gr.Tab("病例记录"):
+            with gr.Tab("病例记录") as case_tab:
                 with gr.Group(elem_classes=["section-card", "case-card"]):
                     gr.HTML(CASE_INTRO_HTML)
                     case_patient_select = gr.Dropdown(
@@ -2944,7 +2991,7 @@ def build_app() -> gr.Blocks:
                         lines=14,
                     )
 
-            with gr.Tab("检测历史"):
+            with gr.Tab("检测历史") as history_tab:
                 with gr.Group(elem_classes=["section-card", "case-card"]):
                     gr.HTML(
                         '<div class="card-heading"><div><h2>检测历史</h2>'
@@ -2987,6 +3034,7 @@ def build_app() -> gr.Blocks:
                 report_center = build_report_center(
                     saved.storage_dir,
                     personal_workspace.patient.id,
+                    load_initial=False,
                 )
 
             with gr.Tab("设置"):
@@ -3153,6 +3201,19 @@ def build_app() -> gr.Blocks:
             report_center.report_feedback,
             report_center.trash_button,
         ]
+
+        # Lazy-load record stores when their tabs become visible. This keeps
+        # startup and tab navigation responsive even with large local archives.
+        case_tab.select(
+            fn=lazy_refresh_case_records,
+            inputs=[case_loaded_state, storage_dir, case_patient_select],
+            outputs=[*case_list_outputs, case_loaded_state],
+        )
+        history_tab.select(
+            fn=lazy_refresh_history_page,
+            inputs=[history_loaded_state, storage_dir, history_patient_select],
+            outputs=[*history_list_outputs, *report_list_outputs, history_loaded_state],
+        )
 
         clear_session_btn.click(
             fn=clear_patient_session,

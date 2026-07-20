@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import inspect
 from dataclasses import fields
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 import unittest
 
 import app
@@ -119,6 +122,10 @@ class UiContentTests(unittest.TestCase):
         source = inspect.getsource(app.build_app)
         self.assertIn('"结构化病例列表"', source)
         self.assertIn('"结构化历史列表"', source)
+        self.assertIn("initial_case_rows: list[dict[str, Any]] = []", source)
+        self.assertIn("initial_history_rows: list[dict[str, Any]] = []", source)
+        self.assertIn("case_tab.select(", source)
+        self.assertIn("history_tab.select(", source)
         self.assertIn('open=False,\n                        elem_classes=["compact-accordion"]', source)
         report_source = inspect.getsource(app.build_report_center)
         self.assertIn('"结构化报告列表"', report_source)
@@ -139,6 +146,61 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('concurrency_limit=1', source)
         self.assertNotIn("model_mode.change(fn=sync_model_mode", source)
         self.assertNotIn("settings_model_mode.change(fn=sync_model_mode", source)
+
+    def test_settings_save_does_not_move_existing_data_implicitly(self) -> None:
+        source = inspect.getsource(app.save_ui_settings)
+        self.assertIn("save_settings(settings, migrate_data=False)", source)
+
+    def test_settings_save_passes_non_migrating_contract_to_store(self) -> None:
+        workspace = SimpleNamespace(
+            patient=SimpleNamespace(id="patient-1", display_name="测试患者", external_reference=""),
+        )
+        with (
+            patch.object(app, "load_settings", return_value=app.AiSettings(storage_dir="old-root")),
+            patch.object(app, "save_settings", return_value=Path("settings.json")) as save_mock,
+            patch.object(app, "_ensure_storage_root"),
+            patch.object(app, "ensure_personal_workspace", return_value=workspace),
+            patch.object(app, "personal_patient_choices", return_value=[]),
+            patch.object(app, "personal_archived_patient_choices", return_value=[]),
+            patch.object(app, "list_case_records", return_value=[]) as case_rows_mock,
+            patch.object(app, "history_rows", return_value=[]) as history_rows_mock,
+        ):
+            app.save_ui_settings(
+                False,
+                "",
+                "",
+                "环境变量",
+                "",
+                "",
+                "",
+                False,
+                False,
+                True,
+                "new-root",
+                "",
+                "简洁版",
+                False,
+                False,
+                "单模型",
+                "",
+                "",
+                "",
+                True,
+                100,
+            )
+
+        save_mock.assert_called_once()
+        self.assertFalse(save_mock.call_args.kwargs["migrate_data"])
+        case_rows_mock.assert_not_called()
+        history_rows_mock.assert_not_called()
+
+    def test_record_tab_lazy_refresh_skips_repeat_archive_scans(self) -> None:
+        case_result = app.lazy_refresh_case_records(True, "unused", "patient-1")
+        history_result = app.lazy_refresh_history_page(True, "unused", "patient-1")
+        self.assertEqual(len(case_result), 7)
+        self.assertEqual(len(history_result), 11)
+        self.assertTrue(case_result[-1])
+        self.assertTrue(history_result[-1])
 
 
 if __name__ == "__main__":

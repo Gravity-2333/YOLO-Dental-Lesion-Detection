@@ -203,6 +203,11 @@
     max-height: 320px !important;
   }
 
+  .chat-window {
+    height: 340px !important;
+    min-height: 340px !important;
+  }
+
   .main-tabs [role="tablist"],
   .settings-tabs [role="tablist"],
   .sub-tabs [role="tablist"] {

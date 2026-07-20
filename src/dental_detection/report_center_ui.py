@@ -116,8 +116,13 @@ def _load_reports(storage_dir: str, patient_id: str) -> list[ReportAsset]:
     return list_personal_reports(storage_dir, patient_id, limit=200)
 
 
-def build_report_center(storage_dir: str, patient_id: str) -> ReportCenterComponents:
-    reports = _load_reports(storage_dir, patient_id)
+def build_report_center(
+    storage_dir: str,
+    patient_id: str,
+    *,
+    load_initial: bool = True,
+) -> ReportCenterComponents:
+    reports = _load_reports(storage_dir, patient_id) if load_initial else []
     choices = _report_choices(storage_dir, reports)
     selected_id = choices[0][1] if choices else None
     selected = reports[0] if reports else None

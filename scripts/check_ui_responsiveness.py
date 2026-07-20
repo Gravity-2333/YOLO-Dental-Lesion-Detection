@@ -44,6 +44,19 @@ def timed_click(page, locator, label: str, maximum: float, timings: list[tuple[s
         raise RuntimeError(f"{label} 响应过慢：{elapsed:.2f}s > {maximum:.2f}s")
 
 
+def timed_wait_for_value(page, locator, label: str, maximum: float, timings: list[tuple[str, float]]) -> None:
+    started = perf_counter()
+    page.wait_for_function(
+        "element => Boolean(element && element.value)",
+        arg=locator.element_handle(),
+        timeout=max(10000, int(maximum * 1000)),
+    )
+    elapsed = perf_counter() - started
+    timings.append((label, elapsed))
+    if elapsed > maximum:
+        raise RuntimeError(f"{label} 完成过慢：{elapsed:.2f}s > {maximum:.2f}s")
+
+
 def ensure_accordion_open(page, locator, label: str, maximum: float, timings: list[tuple[str, float]]) -> None:
     if locator.get_attribute("aria-expanded") != "true":
         timed_click(page, locator, label, maximum, timings)
@@ -136,6 +149,22 @@ def main() -> int:
         for cycle in range(max(1, int(args.cycles))):
             for name in names:
                 timed_click(page, top_tab(page, name), f"主导航 {cycle + 1}/{name}", args.max_seconds, timings)
+                if cycle == 0 and name == "病例记录":
+                    timed_wait_for_value(
+                        page,
+                        page.get_by_label("病例反馈", exact=True),
+                        "病例记录首次加载",
+                        args.max_seconds,
+                        timings,
+                    )
+                if cycle == 0 and name == "检测历史":
+                    timed_wait_for_value(
+                        page,
+                        page.get_by_label("历史反馈", exact=True),
+                        "检测历史首次加载",
+                        args.max_seconds,
+                        timings,
+                    )
 
         timed_click(page, top_tab(page, "设置"), "进入设置", args.max_seconds, timings)
         for name in ["模型与推理", "模型说明", "AI 接口", "存储与隐私"]:
