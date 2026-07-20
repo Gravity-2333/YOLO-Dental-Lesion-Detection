@@ -137,7 +137,12 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                             )
 
                     with gr.Tab("批量分析"):
-                        gr.HTML(section_heading("批量上传", "批量分析会按当前模型模式逐张检测，可在完成后导出结果包。"))
+                        gr.HTML(
+                            section_heading(
+                                "批量上传",
+                                "批量分析会按当前模型模式逐张检测，单次最多处理 50 张图片，可在完成后导出结果包。",
+                            )
+                        )
                         batch_files = gr.File(
                             label="批量上传图片",
                             show_label=False,

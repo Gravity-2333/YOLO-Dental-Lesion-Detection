@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from datetime import datetime
+import ipaddress
 import json
 import math
 from pathlib import Path
@@ -163,6 +164,7 @@ EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
 INFERENCE_CONCURRENCY_ID = "dental-inference"
 CASE_UI_LIMIT = 200
 HISTORY_UI_LIMIT = 200
+BATCH_FILE_LIMIT = 50
 
 
 def _workbench_theme():
@@ -563,7 +565,32 @@ def _choose_directory_dialog(title: str, initial_dir: str | Path) -> str | None:
     return selected or None
 
 
-def choose_model_dir(model_dir: str, current_value: str | None = None, include_advanced: bool = False):
+def _is_local_browser_request(request: gr.Request | None) -> bool:
+    """Native server-side pickers are only meaningful for a local browser."""
+    client = getattr(request, "client", None) if request is not None else None
+    host = str(getattr(client, "host", "") or "").strip().split("%", 1)[0]
+    if not host:
+        return True
+    if host.casefold() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def choose_model_dir(
+    model_dir: str,
+    current_value: str | None = None,
+    include_advanced: bool = False,
+    request: gr.Request | None = None,
+):
+    if not _is_local_browser_request(request):
+        return (
+            gr.update(),
+            gr.update(),
+            "远程访问无法打开服务器端目录选择器，请直接填写服务器上的模型目录。",
+        )
     selected = _choose_directory_dialog("选择模型目录", model_dir or PROJECT_ROOT / "models")
     if not selected:
         return gr.update(), gr.update(), "未选择模型目录。"
@@ -2169,6 +2196,16 @@ def _file_name(file_obj) -> str:
     return Path(path).name
 
 
+def _normalize_batch_files(files: Any) -> list[Any]:
+    """Normalize the upload component value and bound one expensive batch job."""
+    if not files:
+        return []
+    normalized = list(files) if isinstance(files, (list, tuple)) else [files]
+    if len(normalized) > BATCH_FILE_LIMIT:
+        raise gr.Error(f"单次最多处理 {BATCH_FILE_LIMIT} 张图片，请分批上传。")
+    return normalized
+
+
 def run_batch_detection(
     files,
     model_mode: str,
@@ -2197,6 +2234,7 @@ def run_batch_detection(
     save_history: bool,
     history_limit: int | float,
 ):
+    files = _normalize_batch_files(files)
     if not files:
         raise gr.Error("请先批量上传牙科影像。")
 
@@ -2754,7 +2792,9 @@ def default_storage_dir():
     return str(APP_HOME), _toast(f"已恢复默认数据目录：{APP_HOME}。保存设置后生效。")
 
 
-def choose_storage_dir(storage_dir: str):
+def choose_storage_dir(storage_dir: str, request: gr.Request | None = None):
+    if not _is_local_browser_request(request):
+        return gr.update(), _toast("远程访问无法打开服务器端目录选择器，请直接填写服务器上的存储目录。")
     selected = _choose_directory_dialog("选择数据存储目录", storage_dir or APP_HOME)
     if not selected:
         return gr.update(), _toast("未选择新的数据存储目录。")
@@ -3641,6 +3681,9 @@ def build_app() -> gr.Blocks:
             fn=test_model_file,
             inputs=[primary_model_path, compare_model_path, settings_model_mode],
             outputs=model_feedback,
+            concurrency_limit=1,
+            concurrency_id=INFERENCE_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         default_storage_btn.click(fn=default_storage_dir, outputs=[storage_dir, settings_feedback])
         open_storage_btn.click(fn=choose_storage_dir, inputs=storage_dir, outputs=[storage_dir, settings_feedback])

@@ -146,6 +146,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("batch_select.input(", source)
         self.assertIn('concurrency_id=INFERENCE_CONCURRENCY_ID', source)
         self.assertIn('concurrency_limit=1', source)
+        self.assertGreaterEqual(source.count('concurrency_id=INFERENCE_CONCURRENCY_ID'), 3)
         self.assertNotIn("model_mode.change(fn=sync_model_mode", source)
         self.assertNotIn("settings_model_mode.change(fn=sync_model_mode", source)
 
@@ -214,6 +215,19 @@ class UiContentTests(unittest.TestCase):
 
         self.assertEqual(warning, "")
         save_mock.assert_called_once_with([], "storage-root", retain_limit=37)
+
+    def test_batch_upload_has_a_hard_file_count_limit(self) -> None:
+        self.assertEqual(len(app._normalize_batch_files(["a"] * app.BATCH_FILE_LIMIT)), app.BATCH_FILE_LIMIT)
+        with self.assertRaisesRegex(app.gr.Error, "单次最多处理"):
+            app._normalize_batch_files(["a"] * (app.BATCH_FILE_LIMIT + 1))
+
+    def test_remote_requests_do_not_open_server_native_picker(self) -> None:
+        request = SimpleNamespace(client=SimpleNamespace(host="192.168.1.25"))
+        with patch.object(app, "_choose_directory_dialog") as picker:
+            _, feedback = app.choose_storage_dir("unused", request=request)
+
+        picker.assert_not_called()
+        self.assertIn("远程访问", feedback)
 
     def test_record_tab_lazy_refresh_skips_repeat_archive_scans(self) -> None:
         case_result = app.lazy_refresh_case_records(True, "unused", "patient-1")
