@@ -95,7 +95,10 @@ def check_horizontal_overflow(page, label: str) -> None:
 def check_visible_path_row_alignment(page, label: str) -> None:
     rows = page.evaluate(
         """() => [...document.querySelectorAll('.path-row')]
-            .filter(row => row.offsetParent)
+            .filter(row => {
+                const rect = row.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+            })
             .map(row => {
                 const controls = [...row.children]
                     .map(element => element.matches('button,input,textarea')
@@ -108,6 +111,26 @@ def check_visible_path_row_alignment(page, label: str) -> None:
     )
     if any(delta > 1 for delta in rows):
         raise RuntimeError(f"{label} 路径工具行未对齐：{rows}")
+
+
+def check_visible_model_row_alignment(page, label: str) -> None:
+    rows = page.evaluate(
+        """() => [...document.querySelectorAll('.model-row')]
+            .filter(row => {
+                const rect = row.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+            })
+            .map(row => {
+                const button = [...row.children].find(element => element.matches('button, .secondary-action'));
+                const dropdown = row.querySelector('.secondary-wrap, [role="listbox"]');
+                const bottoms = [button, dropdown]
+                    .filter(Boolean)
+                    .map(element => Math.round(element.getBoundingClientRect().bottom));
+                return bottoms.length ? Math.max(...bottoms) - Math.min(...bottoms) : 0;
+            })"""
+    )
+    if any(delta > 8 for delta in rows):
+        raise RuntimeError(f"{label} 模型工具行未对齐：{rows}")
 
 
 def check_navigation_responsiveness(page, max_seconds: float = 3.0) -> None:
@@ -147,6 +170,7 @@ def capture(args: argparse.Namespace) -> None:
                 except Exception as exc:
                     print(f"advanced accordion click skipped/failed: {exc}")
                 check_visible_path_row_alignment(page, "模型路径")
+                check_visible_model_row_alignment(page, "模型选择")
                 try:
                     page.get_by_label("目录内模型").click(timeout=8000)
                     page.wait_for_timeout(1200)
@@ -202,7 +226,7 @@ def capture(args: argparse.Namespace) -> None:
                     save(detail_page, output_dir, name(filename, suffix))
                     if tab_name == "设置":
                         click_accordion(detail_page, "存储与隐私")
-                        check_visible_path_row_alignment(detail_page, "存储路径")
+                        check_visible_path_row_alignment(detail_page, "存储目录")
                         save(
                             detail_page,
                             output_dir,

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, deque
 from datetime import datetime
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 from uuid import uuid4
 
 from .settings_store import ensure_app_dirs, storage_root
@@ -135,25 +135,27 @@ def build_history_record(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _load_raw_records(storage_dir: str | None = None) -> list[dict[str, Any]]:
+def _iter_raw_records(storage_dir: str | None = None) -> Iterator[dict[str, Any]]:
     path = history_file(storage_dir)
     if not path.exists():
-        return []
-    records = []
+        return
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(item, dict):
+                    yield item
     except (OSError, UnicodeDecodeError):
-        return []
-    for line in lines:
-        if not line.strip():
-            continue
-        try:
-            item = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(item, dict):
-            records.append(item)
-    return records
+        return
+
+
+def _load_raw_records(storage_dir: str | None = None) -> list[dict[str, Any]]:
+    return list(_iter_raw_records(storage_dir))
 
 
 def _write_records(records: list[dict[str, Any]], storage_dir: str | None = None) -> Path:
@@ -187,15 +189,17 @@ def append_history_records(
 def list_history_records(
     storage_dir: str | None = None,
     patient_id: str | None = None,
+    *,
+    limit: int | None = None,
 ) -> list[dict[str, Any]]:
-    records = _load_raw_records(storage_dir)
     selected_patient = str(patient_id or "").strip()
-    if selected_patient:
-        records = [
-            item
-            for item in records
-            if str(item.get("patient_id") or "personal-self") == selected_patient
-        ]
+    max_rows = max(1, int(limit)) if limit is not None else None
+    records: list[dict[str, Any]] | deque[dict[str, Any]]
+    records = deque(maxlen=max_rows) if max_rows is not None else []
+    for item in _iter_raw_records(storage_dir):
+        if selected_patient and str(item.get("patient_id") or "personal-self") != selected_patient:
+            continue
+        records.append(item)
     return list(reversed(records))
 
 
@@ -208,9 +212,14 @@ def _classes_text(value: Any) -> str:
     return "无"
 
 
-def history_rows(storage_dir: str | None = None, patient_id: str | None = None) -> list[dict[str, Any]]:
+def history_rows(
+    storage_dir: str | None = None,
+    patient_id: str | None = None,
+    *,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
     rows = []
-    for item in list_history_records(storage_dir, patient_id):
+    for item in list_history_records(storage_dir, patient_id, limit=limit):
         display_name = text_value(item.get("display_name") or item.get("image_name"))
         rows.append(
             {
@@ -235,7 +244,7 @@ def load_history_record(
     wanted = str(record_id or "").strip()
     if not wanted:
         return None
-    for item in _load_raw_records(storage_dir):
+    for item in _iter_raw_records(storage_dir):
         matches_patient = not patient_id or str(item.get("patient_id") or "personal-self") == str(patient_id)
         if matches_patient and text_value(item.get("id")).strip() == wanted:
             return item

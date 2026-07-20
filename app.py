@@ -162,6 +162,7 @@ EXAMPLE_DIR = PROJECT_ROOT / "assets" / "examples" / "dental"
 EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
 INFERENCE_CONCURRENCY_ID = "dental-inference"
 CASE_UI_LIMIT = 200
+HISTORY_UI_LIMIT = 200
 
 
 def _workbench_theme():
@@ -1807,14 +1808,18 @@ def load_case_record_and_clear_export(
 
 def refresh_history_records(storage_dir: str, patient_id: str | None = None):
     _ensure_storage_root(storage_dir)
-    rows = history_rows(storage_dir, patient_id)
+    rows = history_rows(storage_dir, patient_id, limit=HISTORY_UI_LIMIT)
     choices = _history_choices_from_rows(rows)
     selected = choices[0] if choices else None
     return (
         gr.update(choices=choices, value=selected),
         _history_table_html(rows),
         load_history_record(selected, storage_dir, patient_id) if selected else format_history_record(None),
-        "历史记录已刷新。" if choices else "暂无检测历史。",
+        (
+            f"历史记录已刷新，当前最多显示最近 {HISTORY_UI_LIMIT} 条。"
+            if len(rows) >= HISTORY_UI_LIMIT
+            else ("历史记录已刷新。" if choices else "暂无检测历史。")
+        ),
     )
 
 

@@ -127,6 +127,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("case_tab.select(", source)
         self.assertIn("history_tab.select(", source)
         self.assertIn("limit=CASE_UI_LIMIT", inspect.getsource(app.refresh_case_records))
+        self.assertIn("limit=HISTORY_UI_LIMIT", inspect.getsource(app.refresh_history_records))
         self.assertIn('open=False,\n                        elem_classes=["compact-accordion"]', source)
         report_source = inspect.getsource(app.build_report_center)
         self.assertIn('"结构化报告列表"', report_source)

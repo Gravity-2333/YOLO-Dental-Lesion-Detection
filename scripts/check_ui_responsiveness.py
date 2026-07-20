@@ -106,21 +106,39 @@ def assert_no_page_overflow(page, label: str) -> None:
         raise RuntimeError(f"{label} 横向溢出：{size['scroll']} > {size['client']}")
 
 
-def assert_path_rows_aligned(page, label: str) -> None:
+def assert_rows_aligned(
+    page,
+    label: str,
+    selector: str = ".path-row",
+    *,
+    tolerance: int = 1,
+) -> None:
     deltas = page.evaluate(
-        """() => [...document.querySelectorAll('.path-row')]
-            .filter(row => row.offsetParent)
+        """({selector, modelRow}) => [...document.querySelectorAll(selector)]
+            .filter(row => {
+                const rect = row.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+            })
             .map(row => {
-                const controls = [...row.children]
-                    .map(element => element.matches('button,input,textarea')
-                        ? element : element.querySelector('button,input,textarea'))
-                    .filter(Boolean);
-                const bottoms = controls.map(element => Math.round(element.getBoundingClientRect().bottom));
+                const controls = modelRow
+                    ? [
+                        [...row.children].find(element => element.matches('button, .secondary-action')),
+                        row.querySelector('.secondary-wrap, [role="listbox"]'),
+                    ]
+                    : [...row.children]
+                        .map(element => element.matches('button,input,textarea,select')
+                            ? element : element.querySelector('button,input,textarea,select'));
+                const bottoms = controls.filter(Boolean).map(element => Math.round(element.getBoundingClientRect().bottom));
                 return bottoms.length ? Math.max(...bottoms) - Math.min(...bottoms) : 0;
-            })"""
+            })""",
+        {"selector": selector, "modelRow": "model-row" in selector},
     )
-    if any(delta > 1 for delta in deltas):
-        raise RuntimeError(f"{label} 路径工具行未对齐：{deltas}")
+    if any(delta > tolerance for delta in deltas):
+        raise RuntimeError(f"{label} 工具行未对齐：{deltas}")
+
+
+def assert_path_rows_aligned(page, label: str) -> None:
+    assert_rows_aligned(page, label, ".path-row")
 
 
 def percentile_95(values: list[float]) -> float:
@@ -178,6 +196,7 @@ def main() -> int:
                     timings,
                 )
                 assert_path_rows_aligned(page, "模型路径")
+                assert_rows_aligned(page, "模型选择", ".model-row", tolerance=8)
             if name == "存储与隐私":
                 assert_path_rows_aligned(page, "存储路径")
 

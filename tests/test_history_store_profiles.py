@@ -57,6 +57,18 @@ class HistoryStoreProfileTests(unittest.TestCase):
             self.assertEqual(len(list_history_records(temp_dir, "personal-self")), 1)
             self.assertEqual(list_history_records(temp_dir, "family-1"), [])
 
+    def test_limited_history_returns_latest_matching_patient_records(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            items = [
+                _history_item("personal-self" if index % 2 == 0 else "family-1", f"task-{index}")
+                for index in range(10)
+            ]
+            append_history_records(items, temp_dir, limit=20)
+
+            records = list_history_records(temp_dir, "personal-self", limit=3)
+
+            self.assertEqual([item["task_id"] for item in records], ["task-8", "task-6", "task-4"])
+
 
 if __name__ == "__main__":
     unittest.main()
