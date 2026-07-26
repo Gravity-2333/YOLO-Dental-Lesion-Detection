@@ -1,5 +1,75 @@
 (() => {
   let labelingScheduled = false;
+  let runtimeAppId = "";
+  let runtimeCheckInFlight = false;
+  let runtimeReloading = false;
+  let lastRuntimeCheckAt = 0;
+
+  const readRuntimeAppId = async (response) => {
+    if (!response.body || !response.body.getReader) {
+      const config = await response.json();
+      return String(config.app_id || "");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let prefix = "";
+    try {
+      for (let index = 0; index < 3 && prefix.length < 4096; index += 1) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        prefix += decoder.decode(value, { stream: true });
+        const match = prefix.match(/"app_id"\s*:\s*(\d+)/);
+        if (match) {
+          return match[1];
+        }
+      }
+      return "";
+    } finally {
+      await reader.cancel().catch(() => {});
+    }
+  };
+
+  const checkRuntimeVersion = async () => {
+    const now = Date.now();
+    if (
+      runtimeCheckInFlight
+      || runtimeReloading
+      || now - lastRuntimeCheckAt < 5000
+    ) {
+      return;
+    }
+
+    runtimeCheckInFlight = true;
+    lastRuntimeCheckAt = now;
+    try {
+      const response = await fetch(new URL("config", document.baseURI), {
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) {
+        return;
+      }
+      const nextAppId = await readRuntimeAppId(response);
+      if (!nextAppId) {
+        return;
+      }
+      if (runtimeAppId && runtimeAppId !== nextAppId) {
+        runtimeReloading = true;
+        window.location.reload();
+        return;
+      }
+      runtimeAppId = nextAppId;
+      document.documentElement.dataset.runtimeAppId = nextAppId;
+    } catch {
+      // A stopped backend is expected during restart; verify again on recovery.
+    } finally {
+      runtimeCheckInFlight = false;
+    }
+  };
 
   const labelOverflowMenus = () => {
     document.querySelectorAll(".overflow-menu > button").forEach((button) => {
@@ -29,6 +99,11 @@
       return;
     }
     labelOverflowMenus();
+    void checkRuntimeVersion();
+    window.addEventListener("focus", checkRuntimeVersion);
+    window.addEventListener("online", checkRuntimeVersion);
+    document.addEventListener("visibilitychange", checkRuntimeVersion);
+    window.setInterval(checkRuntimeVersion, 30000);
     new MutationObserver(scheduleMenuLabeling).observe(document.body, {
       childList: true,
       subtree: true,

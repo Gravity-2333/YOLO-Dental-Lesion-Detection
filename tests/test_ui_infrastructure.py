@@ -42,7 +42,17 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("@media (prefers-reduced-motion: reduce)", css)
 
     def test_javascript_bundle_loads(self) -> None:
-        self.assertIn("MutationObserver", load_workbench_js())
+        javascript = load_workbench_js()
+        self.assertIn("MutationObserver", javascript)
+        self.assertIn('"app_id"', javascript)
+        self.assertIn("window.location.reload()", javascript)
+        self.assertIn("visibilitychange", javascript)
+        self.assertIn("dataset.runtimeAppId", javascript)
+
+    def test_compact_action_buttons_share_a_stable_height(self) -> None:
+        css = load_workbench_css()
+        self.assertIn(".row.compact-row > button", css)
+        self.assertIn("height: var(--primary-height) !important", css)
 
 
 class ProjectLauncherTests(unittest.TestCase):
@@ -183,11 +193,22 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("history_tab.select(", source)
         self.assertIn("limit=CASE_UI_LIMIT", inspect.getsource(app.refresh_case_records))
         self.assertIn("limit=HISTORY_UI_LIMIT", inspect.getsource(app.refresh_history_records))
+        report_hydration = source.split("fn=load_active_report_center_item", 1)[1].split(
+            "clear_session_btn.click(",
+            1,
+        )[0]
+        self.assertIn("queue=False", report_hydration)
+        self.assertIn('show_progress="hidden"', report_hydration)
         self.assertIn('open=False,\n                        elem_classes=["compact-accordion"]', source)
         report_source = inspect.getsource(app.build_report_center)
         self.assertIn('"结构化报告列表"', report_source)
         self.assertIn('open=False,\n            elem_classes=["compact-accordion"]', report_source)
         self.assertNotIn("gr.Dataframe", report_source)
+
+    def test_case_note_starts_compact_and_can_expand(self) -> None:
+        source = inspect.getsource(app.build_app)
+        self.assertIn('label="病例备注"', source)
+        self.assertIn("lines=1,\n                            max_lines=3,", source)
 
     def test_record_table_html_escapes_untrusted_values(self) -> None:
         html = case_table_html([{"病例编号": '<script>alert("x")</script>'}])

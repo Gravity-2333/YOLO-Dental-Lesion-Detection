@@ -325,6 +325,15 @@ button[aria-disabled="true"] {
   align-self: end !important;
 }
 
+.row.compact-row > button,
+.row.compact-row > .compact-button button,
+.row.compact-row > .secondary-action button,
+.row.compact-row > .primary-action button,
+.row.compact-row > .danger-action button {
+  height: var(--primary-height) !important;
+  min-height: var(--primary-height) !important;
+}
+
 .path-row {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 44px 132px !important;

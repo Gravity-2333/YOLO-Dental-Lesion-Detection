@@ -78,6 +78,40 @@ def assert_history_page_settled(page, maximum: float, timings: list[tuple[str, f
         raise RuntimeError(f"检测历史完成渲染过慢：{elapsed:.2f}s > {maximum:.2f}s")
 
 
+def assert_history_output_contract(page) -> None:
+    history_feedback = page.get_by_label("历史反馈", exact=True).input_value()
+    if not any(marker in history_feedback for marker in ("历史记录", "检测历史")):
+        raise RuntimeError(f"历史反馈组件内容串位：{history_feedback[:80]}")
+
+    history_detail = page.get_by_label("历史详情", exact=True).input_value()
+    if "病例编号：" in history_detail:
+        raise RuntimeError("历史详情错误显示为病例详情。")
+
+    report_feedback = page.get_by_label("报告反馈", exact=True).input_value()
+    if "检测时间：" in report_feedback:
+        raise RuntimeError("报告反馈错误显示为历史详情。")
+
+    report_detail = page.get_by_label("报告详情", exact=True).input_value()
+    if "检测时间：" in report_detail or "病例编号：" in report_detail:
+        raise RuntimeError("报告详情组件内容串位。")
+
+
+def assert_named_button_heights(page, labels: list[tuple[str, ...]], *, tolerance: int = 1) -> None:
+    heights = page.evaluate(
+        """groups => groups.map(group => {
+            const button = [...document.querySelectorAll('button')].find(element => {
+                const rect = element.getBoundingClientRect();
+                const text = (element.innerText || '').trim();
+                return rect.width > 0 && rect.height > 0 && group.includes(text);
+            });
+            return button ? Math.round(button.getBoundingClientRect().height) : 0;
+        })""",
+        labels,
+    )
+    if any(height <= 0 for height in heights) or max(heights) - min(heights) > tolerance:
+        raise RuntimeError(f"相邻操作按钮高度不一致：{heights}")
+
+
 def ensure_accordion_open(page, locator, label: str, maximum: float, timings: list[tuple[str, float]]) -> None:
     if locator.get_attribute("aria-expanded") != "true":
         timed_click(page, locator, label, maximum, timings)
@@ -196,6 +230,10 @@ def main() -> int:
                         args.max_seconds,
                         timings,
                     )
+                    assert_named_button_heights(
+                        page,
+                        [("保存病例", "完成检测后可保存"), ("刷新记录",)],
+                    )
                 if cycle == 0 and name == "检测历史":
                     timed_wait_for_value(
                         page,
@@ -205,6 +243,7 @@ def main() -> int:
                         timings,
                     )
                     assert_history_page_settled(page, args.max_seconds, timings)
+                    assert_history_output_contract(page)
 
         timed_click(page, top_tab(page, "AI 问答"), "进入 AI 问答", args.max_seconds, timings)
         runtime_status = page.locator(".ai-runtime-strip").first

@@ -3182,7 +3182,12 @@ def build_app() -> gr.Blocks:
                             lines=1,
                             max_lines=1,
                         )
-                        case_note = gr.Textbox(label="病例备注", placeholder="可填写主诉、复查说明或医生备注", lines=3)
+                        case_note = gr.Textbox(
+                            label="病例备注",
+                            placeholder="可填写主诉、复查说明或医生备注",
+                            lines=1,
+                            max_lines=3,
+                        )
                     with gr.Row(elem_classes=["compact-row"]):
                         save_case_btn = gr.Button(
                             "完成检测后可保存",
@@ -3516,6 +3521,8 @@ def build_app() -> gr.Blocks:
                 report_center.report_feedback,
                 report_center.trash_button,
             ],
+            queue=False,
+            show_progress="hidden",
         )
 
         clear_session_btn.click(
