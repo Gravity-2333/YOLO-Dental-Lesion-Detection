@@ -136,7 +136,7 @@ def build_report_center(
             trash_button = gr.Button(
                 "移入回收站",
                 interactive=bool(selected),
-                elem_classes=["secondary-action", "compact-button"],
+                elem_classes=["danger-action", "compact-button"],
             )
         report_feedback = gr.Textbox(
             label="报告反馈",

@@ -1895,7 +1895,25 @@ def delete_selected_history_record(choice: str, storage_dir: str, patient_id: st
     return history_select, table, detail, feedback or message
 
 
-def clear_all_history_records(storage_dir: str, patient_id: str | None = None):
+def _history_clear_target(storage_dir: str, patient_id: str | None) -> str:
+    return f"{str(storage_dir or '').strip()}\n{str(patient_id or '').strip()}"
+
+
+def clear_all_history_records(
+    storage_dir: str,
+    patient_id: str | None = None,
+    confirmation: dict[str, str] | None = None,
+):
+    target = _history_clear_target(storage_dir, patient_id)
+    if not isinstance(confirmation, dict) or confirmation.get("target") != target:
+        return (
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            "再次点击确认清空当前患者的检测历史。病例和报告不会被删除。",
+            gr.update(value="确认清空历史"),
+            {"target": target},
+        )
     _ensure_storage_root(storage_dir)
     clear_history_records(storage_dir, patient_id)
     return (
@@ -1903,6 +1921,8 @@ def clear_all_history_records(storage_dir: str, patient_id: str | None = None):
         _history_table_html([]),
         "请选择一条检测历史。",
         "当前患者的检测历史已清空。病例记录不会被删除。",
+        gr.update(value="清空历史"),
+        {},
     )
 
 
@@ -2862,6 +2882,7 @@ def build_app() -> gr.Blocks:
         case_loaded_state = gr.State(False)
         history_loaded_state = gr.State(False)
         storage_changed_state = gr.State(False)
+        history_clear_confirmation = gr.State({})
         gr.HTML(APP_HEADER_HTML)
 
         with gr.Tabs(elem_classes=["main-tabs"]):
@@ -3036,7 +3057,7 @@ def build_app() -> gr.Blocks:
                         case_date_to = gr.Textbox(label="结束日期", placeholder="YYYY-MM-DD", lines=1, max_lines=1)
                     with gr.Row(elem_classes=["compact-row"]):
                         search_case_btn = gr.Button("搜索/筛选", elem_classes=["secondary-action", "compact-button"])
-                        delete_case_btn = gr.Button("移入回收站", elem_classes=["secondary-action", "compact-button"])
+                        delete_case_btn = gr.Button("移入回收站", elem_classes=["danger-action", "compact-button"])
                         export_case_btn = gr.Button("导出病例报告", elem_classes=["secondary-action", "compact-button"])
                     case_select = gr.Dropdown(label="已保存病例", choices=_case_choices_from_rows(initial_case_rows))
                     with gr.Accordion(
@@ -3076,8 +3097,8 @@ def build_app() -> gr.Blocks:
                     )
                     with gr.Row(elem_classes=["compact-row"]):
                         refresh_history_btn = gr.Button("刷新历史", elem_classes=["secondary-action", "compact-button"])
-                        delete_history_btn = gr.Button("删除所选", elem_classes=["secondary-action", "compact-button"])
-                        clear_history_btn = gr.Button("清空历史", elem_classes=["secondary-action", "compact-button"])
+                        delete_history_btn = gr.Button("删除所选", elem_classes=["danger-action", "compact-button"])
+                        clear_history_btn = gr.Button("清空历史", elem_classes=["danger-action", "compact-button"])
                     history_feedback = gr.Textbox(
                         label="历史反馈",
                         interactive=False,
@@ -3785,8 +3806,8 @@ def build_app() -> gr.Blocks:
         )
         clear_history_btn.click(
             fn=clear_all_history_records,
-            inputs=[storage_dir, history_patient_select],
-            outputs=history_list_outputs,
+            inputs=[storage_dir, history_patient_select, history_clear_confirmation],
+            outputs=[*history_list_outputs, clear_history_btn, history_clear_confirmation],
         )
         report_center.refresh_button.click(
             fn=refresh_report_center,

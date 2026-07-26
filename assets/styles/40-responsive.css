@@ -113,6 +113,7 @@
   .model-row > button.secondary-action,
   .chat-input-row > button.primary-action,
   .compact-row > button.secondary-action,
+  .compact-row > button.danger-action,
   .compact-row > button.primary-action,
   .settings-actions > button.primary-action {
     flex: 1 1 100% !important;

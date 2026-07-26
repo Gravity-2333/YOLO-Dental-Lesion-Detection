@@ -229,6 +229,28 @@ class UiContentTests(unittest.TestCase):
         picker.assert_not_called()
         self.assertIn("远程访问", feedback)
 
+    def test_history_clear_requires_two_matching_clicks(self) -> None:
+        armed = app.clear_all_history_records("storage-a", "patient-1")
+        self.assertEqual(len(armed), 6)
+        self.assertEqual(armed[-1]["target"], "storage-a\npatient-1")
+        self.assertEqual(armed[-2]["value"], "确认清空历史")
+
+        with patch.object(app, "clear_history_records") as clear_mock:
+            rearmed = app.clear_all_history_records("storage-a", "patient-2", armed[-1])
+
+        clear_mock.assert_not_called()
+        self.assertEqual(rearmed[-1]["target"], "storage-a\npatient-2")
+
+        with (
+            patch.object(app, "_ensure_storage_root"),
+            patch.object(app, "clear_history_records") as clear_mock,
+        ):
+            completed = app.clear_all_history_records("storage-a", "patient-1", armed[-1])
+
+        clear_mock.assert_called_once_with("storage-a", "patient-1")
+        self.assertEqual(completed[-1], {})
+        self.assertEqual(completed[-2]["value"], "清空历史")
+
     def test_record_tab_lazy_refresh_skips_repeat_archive_scans(self) -> None:
         case_result = app.lazy_refresh_case_records(True, "unused", "patient-1")
         history_result = app.lazy_refresh_history_page(True, "unused", "patient-1")

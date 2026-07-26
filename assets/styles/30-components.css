@@ -235,6 +235,22 @@ button.secondary:not([disabled]):active,
   box-shadow: 0 3px 10px rgba(15, 118, 110, 0.1) !important;
 }
 
+button.danger-action,
+.danger-action button {
+  min-height: var(--button-height) !important;
+  border-color: #efc6c2 !important;
+  background: #fff8f7 !important;
+  color: #a9362b !important;
+}
+
+button.danger-action:not([disabled]):hover,
+.danger-action button:not([disabled]):hover {
+  border-color: #dc8d84 !important;
+  background: #fff1ef !important;
+  color: #8f261d !important;
+  box-shadow: 0 5px 14px rgba(169, 54, 43, 0.1) !important;
+}
+
 .compact-button,
 .secondary-action,
 .icon-action {
