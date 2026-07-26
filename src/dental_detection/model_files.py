@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from collections import deque
+from itertools import islice
 from pathlib import Path
 import re
+from time import monotonic
 
 from .config import PROJECT_ROOT
 
@@ -9,6 +12,10 @@ SUPPORTED_MODEL_SUFFIXES = {".pt", ".onnx", ".engine", ".mlmodel", ".torchscript
 SUPPORTED_MODEL_DIR_SUFFIXES = {".mlpackage"}
 MAX_MODEL_FILES = 500
 MAX_MODEL_SCAN_DEPTH = 8
+MAX_MODEL_SCAN_DIRECTORIES = 1_000
+MAX_MODEL_SCAN_ENTRIES = 10_000
+MAX_MODEL_ENTRIES_PER_DIRECTORY = 2_000
+MAX_MODEL_SCAN_SECONDS = 2.5
 ADVANCED_MODEL_HINT = "高级列表可能包含实验权重、last.pt 或预训练模型，普通使用请保持关闭。"
 
 
@@ -112,15 +119,31 @@ def scan_model_files(
         return []
 
     files: list[Path] = []
-    pending: list[tuple[Path, int]] = [(root, 0)]
-    while pending and len(files) < MAX_MODEL_FILES:
-        current, depth = pending.pop(0)
+    pending: deque[tuple[Path, int]] = deque([(root, 0)])
+    scanned_directories = 0
+    scanned_entries = 0
+    deadline = monotonic() + MAX_MODEL_SCAN_SECONDS
+    while (
+        pending
+        and len(files) < MAX_MODEL_FILES
+        and scanned_directories < MAX_MODEL_SCAN_DIRECTORIES
+        and scanned_entries < MAX_MODEL_SCAN_ENTRIES
+        and monotonic() < deadline
+    ):
+        current, depth = pending.popleft()
         if depth > MAX_MODEL_SCAN_DEPTH:
             continue
+        scanned_directories += 1
+        entry_budget = min(
+            MAX_MODEL_ENTRIES_PER_DIRECTORY,
+            MAX_MODEL_SCAN_ENTRIES - scanned_entries,
+        )
         try:
-            children = sorted(current.iterdir(), key=lambda item: str(item).lower())
+            children = list(islice(current.iterdir(), entry_budget))
         except OSError:
             continue
+        scanned_entries += len(children)
+        children.sort(key=lambda item: str(item).lower())
         for child in children:
             try:
                 if _is_supported_model_file(child) or _is_supported_model_dir(child):

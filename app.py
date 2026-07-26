@@ -3734,6 +3734,8 @@ def build_app() -> gr.Blocks:
             fn=choose_model_dir,
             inputs=[model_dir, model_file_select, show_advanced_models],
             outputs=[model_dir, model_file_select, model_feedback],
+            queue=False,
+            show_progress="hidden",
         )
         apply_model_btn.click(
             fn=apply_selected_model,
@@ -3770,7 +3772,13 @@ def build_app() -> gr.Blocks:
             show_progress="minimal",
         )
         default_storage_btn.click(fn=default_storage_dir, outputs=[storage_dir, settings_feedback])
-        open_storage_btn.click(fn=choose_storage_dir, inputs=storage_dir, outputs=[storage_dir, settings_feedback])
+        open_storage_btn.click(
+            fn=choose_storage_dir,
+            inputs=storage_dir,
+            outputs=[storage_dir, settings_feedback],
+            queue=False,
+            show_progress="hidden",
+        )
         export_btn.click(fn=export_chat, inputs=[chat_state, storage_dir], outputs=[export_file, export_path])
         export_batch_btn.click(
             fn=export_batch_results,

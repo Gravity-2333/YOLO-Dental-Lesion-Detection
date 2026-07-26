@@ -280,6 +280,13 @@ class UiContentTests(unittest.TestCase):
         picker.assert_not_called()
         self.assertIn("远程访问", feedback)
 
+    def test_native_path_pickers_do_not_show_a_blocking_page_overlay(self) -> None:
+        source = inspect.getsource(app.build_app)
+        for marker in ("open_model_dir_btn.click(", "open_storage_btn.click("):
+            event_source = source.split(marker, 1)[1].split(")", 1)[0]
+            self.assertIn("queue=False", event_source)
+            self.assertIn('show_progress="hidden"', event_source)
+
     def test_missing_models_warn_without_blocking_app_startup(self) -> None:
         saved = app.AiSettings(
             primary_model_path="missing-primary.pt",
