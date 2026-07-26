@@ -258,6 +258,42 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(completed[-1], {})
         self.assertEqual(completed[-2]["value"], "清空历史")
 
+    def test_history_delete_requires_two_matching_clicks(self) -> None:
+        choice = "2026-07-01T10:00:00 | image.png | record-1"
+        armed = app.confirm_delete_selected_history_record(choice, "storage-a", "patient-1")
+        self.assertEqual(len(armed), 6)
+        self.assertEqual(armed[-1]["target"], "storage-a\npatient-1\nrecord-1")
+        self.assertEqual(armed[-2]["value"], "确认删除所选")
+
+        with patch.object(app, "delete_selected_history_record") as delete_mock:
+            rearmed = app.confirm_delete_selected_history_record(
+                "2026-07-01T10:00:00 | other.png | record-2",
+                "storage-a",
+                "patient-1",
+                armed[-1],
+            )
+
+        delete_mock.assert_not_called()
+        self.assertEqual(rearmed[-1]["target"], "storage-a\npatient-1\nrecord-2")
+
+        deleted_values = ("select", "table", "detail", "已删除所选历史记录。")
+        with patch.object(
+            app,
+            "delete_selected_history_record",
+            return_value=deleted_values,
+        ) as delete_mock:
+            completed = app.confirm_delete_selected_history_record(
+                choice,
+                "storage-a",
+                "patient-1",
+                armed[-1],
+            )
+
+        delete_mock.assert_called_once_with(choice, "storage-a", "patient-1")
+        self.assertEqual(completed[:4], deleted_values)
+        self.assertEqual(completed[-1], {})
+        self.assertEqual(completed[-2]["value"], "删除所选")
+
     def test_record_tab_lazy_refresh_skips_repeat_archive_scans(self) -> None:
         case_result = app.lazy_refresh_case_records(True, "unused", "patient-1")
         history_result = app.lazy_refresh_history_page(True, "unused", "patient-1")
@@ -279,13 +315,15 @@ class UiContentTests(unittest.TestCase):
         ):
             result = app.refresh_patient_workspace_views(False, False, "storage-a", "patient-1")
 
-        self.assertEqual(len(result), 21)
+        self.assertEqual(len(result), 23)
         case_mock.assert_not_called()
         history_mock.assert_not_called()
         report_mock.assert_not_called()
         profile_mock.assert_called_once_with("patient-1", "storage-a")
         self.assertEqual(result[-1], {})
         self.assertEqual(result[-2]["value"], "清空历史")
+        self.assertEqual(result[-3], {})
+        self.assertEqual(result[-4]["value"], "删除所选")
 
         case_values = tuple(f"case-{index}" for index in range(6))
         history_values = tuple(f"history-{index}" for index in range(4))

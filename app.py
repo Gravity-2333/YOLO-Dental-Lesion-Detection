@@ -1891,6 +1891,8 @@ def refresh_patient_workspace_views(
         *history_values,
         *report_values,
         *profile_values,
+        gr.update(value="删除所选"),
+        {},
         gr.update(value="清空历史"),
         {},
     )
@@ -1924,6 +1926,49 @@ def delete_selected_history_record(choice: str, storage_dir: str, patient_id: st
     history_select, table, detail, message = refresh_history_records(storage_dir, patient_id)
     feedback = "已删除所选历史记录。" if deleted else "未找到所选历史记录，请刷新后重试。"
     return history_select, table, detail, feedback or message
+
+
+def _history_delete_target(choice: str, storage_dir: str, patient_id: str | None) -> str:
+    return "\n".join(
+        (
+            str(storage_dir or "").strip(),
+            str(patient_id or "").strip(),
+            _history_id(choice),
+        )
+    )
+
+
+def confirm_delete_selected_history_record(
+    choice: str,
+    storage_dir: str,
+    patient_id: str | None = None,
+    confirmation: dict[str, str] | None = None,
+):
+    target = _history_delete_target(choice, storage_dir, patient_id)
+    if not _history_id(choice):
+        return (
+            *delete_selected_history_record(choice, storage_dir, patient_id),
+            gr.update(value="删除所选"),
+            {},
+        )
+    if not isinstance(confirmation, dict) or confirmation.get("target") != target:
+        return (
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            "再次点击确认永久删除所选历史记录。病例和报告不会被删除。",
+            gr.update(value="确认删除所选"),
+            {"target": target},
+        )
+    return (
+        *delete_selected_history_record(choice, storage_dir, patient_id),
+        gr.update(value="删除所选"),
+        {},
+    )
+
+
+def reset_history_delete_confirmation():
+    return gr.update(value="删除所选"), {}
 
 
 def _history_clear_target(storage_dir: str, patient_id: str | None) -> str:
@@ -2913,6 +2958,7 @@ def build_app() -> gr.Blocks:
         case_loaded_state = gr.State(False)
         history_loaded_state = gr.State(False)
         storage_changed_state = gr.State(False)
+        history_delete_confirmation = gr.State({})
         history_clear_confirmation = gr.State({})
         gr.HTML(APP_HEADER_HTML)
 
@@ -3332,6 +3378,8 @@ def build_app() -> gr.Blocks:
             edit_patient_name,
             edit_patient_reference,
             archive_patient_btn,
+            delete_history_btn,
+            history_delete_confirmation,
             clear_history_btn,
             history_clear_confirmation,
         ]
@@ -3790,16 +3838,24 @@ def build_app() -> gr.Blocks:
             fn=refresh_history_records,
             inputs=[storage_dir, history_patient_select],
             outputs=history_list_outputs,
+        ).then(
+            fn=reset_history_delete_confirmation,
+            outputs=[delete_history_btn, history_delete_confirmation],
+            queue=False,
         )
         history_select.input(
             fn=load_history_record,
             inputs=[history_select, storage_dir, history_patient_select],
             outputs=history_detail,
+        ).then(
+            fn=reset_history_delete_confirmation,
+            outputs=[delete_history_btn, history_delete_confirmation],
+            queue=False,
         )
         delete_history_btn.click(
-            fn=delete_selected_history_record,
-            inputs=[history_select, storage_dir, history_patient_select],
-            outputs=history_list_outputs,
+            fn=confirm_delete_selected_history_record,
+            inputs=[history_select, storage_dir, history_patient_select, history_delete_confirmation],
+            outputs=[*history_list_outputs, delete_history_btn, history_delete_confirmation],
         )
         clear_history_btn.click(
             fn=clear_all_history_records,
