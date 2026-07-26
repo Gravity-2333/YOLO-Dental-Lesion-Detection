@@ -162,6 +162,7 @@ from ultralytics import YOLO
 EXAMPLE_DIR = PROJECT_ROOT / "assets" / "examples" / "dental"
 EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
 INFERENCE_CONCURRENCY_ID = "dental-inference"
+AI_REQUEST_CONCURRENCY_ID = "dental-ai-request"
 CASE_UI_LIMIT = 200
 HISTORY_UI_LIMIT = 200
 BATCH_FILE_LIMIT = 50
@@ -3566,6 +3567,9 @@ def build_app() -> gr.Blocks:
             fn=test_ai_settings,
             inputs=settings.ai_request_inputs(),
             outputs=test_result,
+            concurrency_limit=1,
+            concurrency_id=AI_REQUEST_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         save_settings_btn.click(
             fn=save_ui_settings,
@@ -3621,19 +3625,21 @@ def build_app() -> gr.Blocks:
             inputs=[storage_changed_state, storage_dir, history_patient_select],
             outputs=report_list_outputs,
         )
-        chat_btn.click(
+        chat_event = gr.on(
+            triggers=[chat_btn.click, chat_input.submit],
             fn=continue_chat,
             inputs=[chat_input, chat_state, *settings.ai_request_inputs()],
             outputs=[chatbot, chat_state, chat_input, export_file, export_path],
-        )
-        chat_input.submit(
-            fn=continue_chat,
-            inputs=[chat_input, chat_state, *settings.ai_request_inputs()],
-            outputs=[chatbot, chat_state, chat_input, export_file, export_path],
+            concurrency_limit=1,
+            concurrency_id=AI_REQUEST_CONCURRENCY_ID,
+            trigger_mode="once",
+            show_progress="minimal",
         )
         clear_chat_btn.click(
             fn=clear_current_chat,
             outputs=[chatbot, chat_state, chat_input, export_file, export_path],
+            cancels=chat_event,
+            queue=False,
         )
         refresh_model_btn.click(
             fn=refresh_model_choices,

@@ -147,9 +147,14 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('concurrency_id=INFERENCE_CONCURRENCY_ID', source)
         self.assertIn('concurrency_limit=1', source)
         self.assertGreaterEqual(source.count('concurrency_id=INFERENCE_CONCURRENCY_ID'), 3)
+        self.assertGreaterEqual(source.count('concurrency_id=AI_REQUEST_CONCURRENCY_ID'), 2)
         self.assertGreaterEqual(source.count('trigger_mode="always_last"'), 3)
+        self.assertIn("triggers=[chat_btn.click, chat_input.submit]", source)
+        self.assertIn("cancels=chat_event", source)
+        self.assertIn("queue=False", source)
         self.assertNotIn("model_mode.change(fn=sync_model_mode", source)
         self.assertNotIn("settings_model_mode.change(fn=sync_model_mode", source)
+        self.assertNotIn("chat_btn.click(\n            fn=continue_chat", source)
 
     def test_settings_save_does_not_move_existing_data_implicitly(self) -> None:
         source = inspect.getsource(app.save_ui_settings)
