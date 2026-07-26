@@ -206,6 +206,36 @@ def main() -> int:
                     )
                     assert_history_page_settled(page, args.max_seconds, timings)
 
+        timed_click(page, top_tab(page, "AI 问答"), "进入 AI 问答", args.max_seconds, timings)
+        runtime_status = page.locator(".ai-runtime-strip").first
+        runtime_status.wait_for(state="visible")
+        runtime_text = runtime_status.inner_text()
+        if not all(label in runtime_text for label in ("检测上下文", "AI 配置", "接口与模型")):
+            raise RuntimeError(f"AI 运行状态信息不完整：{runtime_text}")
+        timed_click(
+            page,
+            accordion(page, "最近对话"),
+            "展开最近对话",
+            args.max_seconds,
+            timings,
+        )
+        conversation_select = page.get_by_label("本地对话记录", exact=True)
+        if conversation_select.input_value():
+            timed_click(
+                page,
+                page.get_by_role("button", name="加载对话", exact=True),
+                "加载本地对话",
+                args.max_seconds,
+                timings,
+            )
+            timed_wait_for_value(
+                page,
+                page.get_by_label("对话记录反馈", exact=True),
+                "本地对话加载完成",
+                args.max_seconds,
+                timings,
+            )
+
         timed_click(page, top_tab(page, "设置"), "进入设置", args.max_seconds, timings)
         for name in ["模型与推理", "模型说明", "AI 接口", "存储与隐私"]:
             timed_click(page, accordion(page, name), f"展开设置/{name}", args.max_seconds, timings)

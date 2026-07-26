@@ -828,6 +828,7 @@ td {
 }
 
 .case-card .block > button.label-wrap,
+.chat-card .block > button.label-wrap,
 .guide-card .block > button.label-wrap {
   min-height: 38px !important;
   justify-content: space-between !important;
@@ -847,6 +848,7 @@ td {
 }
 
 .case-card .block > button.label-wrap:hover,
+.chat-card .block > button.label-wrap:hover,
 .guide-card .block > button.label-wrap:hover {
   border-color: #a8ccc6 !important;
   background: #f1f7f5 !important;
@@ -863,6 +865,14 @@ td {
 
 .chat-input-row {
   margin-top: 12px !important;
+}
+
+.conversation-history {
+  margin-top: 12px !important;
+}
+
+.conversation-history-actions {
+  gap: 8px !important;
 }
 
 .chat-toolbar {

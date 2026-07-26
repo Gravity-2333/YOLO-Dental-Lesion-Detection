@@ -9,6 +9,7 @@ import unittest
 
 import app
 from src.dental_detection.record_views import case_table_html
+from src.dental_detection.settings_store import AiSettings
 from src.dental_detection.ui_assets import CSS_BUNDLE_FILES, load_workbench_css, load_workbench_js
 from src.dental_detection.ui_contracts import (
     COMMON_INPUT_KEYS,
@@ -25,6 +26,7 @@ from src.dental_detection.ui_content import (
     WORKBENCH_HELP_TEXT,
     section_heading,
 )
+from src.dental_detection.ui_ai_chat_page import build_ai_runtime_status
 from src.dental_detection.ui_settings_page import AI_REQUEST_KEYS, SettingsComponents
 from src.dental_detection.ui_workbench_page import WorkbenchComponents
 
@@ -41,6 +43,32 @@ class UiAssetTests(unittest.TestCase):
 
     def test_javascript_bundle_loads(self) -> None:
         self.assertIn("MutationObserver", load_workbench_js())
+
+
+class ProjectLauncherTests(unittest.TestCase):
+    def test_service_launcher_uses_hidden_background_runner(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        batch_source = (project_root / "start_project.bat").read_text(encoding="utf-8")
+        launcher_source = (project_root / "scripts" / "start_project.ps1").read_text(
+            encoding="utf-8"
+        )
+        runner_source = (project_root / "scripts" / "run_gradio_server.bat").read_text(
+            encoding="utf-8"
+        )
+        stop_source = (project_root / "scripts" / "stop_project.ps1").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("scripts\\start_project.ps1", batch_source)
+        self.assertNotIn('start "YOLO Dental Gradio"', batch_source)
+        self.assertNotIn("/k", batch_source.lower())
+        self.assertIn("Start-Process", launcher_source)
+        self.assertIn("-WindowStyle Hidden", launcher_source)
+        self.assertIn("run_gradio_server.bat", launcher_source)
+        self.assertIn("-RedirectStandardOutput", launcher_source)
+        self.assertIn("-RedirectStandardError", launcher_source)
+        self.assertIn('set "PYTHONUNBUFFERED=1"', runner_source)
+        self.assertIn("run_gradio_server.bat", stop_source)
 
 
 class UiContractTests(unittest.TestCase):
@@ -119,6 +147,31 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual((chatbot, state, message, path), ([], [], "", ""))
         self.assertIsNone(file_update["value"])
         self.assertFalse(file_update["visible"])
+
+    def test_ai_runtime_status_escapes_configuration_and_tracks_context(self) -> None:
+        settings = AiSettings(
+            enabled=True,
+            base_url="http://127.0.0.1:8000/v1",
+            model="<local-model>",
+            api_key="",
+        )
+
+        empty_status = build_ai_runtime_status([], settings)
+        loaded_status = build_ai_runtime_status(
+            [{"role": "assistant", "content": "检测摘要"}],
+            settings,
+        )
+
+        self.assertIn("尚未加载检测摘要", empty_status)
+        self.assertIn("配置完整", empty_status)
+        self.assertIn("&lt;local-model&gt;", empty_status)
+        self.assertIn("已加载当前对话上下文", loaded_status)
+
+    def test_ai_tab_lazy_loads_local_conversation_history(self) -> None:
+        source = inspect.getsource(app.build_app)
+        self.assertIn("conversation_loaded_state", source)
+        self.assertIn("ai_tab.select(", source)
+        self.assertIn("load_saved_ai_conversation", source)
 
     def test_record_tables_are_lightweight_and_lazy_until_expanded(self) -> None:
         source = inspect.getsource(app.build_app)
@@ -223,7 +276,12 @@ class UiContentTests(unittest.TestCase):
             warning = app._auto_save_conversation([], "storage-root")
 
         self.assertEqual(warning, "")
-        save_mock.assert_called_once_with([], "storage-root", retain_limit=37)
+        save_mock.assert_called_once_with(
+            [],
+            "storage-root",
+            retain_limit=37,
+            patient_id=None,
+        )
 
     def test_batch_upload_has_a_hard_file_count_limit(self) -> None:
         self.assertEqual(len(app._normalize_batch_files(["a"] * app.BATCH_FILE_LIMIT)), app.BATCH_FILE_LIMIT)
@@ -385,21 +443,28 @@ class UiContentTests(unittest.TestCase):
             patch.object(app, "refresh_report_center") as report_mock,
             patch.object(
                 app,
+                "refresh_conversation_history",
+                return_value=("conversation-select", "conversation-feedback"),
+            ) as conversation_mock,
+            patch.object(
+                app,
                 "load_patient_profile_form",
                 return_value=("姓名", "编号", app.gr.update(interactive=True)),
             ) as profile_mock,
         ):
             result = app.refresh_patient_workspace_views(False, False, "storage-a", "patient-1")
 
-        self.assertEqual(len(result), 23)
+        self.assertEqual(len(result), 26)
         case_mock.assert_not_called()
         history_mock.assert_not_called()
         report_mock.assert_not_called()
+        conversation_mock.assert_called_once_with("storage-a", "patient-1")
         profile_mock.assert_called_once_with("patient-1", "storage-a")
-        self.assertEqual(result[-1], {})
-        self.assertEqual(result[-2]["value"], "清空历史")
-        self.assertEqual(result[-3], {})
-        self.assertEqual(result[-4]["value"], "删除所选")
+        self.assertEqual(result[20], {})
+        self.assertEqual(result[19]["value"], "删除所选")
+        self.assertEqual(result[22], {})
+        self.assertEqual(result[21]["value"], "清空历史")
+        self.assertEqual(result[-3:], ("conversation-select", "conversation-feedback", True))
 
         case_values = tuple(f"case-{index}" for index in range(6))
         history_values = tuple(f"history-{index}" for index in range(4))
@@ -408,6 +473,11 @@ class UiContentTests(unittest.TestCase):
             patch.object(app, "refresh_case_records", return_value=case_values) as case_mock,
             patch.object(app, "refresh_history_records", return_value=history_values) as history_mock,
             patch.object(app, "refresh_report_center", return_value=report_values) as report_mock,
+            patch.object(
+                app,
+                "refresh_conversation_history",
+                return_value=("conversation-select", "conversation-feedback"),
+            ) as conversation_mock,
             patch.object(
                 app,
                 "load_patient_profile_form",
@@ -419,6 +489,7 @@ class UiContentTests(unittest.TestCase):
         case_mock.assert_called_once_with("storage-a", "patient-1")
         history_mock.assert_called_once_with("storage-a", "patient-1")
         report_mock.assert_called_once_with("storage-a", "patient-1")
+        conversation_mock.assert_called_once_with("storage-a", "patient-1")
         self.assertEqual(result[:6], case_values)
         self.assertEqual(result[6:10], history_values)
         self.assertEqual(result[10:16], report_values)

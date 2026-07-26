@@ -35,11 +35,7 @@ AI_CHAT_INTRO_HTML = """
 <div class="card-heading">
   <div><h2>AI 问答</h2><p>完成检测后，可以继续追问关注区域和复查建议。</p></div>
 </div>
-<div class="ai-context-strip">
-  <div><strong>检测上下文</strong><span>完成检测后自动带入当前结果摘要</span></div>
-  <div><strong>发送范围</strong><span>仅发送文字，不上传牙科影像</span></div>
-  <div><strong>使用边界</strong><span>回复仅供辅助参考，不替代专业诊断</span></div>
-</div>
+<p class="ai-privacy-note">仅发送检测文字摘要，不上传牙科影像；回复仅供辅助参考，不替代专业牙科医生诊断。</p>
 """
 
 CASE_INTRO_HTML = """

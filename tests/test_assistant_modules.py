@@ -13,8 +13,16 @@ from src.dental_detection import assistant, settings_store
 from src.dental_detection.advice import default_advice, detection_prompt
 from src.dental_detection.ai_client import normalize_base_url, validate_ai_request
 from src.dental_detection.ai_defaults import DEFAULT_AI_MODEL, SAFETY_NOTICE
-from src.dental_detection.conversation_store import save_conversation
+from src.dental_detection.conversation_store import (
+    list_conversations,
+    load_conversation,
+    save_conversation,
+)
 from src.dental_detection.settings_store import AiSettings
+from src.dental_detection.ui_ai_chat_page import (
+    load_conversation_history_item,
+    refresh_conversation_history,
+)
 
 
 class AssistantCompatibilityTests(unittest.TestCase):
@@ -121,6 +129,60 @@ class AdviceAndConversationTests(unittest.TestCase):
             self.assertTrue(second.exists())
             self.assertTrue(third.exists())
             self.assertEqual(len(list(first.parent.glob("dental_chat_auto_*.json"))), 2)
+
+    def test_conversation_history_lists_and_loads_safe_local_files(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            first_messages = [{"role": "user", "content": "第一次复查"}]
+            second_messages = [{"role": "assistant", "content": "第二次复查"}]
+            first = save_conversation(first_messages, temp_dir)
+            second = save_conversation(second_messages, temp_dir, retain_limit=5)
+
+            entries = list_conversations(temp_dir)
+
+            self.assertEqual({entry.file_name for entry in entries}, {first.name, second.name})
+            self.assertTrue(any(entry.auto_saved for entry in entries))
+            self.assertEqual(load_conversation(first.name, temp_dir), first_messages)
+            with self.assertRaisesRegex(ValueError, "选择无效"):
+                load_conversation("../settings.json", temp_dir)
+
+    def test_conversation_writes_remain_valid_under_concurrency(self) -> None:
+        with TemporaryDirectory() as temp_dir, ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [
+                executor.submit(
+                    save_conversation,
+                    [{"role": "user", "content": f"并发消息 {index}"}],
+                    temp_dir,
+                )
+                for index in range(12)
+            ]
+            paths = [future.result() for future in futures]
+
+            self.assertEqual(len(set(paths)), 12)
+            self.assertEqual(len(list_conversations(temp_dir)), 12)
+            for path in paths:
+                self.assertIsInstance(json.loads(path.read_text(encoding="utf-8")), dict)
+
+    def test_conversation_history_ui_restores_chat_and_clears_exports(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            messages = [{"role": "user", "content": "加载这条对话"}]
+            path = save_conversation(messages, temp_dir, patient_id="patient-1")
+            save_conversation(messages, temp_dir, patient_id="patient-2")
+
+            selector_update, feedback = refresh_conversation_history(temp_dir, "patient-1")
+            loaded = load_conversation_history_item(path.name, temp_dir, "patient-1")
+
+            self.assertEqual(selector_update["value"], path.name)
+            self.assertEqual(
+                [entry.file_name for entry in list_conversations(temp_dir, patient_id="patient-1")],
+                [path.name],
+            )
+            self.assertIn("最近对话", feedback)
+            self.assertEqual(loaded[0:2], (messages, messages))
+            self.assertEqual(loaded[2], "")
+            self.assertFalse(loaded[3]["visible"])
+            self.assertEqual(loaded[4], "")
+            with self.assertRaisesRegex(ValueError, "不属于当前患者"):
+                load_conversation(path.name, temp_dir, "patient-2")
 
 
 if __name__ == "__main__":

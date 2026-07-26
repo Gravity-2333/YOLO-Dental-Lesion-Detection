@@ -8,6 +8,7 @@ call "%PROJECT_ROOT%scripts\project_config.bat"
 if not exist "%YOLO_CONFIG_DIR%" mkdir "%YOLO_CONFIG_DIR%"
 cd /d "%PROJECT_ROOT%"
 set "YOLO_CONFIG_DIR=%YOLO_CONFIG_DIR%"
+set "PYTHONUNBUFFERED=1"
 
 if defined PYTHON_EXE (
     "%PYTHON_EXE%" app.py --server-name %SERVER_NAME% --server-port %SERVER_PORT% %GRADIO_EXTRA_ARGS%

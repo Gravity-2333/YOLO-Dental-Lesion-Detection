@@ -151,10 +151,16 @@ from src.dental_detection.ui_constants import (
     MODEL_SOURCE,
 )
 from src.dental_detection.ui_content import (
-    AI_CHAT_INTRO_HTML,
     APP_HEADER_HTML,
     CASE_INTRO_HTML,
     section_heading,
+)
+from src.dental_detection.ui_ai_chat_page import (
+    AiChatPageData,
+    build_ai_chat_page,
+    build_ai_runtime_status,
+    load_conversation_history_item,
+    refresh_conversation_history,
 )
 from src.dental_detection.ui_settings_page import SettingsPageData, build_settings_page
 from src.dental_detection.ui_workbench_page import WorkbenchPageData, build_workbench_page
@@ -770,10 +776,19 @@ def _conversation_from_advice(advice: str) -> list[dict[str, str]]:
     return [{"role": "assistant", "content": advice}]
 
 
-def _auto_save_conversation(history: list[dict[str, str]], storage_dir: str) -> str:
+def _auto_save_conversation(
+    history: list[dict[str, str]],
+    storage_dir: str,
+    patient_id: str | None = None,
+) -> str:
     try:
         retain_limit = _normalize_history_limit(load_settings().history_limit)
-        save_conversation(history, storage_dir, retain_limit=retain_limit)
+        save_conversation(
+            history,
+            storage_dir,
+            retain_limit=retain_limit,
+            patient_id=patient_id,
+        )
     except Exception as exc:
         message = friendly_error_message(exc, "自动保存对话失败")
         return f"自动保存对话失败，检测或回复结果已保留。\n{message}"
@@ -1907,6 +1922,7 @@ def refresh_patient_workspace_views(
         history_values = tuple(gr.update() for _ in range(4))
         report_values = tuple(gr.update() for _ in range(6))
     profile_values = load_patient_profile_form(patient_id, storage_dir)
+    conversation_values = (*refresh_conversation_history(storage_dir, patient_id), True)
     return (
         *case_values,
         *history_values,
@@ -1916,6 +1932,7 @@ def refresh_patient_workspace_views(
         {},
         gr.update(value="清空历史"),
         {},
+        *conversation_values,
     )
 
 
@@ -2206,7 +2223,11 @@ def run_single_detection(
     chat_history = _conversation_from_advice(advice)
     auto_save_warning = ""
     if settings.auto_save:
-        auto_save_warning = _auto_save_conversation(chat_history, settings.storage_dir)
+        auto_save_warning = _auto_save_conversation(
+            chat_history,
+            settings.storage_dir,
+            patient_id,
+        )
         if auto_save_warning:
             advice = f"{advice}\n\n{auto_save_warning}"
             chat_history = _conversation_from_advice(advice)
@@ -2469,7 +2490,11 @@ def run_batch_detection(
     chat_history = _conversation_from_advice(first["advice"])
     auto_save_warning = ""
     if settings.auto_save:
-        auto_save_warning = _auto_save_conversation(chat_history, settings.storage_dir)
+        auto_save_warning = _auto_save_conversation(
+            chat_history,
+            settings.storage_dir,
+            patient_id,
+        )
         if auto_save_warning:
             first["advice"] = f"{first['advice']}\n\n{auto_save_warning}"
             chat_history = _conversation_from_advice(first["advice"])
@@ -2802,6 +2827,7 @@ def continue_chat(
     storage_dir: str,
     custom_prompt: str,
     advice_style: str,
+    patient_id: str | None = None,
 ):
     user_message = (message or "").strip()
     if not user_message:
@@ -2850,7 +2876,11 @@ def continue_chat(
             history.append({"role": "assistant", "content": "AI 未返回有效内容，请重试或检查接口配置。"})
             clear_input = False
     if settings.auto_save:
-        auto_save_warning = _auto_save_conversation(history, settings.storage_dir)
+        auto_save_warning = _auto_save_conversation(
+            history,
+            settings.storage_dir,
+            patient_id,
+        )
         if auto_save_warning:
             history.append({"role": "assistant", "content": auto_save_warning})
             clear_input = False
@@ -2861,12 +2891,65 @@ def clear_current_chat():
     return [], [], "", _clear_file_output(), ""
 
 
-def export_chat(history: list[dict[str, str]], storage_dir: str):
+def clear_current_chat_with_status(*ai_inputs):
+    settings = _ai_settings(*ai_inputs)
+    return (*clear_current_chat(), build_ai_runtime_status([], settings))
+
+
+def refresh_ai_tab_content(
+    loaded: bool,
+    storage_dir: str,
+    patient_id: str,
+    history: list[dict[str, str]],
+    *ai_inputs,
+):
+    settings = _ai_settings(*ai_inputs)
+    if loaded:
+        history_update, feedback = gr.update(), gr.update()
+    else:
+        history_update, feedback = refresh_conversation_history(storage_dir, patient_id)
+    return history_update, feedback, build_ai_runtime_status(history, settings), True
+
+
+def load_saved_ai_conversation(
+    file_name: str,
+    storage_dir: str,
+    patient_id: str,
+    *ai_inputs,
+):
+    values = load_conversation_history_item(file_name, storage_dir, patient_id)
+    settings = _ai_settings(*ai_inputs)
+    return (*values, build_ai_runtime_status(values[1], settings))
+
+
+def refresh_ai_runtime_status(
+    history: list[dict[str, str]],
+    *ai_inputs,
+):
+    return build_ai_runtime_status(history, _ai_settings(*ai_inputs))
+
+
+def refresh_conversations_after_storage_change(
+    storage_changed: bool,
+    storage_dir: str,
+    patient_id: str,
+):
+    if not storage_changed:
+        return gr.update(), gr.update(), gr.update()
+    history_update, feedback = refresh_conversation_history(storage_dir, patient_id)
+    return history_update, feedback, True
+
+
+def export_chat(
+    history: list[dict[str, str]],
+    storage_dir: str,
+    patient_id: str | None = None,
+):
     history = _normalize_chat_history(history)
     if not history:
         raise gr.Error("当前没有可导出的对话记录。")
     _ensure_storage_root(storage_dir)
-    path = save_conversation(history, storage_dir)
+    path = save_conversation(history, storage_dir, patient_id=patient_id)
     _remember_allowed_file_root(path.parent)
     return _file_component_output(path), f"已导出：{path}"
 
@@ -2997,6 +3080,7 @@ def build_app() -> gr.Blocks:
         history_delete_confirmation = gr.State({}, time_to_live=SESSION_STATE_TTL_SECONDS)
         history_clear_confirmation = gr.State({}, time_to_live=SESSION_STATE_TTL_SECONDS)
         report_trash_confirmation = gr.State({}, time_to_live=SESSION_STATE_TTL_SECONDS)
+        conversation_loaded_state = gr.State(False, time_to_live=SESSION_STATE_TTL_SECONDS)
         gr.HTML(APP_HEADER_HTML)
 
         with gr.Tabs(elem_classes=["main-tabs"]):
@@ -3013,48 +3097,20 @@ def build_app() -> gr.Blocks:
                         initial_detection_table=_empty_table(),
                     )
                 )
-            with gr.Tab("AI 问答"):
-                with gr.Group(elem_classes=["section-card", "chat-card"]):
-                    gr.HTML(AI_CHAT_INTRO_HTML)
-                    with gr.Row(elem_classes=["chat-toolbar"]):
-                        clear_chat_btn = gr.Button(
-                            "新建对话",
-                            elem_classes=["secondary-action", "compact-button"],
-                        )
-                    chatbot = gr.Chatbot(
-                        label="问答记录",
-                        show_label=False,
-                        height=420,
-                        placeholder="暂无对话。完成检测后，可以继续追问病变位置、可能风险和复查建议。",
-                        elem_classes=["chat-window"],
-                    )
-                    with gr.Row(elem_classes=["chat-input-row"]):
-                        chat_input = gr.Textbox(
-                            label="继续提问",
-                            placeholder="例如：这个结果需要重点复查哪些位置？",
-                            scale=7,
-                        )
-                        chat_btn = gr.Button(
-                            "发送",
-                            variant="primary",
-                            scale=1,
-                            elem_classes=["primary-action", "compact-button"],
-                        )
-                    with gr.Row(elem_classes=["path-row"]):
-                        export_path = gr.Textbox(
-                            label="导出路径",
-                            interactive=False,
-                            lines=1,
-                            max_lines=1,
-                            scale=8,
-                            elem_classes=["path-output"],
-                        )
-                        export_btn = gr.Button(
-                            "导出对话",
-                            scale=2,
-                            elem_classes=["secondary-action"],
-                        )
-                        export_file = gr.File(label="导出的对话文件", visible=False)
+            with gr.Tab("AI 问答") as ai_tab:
+                ai_chat = build_ai_chat_page(AiChatPageData(saved=saved))
+                ai_runtime_status = ai_chat.runtime_status
+                clear_chat_btn = ai_chat.clear_button
+                chatbot = ai_chat.chatbot
+                chat_input = ai_chat.input
+                chat_btn = ai_chat.send_button
+                conversation_select = ai_chat.conversation_select
+                load_conversation_btn = ai_chat.conversation_load_button
+                refresh_conversation_btn = ai_chat.conversation_refresh_button
+                conversation_feedback = ai_chat.conversation_feedback
+                export_path = ai_chat.export_path
+                export_btn = ai_chat.export_button
+                export_file = ai_chat.export_file
 
             with gr.Tab("病例记录") as case_tab:
                 with gr.Group(elem_classes=["section-card", "case-card"]):
@@ -3419,10 +3475,29 @@ def build_app() -> gr.Blocks:
             history_delete_confirmation,
             clear_history_btn,
             history_clear_confirmation,
+            conversation_select,
+            conversation_feedback,
+            conversation_loaded_state,
         ]
 
         # Lazy-load record stores when their tabs become visible. This keeps
         # startup and tab navigation responsive even with large local archives.
+        ai_tab.select(
+            fn=refresh_ai_tab_content,
+            inputs=[
+                conversation_loaded_state,
+                storage_dir,
+                patient_select,
+                chat_state,
+                *settings.ai_request_inputs(),
+            ],
+            outputs=[
+                conversation_select,
+                conversation_feedback,
+                ai_runtime_status,
+                conversation_loaded_state,
+            ],
+        )
         case_tab.select(
             fn=lazy_refresh_case_records,
             inputs=[case_loaded_state, storage_dir, case_patient_select],
@@ -3722,11 +3797,29 @@ def build_app() -> gr.Blocks:
             fn=refresh_report_center_after_storage_change,
             inputs=[storage_changed_state, storage_dir, history_patient_select],
             outputs=report_list_outputs,
+        ).then(
+            fn=refresh_conversations_after_storage_change,
+            inputs=[storage_changed_state, storage_dir, patient_select],
+            outputs=[
+                conversation_select,
+                conversation_feedback,
+                conversation_loaded_state,
+            ],
+        ).then(
+            fn=refresh_ai_runtime_status,
+            inputs=[chat_state, *settings.ai_request_inputs()],
+            outputs=ai_runtime_status,
+            queue=False,
         )
         chat_event = gr.on(
             triggers=[chat_btn.click, chat_input.submit],
             fn=continue_chat,
-            inputs=[chat_input, chat_state, *settings.ai_request_inputs()],
+            inputs=[
+                chat_input,
+                chat_state,
+                *settings.ai_request_inputs(),
+                patient_select,
+            ],
             outputs=[chatbot, chat_state, chat_input, export_file, export_path],
             concurrency_limit=1,
             concurrency_id=AI_REQUEST_CONCURRENCY_ID,
@@ -3734,10 +3827,41 @@ def build_app() -> gr.Blocks:
             show_progress="minimal",
         )
         clear_chat_btn.click(
-            fn=clear_current_chat,
-            outputs=[chatbot, chat_state, chat_input, export_file, export_path],
+            fn=clear_current_chat_with_status,
+            inputs=settings.ai_request_inputs(),
+            outputs=[
+                chatbot,
+                chat_state,
+                chat_input,
+                export_file,
+                export_path,
+                ai_runtime_status,
+            ],
             cancels=chat_event,
             queue=False,
+        )
+        refresh_conversation_btn.click(
+            fn=refresh_conversation_history,
+            inputs=[storage_dir, patient_select],
+            outputs=[conversation_select, conversation_feedback],
+        )
+        load_conversation_btn.click(
+            fn=load_saved_ai_conversation,
+            inputs=[
+                conversation_select,
+                storage_dir,
+                patient_select,
+                *settings.ai_request_inputs(),
+            ],
+            outputs=[
+                chatbot,
+                chat_state,
+                chat_input,
+                export_file,
+                export_path,
+                conversation_feedback,
+                ai_runtime_status,
+            ],
         )
         refresh_model_btn.click(
             fn=refresh_model_choices,
@@ -3798,7 +3922,11 @@ def build_app() -> gr.Blocks:
             queue=False,
             show_progress="hidden",
         )
-        export_btn.click(fn=export_chat, inputs=[chat_state, storage_dir], outputs=[export_file, export_path])
+        export_btn.click(
+            fn=export_chat,
+            inputs=[chat_state, storage_dir, patient_select],
+            outputs=[export_file, export_path],
+        )
         export_batch_btn.click(
             fn=export_batch_results,
             inputs=[batch_state, storage_dir],

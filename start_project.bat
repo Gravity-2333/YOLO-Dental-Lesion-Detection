@@ -12,8 +12,11 @@ call "%PROJECT_ROOT%stop_project.bat" --from-start
 if not exist "%YOLO_CONFIG_DIR%" mkdir "%YOLO_CONFIG_DIR%"
 
 echo [INFO] Starting Gradio frontend service...
-echo [INFO] A backend log window will open. Close that window to stop the service.
-start "YOLO Dental Gradio" "%ComSpec%" /k ""%PROJECT_ROOT%scripts\run_gradio_server.bat""
+powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%PROJECT_ROOT%scripts\start_project.ps1"
+if errorlevel 1 (
+    echo [ERROR] Failed to start the background service.
+    exit /b 1
+)
 
 echo [INFO] Frontend URL: http://%SERVER_NAME%:%SERVER_PORT%
 echo [INFO] If the page is not ready, wait a few seconds for model and Gradio startup.

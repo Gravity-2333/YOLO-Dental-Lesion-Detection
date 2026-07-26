@@ -40,12 +40,12 @@ foreach ($item in $items) {
     }
 }
 
-# The visible `/k` runner window is not matched by app.py's command line.
-# Close it explicitly so repeated restarts do not leave stale console windows.
+# The hidden command runner is not matched by app.py's command line.
+# Stop it explicitly so repeated restarts do not leave stale background processes.
 foreach ($runner in $runners) {
     Stop-Process -Id $runner.ProcessId -Force -ErrorAction SilentlyContinue
     if (-not $Quiet) {
-        Write-Host ("[INFO] Closed project runner window PID " + $runner.ProcessId)
+        Write-Host ("[INFO] Stopped background runner PID " + $runner.ProcessId)
     }
 }
 
