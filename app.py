@@ -3894,35 +3894,30 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-if __name__ == "__main__":
-    missing = [
-        str(info["path"]) for info in MODEL_REGISTRY.values() if not Path(info["path"]).exists()
-    ]
-    if missing:
-        raise FileNotFoundError("模型文件不存在: " + "; ".join(missing))
-
-    # 验证默认模型文件是否可被 YOLO 正常加载（捕获自定义模块缺失等）
-    try:
-        test_model = YOLO(str(DEFAULT_MODEL_PATH))
-        print(f"[信息] 默认模型加载成功，类别：{test_model.names}")
-    except Exception as exc:
-        print(f"[警告] 默认模型加载失败：{exc}")
-        print("  请确认自定义 YOLO 模块路径已配置，或切换到原始结构模型。")
-
-    # 校验用户在设置中保存的模型路径是否存在
-    saved = load_settings()
-    user_model_issues = []
+def startup_model_issues(saved: AiSettings | None = None) -> list[str]:
+    """Report unavailable model paths without preventing the settings UI from starting."""
+    settings = saved or load_settings()
+    issues = []
+    for name, info in MODEL_REGISTRY.items():
+        path = Path(info["path"]).expanduser()
+        if not path.exists():
+            issues.append(f"候选模型 {name}：{path}")
     for label, path_str in [
-        ("主模型", saved.primary_model_path),
-        ("对比模型", saved.compare_model_path),
+        ("已保存主模型", settings.primary_model_path),
+        ("已保存对比模型", settings.compare_model_path),
     ]:
         if path_str and not Path(path_str).expanduser().exists():
-            user_model_issues.append(f"{label}：{path_str}")
-    if user_model_issues:
-        print("[警告] 以下用户设置中的模型文件不存在：")
-        for issue in user_model_issues:
+            issues.append(f"{label}：{path_str}")
+    return list(dict.fromkeys(issues))
+
+
+if __name__ == "__main__":
+    model_issues = startup_model_issues()
+    if model_issues:
+        print("[警告] 以下模型路径当前不可用：")
+        for issue in model_issues:
             print(f"  - {issue}")
-        print("  应用仍可启动，但使用这些模型前请在设置页重新选择有效模型文件。")
+        print("  界面将继续启动，请在设置页选择可用模型。")
 
     args = parse_args()
     build_app().launch(

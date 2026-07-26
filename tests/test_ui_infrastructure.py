@@ -236,6 +236,24 @@ class UiContentTests(unittest.TestCase):
         picker.assert_not_called()
         self.assertIn("远程访问", feedback)
 
+    def test_missing_models_warn_without_blocking_app_startup(self) -> None:
+        saved = app.AiSettings(
+            primary_model_path="missing-primary.pt",
+            compare_model_path="missing-compare.pt",
+        )
+        with patch.object(Path, "exists", return_value=False):
+            issues = app.startup_model_issues(saved)
+
+        self.assertGreaterEqual(len(issues), len(app.MODEL_REGISTRY) + 2)
+        self.assertTrue(any("候选模型" in issue for issue in issues))
+        self.assertTrue(any("已保存主模型" in issue for issue in issues))
+        main_source = Path(app.__file__).read_text(encoding="utf-8").split(
+            'if __name__ == "__main__":',
+            1,
+        )[1]
+        self.assertNotIn("raise FileNotFoundError", main_source)
+        self.assertNotIn("YOLO(", main_source)
+
     def test_history_clear_requires_two_matching_clicks(self) -> None:
         armed = app.clear_all_history_records("storage-a", "patient-1")
         self.assertEqual(len(armed), 6)
