@@ -6,9 +6,11 @@ from threading import Lock
 from time import sleep
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from PIL import Image
 
+from src.dental_detection import inference
 from src.dental_detection.inference import DentalDetector
 
 
@@ -44,6 +46,23 @@ class InferenceSafetyTests(unittest.TestCase):
             list(executor.map(detector.predict, [image, image]))
 
         self.assertEqual(detector.model.max_active, 1)
+
+    def test_non_clahe_prediction_reuses_normalized_source_image(self) -> None:
+        detector = object.__new__(DentalDetector)
+        detector.model_path = Path("fake.pt")
+        detector.model = _FakeModel()
+        detector.names = detector.model.names
+        detector._predict_lock = Lock()
+
+        original, model_input, _, _ = detector.predict(Image.new("RGB", (16, 16), "white"))
+
+        self.assertIs(original, model_input)
+
+    def test_oversized_source_is_reduced_before_session_retention(self) -> None:
+        with patch.object(inference, "MAX_IMAGE_PIXELS", 100):
+            normalized = inference._normalized_rgb_image(Image.new("RGB", (20, 10), "white"))
+
+        self.assertLessEqual(normalized.width * normalized.height, 100)
 
 
 if __name__ == "__main__":

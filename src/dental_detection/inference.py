@@ -38,7 +38,9 @@ class Detection:
         }
 
 
-MAX_IMAGE_PIXELS = 8000 * 8000  # 最大像素数，超过此值先等比例缩放
+# The detector itself resizes inputs to 1280px. Retaining a 64-megapixel source
+# in every session only increases memory and response encoding time.
+MAX_IMAGE_PIXELS = 12_000_000
 
 
 def label_from_names(names: Any, cls_id: int) -> str:
@@ -110,9 +112,10 @@ class DentalDetector:
                 verbose=False,
             )
         detections = self._parse_result(results[0])
-        model_image = Image.fromarray(model_array)
+        original_image = Image.fromarray(original_array)
+        model_image = Image.fromarray(model_array) if use_clahe else original_image
         annotated = self._draw_detections(model_image, detections)
-        return Image.fromarray(original_array), model_image, annotated, detections
+        return original_image, model_image, annotated, detections
 
     def _parse_result(self, result: Any) -> list[Detection]:
         detections: list[Detection] = []

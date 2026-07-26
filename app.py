@@ -142,6 +142,7 @@ from src.dental_detection.ui_contracts import (
     common_output_values,
 )
 from src.dental_detection.ui_constants import (
+    BATCH_FILE_LIMIT,
     DETECTION_TABLE_COLUMNS,
     MODEL_MODE_COMPARE,
     MODEL_MODE_SINGLE,
@@ -166,7 +167,10 @@ AI_REQUEST_CONCURRENCY_ID = "dental-ai-request"
 EXPORT_CONCURRENCY_ID = "dental-export"
 CASE_UI_LIMIT = 200
 HISTORY_UI_LIMIT = 200
-BATCH_FILE_LIMIT = 50
+BATCH_TOTAL_UPLOAD_BYTES = 200 * 1024 * 1024
+SESSION_STATE_TTL_SECONDS = 60 * 60
+STATE_SESSION_CAPACITY = 128
+MAX_UPLOAD_FILE_SIZE = "50mb"
 
 
 def _workbench_theme():
@@ -347,6 +351,17 @@ def _detect_model_path(model_name: str, model_path: str | Path, image, use_clahe
         "class_names": _class_name_mapping(names),
         "model_path": str(Path(model_path).resolve()),
     }
+
+
+def _share_source_images(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deduplicate identical source images retained by comparison models."""
+    if not results:
+        return results
+    primary = results[0]
+    for result in results[1:]:
+        result["original"] = primary.get("original")
+        result["model_input"] = primary.get("model_input")
+    return results
 
 
 def _model_path_or_default(path: str, fallback: str) -> str:
@@ -2162,6 +2177,7 @@ def run_single_detection(
         all_results.append(result)
         if primary is None:
             primary = result
+    _share_source_images(all_results)
 
     if primary is None:
         raise gr.Error("推理失败：未能获取检测结果，请检查模型文件是否有效。")
@@ -2299,6 +2315,18 @@ def _normalize_batch_files(files: Any) -> list[Any]:
     normalized = list(files) if isinstance(files, (list, tuple)) else [files]
     if len(normalized) > BATCH_FILE_LIMIT:
         raise gr.Error(f"单次最多处理 {BATCH_FILE_LIMIT} 张图片，请分批上传。")
+    total_bytes = 0
+    for file_obj in normalized:
+        path_value = getattr(file_obj, "name", None) or file_obj
+        try:
+            path = Path(path_value)
+            if path.is_file():
+                total_bytes += path.stat().st_size
+        except (OSError, TypeError, ValueError):
+            continue
+    if total_bytes > BATCH_TOTAL_UPLOAD_BYTES:
+        limit_mb = BATCH_TOTAL_UPLOAD_BYTES // (1024 * 1024)
+        raise gr.Error(f"本批图片总大小超过 {limit_mb} MB，请减少图片数量或分批上传。")
     return normalized
 
 
@@ -2359,10 +2387,12 @@ def run_batch_detection(
         path = getattr(file_obj, "name", None) or file_obj
         file_name = _file_name(file_obj)
         try:
-            all_results = [
-                _detect_model_path(model_name, model_path, path, use_clahe, conf, iou, device)
-                for model_name, model_path in selected_models
-            ]
+            all_results = _share_source_images(
+                [
+                    _detect_model_path(model_name, model_path, path, use_clahe, conf, iou, device)
+                    for model_name, model_path in selected_models
+                ]
+            )
             result = all_results[0]
             advice = _build_advice(settings, _advice_detections(all_results))
             quality_text, quality_level = _quality_payload(result["original"])
@@ -2953,13 +2983,13 @@ def build_app() -> gr.Blocks:
         title="牙齿病变区域识别",
         elem_classes=["app-shell"],
     ) as demo:
-        batch_state = gr.State([])
-        chat_state = gr.State([])
-        case_loaded_state = gr.State(False)
-        history_loaded_state = gr.State(False)
-        storage_changed_state = gr.State(False)
-        history_delete_confirmation = gr.State({})
-        history_clear_confirmation = gr.State({})
+        batch_state = gr.State([], time_to_live=SESSION_STATE_TTL_SECONDS)
+        chat_state = gr.State([], time_to_live=SESSION_STATE_TTL_SECONDS)
+        case_loaded_state = gr.State(False, time_to_live=SESSION_STATE_TTL_SECONDS)
+        history_loaded_state = gr.State(False, time_to_live=SESSION_STATE_TTL_SECONDS)
+        storage_changed_state = gr.State(False, time_to_live=SESSION_STATE_TTL_SECONDS)
+        history_delete_confirmation = gr.State({}, time_to_live=SESSION_STATE_TTL_SECONDS)
+        history_clear_confirmation = gr.State({}, time_to_live=SESSION_STATE_TTL_SECONDS)
         gr.HTML(APP_HEADER_HTML)
 
         with gr.Tabs(elem_classes=["main-tabs"]):
@@ -3911,6 +3941,20 @@ def startup_model_issues(saved: AiSettings | None = None) -> list[str]:
     return list(dict.fromkeys(issues))
 
 
+def launch_app(args: argparse.Namespace):
+    return build_app().launch(
+        server_name=args.server_name,
+        server_port=args.server_port,
+        share=args.share,
+        theme=_workbench_theme(),
+        css=load_workbench_css(),
+        js=load_workbench_js(),
+        allowed_paths=[str(root) for root in _allowed_file_roots()],
+        state_session_capacity=STATE_SESSION_CAPACITY,
+        max_file_size=MAX_UPLOAD_FILE_SIZE,
+    )
+
+
 if __name__ == "__main__":
     model_issues = startup_model_issues()
     if model_issues:
@@ -3919,13 +3963,4 @@ if __name__ == "__main__":
             print(f"  - {issue}")
         print("  界面将继续启动，请在设置页选择可用模型。")
 
-    args = parse_args()
-    build_app().launch(
-        server_name=args.server_name,
-        server_port=args.server_port,
-        share=args.share,
-        theme=_workbench_theme(),
-        css=load_workbench_css(),
-        js=load_workbench_js(),
-        allowed_paths=[str(root) for root in _allowed_file_roots()],
-    )
+    launch_app(parse_args())

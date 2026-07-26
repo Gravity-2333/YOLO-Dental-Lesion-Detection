@@ -4,7 +4,7 @@ import inspect
 from dataclasses import fields
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import unittest
 
 import app
@@ -36,6 +36,8 @@ class UiAssetTests(unittest.TestCase):
         self.assertLess(css.index(":root"), css.index(".gradio-container"))
         self.assertIn("@media (max-width: 640px)", css)
         self.assertIn(".settings-card > .settings-card", css)
+        self.assertNotIn("transition: all", css)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", css)
 
     def test_javascript_bundle_loads(self) -> None:
         self.assertIn("MutationObserver", load_workbench_js())
@@ -227,6 +229,48 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(len(app._normalize_batch_files(["a"] * app.BATCH_FILE_LIMIT)), app.BATCH_FILE_LIMIT)
         with self.assertRaisesRegex(app.gr.Error, "单次最多处理"):
             app._normalize_batch_files(["a"] * (app.BATCH_FILE_LIMIT + 1))
+
+    def test_batch_upload_has_a_total_size_limit(self) -> None:
+        oversized = SimpleNamespace(st_size=app.BATCH_TOTAL_UPLOAD_BYTES + 1)
+        with (
+            patch.object(Path, "is_file", return_value=True),
+            patch.object(Path, "stat", return_value=oversized),
+        ):
+            with self.assertRaisesRegex(app.gr.Error, "总大小超过"):
+                app._normalize_batch_files(["large-image.tif"])
+
+    def test_compare_results_share_identical_source_images(self) -> None:
+        original = object()
+        model_input = object()
+        secondary_annotated = object()
+        results = [
+            {"original": original, "model_input": model_input, "annotated": object()},
+            {"original": object(), "model_input": object(), "annotated": secondary_annotated},
+        ]
+
+        shared = app._share_source_images(results)
+
+        self.assertIs(shared[1]["original"], original)
+        self.assertIs(shared[1]["model_input"], model_input)
+        self.assertIs(shared[1]["annotated"], secondary_annotated)
+
+    def test_launch_bounds_upload_and_session_retention(self) -> None:
+        launch = MagicMock(return_value=("app", "local", "share"))
+        args = SimpleNamespace(server_name="127.0.0.1", server_port=7860, share=False)
+        with (
+            patch.object(app, "build_app", return_value=SimpleNamespace(launch=launch)),
+            patch.object(app, "_workbench_theme", return_value="theme"),
+            patch.object(app, "load_workbench_css", return_value="css"),
+            patch.object(app, "load_workbench_js", return_value="js"),
+            patch.object(app, "_allowed_file_roots", return_value=[Path("root")]),
+        ):
+            app.launch_app(args)
+
+        kwargs = launch.call_args.kwargs
+        self.assertEqual(kwargs["state_session_capacity"], app.STATE_SESSION_CAPACITY)
+        self.assertEqual(kwargs["max_file_size"], app.MAX_UPLOAD_FILE_SIZE)
+        source = inspect.getsource(app.build_app)
+        self.assertGreaterEqual(source.count("time_to_live=SESSION_STATE_TTL_SECONDS"), 7)
 
     def test_remote_requests_do_not_open_server_native_picker(self) -> None:
         request = SimpleNamespace(client=SimpleNamespace(host="192.168.1.25"))

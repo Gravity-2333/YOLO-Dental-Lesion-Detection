@@ -36,7 +36,7 @@
 .upload-input .image-container:hover {
   border-color: var(--primary) !important;
   background: #fafcfe !important;
-  transition: all 0.2s ease;
+  transition: background-color 140ms ease, border-color 140ms ease;
 }
 
 /* 改进的表格样式 */
@@ -51,8 +51,8 @@
 .chat-window {
   background: #ffffff !important;
   border: 1px solid var(--input-border) !important;
-  border-radius: 12px !important;
-  box-shadow: var(--shadow-card) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: none !important;
 }
 
 /* 滚动条优化 */
@@ -82,7 +82,7 @@ select:focus {
   outline: none !important;
   border-color: var(--primary) !important;
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1) !important;
-  transition: all 0.2s ease !important;
+  transition: border-color 140ms ease, box-shadow 140ms ease !important;
 }
 
 /* 改进的禁用状态 */
@@ -214,5 +214,16 @@ button[aria-disabled="true"] {
 @media (max-width: 760px) {
   .guide-card {
     margin-top: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

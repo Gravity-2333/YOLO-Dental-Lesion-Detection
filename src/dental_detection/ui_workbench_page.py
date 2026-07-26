@@ -7,7 +7,12 @@ import gradio as gr
 
 from .model_info import legend_html
 from .settings_store import AiSettings
-from .ui_constants import DETECTION_TABLE_COLUMNS, MODEL_MODE_COMPARE, MODEL_MODE_SINGLE
+from .ui_constants import (
+    BATCH_FILE_LIMIT,
+    DETECTION_TABLE_COLUMNS,
+    MODEL_MODE_COMPARE,
+    MODEL_MODE_SINGLE,
+)
 from .ui_content import WORKBENCH_HELP_TEXT, section_heading
 
 
@@ -140,7 +145,7 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                         gr.HTML(
                             section_heading(
                                 "批量上传",
-                                "批量分析会按当前模型模式逐张检测，单次最多处理 50 张图片，可在完成后导出结果包。",
+                                f"按当前模型模式逐张检测，单次最多 {BATCH_FILE_LIMIT} 张，完成后可统一导出。",
                             )
                         )
                         batch_files = gr.File(
