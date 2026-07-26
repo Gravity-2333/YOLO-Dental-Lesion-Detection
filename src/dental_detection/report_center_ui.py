@@ -23,6 +23,8 @@ from .workspace_models import ReportAsset
 from .workspace_store import WorkspaceError
 
 REPORT_TABLE_COLUMNS = ["生成时间", "文件名", "格式", "模型", "文件状态"]
+REPORT_TRASH_LABEL = "移入回收站"
+REPORT_TRASH_CONFIRM_LABEL = "再次点击确认"
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,24 +63,40 @@ def _file_status(storage_dir: str, report: ReportAsset) -> str:
         return "路径无效"
 
 
-def _report_choices(storage_dir: str, reports: list[ReportAsset]) -> list[tuple[str, str]]:
+def _report_statuses(storage_dir: str, reports: list[ReportAsset]) -> dict[str, str]:
+    return {report.id: _file_status(storage_dir, report) for report in reports}
+
+
+def _report_choices(
+    storage_dir: str,
+    reports: list[ReportAsset],
+    statuses: dict[str, str] | None = None,
+) -> list[tuple[str, str]]:
+    if statuses is None:
+        statuses = _report_statuses(storage_dir, reports)
     choices = []
     for report in reports:
         label = f"{report.file_name} · {_local_timestamp(report.created_at)}"
-        if _file_status(storage_dir, report) != "可用":
+        if statuses.get(report.id) != "可用":
             label += " · 文件缺失"
         choices.append((label, report.id))
     return choices
 
 
-def _report_table_html(storage_dir: str, reports: list[ReportAsset]) -> str:
+def _report_table_html(
+    storage_dir: str,
+    reports: list[ReportAsset],
+    statuses: dict[str, str] | None = None,
+) -> str:
+    if statuses is None:
+        statuses = _report_statuses(storage_dir, reports)
     rows = [
         [
             _local_timestamp(report.created_at),
             report.file_name,
             report.report_format.upper(),
             report.model_version or "未记录",
-            _file_status(storage_dir, report),
+            statuses.get(report.id, "路径无效"),
         ]
         for report in reports
     ]
@@ -123,7 +141,8 @@ def build_report_center(
     load_initial: bool = True,
 ) -> ReportCenterComponents:
     reports = _load_reports(storage_dir, patient_id) if load_initial else []
-    choices = _report_choices(storage_dir, reports)
+    statuses = _report_statuses(storage_dir, reports)
+    choices = _report_choices(storage_dir, reports, statuses)
     selected_id = choices[0][1] if choices else None
     selected = reports[0] if reports else None
     with gr.Group(elem_classes=["section-card", "case-card"]):
@@ -134,7 +153,7 @@ def build_report_center(
         with gr.Row(elem_classes=["compact-row"]):
             refresh_button = gr.Button("刷新报告", elem_classes=["secondary-action", "compact-button"])
             trash_button = gr.Button(
-                "移入回收站",
+                REPORT_TRASH_LABEL,
                 interactive=bool(selected),
                 elem_classes=["danger-action", "compact-button"],
             )
@@ -151,7 +170,7 @@ def build_report_center(
             elem_classes=["compact-accordion"],
         ):
             report_table = gr.HTML(
-                value=_report_table_html(storage_dir, reports),
+                value=_report_table_html(storage_dir, reports, statuses),
                 elem_classes=["record-table-shell"],
             )
         initial_file = _report_file_output(storage_dir, selected)
@@ -177,27 +196,39 @@ def build_report_center(
     )
 
 
-def refresh_report_center(storage_dir: str, patient_id: str, feedback: str = ""):
+def refresh_report_center(
+    storage_dir: str,
+    patient_id: str,
+    feedback: str = "",
+    *,
+    include_file: bool = True,
+):
     try:
         reports = _load_reports(storage_dir, patient_id)
-        choices = _report_choices(storage_dir, reports)
+        statuses = _report_statuses(storage_dir, reports)
+        choices = _report_choices(storage_dir, reports, statuses)
     except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
         raise gr.Error(friendly_error_message(exc, "报告记录读取失败")) from exc
     selected_id = choices[0][1] if choices else None
     selected = reports[0] if reports else None
     return (
         gr.update(choices=choices, value=selected_id),
-        _report_table_html(storage_dir, reports),
+        _report_table_html(storage_dir, reports, statuses),
         _report_detail(storage_dir, selected),
-        _report_file_output(storage_dir, selected),
+        _report_file_output(storage_dir, selected) if include_file else clear_file_output(),
         feedback,
-        gr.update(interactive=bool(selected)),
+        gr.update(value=REPORT_TRASH_LABEL, interactive=bool(selected)),
     )
 
 
 def load_report_center_item(report_id: str, storage_dir: str, patient_id: str):
     if not str(report_id or "").strip():
-        return "暂无报告记录。", clear_file_output(), "", gr.update(interactive=False)
+        return (
+            "暂无报告记录。",
+            clear_file_output(),
+            "",
+            gr.update(value=REPORT_TRASH_LABEL, interactive=False),
+        )
     try:
         report = get_personal_report(storage_dir, patient_id, report_id)
         path = _report_path(storage_dir, report)
@@ -208,9 +239,26 @@ def load_report_center_item(report_id: str, storage_dir: str, patient_id: str):
             _report_detail(storage_dir, report),
             clear_file_output(),
             "报告文件已不存在，可以将这条失效记录移入回收站。",
-            gr.update(interactive=True),
+            gr.update(value=REPORT_TRASH_LABEL, interactive=True),
         )
-    return _report_detail(storage_dir, report), file_component_output(path), "", gr.update(interactive=True)
+    return (
+        _report_detail(storage_dir, report),
+        file_component_output(path),
+        "",
+        gr.update(value=REPORT_TRASH_LABEL, interactive=True),
+    )
+
+
+def load_active_report_center_item(report_id: str, storage_dir: str, patient_id: str):
+    """Load the selected report, falling back to the first item on initial tab entry."""
+    active_id = str(report_id or "").strip()
+    if not active_id:
+        try:
+            reports = _load_reports(storage_dir, patient_id)
+        except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
+            raise gr.Error(friendly_error_message(exc, "报告记录读取失败")) from exc
+        active_id = reports[0].id if reports else ""
+    return load_report_center_item(active_id, storage_dir, patient_id)
 
 
 def trash_report_center_item(report_id: str, storage_dir: str, patient_id: str):
@@ -238,3 +286,45 @@ def trash_report_center_item(report_id: str, storage_dir: str, patient_id: str):
         raise gr.Error(friendly_error_message(exc, "报告移入回收站失败")) from exc
     message = "报告已移入回收站。" if moved_to is not None else "失效的报告记录已移除。"
     return refresh_report_center(storage_dir, patient_id, message)
+
+
+def _report_trash_target(report_id: str, storage_dir: str, patient_id: str) -> str:
+    return "\n".join(
+        (
+            str(storage_dir or "").strip(),
+            str(patient_id or "").strip(),
+            str(report_id or "").strip(),
+        )
+    )
+
+
+def confirm_trash_report_center_item(
+    report_id: str,
+    storage_dir: str,
+    patient_id: str,
+    confirmation: dict | None = None,
+):
+    if not str(report_id or "").strip():
+        raise gr.Error("请先选择一条报告记录。")
+    target = _report_trash_target(report_id, storage_dir, patient_id)
+    armed_target = str((confirmation or {}).get("target") or "")
+    if armed_target != target:
+        return (
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            "再次点击按钮后，所选报告将移入回收站。",
+            gr.update(value=REPORT_TRASH_CONFIRM_LABEL, interactive=True),
+            {"target": target},
+        )
+
+    values = list(trash_report_center_item(report_id, storage_dir, patient_id))
+    button_update = dict(values[-1])
+    button_update["value"] = REPORT_TRASH_LABEL
+    values[-1] = button_update
+    return (*values, {})
+
+
+def reset_report_trash_confirmation():
+    return {}

@@ -112,9 +112,11 @@ from src.dental_detection.personal_workspace import (
 )
 from src.dental_detection.report_center_ui import (
     build_report_center,
+    confirm_trash_report_center_item,
+    load_active_report_center_item,
     load_report_center_item,
     refresh_report_center,
-    trash_report_center_item,
+    reset_report_trash_confirmation,
 )
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
 from src.dental_detection.record_formatters import format_case_record, format_history_record
@@ -1878,7 +1880,10 @@ def lazy_refresh_history_page(
         return (*([gr.update()] * 10), True)
     return (
         *refresh_history_records(storage_dir, patient_id),
-        *refresh_report_center(storage_dir, patient_id),
+        # Hydrate the File component in a follow-up event after the tab is
+        # visible. Updating it inside this larger lazy callback can leave
+        # Gradio's progress overlay running indefinitely on first entry.
+        *refresh_report_center(storage_dir, patient_id, include_file=False),
         True,
     )
 
@@ -2991,6 +2996,7 @@ def build_app() -> gr.Blocks:
         storage_changed_state = gr.State(False, time_to_live=SESSION_STATE_TTL_SECONDS)
         history_delete_confirmation = gr.State({}, time_to_live=SESSION_STATE_TTL_SECONDS)
         history_clear_confirmation = gr.State({}, time_to_live=SESSION_STATE_TTL_SECONDS)
+        report_trash_confirmation = gr.State({}, time_to_live=SESSION_STATE_TTL_SECONDS)
         gr.HTML(APP_HEADER_HTML)
 
         with gr.Tabs(elem_classes=["main-tabs"]):
@@ -3426,6 +3432,15 @@ def build_app() -> gr.Blocks:
             fn=lazy_refresh_history_page,
             inputs=[history_loaded_state, storage_dir, history_patient_select],
             outputs=[*history_list_outputs, *report_list_outputs, history_loaded_state],
+        ).then(
+            fn=load_active_report_center_item,
+            inputs=[report_center.report_select, storage_dir, history_patient_select],
+            outputs=[
+                report_center.report_detail,
+                report_center.report_file,
+                report_center.report_feedback,
+                report_center.trash_button,
+            ],
         )
 
         clear_session_btn.click(
@@ -3920,6 +3935,10 @@ def build_app() -> gr.Blocks:
             fn=refresh_report_center,
             inputs=[storage_dir, history_patient_select],
             outputs=report_list_outputs,
+        ).then(
+            fn=reset_report_trash_confirmation,
+            outputs=report_trash_confirmation,
+            queue=False,
         )
         report_center.report_select.input(
             fn=load_report_center_item,
@@ -3930,11 +3949,20 @@ def build_app() -> gr.Blocks:
                 report_center.report_feedback,
                 report_center.trash_button,
             ],
+        ).then(
+            fn=reset_report_trash_confirmation,
+            outputs=report_trash_confirmation,
+            queue=False,
         )
         report_center.trash_button.click(
-            fn=trash_report_center_item,
-            inputs=[report_center.report_select, storage_dir, history_patient_select],
-            outputs=report_list_outputs,
+            fn=confirm_trash_report_center_item,
+            inputs=[
+                report_center.report_select,
+                storage_dir,
+                history_patient_select,
+                report_trash_confirmation,
+            ],
+            outputs=[*report_list_outputs, report_trash_confirmation],
             concurrency_limit=1,
             concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
             show_progress="minimal",

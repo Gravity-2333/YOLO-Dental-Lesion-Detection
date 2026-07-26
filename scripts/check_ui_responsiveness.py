@@ -57,6 +57,27 @@ def timed_wait_for_value(page, locator, label: str, maximum: float, timings: lis
         raise RuntimeError(f"{label} 完成过慢：{elapsed:.2f}s > {maximum:.2f}s")
 
 
+def assert_history_page_settled(page, maximum: float, timings: list[tuple[str, float]]) -> None:
+    started = perf_counter()
+    timeout = max(10000, int(maximum * 1000))
+    page.wait_for_function(
+        """() => ![...document.querySelectorAll('.progress-text')]
+            .some(element => /processing/i.test(element.textContent || ''))""",
+        timeout=timeout,
+    )
+    report_select = page.get_by_label("已生成报告", exact=True)
+    if report_select.count() and report_select.input_value():
+        page.wait_for_function(
+            """() => [...document.querySelectorAll('[data-testid="download-link"]')]
+                .some(element => element.offsetParent !== null)""",
+            timeout=timeout,
+        )
+    elapsed = perf_counter() - started
+    timings.append(("检测历史完成渲染", elapsed))
+    if elapsed > maximum:
+        raise RuntimeError(f"检测历史完成渲染过慢：{elapsed:.2f}s > {maximum:.2f}s")
+
+
 def ensure_accordion_open(page, locator, label: str, maximum: float, timings: list[tuple[str, float]]) -> None:
     if locator.get_attribute("aria-expanded") != "true":
         timed_click(page, locator, label, maximum, timings)
@@ -183,6 +204,7 @@ def main() -> int:
                         args.max_seconds,
                         timings,
                     )
+                    assert_history_page_settled(page, args.max_seconds, timings)
 
         timed_click(page, top_tab(page, "设置"), "进入设置", args.max_seconds, timings)
         for name in ["模型与推理", "模型说明", "AI 接口", "存储与隐私"]:
