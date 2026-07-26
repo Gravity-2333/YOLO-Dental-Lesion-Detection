@@ -147,6 +147,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('concurrency_id=INFERENCE_CONCURRENCY_ID', source)
         self.assertIn('concurrency_limit=1', source)
         self.assertGreaterEqual(source.count('concurrency_id=INFERENCE_CONCURRENCY_ID'), 3)
+        self.assertGreaterEqual(source.count('trigger_mode="always_last"'), 3)
         self.assertNotIn("model_mode.change(fn=sync_model_mode", source)
         self.assertNotIn("settings_model_mode.change(fn=sync_model_mode", source)
 
@@ -258,6 +259,49 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(len(history_result), 11)
         self.assertTrue(case_result[-1])
         self.assertTrue(history_result[-1])
+
+    def test_patient_switch_only_scans_record_views_that_were_opened(self) -> None:
+        with (
+            patch.object(app, "refresh_case_records") as case_mock,
+            patch.object(app, "refresh_history_records") as history_mock,
+            patch.object(app, "refresh_report_center") as report_mock,
+            patch.object(
+                app,
+                "load_patient_profile_form",
+                return_value=("姓名", "编号", app.gr.update(interactive=True)),
+            ) as profile_mock,
+        ):
+            result = app.refresh_patient_workspace_views(False, False, "storage-a", "patient-1")
+
+        self.assertEqual(len(result), 21)
+        case_mock.assert_not_called()
+        history_mock.assert_not_called()
+        report_mock.assert_not_called()
+        profile_mock.assert_called_once_with("patient-1", "storage-a")
+        self.assertEqual(result[-1], {})
+        self.assertEqual(result[-2]["value"], "清空历史")
+
+        case_values = tuple(f"case-{index}" for index in range(6))
+        history_values = tuple(f"history-{index}" for index in range(4))
+        report_values = tuple(f"report-{index}" for index in range(6))
+        with (
+            patch.object(app, "refresh_case_records", return_value=case_values) as case_mock,
+            patch.object(app, "refresh_history_records", return_value=history_values) as history_mock,
+            patch.object(app, "refresh_report_center", return_value=report_values) as report_mock,
+            patch.object(
+                app,
+                "load_patient_profile_form",
+                return_value=("姓名", "编号", app.gr.update(interactive=True)),
+            ),
+        ):
+            result = app.refresh_patient_workspace_views(True, True, "storage-a", "patient-1")
+
+        case_mock.assert_called_once_with("storage-a", "patient-1")
+        history_mock.assert_called_once_with("storage-a", "patient-1")
+        report_mock.assert_called_once_with("storage-a", "patient-1")
+        self.assertEqual(result[:6], case_values)
+        self.assertEqual(result[6:10], history_values)
+        self.assertEqual(result[10:16], report_values)
 
 
 if __name__ == "__main__":

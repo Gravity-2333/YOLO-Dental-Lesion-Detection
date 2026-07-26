@@ -1865,6 +1865,35 @@ def lazy_refresh_history_page(
     )
 
 
+def refresh_patient_workspace_views(
+    case_loaded: bool,
+    history_loaded: bool,
+    storage_dir: str,
+    patient_id: str | None = None,
+):
+    """Refresh only record views that the current browser session has opened."""
+    case_values = (
+        refresh_case_records(storage_dir, patient_id)
+        if case_loaded
+        else tuple(gr.update() for _ in range(6))
+    )
+    if history_loaded:
+        history_values = refresh_history_records(storage_dir, patient_id)
+        report_values = refresh_report_center(storage_dir, patient_id)
+    else:
+        history_values = tuple(gr.update() for _ in range(4))
+        report_values = tuple(gr.update() for _ in range(6))
+    profile_values = load_patient_profile_form(patient_id, storage_dir)
+    return (
+        *case_values,
+        *history_values,
+        *report_values,
+        *profile_values,
+        gr.update(value="清空历史"),
+        {},
+    )
+
+
 def refresh_report_center_after_storage_change(
     storage_changed: bool,
     storage_dir: str,
@@ -3294,6 +3323,16 @@ def build_app() -> gr.Blocks:
             report_center.report_feedback,
             report_center.trash_button,
         ]
+        patient_workspace_outputs = [
+            *case_list_outputs,
+            *history_list_outputs,
+            *report_list_outputs,
+            edit_patient_name,
+            edit_patient_reference,
+            archive_patient_btn,
+            clear_history_btn,
+            history_clear_confirmation,
+        ]
 
         # Lazy-load record stores when their tabs become visible. This keeps
         # startup and tab navigation responsive even with large local archives.
@@ -3316,64 +3355,31 @@ def build_app() -> gr.Blocks:
             fn=sync_patient_selections,
             inputs=patient_select,
             outputs=[case_patient_select, history_patient_select],
+            trigger_mode="always_last",
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
-            fn=refresh_case_records,
-            inputs=[storage_dir, patient_select],
-            outputs=case_list_outputs,
-        ).then(
-            fn=refresh_history_records,
-            inputs=[storage_dir, patient_select],
-            outputs=history_list_outputs,
-        ).then(
-            fn=load_patient_profile_form,
-            inputs=[patient_select, storage_dir],
-            outputs=[edit_patient_name, edit_patient_reference, archive_patient_btn],
-        ).then(
-            fn=refresh_report_center,
-            inputs=[storage_dir, patient_select],
-            outputs=report_list_outputs,
+            fn=refresh_patient_workspace_views,
+            inputs=[case_loaded_state, history_loaded_state, storage_dir, patient_select],
+            outputs=patient_workspace_outputs,
         )
         case_patient_select.input(
             fn=sync_patient_selections,
             inputs=case_patient_select,
             outputs=[patient_select, history_patient_select],
+            trigger_mode="always_last",
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
-            fn=refresh_case_records,
-            inputs=[storage_dir, case_patient_select],
-            outputs=case_list_outputs,
-        ).then(
-            fn=refresh_history_records,
-            inputs=[storage_dir, case_patient_select],
-            outputs=history_list_outputs,
-        ).then(
-            fn=load_patient_profile_form,
-            inputs=[case_patient_select, storage_dir],
-            outputs=[edit_patient_name, edit_patient_reference, archive_patient_btn],
-        ).then(
-            fn=refresh_report_center,
-            inputs=[storage_dir, case_patient_select],
-            outputs=report_list_outputs,
+            fn=refresh_patient_workspace_views,
+            inputs=[case_loaded_state, history_loaded_state, storage_dir, case_patient_select],
+            outputs=patient_workspace_outputs,
         )
         history_patient_select.input(
             fn=sync_patient_selections,
             inputs=history_patient_select,
             outputs=[patient_select, case_patient_select],
+            trigger_mode="always_last",
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
-            fn=refresh_case_records,
-            inputs=[storage_dir, history_patient_select],
-            outputs=case_list_outputs,
-        ).then(
-            fn=refresh_history_records,
-            inputs=[storage_dir, history_patient_select],
-            outputs=history_list_outputs,
-        ).then(
-            fn=load_patient_profile_form,
-            inputs=[history_patient_select, storage_dir],
-            outputs=[edit_patient_name, edit_patient_reference, archive_patient_btn],
-        ).then(
-            fn=refresh_report_center,
-            inputs=[storage_dir, history_patient_select],
-            outputs=report_list_outputs,
+            fn=refresh_patient_workspace_views,
+            inputs=[case_loaded_state, history_loaded_state, storage_dir, history_patient_select],
+            outputs=patient_workspace_outputs,
         )
         add_patient_btn.click(
             fn=add_patient_profile,
@@ -3387,21 +3393,9 @@ def build_app() -> gr.Blocks:
                 patient_feedback,
             ],
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
-            fn=refresh_case_records,
-            inputs=[storage_dir, case_patient_select],
-            outputs=case_list_outputs,
-        ).then(
-            fn=refresh_history_records,
-            inputs=[storage_dir, case_patient_select],
-            outputs=history_list_outputs,
-        ).then(
-            fn=load_patient_profile_form,
-            inputs=[case_patient_select, storage_dir],
-            outputs=[edit_patient_name, edit_patient_reference, archive_patient_btn],
-        ).then(
-            fn=refresh_report_center,
-            inputs=[storage_dir, case_patient_select],
-            outputs=report_list_outputs,
+            fn=refresh_patient_workspace_views,
+            inputs=[case_loaded_state, history_loaded_state, storage_dir, case_patient_select],
+            outputs=patient_workspace_outputs,
         )
         save_patient_btn.click(
             fn=update_patient_profile,
@@ -3434,17 +3428,9 @@ def build_app() -> gr.Blocks:
             fn=clear_patient_session,
             outputs=[image, batch_files, *common_outputs, case_id, case_note],
         ).then(
-            fn=refresh_case_records,
-            inputs=[storage_dir, case_patient_select],
-            outputs=case_list_outputs,
-        ).then(
-            fn=refresh_history_records,
-            inputs=[storage_dir, case_patient_select],
-            outputs=history_list_outputs,
-        ).then(
-            fn=refresh_report_center,
-            inputs=[storage_dir, case_patient_select],
-            outputs=report_list_outputs,
+            fn=refresh_patient_workspace_views,
+            inputs=[case_loaded_state, history_loaded_state, storage_dir, case_patient_select],
+            outputs=patient_workspace_outputs,
         )
         restore_patient_btn.click(
             fn=restore_patient_profile,
@@ -3464,17 +3450,9 @@ def build_app() -> gr.Blocks:
             fn=clear_patient_session,
             outputs=[image, batch_files, *common_outputs, case_id, case_note],
         ).then(
-            fn=refresh_case_records,
-            inputs=[storage_dir, case_patient_select],
-            outputs=case_list_outputs,
-        ).then(
-            fn=refresh_history_records,
-            inputs=[storage_dir, case_patient_select],
-            outputs=history_list_outputs,
-        ).then(
-            fn=refresh_report_center,
-            inputs=[storage_dir, case_patient_select],
-            outputs=report_list_outputs,
+            fn=refresh_patient_workspace_views,
+            inputs=[case_loaded_state, history_loaded_state, storage_dir, case_patient_select],
+            outputs=patient_workspace_outputs,
         )
         # User-only listeners avoid reprocessing when another callback updates a component.
         # This is important for large images and model outputs: Gradio's `.change()` also
