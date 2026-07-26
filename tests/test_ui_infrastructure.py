@@ -148,6 +148,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('concurrency_limit=1', source)
         self.assertGreaterEqual(source.count('concurrency_id=INFERENCE_CONCURRENCY_ID'), 3)
         self.assertGreaterEqual(source.count('concurrency_id=AI_REQUEST_CONCURRENCY_ID'), 2)
+        self.assertEqual(source.count('concurrency_id=EXPORT_CONCURRENCY_ID'), 4)
         self.assertGreaterEqual(source.count('trigger_mode="always_last"'), 3)
         self.assertIn("triggers=[chat_btn.click, chat_input.submit]", source)
         self.assertIn("cancels=chat_event", source)

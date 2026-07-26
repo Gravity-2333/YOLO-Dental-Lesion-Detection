@@ -163,6 +163,7 @@ EXAMPLE_DIR = PROJECT_ROOT / "assets" / "examples" / "dental"
 EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
 INFERENCE_CONCURRENCY_ID = "dental-inference"
 AI_REQUEST_CONCURRENCY_ID = "dental-ai-request"
+EXPORT_CONCURRENCY_ID = "dental-export"
 CASE_UI_LIMIT = 200
 HISTORY_UI_LIMIT = 200
 BATCH_FILE_LIMIT = 50
@@ -3697,16 +3698,25 @@ def build_app() -> gr.Blocks:
             fn=export_batch_results,
             inputs=[batch_state, storage_dir],
             outputs=[batch_export_file, batch_export_path, batch_state],
+            concurrency_limit=1,
+            concurrency_id=EXPORT_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         export_batch_word_btn.click(
             fn=export_batch_word_report,
             inputs=[batch_state, storage_dir],
             outputs=[batch_word_file, batch_word_path, batch_state],
+            concurrency_limit=1,
+            concurrency_id=EXPORT_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         export_word_btn.click(
             fn=export_word_report,
             inputs=[batch_state, batch_select, storage_dir],
             outputs=[word_report_file, word_report_path, batch_state],
+            concurrency_limit=1,
+            concurrency_id=EXPORT_CONCURRENCY_ID,
+            show_progress="minimal",
         ).then(
             fn=refresh_report_center,
             inputs=[storage_dir, history_patient_select],
@@ -3721,6 +3731,9 @@ def build_app() -> gr.Blocks:
             fn=export_single_report,
             inputs=[batch_state, batch_select, storage_dir],
             outputs=[report_file, report_path, batch_state],
+            concurrency_limit=1,
+            concurrency_id=EXPORT_CONCURRENCY_ID,
+            show_progress="minimal",
         ).then(
             fn=refresh_report_center,
             inputs=[storage_dir, history_patient_select],
