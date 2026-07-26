@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 import shutil
+from threading import RLock
 from typing import Any
 
 from .ai_defaults import DEFAULT_AI_BASE_URL, DEFAULT_AI_KEY_ENV, DEFAULT_AI_MODEL, DEFAULT_AI_PROMPT
@@ -40,6 +41,9 @@ APP_DATA_DIR_NAMES = (
     "history",
     "workspace",
 )
+_SETTINGS_FILE_LOCK = RLock()
+
+
 @dataclass
 class AiSettings:
     enabled: bool = False
@@ -129,7 +133,7 @@ def _unique_corrupt_settings_backup() -> Path:
     return backup
 
 
-def load_settings() -> AiSettings:
+def _load_settings_unlocked() -> AiSettings:
     if not CONFIG_PATH.exists():
         return AiSettings()
     try:
@@ -196,8 +200,18 @@ def load_settings() -> AiSettings:
     return AiSettings(**{**defaults, **filtered})
 
 
+def load_settings() -> AiSettings:
+    with _SETTINGS_FILE_LOCK:
+        return _load_settings_unlocked()
+
+
 def save_settings(settings: AiSettings, *, migrate_data: bool = True) -> Path:
-    previous = load_settings() if CONFIG_PATH.exists() else AiSettings()
+    with _SETTINGS_FILE_LOCK:
+        return _save_settings_unlocked(settings, migrate_data=migrate_data)
+
+
+def _save_settings_unlocked(settings: AiSettings, *, migrate_data: bool = True) -> Path:
+    previous = _load_settings_unlocked() if CONFIG_PATH.exists() else AiSettings()
     if migrate_data:
         migrate_storage(previous.storage_dir, settings.storage_dir)
     ensure_app_dirs(settings.storage_dir)

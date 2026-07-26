@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Lock
+from time import sleep
 import unittest
 from unittest.mock import patch
 
-from src.dental_detection import assistant
+from src.dental_detection import assistant, settings_store
 from src.dental_detection.advice import default_advice, detection_prompt
 from src.dental_detection.ai_client import normalize_base_url, validate_ai_request
 from src.dental_detection.ai_defaults import DEFAULT_AI_MODEL, SAFETY_NOTICE
@@ -33,6 +36,36 @@ class AssistantCompatibilityTests(unittest.TestCase):
         finally:
             assistant.CONFIG_PATH = original
             assistant.load_settings()
+
+    def test_settings_writes_are_serialized_across_sessions(self) -> None:
+        state_lock = Lock()
+        active = 0
+        max_active = 0
+
+        def slow_save(settings, *, migrate_data=True):
+            nonlocal active, max_active
+            with state_lock:
+                active += 1
+                max_active = max(max_active, active)
+            try:
+                sleep(0.03)
+                return Path("settings.json")
+            finally:
+                with state_lock:
+                    active -= 1
+
+        with (
+            patch.object(settings_store, "_save_settings_unlocked", side_effect=slow_save),
+            ThreadPoolExecutor(max_workers=2) as executor,
+        ):
+            futures = [
+                executor.submit(settings_store.save_settings, AiSettings(model=f"model-{index}"))
+                for index in range(2)
+            ]
+            for future in futures:
+                future.result()
+
+        self.assertEqual(max_active, 1)
 
 
 class AiClientTests(unittest.TestCase):

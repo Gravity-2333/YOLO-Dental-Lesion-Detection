@@ -287,6 +287,13 @@ class UiContentTests(unittest.TestCase):
             self.assertIn("queue=False", event_source)
             self.assertIn('show_progress="hidden"', event_source)
 
+    def test_record_mutations_share_one_serial_write_queue(self) -> None:
+        source = inspect.getsource(app.build_app)
+        self.assertGreaterEqual(
+            source.count("concurrency_id=RECORD_WRITE_CONCURRENCY_ID"),
+            6,
+        )
+
     def test_missing_models_warn_without_blocking_app_startup(self) -> None:
         saved = app.AiSettings(
             primary_model_path="missing-primary.pt",

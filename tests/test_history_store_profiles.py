@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from tempfile import TemporaryDirectory
+from time import sleep
 import unittest
+from unittest.mock import patch
 
+from src.dental_detection import history_store
 from src.dental_detection.history_store import (
     append_history_records,
     clear_history_records,
@@ -68,6 +72,34 @@ class HistoryStoreProfileTests(unittest.TestCase):
             records = list_history_records(temp_dir, "personal-self", limit=3)
 
             self.assertEqual([item["task_id"] for item in records], ["task-8", "task-6", "task-4"])
+
+    def test_concurrent_appends_do_not_overwrite_each_other(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            original_load = history_store._load_raw_records
+
+            def slow_load(storage_dir=None):
+                records = original_load(storage_dir)
+                sleep(0.03)
+                return records
+
+            with (
+                patch.object(history_store, "_load_raw_records", side_effect=slow_load),
+                ThreadPoolExecutor(max_workers=2) as executor,
+            ):
+                futures = [
+                    executor.submit(
+                        append_history_records,
+                        [_history_item("personal-self", f"task-{index}")],
+                        temp_dir,
+                        20,
+                    )
+                    for index in range(2)
+                ]
+                for future in futures:
+                    future.result()
+
+            records = list_history_records(temp_dir, "personal-self")
+            self.assertEqual({item["task_id"] for item in records}, {"task-0", "task-1"})
 
 
 if __name__ == "__main__":

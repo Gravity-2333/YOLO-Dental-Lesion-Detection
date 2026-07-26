@@ -165,6 +165,7 @@ EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
 INFERENCE_CONCURRENCY_ID = "dental-inference"
 AI_REQUEST_CONCURRENCY_ID = "dental-ai-request"
 EXPORT_CONCURRENCY_ID = "dental-export"
+RECORD_WRITE_CONCURRENCY_ID = "dental-record-write"
 CASE_UI_LIMIT = 200
 HISTORY_UI_LIMIT = 200
 BATCH_TOTAL_UPLOAD_BYTES = 200 * 1024 * 1024
@@ -3699,6 +3700,9 @@ def build_app() -> gr.Blocks:
                 history_loaded_state,
                 storage_changed_state,
             ],
+            concurrency_limit=1,
+            concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
+            show_progress="minimal",
         ).then(
             fn=refresh_report_center_after_storage_change,
             inputs=[storage_changed_state, storage_dir, history_patient_select],
@@ -3829,6 +3833,9 @@ def build_app() -> gr.Blocks:
             fn=save_case_record,
             inputs=[batch_state, batch_select, case_id, case_note, storage_dir],
             outputs=[case_feedback, case_select, case_table, case_detail, case_report_file, case_report_path],
+            concurrency_limit=1,
+            concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         refresh_case_btn.click(
             fn=refresh_case_records,
@@ -3861,6 +3868,9 @@ def build_app() -> gr.Blocks:
                 case_patient_select,
             ],
             outputs=[case_select, case_table, case_feedback, case_detail, case_report_file, case_report_path],
+            concurrency_limit=1,
+            concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         export_case_btn.click(
             fn=export_selected_case_record,
@@ -3894,11 +3904,17 @@ def build_app() -> gr.Blocks:
             fn=confirm_delete_selected_history_record,
             inputs=[history_select, storage_dir, history_patient_select, history_delete_confirmation],
             outputs=[*history_list_outputs, delete_history_btn, history_delete_confirmation],
+            concurrency_limit=1,
+            concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         clear_history_btn.click(
             fn=clear_all_history_records,
             inputs=[storage_dir, history_patient_select, history_clear_confirmation],
             outputs=[*history_list_outputs, clear_history_btn, history_clear_confirmation],
+            concurrency_limit=1,
+            concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         report_center.refresh_button.click(
             fn=refresh_report_center,
@@ -3919,6 +3935,9 @@ def build_app() -> gr.Blocks:
             fn=trash_report_center_item,
             inputs=[report_center.report_select, storage_dir, history_patient_select],
             outputs=report_list_outputs,
+            concurrency_limit=1,
+            concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
+            show_progress="minimal",
         )
 
     return demo
