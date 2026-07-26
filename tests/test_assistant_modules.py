@@ -11,13 +11,14 @@ from unittest.mock import patch
 
 from src.dental_detection import assistant, settings_store
 from src.dental_detection.advice import default_advice, detection_prompt
-from src.dental_detection.ai_client import normalize_base_url, validate_ai_request
+from src.dental_detection.ai_client import _friendly_ai_error, normalize_base_url, validate_ai_request
 from src.dental_detection.ai_defaults import DEFAULT_AI_MODEL, SAFETY_NOTICE
 from src.dental_detection.conversation_store import (
     list_conversations,
     load_conversation,
     save_conversation,
 )
+from src.dental_detection.error_messages import concise_error_message, friendly_error_message
 from src.dental_detection.settings_store import AiSettings
 from src.dental_detection.ui_ai_chat_page import (
     load_conversation_history_item,
@@ -97,6 +98,34 @@ class AiClientTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(api_key, "EMPTY")
         self.assertEqual(error, "")
+
+    def test_ai_model_errors_are_not_reported_as_yolo_file_failures(self) -> None:
+        message = friendly_error_message(
+            "Error code: 404 - model deepseek-chat does not exist",
+            "AI 建议生成失败",
+        )
+        self.assertIn("AI 模型或接口配置不可用", message)
+        self.assertNotIn("模型文件无法加载", message)
+        self.assertIn("测试接口", message)
+
+    def test_ai_client_maps_not_found_to_ai_configuration(self) -> None:
+        not_found_error = type(
+            "NotFoundError",
+            (Exception,),
+            {"status_code": 404},
+        )("model not found")
+        message = str(_friendly_ai_error(not_found_error))
+        self.assertIn("AI 模型或接口地址不存在", message)
+        self.assertNotIn("YOLO", message)
+
+    def test_concise_error_keeps_action_without_possible_causes(self) -> None:
+        message = concise_error_message(
+            "Error code: 404 - model deepseek-chat does not exist",
+            "AI 建议生成失败",
+        )
+        self.assertIn("AI 模型或接口配置不可用", message)
+        self.assertIn("建议处理：", message)
+        self.assertNotIn("可能原因：", message)
 
 
 class AdviceAndConversationTests(unittest.TestCase):

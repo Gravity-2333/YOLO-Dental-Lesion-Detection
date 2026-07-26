@@ -6,6 +6,7 @@ from pathlib import Path
 def friendly_error_message(exc: BaseException | str, context: str = "操作失败") -> str:
     raw = str(exc or "").strip()
     text = raw.casefold()
+    ai_context = "ai" in context.casefold()
 
     if "cuda" in text and ("not available" in text or "不可用" in text or "invalid device" in text):
         return (
@@ -24,6 +25,43 @@ def friendly_error_message(exc: BaseException | str, context: str = "操作失�
             f"{context}：无法连接 AI 服务。\n\n"
             "可能原因：Base URL 填写错误、网络未连通，或本地代理没有生效。\n\n"
             "建议处理：检查 Base URL 和网络代理后，在设置中点击测试接口。"
+        )
+    if ai_context and (
+        "api key" in text
+        or "unauthorized" in text
+        or "authentication" in text
+        or "permission" in text
+        or "401" in text
+        or "403" in text
+    ):
+        return (
+            f"{context}：AI 接口鉴权失败。\n\n"
+            "可能原因：API Key 缺失、填写错误，或当前账号无权访问所选模型。\n\n"
+            "建议处理：在设置中检查 API Key、Base URL 和模型名称，然后点击测试接口。"
+        )
+    if ai_context and ("rate limit" in text or "too many requests" in text or "429" in text):
+        return (
+            f"{context}：AI 服务当前请求过多。\n\n"
+            "可能原因：接口触发频率限制或服务端暂时繁忙。\n\n"
+            "建议处理：稍后重试；如持续出现，请检查服务商配额和并发限制。"
+        )
+    if ai_context and (
+        "model" in text
+        or "模型" in text
+        or "base url" in text
+        or "endpoint" in text
+        or "404" in text
+    ):
+        return (
+            f"{context}：AI 模型或接口配置不可用。\n\n"
+            "可能原因：模型名称错误、当前账号无权访问该模型，或 Base URL 与模型不匹配。\n\n"
+            "建议处理：在设置中检查 AI 模型和 Base URL，然后点击测试接口。"
+        )
+    if ai_context:
+        return (
+            f"{context}：AI 接口请求失败。\n\n"
+            f"错误信息：{raw or '服务端未返回具体原因'}\n\n"
+            "建议处理：进入设置检查 AI 接口配置并点击测试接口，确认可用后再重试。"
         )
     if "no such file" in text or "not found" in text or "不存在" in text:
         return (
@@ -72,3 +110,19 @@ def friendly_error_message(exc: BaseException | str, context: str = "操作失�
         f"错误信息：{raw or '未知错误'}\n\n"
         "建议处理：检查输入文件、模型路径和存储目录；如果问题持续，请保留当前操作步骤便于排查。"
     )
+
+
+def concise_error_message(exc: BaseException | str, context: str = "操作失败") -> str:
+    """Keep the actionable headline and recommendation for compact UI surfaces."""
+    paragraphs = [
+        paragraph.strip()
+        for paragraph in friendly_error_message(exc, context).split("\n\n")
+        if paragraph.strip()
+    ]
+    if not paragraphs:
+        return context
+    recommendation = next(
+        (paragraph for paragraph in paragraphs[1:] if paragraph.startswith("建议处理：")),
+        "",
+    )
+    return "\n".join(part for part in (paragraphs[0], recommendation) if part)

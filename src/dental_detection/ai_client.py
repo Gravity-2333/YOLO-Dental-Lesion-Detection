@@ -99,10 +99,22 @@ def _client(settings: AiSettings, api_key: str) -> OpenAI:
 def _friendly_ai_error(exc: Exception) -> ValueError:
     name = exc.__class__.__name__
     text = str(exc)
-    if name in {"APITimeoutError", "TimeoutException"} or "timed out" in text.lower():
+    lowered = text.casefold()
+    status_code = getattr(exc, "status_code", None)
+    if name in {"APITimeoutError", "TimeoutException"} or "timed out" in lowered:
         return ValueError("AI 服务响应超时，请检查网络或接口配置。")
     if name in {"APIConnectionError", "ConnectError", "ConnectTimeout"}:
         return ValueError("无法连接 AI 服务，请检查网络、Base URL 或代理配置。")
+    if name in {"AuthenticationError", "PermissionDeniedError"} or status_code in {401, 403}:
+        return ValueError("AI 接口鉴权失败，请检查 API Key 和模型访问权限。")
+    if name == "RateLimitError" or status_code == 429:
+        return ValueError("AI 服务请求频率过高，请稍后重试并检查接口配额。")
+    if name == "NotFoundError" or status_code == 404:
+        return ValueError("AI 模型或接口地址不存在，请检查 Base URL 和模型名称。")
+    if name in {"BadRequestError", "UnprocessableEntityError"} or status_code in {400, 422}:
+        return ValueError(
+            f"AI 接口拒绝当前请求，请检查模型名称和接口兼容性。原始信息：{text}"
+        )
     return ValueError(text or "AI 服务请求失败，请检查接口配置。")
 
 

@@ -572,6 +572,13 @@ input[aria-label="对比模型路径"],
 .clinical-viewer .comparison-image-panel {
   min-width: 0 !important;
   gap: 6px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.clinical-viewer .comparison-image-panel > .styler {
+  background: transparent !important;
 }
 
 .clinical-viewer .result-card svg {

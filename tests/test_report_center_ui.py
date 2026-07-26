@@ -20,6 +20,7 @@ from src.dental_detection.report_center_ui import (
     REPORT_TRASH_LABEL,
     confirm_trash_report_center_item,
     load_active_report_center_item,
+    load_initial_report_center_file,
     load_report_center_item,
     refresh_report_center,
     trash_report_center_item,
@@ -89,6 +90,13 @@ class ReportCenterUiTests(unittest.TestCase):
             )
             self.assertIn("model-a@1", active_detail)
             self.assertTrue(active_file["visible"])
+
+            initial_file = load_initial_report_center_file(
+                temp_dir,
+                workspace.patient.id,
+            )
+            self.assertTrue(initial_file["visible"])
+            self.assertEqual(Path(initial_file["value"]).name, path.name)
 
             detail, file_update, feedback, trash_update = load_report_center_item(
                 report.id,

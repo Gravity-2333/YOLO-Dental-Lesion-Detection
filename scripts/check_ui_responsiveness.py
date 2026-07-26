@@ -161,6 +161,57 @@ def assert_no_page_overflow(page, label: str) -> None:
         raise RuntimeError(f"{label} 横向溢出：{size['scroll']} > {size['client']}")
 
 
+def assert_viewer_label_contrast(page, minimum: float = 4.5) -> None:
+    contrasts = page.evaluate(
+        """() => {
+            const parseColor = value => {
+                const channels = (value.match(/[\\d.]+/g) || []).map(Number);
+                return {
+                    red: channels[0] || 0,
+                    green: channels[1] || 0,
+                    blue: channels[2] || 0,
+                    alpha: channels.length > 3 ? channels[3] : 1,
+                };
+            };
+            const luminance = color => {
+                const convert = channel => {
+                    const value = channel / 255;
+                    return value <= 0.04045
+                        ? value / 12.92
+                        : Math.pow((value + 0.055) / 1.055, 2.4);
+                };
+                return 0.2126 * convert(color.red)
+                    + 0.7152 * convert(color.green)
+                    + 0.0722 * convert(color.blue);
+            };
+            return [...document.querySelectorAll(
+                '.clinical-viewer .comparison-image-panel .image-title'
+            )].map(title => {
+                const foreground = parseColor(getComputedStyle(title).color);
+                let node = title;
+                let background = {red: 255, green: 255, blue: 255, alpha: 1};
+                while (node) {
+                    const candidate = parseColor(getComputedStyle(node).backgroundColor);
+                    if (candidate.alpha >= 0.99) {
+                        background = candidate;
+                        break;
+                    }
+                    node = node.parentElement;
+                }
+                const light = Math.max(luminance(foreground), luminance(background));
+                const dark = Math.min(luminance(foreground), luminance(background));
+                return {
+                    label: (title.textContent || '').trim(),
+                    ratio: (light + 0.05) / (dark + 0.05),
+                };
+            });
+        }"""
+    )
+    failed = [item for item in contrasts if item["ratio"] < minimum]
+    if not contrasts or failed:
+        raise RuntimeError(f"检测查看器标签对比度不足：{contrasts}")
+
+
 def assert_rows_aligned(
     page,
     label: str,
@@ -217,6 +268,7 @@ def main() -> int:
         page.goto(base_url, wait_until="domcontentloaded", timeout=90000)
         page.wait_for_timeout(6000)
         assert_no_page_overflow(page, "桌面工作台")
+        assert_viewer_label_contrast(page)
 
         names = ["检测工作台", "AI 问答", "病例记录", "检测历史", "设置"]
         for cycle in range(max(1, int(args.cycles))):

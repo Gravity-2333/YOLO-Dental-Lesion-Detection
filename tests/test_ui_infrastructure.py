@@ -54,6 +54,19 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn(".row.compact-row > button", css)
         self.assertIn("height: var(--primary-height) !important", css)
 
+    def test_comparison_image_labels_keep_dark_viewer_contrast(self) -> None:
+        css = load_workbench_css()
+        viewer_rule = css.split(".clinical-viewer .comparison-image-panel", 1)[1].split(
+            "}",
+            1,
+        )[0]
+        self.assertIn("background: transparent !important", viewer_rule)
+        self.assertIn("border: 0 !important", viewer_rule)
+        self.assertIn(
+            ".clinical-viewer .comparison-image-panel > .styler",
+            css,
+        )
+
 
 class ProjectLauncherTests(unittest.TestCase):
     def test_service_launcher_uses_hidden_background_runner(self) -> None:
@@ -193,10 +206,21 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("history_tab.select(", source)
         self.assertIn("limit=CASE_UI_LIMIT", inspect.getsource(app.refresh_case_records))
         self.assertIn("limit=HISTORY_UI_LIMIT", inspect.getsource(app.refresh_history_records))
-        report_hydration = source.split("fn=load_active_report_center_item", 1)[1].split(
+        history_hydration = source.split("history_tab.select(", 1)[1].split(
             "clear_session_btn.click(",
             1,
         )[0]
+        self.assertIn("fn=lazy_refresh_history_page", history_hydration)
+        self.assertIn("fn=load_initial_report_center_file", history_hydration)
+        self.assertIn("outputs=report_center.report_file", history_hydration)
+        self.assertIn("*report_metadata_outputs", history_hydration)
+        self.assertNotIn("*report_list_outputs", history_hydration)
+        self.assertIn("report_center.report_select.change(", source)
+        report_hydration = source.split("report_center.report_select.change(", 1)[1].split(
+            "report_center.trash_button.click(",
+            1,
+        )[0]
+        self.assertIn("fn=load_active_report_center_item", report_hydration)
         self.assertIn("queue=False", report_hydration)
         self.assertIn('show_progress="hidden"', report_hydration)
         self.assertIn('open=False,\n                        elem_classes=["compact-accordion"]', source)
@@ -453,7 +477,7 @@ class UiContentTests(unittest.TestCase):
         case_result = app.lazy_refresh_case_records(True, "unused", "patient-1")
         history_result = app.lazy_refresh_history_page(True, "unused", "patient-1")
         self.assertEqual(len(case_result), 7)
-        self.assertEqual(len(history_result), 11)
+        self.assertEqual(len(history_result), 10)
         self.assertTrue(case_result[-1])
         self.assertTrue(history_result[-1])
 

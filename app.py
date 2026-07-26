@@ -62,7 +62,7 @@ from src.dental_detection.gradio_files import (
     remember_allowed_file_root as _remember_allowed_file_root,
     safe_existing_root as _safe_existing_root,
 )
-from src.dental_detection.error_messages import friendly_error_message
+from src.dental_detection.error_messages import concise_error_message, friendly_error_message
 from src.dental_detection.exporters import (
     cleanup_payload_dir,
     create_zip_from_directory,
@@ -114,6 +114,7 @@ from src.dental_detection.report_center_ui import (
     build_report_center,
     confirm_trash_report_center_item,
     load_active_report_center_item,
+    load_initial_report_center_file,
     load_report_center_item,
     refresh_report_center,
     reset_report_trash_confirmation,
@@ -754,7 +755,7 @@ def _build_advice(settings: AiSettings, detections: list[dict[str, Any]]) -> str
             max_tokens=500,
         )
     except Exception as exc:
-        return f"{default_advice(detections)}\n\n{friendly_error_message(exc, 'AI 建议生成失败')}"
+        return f"{default_advice(detections)}\n\n{concise_error_message(exc, 'AI 建议生成失败')}"
 
 
 def _advice_style_prompt(style: str) -> str:
@@ -1892,13 +1893,22 @@ def lazy_refresh_history_page(
 ):
     """Load history and reports once; explicit refresh buttons remain available."""
     if loaded:
-        return (*([gr.update()] * 10), True)
+        return (*([gr.update()] * 9), True)
+    (
+        report_select,
+        report_table,
+        report_detail,
+        _,
+        report_feedback,
+        report_trash_button,
+    ) = refresh_report_center(storage_dir, patient_id, include_file=False)
     return (
         *refresh_history_records(storage_dir, patient_id),
-        # Hydrate the File component in a follow-up event after the tab is
-        # visible. Updating it inside this larger lazy callback can leave
-        # Gradio's progress overlay running indefinitely on first entry.
-        *refresh_report_center(storage_dir, patient_id, include_file=False),
+        report_select,
+        report_table,
+        report_detail,
+        report_feedback,
+        report_trash_button,
         True,
     )
 
@@ -3469,6 +3479,13 @@ def build_app() -> gr.Blocks:
             report_center.report_feedback,
             report_center.trash_button,
         ]
+        report_metadata_outputs = [
+            report_center.report_select,
+            report_center.report_table,
+            report_center.report_detail,
+            report_center.report_feedback,
+            report_center.trash_button,
+        ]
         patient_workspace_outputs = [
             *case_list_outputs,
             *history_list_outputs,
@@ -3511,16 +3528,14 @@ def build_app() -> gr.Blocks:
         history_tab.select(
             fn=lazy_refresh_history_page,
             inputs=[history_loaded_state, storage_dir, history_patient_select],
-            outputs=[*history_list_outputs, *report_list_outputs, history_loaded_state],
-        ).then(
-            fn=load_active_report_center_item,
-            inputs=[report_center.report_select, storage_dir, history_patient_select],
-            outputs=[
-                report_center.report_detail,
-                report_center.report_file,
-                report_center.report_feedback,
-                report_center.trash_button,
-            ],
+            outputs=[*history_list_outputs, *report_metadata_outputs, history_loaded_state],
+            queue=False,
+            show_progress="hidden",
+        )
+        history_tab.select(
+            fn=load_initial_report_center_file,
+            inputs=[storage_dir, history_patient_select],
+            outputs=report_center.report_file,
             queue=False,
             show_progress="hidden",
         )
@@ -4075,8 +4090,8 @@ def build_app() -> gr.Blocks:
             outputs=report_trash_confirmation,
             queue=False,
         )
-        report_center.report_select.input(
-            fn=load_report_center_item,
+        report_center.report_select.change(
+            fn=load_active_report_center_item,
             inputs=[report_center.report_select, storage_dir, history_patient_select],
             outputs=[
                 report_center.report_detail,
@@ -4084,6 +4099,8 @@ def build_app() -> gr.Blocks:
                 report_center.report_feedback,
                 report_center.trash_button,
             ],
+            queue=False,
+            show_progress="hidden",
         ).then(
             fn=reset_report_trash_confirmation,
             outputs=report_trash_confirmation,

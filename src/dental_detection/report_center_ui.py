@@ -261,6 +261,12 @@ def load_active_report_center_item(report_id: str, storage_dir: str, patient_id:
     return load_report_center_item(active_id, storage_dir, patient_id)
 
 
+def load_initial_report_center_file(storage_dir: str, patient_id: str):
+    """Hydrate the first report file without depending on dropdown event ordering."""
+    _, file_output, _, _ = load_active_report_center_item("", storage_dir, patient_id)
+    return file_output
+
+
 def trash_report_center_item(report_id: str, storage_dir: str, patient_id: str):
     if not str(report_id or "").strip():
         raise gr.Error("请先选择一条报告记录。")
