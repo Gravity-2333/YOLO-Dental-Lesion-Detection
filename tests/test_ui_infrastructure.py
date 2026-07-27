@@ -72,6 +72,32 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn(".row.compact-row > button", css)
         self.assertIn("height: var(--primary-height) !important", css)
 
+    def test_tablet_settings_path_rows_keep_the_desktop_alignment(self) -> None:
+        css = load_workbench_css()
+        tablet = css.split(
+            "@media (min-width: 641px) and (max-width: 900px)",
+            1,
+        )[1].split("@media (max-width: 640px)", 1)[0]
+
+        self.assertIn(
+            "grid-template-columns: minmax(0, 1fr) 44px 132px !important",
+            tablet,
+        )
+        self.assertIn(".row.settings-actions > button", tablet)
+        self.assertIn("min-width: 160px !important", tablet)
+
+    def test_css_bundle_drops_retired_frontend_scaffolding(self) -> None:
+        css = load_workbench_css()
+        for retired_selector in (
+            ".workflow-hint",
+            ".demo-flow-note",
+            ".notice-grid",
+            ".notice-item",
+            ".settings-tabs",
+        ):
+            with self.subTest(selector=retired_selector):
+                self.assertNotIn(retired_selector, css)
+
     def test_comparison_image_labels_keep_dark_viewer_contrast(self) -> None:
         css = load_workbench_css()
         viewer_rule = css.split(".clinical-viewer .comparison-image-panel", 1)[1].split(
@@ -348,19 +374,26 @@ class UiContentTests(unittest.TestCase):
             1,
         )[0]
         self.assertIn("fn=lazy_refresh_history_page", history_hydration)
+        self.assertIn('trigger_mode="always_last"', history_hydration)
+        self.assertIn('show_progress="minimal"', history_hydration)
         self.assertIn("fn=load_tab_report_center_file", history_hydration)
         self.assertIn("inputs=[report_center.report_select", history_hydration)
         self.assertIn("outputs=report_center.report_file", history_hydration)
         self.assertIn("*report_metadata_outputs", history_hydration)
         self.assertNotIn("*report_list_outputs", history_hydration)
-        self.assertIn("report_center.report_select.change(", source)
-        report_hydration = source.split("report_center.report_select.change(", 1)[1].split(
+        self.assertEqual(source.count("history_tab.select("), 1)
+        self.assertNotIn("queue=False", history_hydration)
+        self.assertIn("report_center.report_select.input(", source)
+        self.assertNotIn("report_center.report_select.change(", source)
+        report_hydration = source.split("report_center.report_select.input(", 1)[1].split(
             "report_center.trash_button.click(",
             1,
         )[0]
-        self.assertIn("fn=load_active_report_center_item", report_hydration)
-        self.assertIn("queue=False", report_hydration)
-        self.assertIn('show_progress="hidden"', report_hydration)
+        report_load_event = report_hydration.split(").then(", 1)[0]
+        self.assertIn("fn=load_active_report_center_item", report_load_event)
+        self.assertIn('trigger_mode="always_last"', report_load_event)
+        self.assertIn('show_progress="minimal"', report_load_event)
+        self.assertNotIn("queue=False", report_load_event)
         self.assertIn('open=False,\n                        elem_classes=["compact-accordion"]', source)
         report_source = inspect.getsource(app.build_report_center)
         self.assertIn('"结构化报告列表"', report_source)

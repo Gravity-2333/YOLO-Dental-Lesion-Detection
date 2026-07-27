@@ -3587,15 +3587,13 @@ def build_app() -> gr.Blocks:
             fn=lazy_refresh_history_page,
             inputs=[history_loaded_state, storage_dir, history_patient_select],
             outputs=[*history_list_outputs, *report_metadata_outputs, history_loaded_state],
-            queue=False,
-            show_progress="hidden",
-        )
-        history_tab.select(
+            trigger_mode="always_last",
+            show_progress="minimal",
+        ).then(
             fn=load_tab_report_center_file,
             inputs=[report_center.report_select, storage_dir, history_patient_select],
             outputs=report_center.report_file,
-            queue=False,
-            show_progress="hidden",
+            show_progress="minimal",
         )
 
         clear_session_btn.click(
@@ -4177,7 +4175,7 @@ def build_app() -> gr.Blocks:
             outputs=report_trash_confirmation,
             queue=False,
         )
-        report_center.report_select.change(
+        report_center.report_select.input(
             fn=load_active_report_center_item,
             inputs=[report_center.report_select, storage_dir, history_patient_select],
             outputs=[
@@ -4186,8 +4184,8 @@ def build_app() -> gr.Blocks:
                 report_center.report_feedback,
                 report_center.trash_button,
             ],
-            queue=False,
-            show_progress="hidden",
+            trigger_mode="always_last",
+            show_progress="minimal",
         ).then(
             fn=reset_report_trash_confirmation,
             outputs=report_trash_confirmation,

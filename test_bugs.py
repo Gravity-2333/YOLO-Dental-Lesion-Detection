@@ -2574,7 +2574,6 @@ try:
     from src.dental_detection.model_info import build_model_cards
     from src.dental_detection.model_ui import (
         build_advanced_model_warning_html,
-        build_demo_recommendation_html,
         build_model_path_compact_html,
         build_workbench_model_status_html,
         format_model_path_for_display,
@@ -2615,7 +2614,6 @@ try:
     compact_html = build_model_path_compact_html(long_path)
     assert "..." in compact_text and compact_text != long_path, "长路径展示文本应省略"
     assert f'title="{long_path}"' in compact_html, "长路径 HTML 应保留完整 title 便于追踪"
-    assert build_demo_recommendation_html().strip(), "模型选择建议不能为空"
     assert build_advanced_model_warning_html().strip(), "高级模型提示不能为空"
     print("✓ 模型 UI helper 输出正常")
 except Exception as e:

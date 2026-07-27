@@ -43,16 +43,13 @@ body,
 }
 
 .main-tabs > .tab-nav,
-.settings-tabs > .tab-nav,
 .sub-tabs > .tab-nav {
   border-bottom: 1px solid var(--soft-border) !important;
 }
 
 .main-tabs > .tab-nav,
-.settings-tabs > .tab-nav,
 .sub-tabs > .tab-nav,
 .main-tabs [role="tablist"],
-.settings-tabs [role="tablist"],
 .sub-tabs [role="tablist"] {
   overflow-x: auto !important;
   overflow-y: hidden !important;

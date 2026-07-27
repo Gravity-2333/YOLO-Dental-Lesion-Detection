@@ -30,13 +30,6 @@ def build_advanced_model_warning_html() -> str:
     )
 
 
-def build_demo_recommendation_html() -> str:
-    return (
-        '<div class="demo-flow-note"><strong>模型选择建议</strong>'
-        '<span>普通检测使用默认优化模型；仅在兼容性或对比需要时切换其他模型。</span></div>'
-    )
-
-
 def build_model_cards_html(cards: list[dict[str, Any]], selected_path: str | None = None) -> str:
     chunks = ['<div class="model-card-grid">']
     for card in cards:

@@ -11,7 +11,6 @@ from src.dental_detection.config import DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJ
 from src.dental_detection.model_info import build_model_cards
 from src.dental_detection.model_ui import (
     build_advanced_model_warning_html,
-    build_demo_recommendation_html,
     build_model_path_compact_html,
     build_workbench_model_status_html,
     format_model_path_for_display,
@@ -60,8 +59,6 @@ def run_checks() -> None:
     if f'title="{long_path}"' not in compact_html:
         raise AssertionError("长路径 HTML 未保留完整 title")
 
-    if not build_demo_recommendation_html().strip():
-        raise AssertionError("模型选择建议为空")
     if not build_advanced_model_warning_html().strip():
         raise AssertionError("高级模型警告为空")
 
