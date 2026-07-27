@@ -41,10 +41,13 @@ def unique_export_root(base_dir: str | Path, prefix: str, stamp: str, stem: str 
     name = f"{prefix}_{stamp}" if not stem else f"{prefix}_{stamp}_{safe_export_stem(stem)}"
     root = base / name
     counter = 1
-    while root.exists():
-        root = base / f"{name}_{counter:02d}"
-        counter += 1
-    return root
+    while True:
+        try:
+            root.mkdir()
+            return root
+        except FileExistsError:
+            root = base / f"{name}_{counter:02d}"
+            counter += 1
 
 
 def zip_path_for_root(root: str | Path) -> Path:

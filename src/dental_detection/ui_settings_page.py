@@ -185,7 +185,11 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                             scale=8,
                         )
                         open_model_dir_btn = gr.Button(
-                            "...", size="sm", scale=1, elem_classes=["icon-action"]
+                            "...",
+                            size="sm",
+                            scale=1,
+                            elem_id="model-dir-picker",
+                            elem_classes=["icon-action"],
                         )
                         refresh_model_btn = gr.Button(
                             "刷新", scale=2, elem_classes=["secondary-action"]
@@ -332,7 +336,11 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                         scale=8,
                     )
                     open_storage_btn = gr.Button(
-                        "...", size="sm", scale=1, elem_classes=["icon-action"]
+                        "...",
+                        size="sm",
+                        scale=1,
+                        elem_id="storage-dir-picker",
+                        elem_classes=["icon-action"],
                     )
                     default_storage_btn = gr.Button(
                         "恢复默认", scale=2, elem_classes=["secondary-action"]

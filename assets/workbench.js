@@ -82,6 +82,27 @@
     });
   };
 
+  const labelPathPickers = () => {
+    [
+      ["#model-dir-picker button", "选择模型目录"],
+      ["#storage-dir-picker button", "选择存储目录"],
+    ].forEach(([selector, label]) => {
+      document.querySelectorAll(selector).forEach((button) => {
+        if (button.getAttribute("aria-label") !== label) {
+          button.setAttribute("aria-label", label);
+        }
+        if (button.getAttribute("title") !== label) {
+          button.setAttribute("title", label);
+        }
+      });
+    });
+  };
+
+  const labelIconActions = () => {
+    labelOverflowMenus();
+    labelPathPickers();
+  };
+
   const scheduleMenuLabeling = () => {
     if (labelingScheduled) {
       return;
@@ -89,7 +110,7 @@
     labelingScheduled = true;
     window.requestAnimationFrame(() => {
       labelingScheduled = false;
-      labelOverflowMenus();
+      labelIconActions();
     });
   };
 
@@ -98,7 +119,7 @@
       window.requestAnimationFrame(start);
       return;
     }
-    labelOverflowMenus();
+    labelIconActions();
     void checkRuntimeVersion();
     window.addEventListener("focus", checkRuntimeVersion);
     window.addEventListener("online", checkRuntimeVersion);

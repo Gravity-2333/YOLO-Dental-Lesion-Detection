@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import inspect
+import os
 from dataclasses import fields
 from pathlib import Path
+import shutil
+import subprocess
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import unittest
@@ -27,7 +31,11 @@ from src.dental_detection.ui_content import (
     section_heading,
 )
 from src.dental_detection.ui_ai_chat_page import build_ai_runtime_status
-from src.dental_detection.ui_settings_page import AI_REQUEST_KEYS, SettingsComponents
+from src.dental_detection.ui_settings_page import (
+    AI_REQUEST_KEYS,
+    SettingsComponents,
+    build_settings_page,
+)
 from src.dental_detection.ui_workbench_page import WorkbenchComponents
 
 
@@ -48,6 +56,16 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("window.location.reload()", javascript)
         self.assertIn("visibilitychange", javascript)
         self.assertIn("dataset.runtimeAppId", javascript)
+
+    def test_directory_picker_buttons_have_specific_accessible_names(self) -> None:
+        settings_source = inspect.getsource(build_settings_page)
+        javascript = load_workbench_js()
+
+        self.assertIn('elem_id="model-dir-picker"', settings_source)
+        self.assertIn('elem_id="storage-dir-picker"', settings_source)
+        self.assertIn('"选择模型目录"', javascript)
+        self.assertIn('"选择存储目录"', javascript)
+        self.assertIn('setAttribute("aria-label", label)', javascript)
 
     def test_compact_action_buttons_share_a_stable_height(self) -> None:
         css = load_workbench_css()
@@ -92,6 +110,58 @@ class ProjectLauncherTests(unittest.TestCase):
         self.assertIn("-RedirectStandardError", launcher_source)
         self.assertIn('set "PYTHONUNBUFFERED=1"', runner_source)
         self.assertIn("run_gradio_server.bat", stop_source)
+
+    def test_service_launcher_reports_immediate_runner_failure(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows launcher contract")
+        powershell = shutil.which("powershell") or shutil.which("pwsh")
+        if not powershell:
+            self.skipTest("PowerShell is unavailable")
+
+        project_root = Path(__file__).resolve().parents[1]
+        with TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            script_dir = temp_root / "scripts"
+            script_dir.mkdir()
+            launcher = script_dir / "start_project.ps1"
+            shutil.copy2(project_root / "scripts" / "start_project.ps1", launcher)
+            failing_runner = script_dir / "fail-immediately.bat"
+            failing_runner.write_text(
+                "@echo simulated startup failure 1>&2\r\n@exit /b 7\r\n",
+                encoding="utf-8",
+            )
+
+            completed = subprocess.run(
+                [
+                    powershell,
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(launcher),
+                    "-RunScript",
+                    str(failing_runner),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("exited immediately", completed.stderr)
+        self.assertIn("simulated startup failure", completed.stderr)
+
+
+class DependencyManifestTests(unittest.TestCase):
+    def test_ui_regression_dependency_is_kept_out_of_runtime_manifest(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        runtime = (project_root / "requirements.txt").read_text(encoding="utf-8")
+        development = (project_root / "requirements-dev.txt").read_text(encoding="utf-8")
+
+        self.assertNotIn("playwright", runtime.casefold())
+        self.assertIn("-r requirements.txt", development)
+        self.assertIn("playwright", development.casefold())
 
 
 class UiContractTests(unittest.TestCase):

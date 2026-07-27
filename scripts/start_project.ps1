@@ -29,5 +29,20 @@ $runner = Start-Process `
     -RedirectStandardError $stderrLog `
     -PassThru
 
+$exitedEarly = $runner.WaitForExit(1500)
+if ($exitedEarly) {
+    $runner.WaitForExit()
+    $stderrTail = if (Test-Path -LiteralPath $stderrLog) {
+        (Get-Content -LiteralPath $stderrLog -Tail 20) -join [Environment]::NewLine
+    } else {
+        ""
+    }
+    $message = "[ERROR] Background service runner exited immediately with code $($runner.ExitCode)."
+    if ($stderrTail) {
+        $message += [Environment]::NewLine + $stderrTail
+    }
+    throw $message
+}
+
 Write-Host ("[INFO] Background service runner PID: " + $runner.Id)
 Write-Host ("[INFO] Service logs: " + $logDirectory)
