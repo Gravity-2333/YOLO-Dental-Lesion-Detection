@@ -227,9 +227,17 @@ class UiContractTests(unittest.TestCase):
         self.assertEqual(values[16:18], ("", ""))
         self.assertIsNone(values[23]["value"])
         self.assertFalse(values[-1])
+        self.assertTrue(app.clear_patient_workspace_views(True)[-1])
 
         source = inspect.getsource(app.build_app)
         self.assertEqual(source.count("fn=clear_patient_workspace_views"), 6)
+        self.assertEqual(
+            source.count(
+                "fn=clear_patient_workspace_views,\n"
+                "            inputs=conversation_loaded_state"
+            ),
+            6,
+        )
 
     def test_detection_table_contract_keeps_export_order(self) -> None:
         self.assertEqual(DETECTION_TABLE_COLUMNS[0:3], ("class", "中文名称", "confidence"))
@@ -754,19 +762,25 @@ class UiContentTests(unittest.TestCase):
                 return_value=("姓名", "编号", app.gr.update(interactive=True)),
             ) as profile_mock,
         ):
-            result = app.refresh_patient_workspace_views(False, False, "storage-a", "patient-1")
+            result = app.refresh_patient_workspace_views(
+                False,
+                False,
+                False,
+                "storage-a",
+                "patient-1",
+            )
 
         self.assertEqual(len(result), 26)
         case_mock.assert_not_called()
         history_mock.assert_not_called()
         report_mock.assert_not_called()
-        conversation_mock.assert_called_once_with("storage-a", "patient-1")
+        conversation_mock.assert_not_called()
         profile_mock.assert_called_once_with("patient-1", "storage-a")
         self.assertEqual(result[20], {})
         self.assertEqual(result[19]["value"], "删除所选")
         self.assertEqual(result[22], {})
         self.assertEqual(result[21]["value"], "清空历史")
-        self.assertEqual(result[-3:], ("conversation-select", "conversation-feedback", True))
+        self.assertFalse(result[-1])
 
         case_values = tuple(f"case-{index}" for index in range(6))
         history_values = tuple(f"history-{index}" for index in range(4))
@@ -786,7 +800,13 @@ class UiContentTests(unittest.TestCase):
                 return_value=("姓名", "编号", app.gr.update(interactive=True)),
             ),
         ):
-            result = app.refresh_patient_workspace_views(True, True, "storage-a", "patient-1")
+            result = app.refresh_patient_workspace_views(
+                True,
+                True,
+                True,
+                "storage-a",
+                "patient-1",
+            )
 
         case_mock.assert_called_once_with("storage-a", "patient-1")
         history_mock.assert_called_once_with("storage-a", "patient-1")
@@ -795,6 +815,32 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(result[:6], case_values)
         self.assertEqual(result[6:10], history_values)
         self.assertEqual(result[10:16], report_values)
+        self.assertEqual(result[-3:], ("conversation-select", "conversation-feedback", True))
+
+    def test_storage_switch_preserves_conversation_lazy_loading(self) -> None:
+        with patch.object(
+            app,
+            "refresh_conversation_history",
+            return_value=("conversation-select", "conversation-feedback"),
+        ) as conversation_mock:
+            unopened = app.refresh_conversations_after_storage_change(
+                True,
+                False,
+                "storage-a",
+                "patient-1",
+            )
+            loaded = app.refresh_conversations_after_storage_change(
+                True,
+                True,
+                "storage-a",
+                "patient-1",
+            )
+
+        conversation_mock.assert_called_once_with("storage-a", "patient-1")
+        self.assertIsNone(unopened[0]["value"])
+        self.assertIn("等待加载", unopened[1])
+        self.assertFalse(unopened[2])
+        self.assertEqual(loaded, ("conversation-select", "conversation-feedback", True))
 
 
 if __name__ == "__main__":

@@ -1923,6 +1923,7 @@ def lazy_refresh_history_page(
 def refresh_patient_workspace_views(
     case_loaded: bool,
     history_loaded: bool,
+    conversation_loaded: bool,
     storage_dir: str,
     patient_id: str | None = None,
 ):
@@ -1939,7 +1940,11 @@ def refresh_patient_workspace_views(
         history_values = tuple(gr.update() for _ in range(4))
         report_values = tuple(gr.update() for _ in range(6))
     profile_values = load_patient_profile_form(patient_id, storage_dir)
-    conversation_values = (*refresh_conversation_history(storage_dir, patient_id), True)
+    conversation_values = (
+        (*refresh_conversation_history(storage_dir, patient_id), True)
+        if conversation_loaded
+        else (gr.update(), gr.update(), False)
+    )
     return (
         *case_values,
         *history_values,
@@ -2108,7 +2113,7 @@ def clear_patient_session():
     return (None, None, *clear_outputs(), "", "")
 
 
-def clear_patient_workspace_views():
+def clear_patient_workspace_views(conversation_loaded: bool = False):
     """Clear patient-scoped UI before loading another patient's records."""
     return (
         gr.update(choices=[], value=None),
@@ -2136,7 +2141,7 @@ def clear_patient_workspace_views():
         {},
         gr.update(choices=[], value=None),
         "已切换患者，对话记录等待加载。",
-        False,
+        bool(conversation_loaded),
     )
 
 
@@ -2988,11 +2993,18 @@ def refresh_ai_runtime_status(
 
 def refresh_conversations_after_storage_change(
     storage_changed: bool,
+    conversation_loaded: bool,
     storage_dir: str,
     patient_id: str,
 ):
     if not storage_changed:
         return gr.update(), gr.update(), gr.update()
+    if not conversation_loaded:
+        return (
+            gr.update(choices=[], value=None),
+            "数据目录已切换，对话记录等待加载。",
+            False,
+        )
     history_update, feedback = refresh_conversation_history(storage_dir, patient_id)
     return history_update, feedback, True
 
@@ -3607,10 +3619,17 @@ def build_app() -> gr.Blocks:
             trigger_mode="always_last",
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
             fn=clear_patient_workspace_views,
+            inputs=conversation_loaded_state,
             outputs=patient_workspace_outputs,
         ).then(
             fn=refresh_patient_workspace_views,
-            inputs=[case_loaded_state, history_loaded_state, storage_dir, patient_select],
+            inputs=[
+                case_loaded_state,
+                history_loaded_state,
+                conversation_loaded_state,
+                storage_dir,
+                patient_select,
+            ],
             outputs=patient_workspace_outputs,
         )
         case_patient_select.input(
@@ -3620,10 +3639,17 @@ def build_app() -> gr.Blocks:
             trigger_mode="always_last",
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
             fn=clear_patient_workspace_views,
+            inputs=conversation_loaded_state,
             outputs=patient_workspace_outputs,
         ).then(
             fn=refresh_patient_workspace_views,
-            inputs=[case_loaded_state, history_loaded_state, storage_dir, case_patient_select],
+            inputs=[
+                case_loaded_state,
+                history_loaded_state,
+                conversation_loaded_state,
+                storage_dir,
+                case_patient_select,
+            ],
             outputs=patient_workspace_outputs,
         )
         history_patient_select.input(
@@ -3633,10 +3659,17 @@ def build_app() -> gr.Blocks:
             trigger_mode="always_last",
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
             fn=clear_patient_workspace_views,
+            inputs=conversation_loaded_state,
             outputs=patient_workspace_outputs,
         ).then(
             fn=refresh_patient_workspace_views,
-            inputs=[case_loaded_state, history_loaded_state, storage_dir, history_patient_select],
+            inputs=[
+                case_loaded_state,
+                history_loaded_state,
+                conversation_loaded_state,
+                storage_dir,
+                history_patient_select,
+            ],
             outputs=patient_workspace_outputs,
         )
         add_patient_btn.click(
@@ -3652,10 +3685,17 @@ def build_app() -> gr.Blocks:
             ],
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
             fn=clear_patient_workspace_views,
+            inputs=conversation_loaded_state,
             outputs=patient_workspace_outputs,
         ).then(
             fn=refresh_patient_workspace_views,
-            inputs=[case_loaded_state, history_loaded_state, storage_dir, case_patient_select],
+            inputs=[
+                case_loaded_state,
+                history_loaded_state,
+                conversation_loaded_state,
+                storage_dir,
+                case_patient_select,
+            ],
             outputs=patient_workspace_outputs,
         )
         save_patient_btn.click(
@@ -3690,10 +3730,17 @@ def build_app() -> gr.Blocks:
             outputs=[image, batch_files, *common_outputs, case_id, case_note],
         ).then(
             fn=clear_patient_workspace_views,
+            inputs=conversation_loaded_state,
             outputs=patient_workspace_outputs,
         ).then(
             fn=refresh_patient_workspace_views,
-            inputs=[case_loaded_state, history_loaded_state, storage_dir, case_patient_select],
+            inputs=[
+                case_loaded_state,
+                history_loaded_state,
+                conversation_loaded_state,
+                storage_dir,
+                case_patient_select,
+            ],
             outputs=patient_workspace_outputs,
         )
         restore_patient_btn.click(
@@ -3715,10 +3762,17 @@ def build_app() -> gr.Blocks:
             outputs=[image, batch_files, *common_outputs, case_id, case_note],
         ).then(
             fn=clear_patient_workspace_views,
+            inputs=conversation_loaded_state,
             outputs=patient_workspace_outputs,
         ).then(
             fn=refresh_patient_workspace_views,
-            inputs=[case_loaded_state, history_loaded_state, storage_dir, case_patient_select],
+            inputs=[
+                case_loaded_state,
+                history_loaded_state,
+                conversation_loaded_state,
+                storage_dir,
+                case_patient_select,
+            ],
             outputs=patient_workspace_outputs,
         )
         # User-only listeners avoid reprocessing when another callback updates a component.
@@ -3900,7 +3954,12 @@ def build_app() -> gr.Blocks:
             outputs=report_list_outputs,
         ).then(
             fn=refresh_conversations_after_storage_change,
-            inputs=[storage_changed_state, storage_dir, patient_select],
+            inputs=[
+                storage_changed_state,
+                conversation_loaded_state,
+                storage_dir,
+                patient_select,
+            ],
             outputs=[
                 conversation_select,
                 conversation_feedback,
