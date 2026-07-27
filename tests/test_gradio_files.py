@@ -58,6 +58,18 @@ class GradioFileAccessTests(unittest.TestCase):
 
             self.assertFalse(expired.exists())
 
+    def test_trusted_roots_keep_only_the_minimal_covering_directories(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir).resolve()
+            report_dir = root / "reports" / "single"
+            report_dir.mkdir(parents=True)
+            with patch.object(gradio_files, "_TRUSTED_FILE_ROOTS", set()) as trusted:
+                remember_allowed_file_root(report_dir)
+                remember_allowed_file_root(root)
+                remember_allowed_file_root(report_dir)
+
+                self.assertEqual(trusted, {root})
+
     def test_storage_root_rejects_a_file_path(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "not-a-directory"

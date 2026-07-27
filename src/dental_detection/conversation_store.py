@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha256
+import heapq
 import json
 import os
 from pathlib import Path
@@ -15,11 +16,11 @@ from .settings_store import conversation_dir, ensure_app_dirs
 
 
 MAX_CONVERSATION_FILE_BYTES = 2 * 1024 * 1024
-MAX_CONVERSATION_SCAN_ENTRIES = 500
 MAX_CONVERSATION_LIST_ITEMS = 50
 _CONVERSATION_NAME = re.compile(
     r"dental_chat(?:_auto)?(?:_p[0-9a-f]{16})?_\d{8}_\d{6}_\d{6}(?:_\d+)?\.json"
 )
+_CONVERSATION_ORDER = re.compile(r"_(\d{8}_\d{6}_\d{6})(?:_(\d+))?\.json$")
 _CONVERSATION_FILE_LOCK = RLock()
 
 
@@ -63,6 +64,13 @@ def _patient_tag(patient_id: str | None) -> str:
     return sha256(value.encode("utf-8")).hexdigest()[:16] if value else ""
 
 
+def _conversation_order_key(file_name: str) -> tuple[str, int, str]:
+    match = _CONVERSATION_ORDER.search(file_name)
+    if not match:
+        return "", 0, file_name
+    return match.group(1), int(match.group(2) or 0), file_name
+
+
 def save_conversation(
     messages: list[dict[str, str]],
     storage_dir: str | None = None,
@@ -91,8 +99,11 @@ def save_conversation(
             "safety_notice": SAFETY_NOTICE,
             "messages": _normalize_messages(messages),
         }
+        serialized = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        if len(serialized) > MAX_CONVERSATION_FILE_BYTES:
+            raise ValueError("对话内容过大，无法保存。请新建对话后再继续。")
         tmp_path = path.with_name(f".{path.name}.tmp")
-        tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp_path.write_bytes(serialized)
         tmp_path.replace(path)
         if retain_limit is not None:
             pattern = (
@@ -111,36 +122,46 @@ def list_conversations(
     patient_id: str | None = None,
 ) -> list[ConversationEntry]:
     expected_tag = _patient_tag(patient_id)
+    try:
+        max_items = max(1, min(int(limit), MAX_CONVERSATION_LIST_ITEMS))
+    except (OverflowError, TypeError, ValueError):
+        max_items = MAX_CONVERSATION_LIST_ITEMS
     with _CONVERSATION_FILE_LOCK:
         ensure_app_dirs(storage_dir)
         target_dir = conversation_dir(storage_dir)
-        entries: list[ConversationEntry] = []
+        recent: list[tuple[tuple[str, int, str], str]] = []
         try:
             with os.scandir(target_dir) as iterator:
-                for index, item in enumerate(iterator):
-                    if index >= MAX_CONVERSATION_SCAN_ENTRIES:
-                        break
+                for item in iterator:
                     if not _CONVERSATION_NAME.fullmatch(item.name) or not item.is_file(follow_symlinks=False):
                         continue
                     marker = re.search(r"_p([0-9a-f]{16})_", item.name)
                     item_tag = marker.group(1) if marker else ""
                     if item_tag != expected_tag:
                         continue
-                    try:
-                        modified_at = datetime.fromtimestamp(item.stat(follow_symlinks=False).st_mtime)
-                    except OSError:
-                        continue
-                    entries.append(
-                        ConversationEntry(
-                            file_name=item.name,
-                            modified_at=modified_at,
-                            auto_saved=item.name.startswith("dental_chat_auto_"),
-                        )
-                    )
+                    candidate = (_conversation_order_key(item.name), item.name)
+                    if len(recent) < max_items:
+                        heapq.heappush(recent, candidate)
+                    elif candidate > recent[0]:
+                        heapq.heapreplace(recent, candidate)
         except OSError:
             return []
-    entries.sort(key=lambda entry: entry.modified_at, reverse=True)
-    return entries[: max(1, min(int(limit), MAX_CONVERSATION_LIST_ITEMS))]
+        entries: list[ConversationEntry] = []
+        for _, file_name in sorted(recent, reverse=True):
+            try:
+                modified_at = datetime.fromtimestamp(
+                    (target_dir / file_name).stat().st_mtime
+                )
+            except OSError:
+                continue
+            entries.append(
+                ConversationEntry(
+                    file_name=file_name,
+                    modified_at=modified_at,
+                    auto_saved=file_name.startswith("dental_chat_auto_"),
+                )
+            )
+    return entries
 
 
 def load_conversation(

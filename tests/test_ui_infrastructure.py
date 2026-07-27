@@ -505,6 +505,21 @@ class UiContentTests(unittest.TestCase):
             patient_id=None,
         )
 
+    def test_manual_conversation_export_surfaces_capacity_error(self) -> None:
+        with (
+            patch.object(app, "_ensure_storage_root"),
+            patch.object(
+                app,
+                "save_conversation",
+                side_effect=ValueError("对话内容过大，无法保存。请新建对话后再继续。"),
+            ),
+        ):
+            with self.assertRaisesRegex(app.gr.Error, "对话内容过大.*新建对话"):
+                app.export_chat(
+                    [{"role": "user", "content": "long"}],
+                    "storage-root",
+                )
+
     def test_history_limit_normalization_handles_non_finite_values(self) -> None:
         self.assertEqual(app._normalize_history_limit(float("inf")), 100)
         self.assertEqual(app._normalize_history_limit(float("-inf")), 100)

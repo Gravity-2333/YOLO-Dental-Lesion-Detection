@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 import json
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock
@@ -9,11 +11,12 @@ from time import sleep
 import unittest
 from unittest.mock import patch
 
-from src.dental_detection import assistant, settings_store
+from src.dental_detection import assistant, conversation_store, settings_store
 from src.dental_detection.advice import default_advice, detection_prompt
 from src.dental_detection.ai_client import _friendly_ai_error, normalize_base_url, validate_ai_request
 from src.dental_detection.ai_defaults import DEFAULT_AI_MODEL, SAFETY_NOTICE
 from src.dental_detection.conversation_store import (
+    MAX_CONVERSATION_FILE_BYTES,
     list_conversations,
     load_conversation,
     save_conversation,
@@ -145,6 +148,20 @@ class AdviceAndConversationTests(unittest.TestCase):
             self.assertEqual(payload["messages"], messages)
             self.assertEqual(payload["safety_notice"], SAFETY_NOTICE)
 
+    def test_conversation_store_rejects_files_that_cannot_be_loaded_later(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            messages = [
+                {
+                    "role": "user",
+                    "content": "x" * MAX_CONVERSATION_FILE_BYTES,
+                }
+            ]
+
+            with self.assertRaisesRegex(ValueError, "内容过大"):
+                save_conversation(messages, temp_dir)
+
+            self.assertEqual(list(Path(temp_dir).rglob("dental_chat*.json")), [])
+
     def test_auto_conversation_retention_removes_oldest_files(self) -> None:
         with TemporaryDirectory() as temp_dir:
             messages = [{"role": "user", "content": "保留测试"}]
@@ -173,6 +190,30 @@ class AdviceAndConversationTests(unittest.TestCase):
             self.assertEqual(load_conversation(first.name, temp_dir), first_messages)
             with self.assertRaisesRegex(ValueError, "选择无效"):
                 load_conversation("../settings.json", temp_dir)
+
+    def test_conversation_list_finds_newest_entry_beyond_old_scan_boundary(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            settings_store.ensure_app_dirs(temp_dir)
+            target_dir = settings_store.conversation_dir(temp_dir)
+            for index in range(500):
+                (target_dir / f"dental_chat_20260101_000000_{index:06d}.json").write_text(
+                    "{}",
+                    encoding="utf-8",
+                )
+            newest = target_dir / "dental_chat_20270101_000000_000001.json"
+            newest.write_text("{}", encoding="utf-8")
+            with os.scandir(target_dir) as iterator:
+                ordered = sorted(iterator, key=lambda item: item.name)
+
+            with patch.object(
+                conversation_store.os,
+                "scandir",
+                return_value=nullcontext(iter(ordered)),
+            ):
+                entries = list_conversations(temp_dir, limit=5)
+
+            self.assertEqual(entries[0].file_name, newest.name)
+            self.assertEqual(len(entries), 5)
 
     def test_conversation_writes_remain_valid_under_concurrency(self) -> None:
         with TemporaryDirectory() as temp_dir, ThreadPoolExecutor(max_workers=4) as executor:

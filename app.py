@@ -3006,7 +3006,12 @@ def export_chat(
     if not history:
         raise gr.Error("当前没有可导出的对话记录。")
     _ensure_storage_root(storage_dir)
-    path = save_conversation(history, storage_dir, patient_id=patient_id)
+    try:
+        path = save_conversation(history, storage_dir, patient_id=patient_id)
+    except ValueError as exc:
+        raise gr.Error(str(exc)) from exc
+    except (OSError, RuntimeError, TypeError) as exc:
+        raise _friendly_gr_error(exc, "对话导出失败") from exc
     _remember_allowed_file_root(path.parent)
     return _file_component_output(path), f"已导出：{path}"
 

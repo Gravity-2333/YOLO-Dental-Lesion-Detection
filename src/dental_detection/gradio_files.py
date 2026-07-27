@@ -49,6 +49,14 @@ def remember_allowed_file_root(path: str | Path | None) -> None:
     root = safe_existing_root(path)
     if root is not None:
         with _DOWNLOAD_CACHE_LOCK:
+            if any(trusted == root or trusted in root.parents for trusted in _TRUSTED_FILE_ROOTS):
+                return
+            covered = {
+                trusted
+                for trusted in _TRUSTED_FILE_ROOTS
+                if root in trusted.parents
+            }
+            _TRUSTED_FILE_ROOTS.difference_update(covered)
             _TRUSTED_FILE_ROOTS.add(root)
 
 
