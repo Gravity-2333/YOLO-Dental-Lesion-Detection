@@ -20,8 +20,8 @@ from src.dental_detection.report_center_ui import (
     REPORT_TRASH_LABEL,
     confirm_trash_report_center_item,
     load_active_report_center_item,
-    load_initial_report_center_file,
     load_report_center_item,
+    load_tab_report_center_file,
     refresh_report_center,
     trash_report_center_item,
 )
@@ -42,7 +42,12 @@ class ReportCenterUiTests(unittest.TestCase):
         self._cache_patch.stop()
         self._cache_dir.cleanup()
 
-    def _create_report(self, storage_dir: str, patient_id: str):
+    def _create_report(
+        self,
+        storage_dir: str,
+        patient_id: str,
+        file_name: str = "single.docx",
+    ):
         task = record_completed_detection(
             storage_dir,
             patient_id,
@@ -50,7 +55,7 @@ class ReportCenterUiTests(unittest.TestCase):
             parameters={"conf": 0.25},
             result_summary={"detection_count": 1},
         )
-        path = Path(storage_dir) / "reports" / "single.docx"
+        path = Path(storage_dir) / "reports" / file_name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"report")
         report = register_personal_report(
@@ -91,7 +96,8 @@ class ReportCenterUiTests(unittest.TestCase):
             self.assertIn("model-a@1", active_detail)
             self.assertTrue(active_file["visible"])
 
-            initial_file = load_initial_report_center_file(
+            initial_file = load_tab_report_center_file(
+                "",
                 temp_dir,
                 workspace.patient.id,
             )
@@ -108,6 +114,18 @@ class ReportCenterUiTests(unittest.TestCase):
             self.assertEqual(feedback, "")
             self.assertTrue(trash_update["interactive"])
             self.assertEqual(trash_update["value"], REPORT_TRASH_LABEL)
+
+            second_report, second_path = self._create_report(
+                temp_dir,
+                workspace.patient.id,
+                "second.docx",
+            )
+            selected_file = load_tab_report_center_file(
+                second_report.id,
+                temp_dir,
+                workspace.patient.id,
+            )
+            self.assertEqual(Path(selected_file["value"]).name, second_path.name)
 
             removed = trash_report_center_item(report.id, temp_dir, workspace.patient.id)
             self.assertIn("回收站", removed[4])

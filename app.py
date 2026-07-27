@@ -8,6 +8,7 @@ import json
 import math
 from pathlib import Path
 import sqlite3
+from threading import Lock
 from typing import Any
 
 import gradio as gr
@@ -114,8 +115,8 @@ from src.dental_detection.report_center_ui import (
     build_report_center,
     confirm_trash_report_center_item,
     load_active_report_center_item,
-    load_initial_report_center_file,
     load_report_center_item,
+    load_tab_report_center_file,
     refresh_report_center,
     reset_report_trash_confirmation,
 )
@@ -181,6 +182,7 @@ BATCH_TOTAL_UPLOAD_BYTES = 200 * 1024 * 1024
 SESSION_STATE_TTL_SECONDS = 60 * 60
 STATE_SESSION_CAPACITY = 128
 MAX_UPLOAD_FILE_SIZE = "50mb"
+_DIRECTORY_DIALOG_LOCK = Lock()
 
 
 def _workbench_theme():
@@ -562,34 +564,39 @@ def apply_model_card(selected_path: str, model_dir: str | None = None, include_a
 
 def _choose_directory_dialog(title: str, initial_dir: str | Path) -> str | None:
     """Open a native directory picker when the app is running with a desktop session."""
-    try:
-        import tkinter as tk
-        from tkinter import filedialog
-    except Exception as exc:
-        raise gr.Error(f"当前 Python 环境无法打开路径选择器：{exc}") from exc
+    if not _DIRECTORY_DIALOG_LOCK.acquire(blocking=False):
+        raise gr.Error("已有路径选择器打开，请先完成或关闭当前选择窗口。")
 
-    start_dir = Path(initial_dir or PROJECT_ROOT).expanduser()
-    if not start_dir.exists():
-        start_dir = start_dir.parent if start_dir.parent.exists() else PROJECT_ROOT
     root = None
     try:
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
-        selected = filedialog.askdirectory(
-            title=title,
-            initialdir=str(start_dir.resolve()),
-            mustexist=True,
-        )
-    except Exception as exc:
-        raise gr.Error(f"无法打开路径选择器，请手动输入路径：{exc}") from exc
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+        except Exception as exc:
+            raise gr.Error(f"当前 Python 环境无法打开路径选择器：{exc}") from exc
+
+        start_dir = Path(initial_dir or PROJECT_ROOT).expanduser()
+        if not start_dir.exists():
+            start_dir = start_dir.parent if start_dir.parent.exists() else PROJECT_ROOT
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            selected = filedialog.askdirectory(
+                title=title,
+                initialdir=str(start_dir.resolve()),
+                mustexist=True,
+            )
+        except Exception as exc:
+            raise gr.Error(f"无法打开路径选择器，请手动输入路径：{exc}") from exc
+        return selected or None
     finally:
         if root is not None:
             try:
                 root.destroy()
             except Exception:
                 pass
-    return selected or None
+        _DIRECTORY_DIALOG_LOCK.release()
 
 
 def _is_local_browser_request(request: gr.Request | None) -> bool:
@@ -2968,12 +2975,18 @@ def toggle_ai_settings(enabled: bool):
     return gr.update(visible=enabled)
 
 
-def set_api_key_mode(key_mode: str):
+def set_api_key_mode(
+    key_mode: str,
+    hidden_key: str,
+    visible_key: str,
+    direct_key_visible: bool,
+):
     direct_mode = key_mode == "直接 Key 值"
+    key_value = visible_key if direct_key_visible else hidden_key
     return (
         gr.update(visible=not direct_mode),
-        gr.update(visible=direct_mode),
-        gr.update(visible=False),
+        gr.update(value=key_value, visible=direct_mode),
+        gr.update(value="", visible=False),
         gr.update(visible=direct_mode, value="显示 Key"),
         False,
     )
@@ -3533,8 +3546,8 @@ def build_app() -> gr.Blocks:
             show_progress="hidden",
         )
         history_tab.select(
-            fn=load_initial_report_center_file,
-            inputs=[storage_dir, history_patient_select],
+            fn=load_tab_report_center_file,
+            inputs=[report_center.report_select, storage_dir, history_patient_select],
             outputs=report_center.report_file,
             queue=False,
             show_progress="hidden",
@@ -3727,7 +3740,12 @@ def build_app() -> gr.Blocks:
         ai_enabled.input(fn=toggle_ai_settings, inputs=ai_enabled, outputs=ai_group)
         key_mode.input(
             fn=set_api_key_mode,
-            inputs=key_mode,
+            inputs=[
+                key_mode,
+                direct_api_key_hidden,
+                direct_api_key_visible,
+                direct_key_visible,
+            ],
             outputs=[env_api_key, direct_api_key_hidden, direct_api_key_visible, show_direct_key_btn, direct_key_visible],
         )
         show_direct_key_btn.click(

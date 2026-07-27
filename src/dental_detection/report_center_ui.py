@@ -261,9 +261,13 @@ def load_active_report_center_item(report_id: str, storage_dir: str, patient_id:
     return load_report_center_item(active_id, storage_dir, patient_id)
 
 
-def load_initial_report_center_file(storage_dir: str, patient_id: str):
-    """Hydrate the first report file without depending on dropdown event ordering."""
-    _, file_output, _, _ = load_active_report_center_item("", storage_dir, patient_id)
+def load_tab_report_center_file(
+    report_id: str,
+    storage_dir: str,
+    patient_id: str,
+):
+    """Hydrate the selected report file, falling back only on first tab entry."""
+    _, file_output, _, _ = load_active_report_center_item(report_id, storage_dir, patient_id)
     return file_output
 
 

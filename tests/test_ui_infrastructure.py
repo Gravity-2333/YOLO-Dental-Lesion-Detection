@@ -190,6 +190,39 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("&lt;local-model&gt;", empty_status)
         self.assertIn("已加载当前对话上下文", loaded_status)
 
+    def test_api_key_mode_switch_preserves_visible_edits_without_plaintext_state(self) -> None:
+        (
+            env_update,
+            hidden_update,
+            visible_update,
+            button_update,
+            visible_state,
+        ) = app.set_api_key_mode(
+            "环境变量",
+            "old-key",
+            "edited-key",
+            True,
+        )
+
+        self.assertTrue(env_update["visible"])
+        self.assertEqual(hidden_update["value"], "edited-key")
+        self.assertFalse(hidden_update["visible"])
+        self.assertEqual(visible_update["value"], "")
+        self.assertFalse(visible_update["visible"])
+        self.assertFalse(button_update["visible"])
+        self.assertFalse(visible_state)
+
+        direct_values = app.set_api_key_mode(
+            "直接 Key 值",
+            hidden_update["value"],
+            visible_update["value"],
+            visible_state,
+        )
+        self.assertEqual(direct_values[1]["value"], "edited-key")
+        self.assertTrue(direct_values[1]["visible"])
+        self.assertEqual(direct_values[2]["value"], "")
+        self.assertFalse(direct_values[-1])
+
     def test_ai_tab_lazy_loads_local_conversation_history(self) -> None:
         source = inspect.getsource(app.build_app)
         self.assertIn("conversation_loaded_state", source)
@@ -211,7 +244,8 @@ class UiContentTests(unittest.TestCase):
             1,
         )[0]
         self.assertIn("fn=lazy_refresh_history_page", history_hydration)
-        self.assertIn("fn=load_initial_report_center_file", history_hydration)
+        self.assertIn("fn=load_tab_report_center_file", history_hydration)
+        self.assertIn("inputs=[report_center.report_select", history_hydration)
         self.assertIn("outputs=report_center.report_file", history_hydration)
         self.assertIn("*report_metadata_outputs", history_hydration)
         self.assertNotIn("*report_list_outputs", history_hydration)
@@ -389,6 +423,31 @@ class UiContentTests(unittest.TestCase):
             event_source = source.split(marker, 1)[1].split(")", 1)[0]
             self.assertIn("queue=False", event_source)
             self.assertIn('show_progress="hidden"', event_source)
+
+    def test_native_path_picker_rejects_parallel_dialogs(self) -> None:
+        dialog_lock = MagicMock()
+        dialog_lock.acquire.return_value = False
+
+        with patch.object(app, "_DIRECTORY_DIALOG_LOCK", dialog_lock):
+            with self.assertRaises(app.gr.Error) as raised:
+                app._choose_directory_dialog("选择目录", ".")
+
+        self.assertIn("已有路径选择器", str(raised.exception))
+        dialog_lock.acquire.assert_called_once_with(blocking=False)
+        dialog_lock.release.assert_not_called()
+
+    def test_native_path_picker_releases_lock_after_open_failure(self) -> None:
+        dialog_lock = MagicMock()
+        dialog_lock.acquire.return_value = True
+
+        with (
+            patch.object(app, "_DIRECTORY_DIALOG_LOCK", dialog_lock),
+            patch("tkinter.Tk", side_effect=RuntimeError("dialog unavailable")),
+        ):
+            with self.assertRaises(app.gr.Error):
+                app._choose_directory_dialog("选择目录", ".")
+
+        dialog_lock.release.assert_called_once_with()
 
     def test_record_mutations_share_one_serial_write_queue(self) -> None:
         source = inspect.getsource(app.build_app)
