@@ -176,7 +176,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                         label="显示高级模型 / 实验权重",
                         info=ADVANCED_MODEL_HINT,
                     )
-                    with gr.Row(elem_classes=["path-row"]):
+                    with gr.Row(elem_classes=["path-row", "path-picker-row"]):
                         model_dir = gr.Textbox(
                             value=data.model_dir,
                             label="模型目录",
@@ -327,7 +327,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                     minimum=1,
                     maximum=1000,
                 )
-                with gr.Row(elem_classes=["path-row"]):
+                with gr.Row(elem_classes=["path-row", "path-picker-row"]):
                     storage_dir = gr.Textbox(
                         value=saved.storage_dir,
                         label="存储目录",

@@ -152,11 +152,23 @@
 @media (min-width: 641px) and (max-width: 900px) {
   .path-row {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) 44px 132px !important;
+    grid-template-columns: minmax(0, 1fr) 132px !important;
     align-items: end !important;
     column-gap: 12px !important;
     row-gap: 8px !important;
     overflow: visible !important;
+  }
+
+  .path-picker-row {
+    grid-template-columns: minmax(0, 1fr) 44px 132px !important;
+  }
+
+  .export-toolbar .path-row {
+    grid-template-columns: minmax(0, 1fr) 152px !important;
+  }
+
+  .chat-card .path-row {
+    grid-template-columns: minmax(0, 1fr) 120px !important;
   }
 
   .path-row > .icon-action,
@@ -197,6 +209,97 @@
     width: 132px !important;
     min-width: 132px !important;
     max-width: 132px !important;
+  }
+
+  .export-toolbar .path-row > .secondary-action,
+  .export-toolbar .path-row .secondary-action button {
+    width: 152px !important;
+    min-width: 152px !important;
+    max-width: 152px !important;
+  }
+
+  .chat-card .path-row > .secondary-action,
+  .chat-card .path-row .secondary-action button {
+    width: 120px !important;
+    min-width: 120px !important;
+    max-width: 120px !important;
+  }
+
+  .model-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 132px !important;
+    align-items: end !important;
+    column-gap: 10px !important;
+    overflow: visible !important;
+  }
+
+  .model-row > .secondary-action,
+  .row.model-row > button.secondary-action,
+  .model-row .secondary-action button {
+    flex: 0 0 132px !important;
+    width: 132px !important;
+    min-width: 132px !important;
+    max-width: 132px !important;
+    align-self: end !important;
+  }
+
+  .model-row > .secondary-action {
+    margin-bottom: 10px !important;
+  }
+
+  .row.model-row > button.secondary-action {
+    margin-bottom: 0 !important;
+  }
+
+  .chat-input-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 112px !important;
+    align-items: end !important;
+    column-gap: 10px !important;
+  }
+
+  .chat-input-row > .primary-action,
+  .row.chat-input-row > button.primary-action,
+  .chat-input-row .primary-action button {
+    flex: 0 0 112px !important;
+    width: 112px !important;
+    min-width: 112px !important;
+    max-width: 112px !important;
+    align-self: end !important;
+  }
+
+  .chat-input-row > .primary-action {
+    margin-bottom: 10px !important;
+  }
+
+  .row.chat-input-row > button.primary-action {
+    margin-bottom: 0 !important;
+  }
+
+  .compact-row {
+    flex-direction: row !important;
+    align-items: end !important;
+    flex-wrap: wrap !important;
+  }
+
+  .row.compact-row > button,
+  .compact-row > button.secondary-action,
+  .compact-row > button.danger-action,
+  .compact-row > button.primary-action {
+    flex: 0 0 auto !important;
+    align-self: end !important;
+    width: auto !important;
+    min-width: 104px !important;
+    max-width: none !important;
+  }
+
+  .row.compact-row > .compact-button button,
+  .row.compact-row > .secondary-action button,
+  .row.compact-row > .primary-action button,
+  .row.compact-row > .danger-action button {
+    width: auto !important;
+    min-width: 104px !important;
+    max-width: none !important;
   }
 
   .row.settings-actions > button,

@@ -336,10 +336,14 @@ button[aria-disabled="true"] {
 
 .path-row {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 44px 132px !important;
+  grid-template-columns: minmax(0, 1fr) 132px !important;
   align-items: end !important;
   column-gap: 12px !important;
   row-gap: 8px !important;
+}
+
+.path-picker-row {
+  grid-template-columns: minmax(0, 1fr) 44px 132px !important;
 }
 
 .export-toolbar .path-row {
@@ -366,12 +370,24 @@ button[aria-disabled="true"] {
   max-width: 120px !important;
 }
 
+.chat-card .path-row > .secondary-action {
+  width: 120px !important;
+  min-width: 120px !important;
+  max-width: 120px !important;
+}
+
 .export-toolbar .path-row button {
   width: 152px !important;
   min-width: 152px !important;
   max-width: 152px !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+}
+
+.export-toolbar .path-row > .secondary-action {
+  width: 152px !important;
+  min-width: 152px !important;
+  max-width: 152px !important;
 }
 
 .model-row {

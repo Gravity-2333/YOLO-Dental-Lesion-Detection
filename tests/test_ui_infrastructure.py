@@ -81,10 +81,19 @@ class UiAssetTests(unittest.TestCase):
 
         self.assertIn(
             "grid-template-columns: minmax(0, 1fr) 44px 132px !important",
-            tablet,
+            tablet.split(".path-picker-row", 1)[1],
         )
+        self.assertIn("grid-template-columns: minmax(0, 1fr) 132px !important", tablet)
+        self.assertIn("grid-template-columns: minmax(0, 1fr) 152px !important", tablet)
+        self.assertIn("grid-template-columns: minmax(0, 1fr) 120px !important", tablet)
+        self.assertIn("grid-template-columns: minmax(0, 1fr) 112px !important", tablet)
+        self.assertIn(".compact-row", tablet)
+        self.assertIn("min-width: 104px !important", tablet)
         self.assertIn(".row.settings-actions > button", tablet)
         self.assertIn("min-width: 160px !important", tablet)
+
+        settings_source = inspect.getsource(app.build_settings_page)
+        self.assertEqual(settings_source.count('"path-picker-row"'), 2)
 
     def test_css_bundle_drops_retired_frontend_scaffolding(self) -> None:
         css = load_workbench_css()
