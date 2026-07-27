@@ -3589,11 +3589,15 @@ def build_app() -> gr.Blocks:
                 ai_runtime_status,
                 conversation_loaded_state,
             ],
+            trigger_mode="always_last",
+            show_progress="minimal",
         )
         case_tab.select(
             fn=lazy_refresh_case_records,
             inputs=[case_loaded_state, storage_dir, case_patient_select],
             outputs=[*case_list_outputs, case_loaded_state],
+            trigger_mode="always_last",
+            show_progress="minimal",
         )
         history_tab.select(
             fn=lazy_refresh_history_page,
@@ -4004,6 +4008,8 @@ def build_app() -> gr.Blocks:
             fn=refresh_conversation_history,
             inputs=[storage_dir, patient_select],
             outputs=[conversation_select, conversation_feedback],
+            trigger_mode="always_last",
+            show_progress="minimal",
         )
         load_conversation_btn.click(
             fn=load_saved_ai_conversation,
@@ -4022,6 +4028,8 @@ def build_app() -> gr.Blocks:
                 conversation_feedback,
                 ai_runtime_status,
             ],
+            trigger_mode="always_last",
+            show_progress="minimal",
         )
         refresh_model_btn.click(
             fn=refresh_model_choices,
@@ -4147,6 +4155,8 @@ def build_app() -> gr.Blocks:
             fn=refresh_case_records,
             inputs=[storage_dir, case_patient_select],
             outputs=case_list_outputs,
+            trigger_mode="always_last",
+            show_progress="minimal",
         )
         search_case_btn.click(
             fn=search_case_records_ui,
@@ -4160,6 +4170,8 @@ def build_app() -> gr.Blocks:
                 case_patient_select,
             ],
             outputs=case_list_outputs,
+            trigger_mode="always_last",
+            show_progress="minimal",
         )
         delete_case_btn.click(
             fn=delete_selected_case_record,
@@ -4190,11 +4202,15 @@ def build_app() -> gr.Blocks:
             fn=load_case_record_and_clear_export,
             inputs=[case_select, storage_dir, case_patient_select],
             outputs=[case_detail, case_report_file, case_report_path],
+            trigger_mode="always_last",
+            show_progress="minimal",
         )
         refresh_history_btn.click(
             fn=refresh_history_records,
             inputs=[storage_dir, history_patient_select],
             outputs=history_list_outputs,
+            trigger_mode="always_last",
+            show_progress="minimal",
         ).then(
             fn=reset_history_delete_confirmation,
             outputs=[delete_history_btn, history_delete_confirmation],
@@ -4204,6 +4220,8 @@ def build_app() -> gr.Blocks:
             fn=load_history_record,
             inputs=[history_select, storage_dir, history_patient_select],
             outputs=history_detail,
+            trigger_mode="always_last",
+            show_progress="minimal",
         ).then(
             fn=reset_history_delete_confirmation,
             outputs=[delete_history_btn, history_delete_confirmation],
@@ -4229,6 +4247,8 @@ def build_app() -> gr.Blocks:
             fn=refresh_report_center,
             inputs=[storage_dir, history_patient_select],
             outputs=report_list_outputs,
+            trigger_mode="always_last",
+            show_progress="minimal",
         ).then(
             fn=reset_report_trash_confirmation,
             outputs=report_trash_confirmation,

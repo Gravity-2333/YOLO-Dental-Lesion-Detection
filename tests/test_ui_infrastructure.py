@@ -417,6 +417,27 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('open=False,\n            elem_classes=["compact-accordion"]', report_source)
         self.assertNotIn("gr.Dataframe", report_source)
 
+    def test_record_read_events_keep_only_the_latest_pending_request(self) -> None:
+        source = inspect.getsource(app.build_app)
+        event_ranges = (
+            ("ai_tab.select(", "case_tab.select("),
+            ("case_tab.select(", "history_tab.select("),
+            ("refresh_conversation_btn.click(", "load_conversation_btn.click("),
+            ("load_conversation_btn.click(", "refresh_model_btn.click("),
+            ("refresh_case_btn.click(", "search_case_btn.click("),
+            ("search_case_btn.click(", "delete_case_btn.click("),
+            ("case_select.input(", "refresh_history_btn.click("),
+            ("refresh_history_btn.click(", "history_select.input("),
+            ("history_select.input(", "delete_history_btn.click("),
+            ("report_center.refresh_button.click(", "report_center.report_select.input("),
+        )
+
+        for start, end in event_ranges:
+            with self.subTest(event=start):
+                event_source = source.split(start, 1)[1].split(end, 1)[0]
+                self.assertIn('trigger_mode="always_last"', event_source)
+                self.assertIn('show_progress="minimal"', event_source)
+
     def test_case_note_starts_compact_and_can_expand(self) -> None:
         source = inspect.getsource(app.build_app)
         self.assertIn('label="病例备注"', source)
