@@ -776,7 +776,7 @@ def _advice_style_prompt(style: str) -> str:
 def _normalize_history_limit(value: Any) -> int:
     try:
         return max(1, min(1000, int(value or 100)))
-    except (TypeError, ValueError):
+    except (OverflowError, TypeError, ValueError):
         return 100
 
 
@@ -2108,6 +2108,38 @@ def clear_patient_session():
     return (None, None, *clear_outputs(), "", "")
 
 
+def clear_patient_workspace_views():
+    """Clear patient-scoped UI before loading another patient's records."""
+    return (
+        gr.update(choices=[], value=None),
+        _case_table_html([]),
+        format_case_record(None),
+        "已切换患者，病例记录等待加载。",
+        _clear_file_output(),
+        "",
+        gr.update(choices=[], value=None),
+        _history_table_html([]),
+        format_history_record(None),
+        "已切换患者，检测历史等待加载。",
+        gr.update(choices=[], value=None),
+        '<div class="record-table-empty">当前患者报告等待加载。</div>',
+        "暂无报告记录。",
+        _clear_file_output(),
+        "",
+        gr.update(value="移入回收站", interactive=False),
+        "",
+        "",
+        gr.update(interactive=False),
+        gr.update(value="删除所选"),
+        {},
+        gr.update(value="清空历史"),
+        {},
+        gr.update(choices=[], value=None),
+        "已切换患者，对话记录等待加载。",
+        False,
+    )
+
+
 def _record_workspace_detection(
     storage_dir: str,
     patient_id: str,
@@ -2757,6 +2789,25 @@ def save_ui_settings(
     settings.save_history = bool(save_history)
     settings.history_limit = _normalize_history_limit(history_limit)
     try:
+        storage_changed = storage_root(previous_settings.storage_dir).resolve() != storage_root(
+            settings.storage_dir
+        ).resolve()
+    except (OSError, RuntimeError, ValueError):
+        storage_changed = previous_settings.storage_dir != settings.storage_dir
+
+    workspace = None
+    patient_choices: list[tuple[str, str]] = []
+    archived_choices: list[tuple[str, str]] = []
+    if storage_changed:
+        _ensure_storage_root(settings.storage_dir)
+        try:
+            workspace = ensure_personal_workspace(settings.storage_dir)
+            patient_choices = personal_patient_choices(settings.storage_dir)
+            archived_choices = personal_archived_patient_choices(settings.storage_dir)
+        except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
+            raise _friendly_gr_error(exc, "患者工作区初始化失败") from exc
+
+    try:
         # Switching the active data root must stay a fast, non-destructive
         # settings operation. Bulk migration remains an explicit helper.
         path = save_settings(settings, migrate_data=False)
@@ -2768,14 +2819,7 @@ def save_ui_settings(
             else "设置保存失败"
         )
         raise _friendly_gr_error(exc, context) from exc
-    _ensure_storage_root(settings.storage_dir)
     feedback = [f"设置已保存：{path}"]
-    try:
-        storage_changed = storage_root(previous_settings.storage_dir).resolve() != storage_root(
-            settings.storage_dir
-        ).resolve()
-    except (OSError, RuntimeError, ValueError):
-        storage_changed = previous_settings.storage_dir != settings.storage_dir
     if storage_changed:
         feedback.append("数据目录已切换；旧目录内容未自动搬移。")
     if not storage_changed:
@@ -2787,12 +2831,8 @@ def save_ui_settings(
             *([gr.update()] * 20),
             False,
         )
-    try:
-        workspace = ensure_personal_workspace(settings.storage_dir)
-        patient_choices = personal_patient_choices(settings.storage_dir)
-        archived_choices = personal_archived_patient_choices(settings.storage_dir)
-    except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
-        raise _friendly_gr_error(exc, "患者工作区初始化失败") from exc
+    if workspace is None:
+        raise gr.Error("患者工作区初始化失败：未返回有效工作区。")
     # The new root is intentionally presented empty here; the record tabs
     # populate themselves lazily on first navigation.
     case_choices: list[tuple[str, str]] = []
@@ -2997,7 +3037,7 @@ def toggle_direct_key_visibility(hidden_key: str, visible_key: str, direct_key_v
     key_value = visible_key if direct_key_visible else hidden_key
     return (
         gr.update(value=key_value, visible=not next_visible),
-        gr.update(value=key_value, visible=next_visible),
+        gr.update(value=key_value if next_visible else "", visible=next_visible),
         gr.update(value="隐藏 Key" if next_visible else "显示 Key"),
         next_visible,
     )
@@ -3563,6 +3603,9 @@ def build_app() -> gr.Blocks:
             outputs=[case_patient_select, history_patient_select],
             trigger_mode="always_last",
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
+            fn=clear_patient_workspace_views,
+            outputs=patient_workspace_outputs,
+        ).then(
             fn=refresh_patient_workspace_views,
             inputs=[case_loaded_state, history_loaded_state, storage_dir, patient_select],
             outputs=patient_workspace_outputs,
@@ -3573,6 +3616,9 @@ def build_app() -> gr.Blocks:
             outputs=[patient_select, history_patient_select],
             trigger_mode="always_last",
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
+            fn=clear_patient_workspace_views,
+            outputs=patient_workspace_outputs,
+        ).then(
             fn=refresh_patient_workspace_views,
             inputs=[case_loaded_state, history_loaded_state, storage_dir, case_patient_select],
             outputs=patient_workspace_outputs,
@@ -3583,6 +3629,9 @@ def build_app() -> gr.Blocks:
             outputs=[patient_select, case_patient_select],
             trigger_mode="always_last",
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
+            fn=clear_patient_workspace_views,
+            outputs=patient_workspace_outputs,
+        ).then(
             fn=refresh_patient_workspace_views,
             inputs=[case_loaded_state, history_loaded_state, storage_dir, history_patient_select],
             outputs=patient_workspace_outputs,
@@ -3599,6 +3648,9 @@ def build_app() -> gr.Blocks:
                 patient_feedback,
             ],
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
+            fn=clear_patient_workspace_views,
+            outputs=patient_workspace_outputs,
+        ).then(
             fn=refresh_patient_workspace_views,
             inputs=[case_loaded_state, history_loaded_state, storage_dir, case_patient_select],
             outputs=patient_workspace_outputs,
@@ -3634,6 +3686,9 @@ def build_app() -> gr.Blocks:
             fn=clear_patient_session,
             outputs=[image, batch_files, *common_outputs, case_id, case_note],
         ).then(
+            fn=clear_patient_workspace_views,
+            outputs=patient_workspace_outputs,
+        ).then(
             fn=refresh_patient_workspace_views,
             inputs=[case_loaded_state, history_loaded_state, storage_dir, case_patient_select],
             outputs=patient_workspace_outputs,
@@ -3655,6 +3710,9 @@ def build_app() -> gr.Blocks:
         ).then(
             fn=clear_patient_session,
             outputs=[image, batch_files, *common_outputs, case_id, case_note],
+        ).then(
+            fn=clear_patient_workspace_views,
+            outputs=patient_workspace_outputs,
         ).then(
             fn=refresh_patient_workspace_views,
             inputs=[case_loaded_state, history_loaded_state, storage_dir, case_patient_select],

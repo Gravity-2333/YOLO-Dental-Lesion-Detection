@@ -119,6 +119,22 @@ class UiContractTests(unittest.TestCase):
         self.assertEqual(values[-2:], ("", ""))
         self.assertEqual(len(values), len(COMMON_OUTPUT_KEYS) + 4)
 
+    def test_patient_switch_clears_all_patient_scoped_views_before_refresh(self) -> None:
+        values = app.clear_patient_workspace_views()
+        self.assertEqual(len(values), 26)
+        self.assertIsNone(values[0]["value"])
+        self.assertIsNone(values[6]["value"])
+        self.assertIsNone(values[10]["value"])
+        self.assertFalse(values[4]["visible"])
+        self.assertFalse(values[13]["visible"])
+        self.assertFalse(values[15]["interactive"])
+        self.assertEqual(values[16:18], ("", ""))
+        self.assertIsNone(values[23]["value"])
+        self.assertFalse(values[-1])
+
+        source = inspect.getsource(app.build_app)
+        self.assertEqual(source.count("fn=clear_patient_workspace_views"), 6)
+
     def test_detection_table_contract_keeps_export_order(self) -> None:
         self.assertEqual(DETECTION_TABLE_COLUMNS[0:3], ("class", "中文名称", "confidence"))
 
@@ -222,6 +238,24 @@ class UiContentTests(unittest.TestCase):
         self.assertTrue(direct_values[1]["visible"])
         self.assertEqual(direct_values[2]["value"], "")
         self.assertFalse(direct_values[-1])
+
+    def test_hiding_direct_api_key_moves_value_back_to_password_field(self) -> None:
+        shown = app.toggle_direct_key_visibility("saved-key", "", False)
+        self.assertFalse(shown[0]["visible"])
+        self.assertEqual(shown[1]["value"], "saved-key")
+        self.assertTrue(shown[1]["visible"])
+        self.assertTrue(shown[-1])
+
+        hidden = app.toggle_direct_key_visibility(
+            shown[0]["value"],
+            "edited-visible-key",
+            shown[-1],
+        )
+        self.assertEqual(hidden[0]["value"], "edited-visible-key")
+        self.assertTrue(hidden[0]["visible"])
+        self.assertEqual(hidden[1]["value"], "")
+        self.assertFalse(hidden[1]["visible"])
+        self.assertFalse(hidden[-1])
 
     def test_ai_tab_lazy_loads_local_conversation_history(self) -> None:
         source = inspect.getsource(app.build_app)
@@ -340,6 +374,45 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(len(result), 22)
         self.assertEqual(result[-3:], (False, False, True))
 
+    def test_settings_keep_old_config_when_new_workspace_preflight_fails(self) -> None:
+        with (
+            patch.object(app, "load_settings", return_value=app.AiSettings(storage_dir="old-root")),
+            patch.object(app, "save_settings") as save_mock,
+            patch.object(app, "_ensure_storage_root"),
+            patch.object(
+                app,
+                "ensure_personal_workspace",
+                side_effect=app.WorkspaceError("workspace database is unavailable"),
+            ),
+        ):
+            with self.assertRaises(app.gr.Error) as raised:
+                app.save_ui_settings(
+                    False,
+                    "",
+                    "",
+                    "环境变量",
+                    "",
+                    "",
+                    "",
+                    False,
+                    False,
+                    True,
+                    "new-root",
+                    "",
+                    "简洁版",
+                    False,
+                    False,
+                    "单模型",
+                    "",
+                    "",
+                    "",
+                    True,
+                    100,
+                )
+
+        self.assertIn("患者工作区初始化失败", str(raised.exception))
+        save_mock.assert_not_called()
+
     def test_unchanged_storage_skips_report_rescan(self) -> None:
         with patch.object(app, "refresh_report_center") as refresh_mock:
             result = app.refresh_report_center_after_storage_change(False, "unused", "patient-1")
@@ -361,6 +434,13 @@ class UiContentTests(unittest.TestCase):
             retain_limit=37,
             patient_id=None,
         )
+
+    def test_history_limit_normalization_handles_non_finite_values(self) -> None:
+        self.assertEqual(app._normalize_history_limit(float("inf")), 100)
+        self.assertEqual(app._normalize_history_limit(float("-inf")), 100)
+        self.assertEqual(app._normalize_history_limit(float("nan")), 100)
+        self.assertEqual(app._normalize_history_limit(-5), 1)
+        self.assertEqual(app._normalize_history_limit(5000), 1000)
 
     def test_batch_upload_has_a_hard_file_count_limit(self) -> None:
         self.assertEqual(len(app._normalize_batch_files(["a"] * app.BATCH_FILE_LIMIT)), app.BATCH_FILE_LIMIT)
