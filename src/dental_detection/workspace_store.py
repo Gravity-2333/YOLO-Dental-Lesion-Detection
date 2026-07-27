@@ -456,12 +456,31 @@ class WorkspaceStore:
         summary_json = _json_object(result_summary if result_summary is not None else current.result_summary)
         error = _optional_text(error_message, max_length=4000)
         with self._connection() as connection:
-            connection.execute(
+            cursor = connection.execute(
                 """UPDATE detection_tasks
                    SET status = ?, result_summary_json = ?, error_message = ?, started_at = ?, completed_at = ?
-                   WHERE id = ? AND owner_user_id = ?""",
-                (target.value, summary_json, error, started_at, completed_at, current.id, current.owner_user_id),
+                   WHERE id = ? AND owner_user_id = ? AND status = ?""",
+                (
+                    target.value,
+                    summary_json,
+                    error,
+                    started_at,
+                    completed_at,
+                    current.id,
+                    current.owner_user_id,
+                    current.status.value,
+                ),
             )
+            if cursor.rowcount != 1:
+                row = connection.execute(
+                    "SELECT status FROM detection_tasks WHERE id = ? AND owner_user_id = ?",
+                    (current.id, current.owner_user_id),
+                ).fetchone()
+                if row is None:
+                    raise RecordNotFoundError("检测任务不存在。")
+                raise InvalidTaskTransitionError(
+                    f"检测任务状态已从 {current.status.value} 变为 {row['status']}，请刷新后重试。"
+                )
         return self.get_detection_task(owner_user_id, task_id)
 
     def register_image(

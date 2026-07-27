@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Barrier
 import unittest
+from unittest.mock import patch
 
 from src.dental_detection.personal_workspace import (
     PERSONAL_PATIENT_ID,
@@ -82,6 +85,44 @@ class WorkspaceStoreTests(unittest.TestCase):
         self.assertIsNotNone(completed.completed_at)
         with self.assertRaises(InvalidTaskTransitionError):
             self.store.update_task_status(self.owner.id, task.id, TaskStatus.FAILED)
+
+    def test_concurrent_terminal_task_updates_cannot_overwrite_each_other(self) -> None:
+        task = self.store.create_detection_task(self.owner.id, self.patient.id, "model-a")
+        self.store.update_task_status(self.owner.id, task.id, TaskStatus.RUNNING)
+        original_get = self.store.get_detection_task
+        ready = Barrier(2)
+
+        def synchronized_get(owner_user_id: str, task_id: str):
+            current = original_get(owner_user_id, task_id)
+            if current.status == TaskStatus.RUNNING:
+                ready.wait(timeout=5)
+            return current
+
+        with (
+            patch.object(self.store, "get_detection_task", side_effect=synchronized_get),
+            ThreadPoolExecutor(max_workers=2) as executor,
+        ):
+            futures = [
+                executor.submit(
+                    self.store.update_task_status,
+                    self.owner.id,
+                    task.id,
+                    status,
+                )
+                for status in (TaskStatus.SUCCEEDED, TaskStatus.FAILED)
+            ]
+            outcomes = []
+            failures = []
+            for future in futures:
+                try:
+                    outcomes.append(future.result())
+                except InvalidTaskTransitionError as exc:
+                    failures.append(exc)
+
+        self.assertEqual(len(outcomes), 1)
+        self.assertEqual(len(failures), 1)
+        self.assertIn(outcomes[0].status, {TaskStatus.SUCCEEDED, TaskStatus.FAILED})
+        self.assertEqual(original_get(self.owner.id, task.id).status, outcomes[0].status)
 
     def test_patient_updates_and_archives_stay_owner_scoped(self) -> None:
         other = self.store.create_user("other-owner", "其他所有者")

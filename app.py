@@ -4057,6 +4057,9 @@ def build_app() -> gr.Blocks:
             fn=download_result_image,
             inputs=[batch_state, batch_select, storage_dir],
             outputs=[result_image_file, result_image_path],
+            concurrency_limit=1,
+            concurrency_id=EXPORT_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         export_report_btn.click(
             fn=export_single_report,
@@ -4117,6 +4120,9 @@ def build_app() -> gr.Blocks:
             fn=export_selected_case_record,
             inputs=[case_select, storage_dir, case_patient_select],
             outputs=[case_report_file, case_report_path],
+            concurrency_limit=1,
+            concurrency_id=EXPORT_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         case_select.input(
             fn=load_case_record_and_clear_export,
