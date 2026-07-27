@@ -423,7 +423,10 @@ class UiContentTests(unittest.TestCase):
             ("ai_tab.select(", "case_tab.select("),
             ("case_tab.select(", "history_tab.select("),
             ("refresh_conversation_btn.click(", "load_conversation_btn.click("),
-            ("load_conversation_btn.click(", "refresh_model_btn.click("),
+            (
+                "load_conversation_btn.click(",
+                "gr.on(\n            triggers=[refresh_model_btn.click",
+            ),
             ("refresh_case_btn.click(", "search_case_btn.click("),
             ("search_case_btn.click(", "delete_case_btn.click("),
             ("case_select.input(", "refresh_history_btn.click("),
@@ -437,6 +440,29 @@ class UiContentTests(unittest.TestCase):
                 event_source = source.split(start, 1)[1].split(end, 1)[0]
                 self.assertIn('trigger_mode="always_last"', event_source)
                 self.assertIn('show_progress="minimal"', event_source)
+
+    def test_model_directory_scans_share_one_latest_request_queue(self) -> None:
+        source = inspect.getsource(app.build_app)
+        model_scan_event = source.split(
+            "gr.on(\n            triggers=[refresh_model_btn.click",
+            1,
+        )[1].split("open_model_dir_btn.click(", 1)[0]
+        self.assertIn("show_advanced_models.input", model_scan_event)
+        self.assertIn("fn=refresh_model_choices", model_scan_event)
+        self.assertIn("concurrency_limit=1", model_scan_event)
+        self.assertIn("concurrency_id=MODEL_SCAN_CONCURRENCY_ID", model_scan_event)
+        self.assertIn('trigger_mode="always_last"', model_scan_event)
+        self.assertIn('show_progress="minimal"', model_scan_event)
+
+        apply_card_event = source.split("apply_model_card_btn.click(", 1)[1].split(
+            "test_model_btn.click(",
+            1,
+        )[0]
+        apply_card_primary = apply_card_event.split(").then(", 1)[0]
+        self.assertIn("concurrency_limit=1", apply_card_primary)
+        self.assertIn("concurrency_id=MODEL_SCAN_CONCURRENCY_ID", apply_card_primary)
+        self.assertIn('show_progress="minimal"', apply_card_primary)
+        self.assertEqual(source.count("concurrency_id=MODEL_SCAN_CONCURRENCY_ID"), 2)
 
     def test_case_note_starts_compact_and_can_expand(self) -> None:
         source = inspect.getsource(app.build_app)
@@ -457,7 +483,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('concurrency_limit=1', source)
         self.assertGreaterEqual(source.count('concurrency_id=INFERENCE_CONCURRENCY_ID'), 3)
         self.assertGreaterEqual(source.count('concurrency_id=AI_REQUEST_CONCURRENCY_ID'), 2)
-        self.assertEqual(source.count('concurrency_id=EXPORT_CONCURRENCY_ID'), 6)
+        self.assertEqual(source.count('concurrency_id=EXPORT_CONCURRENCY_ID'), 7)
         self.assertGreaterEqual(source.count('trigger_mode="always_last"'), 3)
         self.assertIn("triggers=[chat_btn.click, chat_input.submit]", source)
         self.assertIn("cancels=chat_event", source)
@@ -689,8 +715,29 @@ class UiContentTests(unittest.TestCase):
         source = inspect.getsource(app.build_app)
         self.assertGreaterEqual(
             source.count("concurrency_id=RECORD_WRITE_CONCURRENCY_ID"),
-            6,
+            10,
         )
+        patient_event_ranges = (
+            ("add_patient_btn.click(", "save_patient_btn.click("),
+            ("save_patient_btn.click(", "archive_patient_btn.click("),
+            ("archive_patient_btn.click(", "restore_patient_btn.click("),
+            ("restore_patient_btn.click(", "# User-only listeners"),
+        )
+        for start, end in patient_event_ranges:
+            with self.subTest(event=start):
+                event_source = source.split(start, 1)[1].split(end, 1)[0]
+                write_event = event_source.split(").then(", 1)[0]
+                self.assertIn("concurrency_limit=1", write_event)
+                self.assertIn("concurrency_id=RECORD_WRITE_CONCURRENCY_ID", write_event)
+                self.assertIn('show_progress="minimal"', write_event)
+
+        chat_export = source.split("export_btn.click(", 1)[1].split(
+            "export_batch_btn.click(",
+            1,
+        )[0]
+        self.assertIn("concurrency_limit=1", chat_export)
+        self.assertIn("concurrency_id=EXPORT_CONCURRENCY_ID", chat_export)
+        self.assertIn('show_progress="minimal"', chat_export)
 
     def test_missing_models_warn_without_blocking_app_startup(self) -> None:
         saved = app.AiSettings(

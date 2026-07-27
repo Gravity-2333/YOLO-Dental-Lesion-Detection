@@ -176,6 +176,7 @@ INFERENCE_CONCURRENCY_ID = "dental-inference"
 AI_REQUEST_CONCURRENCY_ID = "dental-ai-request"
 EXPORT_CONCURRENCY_ID = "dental-export"
 RECORD_WRITE_CONCURRENCY_ID = "dental-record-write"
+MODEL_SCAN_CONCURRENCY_ID = "dental-model-scan"
 CASE_UI_LIMIT = 200
 HISTORY_UI_LIMIT = 200
 BATCH_TOTAL_UPLOAD_BYTES = 200 * 1024 * 1024
@@ -3687,6 +3688,9 @@ def build_app() -> gr.Blocks:
                 new_patient_reference,
                 patient_feedback,
             ],
+            concurrency_limit=1,
+            concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
+            show_progress="minimal",
         ).then(fn=clear_patient_session, outputs=[image, batch_files, *common_outputs, case_id, case_note]).then(
             fn=clear_patient_workspace_views,
             inputs=conversation_loaded_state,
@@ -3714,6 +3718,9 @@ def build_app() -> gr.Blocks:
                 archive_patient_btn,
                 patient_feedback,
             ],
+            concurrency_limit=1,
+            concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         archive_patient_btn.click(
             fn=archive_patient_profile,
@@ -3729,6 +3736,9 @@ def build_app() -> gr.Blocks:
                 restore_patient_btn,
                 patient_feedback,
             ],
+            concurrency_limit=1,
+            concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
+            show_progress="minimal",
         ).then(
             fn=clear_patient_session,
             outputs=[image, batch_files, *common_outputs, case_id, case_note],
@@ -3761,6 +3771,9 @@ def build_app() -> gr.Blocks:
                 restore_patient_btn,
                 patient_feedback,
             ],
+            concurrency_limit=1,
+            concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
+            show_progress="minimal",
         ).then(
             fn=clear_patient_session,
             outputs=[image, batch_files, *common_outputs, case_id, case_note],
@@ -4031,15 +4044,15 @@ def build_app() -> gr.Blocks:
             trigger_mode="always_last",
             show_progress="minimal",
         )
-        refresh_model_btn.click(
+        gr.on(
+            triggers=[refresh_model_btn.click, show_advanced_models.input],
             fn=refresh_model_choices,
             inputs=[model_dir, model_file_select, show_advanced_models],
             outputs=[model_file_select, model_feedback],
-        )
-        show_advanced_models.input(
-            fn=refresh_model_choices,
-            inputs=[model_dir, model_file_select, show_advanced_models],
-            outputs=[model_file_select, model_feedback],
+            concurrency_limit=1,
+            concurrency_id=MODEL_SCAN_CONCURRENCY_ID,
+            trigger_mode="always_last",
+            show_progress="minimal",
         )
         open_model_dir_btn.click(
             fn=choose_model_dir,
@@ -4065,6 +4078,9 @@ def build_app() -> gr.Blocks:
             fn=apply_model_card,
             inputs=[model_card_select, model_dir, show_advanced_models],
             outputs=[primary_model_path, model_file_select, model_cards_view, model_info_markdown, model_feedback],
+            concurrency_limit=1,
+            concurrency_id=MODEL_SCAN_CONCURRENCY_ID,
+            show_progress="minimal",
         ).then(
             fn=_workbench_model_status_html,
             inputs=primary_model_path,
@@ -4094,6 +4110,9 @@ def build_app() -> gr.Blocks:
             fn=export_chat,
             inputs=[chat_state, storage_dir, patient_select],
             outputs=[export_file, export_path],
+            concurrency_limit=1,
+            concurrency_id=EXPORT_CONCURRENCY_ID,
+            show_progress="minimal",
         )
         export_batch_btn.click(
             fn=export_batch_results,
