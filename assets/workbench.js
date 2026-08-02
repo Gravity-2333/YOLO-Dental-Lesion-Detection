@@ -1,4 +1,10 @@
 (() => {
+  const PATH_VALUE_SELECTOR = [
+    ".path-row input",
+    ".path-row textarea",
+    ".path-output input",
+    ".path-output textarea",
+  ].join(", ");
   let labelingScheduled = false;
   let runtimeAppId = "";
   let runtimeCheckInFlight = false;
@@ -98,9 +104,32 @@
     });
   };
 
+  const syncPathValueTitle = (target) => {
+    if (
+      !(target instanceof HTMLInputElement)
+      && !(target instanceof HTMLTextAreaElement)
+    ) {
+      return;
+    }
+    if (!target.matches(PATH_VALUE_SELECTOR)) {
+      return;
+    }
+    const value = target.value;
+    if (value.trim()) {
+      target.setAttribute("title", value);
+    } else {
+      target.removeAttribute("title");
+    }
+  };
+
+  const labelPathValues = () => {
+    document.querySelectorAll(PATH_VALUE_SELECTOR).forEach(syncPathValueTitle);
+  };
+
   const labelIconActions = () => {
     labelOverflowMenus();
     labelPathPickers();
+    labelPathValues();
   };
 
   const scheduleMenuLabeling = () => {
@@ -124,6 +153,9 @@
     window.addEventListener("focus", checkRuntimeVersion);
     window.addEventListener("online", checkRuntimeVersion);
     document.addEventListener("visibilitychange", checkRuntimeVersion);
+    ["input", "change", "focusin", "pointerover"].forEach((eventName) => {
+      document.addEventListener(eventName, (event) => syncPathValueTitle(event.target), true);
+    });
     window.setInterval(checkRuntimeVersion, 30000);
     new MutationObserver(scheduleMenuLabeling).observe(document.body, {
       childList: true,

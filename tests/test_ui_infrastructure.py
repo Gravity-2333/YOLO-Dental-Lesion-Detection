@@ -67,6 +67,22 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn('"选择存储目录"', javascript)
         self.assertIn('setAttribute("aria-label", label)', javascript)
 
+    def test_truncated_path_fields_expose_the_full_value_as_a_tooltip(self) -> None:
+        javascript = load_workbench_js()
+
+        for selector in (
+            '".path-row input"',
+            '".path-row textarea"',
+            '".path-output input"',
+            '".path-output textarea"',
+        ):
+            with self.subTest(selector=selector):
+                self.assertIn(selector, javascript)
+        self.assertIn('target.setAttribute("title", value)', javascript)
+        self.assertIn('target.removeAttribute("title")', javascript)
+        self.assertIn('["input", "change", "focusin", "pointerover"]', javascript)
+        self.assertIn("labelPathValues();", javascript)
+
     def test_compact_action_buttons_share_a_stable_height(self) -> None:
         css = load_workbench_css()
         self.assertIn(".row.compact-row > button", css)
