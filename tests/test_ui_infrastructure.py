@@ -448,15 +448,25 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('trigger_mode="always_last"', model_scan_event)
         self.assertIn('show_progress="minimal"', model_scan_event)
 
-        apply_card_event = source.split("apply_model_card_btn.click(", 1)[1].split(
+        apply_card_event = source.split("apply_model_card_event = apply_model_card_btn.click(", 1)[1].split(
             "test_model_btn.click(",
             1,
         )[0]
         apply_card_primary = apply_card_event.split(").then(", 1)[0]
         self.assertIn("concurrency_limit=1", apply_card_primary)
         self.assertIn("concurrency_id=MODEL_SCAN_CONCURRENCY_ID", apply_card_primary)
+        self.assertIn('trigger_mode="always_last"', apply_card_primary)
         self.assertIn('show_progress="minimal"', apply_card_primary)
-        self.assertEqual(source.count("concurrency_id=MODEL_SCAN_CONCURRENCY_ID"), 2)
+        apply_selected_event = source.split("apply_selected_model_event = apply_model_btn.click(", 1)[1].split(
+            "apply_model_card_event =",
+            1,
+        )[0]
+        apply_selected_primary = apply_selected_event.split(").then(", 1)[0]
+        self.assertIn("concurrency_limit=1", apply_selected_primary)
+        self.assertIn("concurrency_id=MODEL_SCAN_CONCURRENCY_ID", apply_selected_primary)
+        self.assertIn('trigger_mode="always_last"', apply_selected_primary)
+        self.assertIn('show_progress="minimal"', apply_selected_primary)
+        self.assertEqual(source.count("concurrency_id=MODEL_SCAN_CONCURRENCY_ID"), 3)
 
     def test_case_note_starts_compact_and_can_expand(self) -> None:
         source = inspect.getsource(app.build_app)
@@ -470,8 +480,8 @@ class UiContentTests(unittest.TestCase):
 
     def test_user_inputs_do_not_retrigger_callbacks_from_function_updates(self) -> None:
         source = inspect.getsource(app.build_app)
-        self.assertIn("model_mode.input(fn=sync_model_mode", source)
-        self.assertIn("settings_model_mode.input(fn=sync_model_mode", source)
+        self.assertIn("model_mode.input(\n            fn=sync_model_mode", source)
+        self.assertIn("settings_model_mode.input(\n            fn=sync_model_mode", source)
         self.assertIn("batch_select.input(", source)
         self.assertIn('concurrency_id=INFERENCE_CONCURRENCY_ID', source)
         self.assertIn('concurrency_limit=1', source)
@@ -485,6 +495,72 @@ class UiContentTests(unittest.TestCase):
         self.assertNotIn("model_mode.change(fn=sync_model_mode", source)
         self.assertNotIn("settings_model_mode.change(fn=sync_model_mode", source)
         self.assertNotIn("chat_btn.click(\n            fn=continue_chat", source)
+
+    def test_lightweight_ui_controls_do_not_block_the_page(self) -> None:
+        source = inspect.getsource(app.build_app)
+        event_ranges = (
+            ("ai_enabled.input(", "key_mode.input("),
+            ("key_mode.input(", "show_direct_key_btn.click("),
+            ("show_direct_key_btn.click(", "model_mode_event ="),
+            ("model_mode_event = model_mode.input(", "chain_detection_result_reset(model_mode_event)"),
+            ("settings_model_mode_event = settings_model_mode.input(", "chain_detection_result_reset(settings_model_mode_event)"),
+            ("enable_compare_event = enable_compare.input(", "chain_detection_result_reset(enable_compare_event)"),
+            ("show_summary.input(", "test_btn.click("),
+            ("default_storage_btn.click(", "open_storage_btn.click("),
+        )
+        for start, end in event_ranges:
+            with self.subTest(event=start):
+                event_source = source.split(start, 1)[1].split(end, 1)[0]
+                self.assertIn("queue=False", event_source)
+                self.assertIn('show_progress="hidden"', event_source)
+
+    def test_stale_detection_resets_share_one_latest_request_queue(self) -> None:
+        source = inspect.getsource(app.build_app)
+        helper_source = source.split("def chain_detection_result_reset", 1)[1].split(
+            "# User-only listeners",
+            1,
+        )[0]
+        self.assertIn("concurrency_limit=1", helper_source)
+        self.assertIn("concurrency_id=RESULT_RESET_CONCURRENCY_ID", helper_source)
+        self.assertIn('trigger_mode="always_last"', helper_source)
+        self.assertIn('show_progress="hidden"', helper_source)
+        self.assertEqual(source.count("concurrency_id=RESULT_RESET_CONCURRENCY_ID"), 6)
+        self.assertEqual(source.count("chain_detection_result_reset("), 6)
+
+    def test_followup_events_avoid_full_page_progress(self) -> None:
+        source = inspect.getsource(app.build_app)
+        save_followups = source.split("save_settings_btn.click(", 1)[1].split(
+            "chat_event =",
+            1,
+        )[0]
+        for callback in (
+            "refresh_report_center_after_storage_change",
+            "refresh_conversations_after_storage_change",
+        ):
+            event_source = save_followups.split(f"fn={callback}", 1)[1].split(").then(", 1)[0]
+            self.assertIn('trigger_mode="always_last"', event_source)
+            self.assertIn('show_progress="minimal"', event_source)
+        self.assertIn("fn=refresh_ai_runtime_status", save_followups)
+        self.assertIn("queue=False", save_followups)
+        self.assertIn('show_progress="hidden"', save_followups)
+
+        for callback in (
+            "reset_history_delete_confirmation",
+            "reset_report_trash_confirmation",
+        ):
+            self.assertEqual(source.count(f"fn={callback}"), 2)
+        self.assertGreaterEqual(source.count('queue=False,\n            show_progress="hidden"'), 9)
+
+        export_ranges = (
+            ("export_word_btn.click(", "download_result_btn.click("),
+            ("export_report_btn.click(", "save_case_btn.click("),
+        )
+        for start, end in export_ranges:
+            with self.subTest(export=start):
+                event_source = source.split(start, 1)[1].split(end, 1)[0]
+                followup = event_source.split("fn=refresh_report_center", 1)[1]
+                self.assertIn('trigger_mode="always_last"', followup)
+                self.assertIn('show_progress="minimal"', followup)
 
     def test_result_view_redraws_share_one_latest_request_queue(self) -> None:
         source = inspect.getsource(app.build_app)
@@ -532,7 +608,10 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("concurrency_limit=1", primary_event)
         self.assertIn('trigger_mode="always_last"', primary_event)
         self.assertIn('show_progress="minimal"', primary_event)
-        self.assertEqual(event_source.count('show_progress="minimal"'), 2)
+        reset_event = event_source.split(").then(", 1)[1]
+        self.assertIn("concurrency_id=RESULT_RESET_CONCURRENCY_ID", reset_event)
+        self.assertIn('trigger_mode="always_last"', reset_event)
+        self.assertIn('show_progress="hidden"', reset_event)
 
     def test_settings_save_does_not_move_existing_data_implicitly(self) -> None:
         source = inspect.getsource(app.save_ui_settings)

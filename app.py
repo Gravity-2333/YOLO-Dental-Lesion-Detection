@@ -179,6 +179,7 @@ RECORD_WRITE_CONCURRENCY_ID = "dental-record-write"
 MODEL_SCAN_CONCURRENCY_ID = "dental-model-scan"
 RESULT_VIEW_CONCURRENCY_ID = "dental-result-view"
 PATIENT_VIEW_CONCURRENCY_ID = "dental-patient-view"
+RESULT_RESET_CONCURRENCY_ID = "dental-result-reset"
 CASE_UI_LIMIT = 200
 HISTORY_UI_LIMIT = 200
 BATCH_TOTAL_UPLOAD_BYTES = 200 * 1024 * 1024
@@ -3742,17 +3743,72 @@ def build_app() -> gr.Blocks:
             show_progress="minimal",
         )
         chain_patient_workspace_refresh(restore_patient_event, case_patient_select)
+
+        def chain_detection_result_reset(event):
+            """Invalidate stale detection outputs without blocking the whole page."""
+            return event.then(
+                fn=clear_outputs_with_quality,
+                inputs=image,
+                outputs=common_outputs,
+                concurrency_limit=1,
+                concurrency_id=RESULT_RESET_CONCURRENCY_ID,
+                trigger_mode="always_last",
+                show_progress="hidden",
+            )
+
         # User-only listeners avoid reprocessing when another callback updates a component.
         # This is important for large images and model outputs: Gradio's `.change()` also
         # fires for function updates, which can create duplicate redraws or event loops.
-        image.input(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
-        batch_files.upload(fn=clear_outputs, outputs=common_outputs)
-        batch_files.clear(fn=clear_outputs, outputs=common_outputs)
+        image.input(
+            fn=clear_outputs_with_quality,
+            inputs=image,
+            outputs=common_outputs,
+            concurrency_limit=1,
+            concurrency_id=RESULT_RESET_CONCURRENCY_ID,
+            trigger_mode="always_last",
+            show_progress="hidden",
+        )
+        batch_files.upload(
+            fn=clear_outputs,
+            outputs=common_outputs,
+            concurrency_limit=1,
+            concurrency_id=RESULT_RESET_CONCURRENCY_ID,
+            trigger_mode="always_last",
+            show_progress="hidden",
+        )
+        batch_files.clear(
+            fn=clear_outputs,
+            outputs=common_outputs,
+            concurrency_limit=1,
+            concurrency_id=RESULT_RESET_CONCURRENCY_ID,
+            trigger_mode="always_last",
+            show_progress="hidden",
+        )
         stale_result_controls = [primary_model_path, compare_model_path, conf, iou, device_choice, use_clahe]
         for control in stale_result_controls:
-            control.input(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
-        primary_model_path.input(fn=_workbench_model_status_html, inputs=primary_model_path, outputs=workbench_model_status)
-        example_select.input(fn=_example_preview_text, inputs=example_select, outputs=example_info)
+            control.input(
+                fn=clear_outputs_with_quality,
+                inputs=image,
+                outputs=common_outputs,
+                concurrency_limit=1,
+                concurrency_id=RESULT_RESET_CONCURRENCY_ID,
+                trigger_mode="always_last",
+                show_progress="hidden",
+            )
+        primary_model_path.input(
+            fn=_workbench_model_status_html,
+            inputs=primary_model_path,
+            outputs=workbench_model_status,
+            trigger_mode="always_last",
+            show_progress="hidden",
+        )
+        example_select.input(
+            fn=_example_preview_text,
+            inputs=example_select,
+            outputs=example_info,
+            trigger_mode="always_last",
+            show_progress="hidden",
+        )
         load_example_btn.click(
             fn=load_demo_example,
             inputs=example_select,
@@ -3764,7 +3820,10 @@ def build_app() -> gr.Blocks:
             fn=clear_outputs_with_quality,
             inputs=image,
             outputs=common_outputs,
-            show_progress="minimal",
+            concurrency_limit=1,
+            concurrency_id=RESULT_RESET_CONCURRENCY_ID,
+            trigger_mode="always_last",
+            show_progress="hidden",
         )
         run_btn.click(
             fn=run_single_detection,
@@ -3835,7 +3894,13 @@ def build_app() -> gr.Blocks:
             trigger_mode="always_last",
             show_progress="minimal",
         )
-        ai_enabled.input(fn=toggle_ai_settings, inputs=ai_enabled, outputs=ai_group)
+        ai_enabled.input(
+            fn=toggle_ai_settings,
+            inputs=ai_enabled,
+            outputs=ai_group,
+            queue=False,
+            show_progress="hidden",
+        )
         key_mode.input(
             fn=set_api_key_mode,
             inputs=[
@@ -3845,32 +3910,47 @@ def build_app() -> gr.Blocks:
                 direct_key_visible,
             ],
             outputs=[env_api_key, direct_api_key_hidden, direct_api_key_visible, show_direct_key_btn, direct_key_visible],
+            queue=False,
+            show_progress="hidden",
         )
         show_direct_key_btn.click(
             fn=toggle_direct_key_visibility,
             inputs=[direct_api_key_hidden, direct_api_key_visible, direct_key_visible],
             outputs=[direct_api_key_hidden, direct_api_key_visible, show_direct_key_btn, direct_key_visible],
+            queue=False,
+            show_progress="hidden",
         )
-        model_mode.input(fn=sync_model_mode, inputs=model_mode, outputs=[settings_model_mode, compare_model_path]).then(
-            fn=clear_outputs_with_quality,
-            inputs=image,
-            outputs=common_outputs,
+        model_mode_event = model_mode.input(
+            fn=sync_model_mode,
+            inputs=model_mode,
+            outputs=[settings_model_mode, compare_model_path],
+            queue=False,
+            show_progress="hidden",
         )
-        settings_model_mode.input(fn=sync_model_mode, inputs=settings_model_mode, outputs=[model_mode, compare_model_path]).then(
-            fn=clear_outputs_with_quality,
-            inputs=image,
-            outputs=common_outputs,
+        chain_detection_result_reset(model_mode_event)
+        settings_model_mode_event = settings_model_mode.input(
+            fn=sync_model_mode,
+            inputs=settings_model_mode,
+            outputs=[model_mode, compare_model_path],
+            queue=False,
+            show_progress="hidden",
         )
-        enable_compare.input(
+        chain_detection_result_reset(settings_model_mode_event)
+        enable_compare_event = enable_compare.input(
             fn=on_enable_compare_change,
             inputs=enable_compare,
             outputs=[model_mode, settings_model_mode, compare_model_path],
-        ).then(
-            fn=clear_outputs_with_quality,
-            inputs=image,
-            outputs=common_outputs,
+            queue=False,
+            show_progress="hidden",
         )
-        show_summary.input(fn=toggle_summary, inputs=show_summary, outputs=summary)
+        chain_detection_result_reset(enable_compare_event)
+        show_summary.input(
+            fn=toggle_summary,
+            inputs=show_summary,
+            outputs=summary,
+            queue=False,
+            show_progress="hidden",
+        )
         test_btn.click(
             fn=test_ai_settings,
             inputs=settings.ai_request_inputs(),
@@ -3935,6 +4015,8 @@ def build_app() -> gr.Blocks:
             fn=refresh_report_center_after_storage_change,
             inputs=[storage_changed_state, storage_dir, history_patient_select],
             outputs=report_list_outputs,
+            trigger_mode="always_last",
+            show_progress="minimal",
         ).then(
             fn=refresh_conversations_after_storage_change,
             inputs=[
@@ -3948,11 +4030,14 @@ def build_app() -> gr.Blocks:
                 conversation_feedback,
                 conversation_loaded_state,
             ],
+            trigger_mode="always_last",
+            show_progress="minimal",
         ).then(
             fn=refresh_ai_runtime_status,
             inputs=[chat_state, *settings.ai_request_inputs()],
             outputs=ai_runtime_status,
             queue=False,
+            show_progress="hidden",
         )
         chat_event = gr.on(
             triggers=[chat_btn.click, chat_input.submit],
@@ -3982,6 +4067,7 @@ def build_app() -> gr.Blocks:
             ],
             cancels=chat_event,
             queue=False,
+            show_progress="hidden",
         )
         refresh_conversation_btn.click(
             fn=refresh_conversation_history,
@@ -4027,35 +4113,38 @@ def build_app() -> gr.Blocks:
             queue=False,
             show_progress="hidden",
         )
-        apply_model_btn.click(
+        apply_selected_model_event = apply_model_btn.click(
             fn=apply_selected_model,
             inputs=[model_file_select, model_apply_target],
             outputs=[primary_model_path, compare_model_path, model_cards_view, model_info_markdown, model_feedback],
-        ).then(
-            fn=_workbench_model_status_html,
-            inputs=primary_model_path,
-            outputs=workbench_model_status,
-        ).then(
-            fn=clear_outputs_with_quality,
-            inputs=image,
-            outputs=common_outputs,
-        )
-        apply_model_card_btn.click(
-            fn=apply_model_card,
-            inputs=[model_card_select, model_dir, show_advanced_models],
-            outputs=[primary_model_path, model_file_select, model_cards_view, model_info_markdown, model_feedback],
             concurrency_limit=1,
             concurrency_id=MODEL_SCAN_CONCURRENCY_ID,
+            trigger_mode="always_last",
             show_progress="minimal",
         ).then(
             fn=_workbench_model_status_html,
             inputs=primary_model_path,
             outputs=workbench_model_status,
-        ).then(
-            fn=clear_outputs_with_quality,
-            inputs=image,
-            outputs=common_outputs,
+            trigger_mode="always_last",
+            show_progress="hidden",
         )
+        chain_detection_result_reset(apply_selected_model_event)
+        apply_model_card_event = apply_model_card_btn.click(
+            fn=apply_model_card,
+            inputs=[model_card_select, model_dir, show_advanced_models],
+            outputs=[primary_model_path, model_file_select, model_cards_view, model_info_markdown, model_feedback],
+            concurrency_limit=1,
+            concurrency_id=MODEL_SCAN_CONCURRENCY_ID,
+            trigger_mode="always_last",
+            show_progress="minimal",
+        ).then(
+            fn=_workbench_model_status_html,
+            inputs=primary_model_path,
+            outputs=workbench_model_status,
+            trigger_mode="always_last",
+            show_progress="hidden",
+        )
+        chain_detection_result_reset(apply_model_card_event)
         test_model_btn.click(
             fn=test_model_file,
             inputs=[primary_model_path, compare_model_path, settings_model_mode],
@@ -4064,7 +4153,12 @@ def build_app() -> gr.Blocks:
             concurrency_id=INFERENCE_CONCURRENCY_ID,
             show_progress="minimal",
         )
-        default_storage_btn.click(fn=default_storage_dir, outputs=[storage_dir, settings_feedback])
+        default_storage_btn.click(
+            fn=default_storage_dir,
+            outputs=[storage_dir, settings_feedback],
+            queue=False,
+            show_progress="hidden",
+        )
         open_storage_btn.click(
             fn=choose_storage_dir,
             inputs=storage_dir,
@@ -4107,6 +4201,8 @@ def build_app() -> gr.Blocks:
             fn=refresh_report_center,
             inputs=[storage_dir, history_patient_select],
             outputs=report_list_outputs,
+            trigger_mode="always_last",
+            show_progress="minimal",
         )
         download_result_btn.click(
             fn=download_result_image,
@@ -4127,6 +4223,8 @@ def build_app() -> gr.Blocks:
             fn=refresh_report_center,
             inputs=[storage_dir, history_patient_select],
             outputs=report_list_outputs,
+            trigger_mode="always_last",
+            show_progress="minimal",
         )
         save_case_btn.click(
             fn=save_case_record,
@@ -4200,6 +4298,7 @@ def build_app() -> gr.Blocks:
             fn=reset_history_delete_confirmation,
             outputs=[delete_history_btn, history_delete_confirmation],
             queue=False,
+            show_progress="hidden",
         )
         history_select.input(
             fn=load_history_record,
@@ -4211,6 +4310,7 @@ def build_app() -> gr.Blocks:
             fn=reset_history_delete_confirmation,
             outputs=[delete_history_btn, history_delete_confirmation],
             queue=False,
+            show_progress="hidden",
         )
         delete_history_btn.click(
             fn=confirm_delete_selected_history_record,
@@ -4238,6 +4338,7 @@ def build_app() -> gr.Blocks:
             fn=reset_report_trash_confirmation,
             outputs=report_trash_confirmation,
             queue=False,
+            show_progress="hidden",
         )
         report_center.report_select.input(
             fn=load_active_report_center_item,
@@ -4254,6 +4355,7 @@ def build_app() -> gr.Blocks:
             fn=reset_report_trash_confirmation,
             outputs=report_trash_confirmation,
             queue=False,
+            show_progress="hidden",
         )
         report_center.trash_button.click(
             fn=confirm_trash_report_center_item,

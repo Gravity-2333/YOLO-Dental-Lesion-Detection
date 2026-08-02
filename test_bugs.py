@@ -2024,12 +2024,22 @@ try:
         "模型路径、阈值、设备和 CLAHE 变化都应注册陈旧结果清理"
     )
     assert "for control in stale_result_controls:" in app_text, "陈旧结果清理应统一绑定，避免漏掉单个控件"
-    assert app_text.count("fn=clear_outputs_with_quality,\n            inputs=image,\n            outputs=common_outputs,") >= 5, (
-        "模型应用、模型模式和关键推理参数变化后应清理旧检测/导出状态"
+    reset_helper = app_text[
+        app_text.index("def chain_detection_result_reset") : app_text.index("# User-only listeners")
+    ]
+    assert "fn=clear_outputs_with_quality" in reset_helper, "统一重置链应清理旧检测/导出状态"
+    assert "concurrency_id=RESULT_RESET_CONCURRENCY_ID" in reset_helper, "统一重置链应共享串行边界"
+    assert 'trigger_mode="always_last"' in reset_helper, "统一重置链应丢弃过期的待处理请求"
+    assert app_text.count("concurrency_id=RESULT_RESET_CONCURRENCY_ID") >= 6, (
+        "图片、批量文件、参数和模型应用变化都应接入统一结果重置队列"
     )
     assert "apply_model_btn.click(" in app_text and "apply_model_card_btn.click(" in app_text, "模型应用入口应存在"
     apply_model_section = app_text[app_text.index("apply_model_btn.click(") : app_text.index("test_model_btn.click(")]
-    assert apply_model_section.count("clear_outputs_with_quality") >= 2, "应用模型后不应保留旧检测结果"
+    assert apply_model_section.count("chain_detection_result_reset") >= 2, "应用模型后不应保留旧检测结果"
+    model_mode_section = app_text[
+        app_text.index("model_mode_event = model_mode.input(") : app_text.index("test_btn.click(")
+    ]
+    assert model_mode_section.count("chain_detection_result_reset") >= 3, "模型模式变化后不应保留旧检测结果"
     print("✓ 模型和推理参数变化清理陈旧结果正常")
 except Exception as e:
     print(f"✗ 模型和推理参数陈旧结果清理测试失败: {e}")
