@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
 from .ai_defaults import SAFETY_NOTICE
@@ -46,6 +47,14 @@ def _record_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
     return _clean_detection_records(data.get("detections"))
 
 
+def _model_artifact_name(value: Any) -> str:
+    path_text = text_value(value).strip().rstrip("/\\")
+    if not path_text:
+        return ""
+    path_type = PureWindowsPath if "\\" in path_text else PurePosixPath
+    return path_type(path_text).name
+
+
 def _format_model_results(model_results: Any) -> list[str]:
     model_items = list(iter_model_result_items(model_results))
     if not model_items:
@@ -57,10 +66,10 @@ def _format_model_results(model_results: Any) -> list[str]:
         if raw_count in {"", None}:
             raw_count = sum(1 for _ in iter_detection_items(model_result_detections(item)))
         count = text_value(raw_count, "0")
-        path = text_value(model_result_path(item))
+        artifact_name = _model_artifact_name(model_result_path(item))
         line = f"- {index}. {model} | 检测数量={count}"
-        if path:
-            line += f" | 路径={path}"
+        if artifact_name:
+            line += f" | 模型文件={artifact_name}"
         lines.append(line)
     return lines if len(lines) > 2 else []
 
@@ -72,10 +81,12 @@ def _format_summary_value(key: str, value: Any) -> list[str]:
             if isinstance(item, dict):
                 model = item.get("模型") or item.get("model") or f"模型 {index}"
                 count = item.get("检测数量", item.get("count", "-"))
-                path = item.get("路径") or item.get("模型路径") or item.get("model_path")
+                artifact_name = _model_artifact_name(
+                    item.get("路径") or item.get("模型路径") or item.get("model_path")
+                )
                 line = f"  {index}. {model} | 检测数量={count}"
-                if path:
-                    line += f" | 路径={path}"
+                if artifact_name:
+                    line += f" | 模型文件={artifact_name}"
                 lines.append(line)
             else:
                 lines.append(f"  {index}. {item}")
