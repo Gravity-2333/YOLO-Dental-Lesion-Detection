@@ -71,7 +71,8 @@
     grid-template-columns: 1fr !important;
   }
 
-  .ai-context-strip {
+  .ai-context-strip,
+  .record-boundary-strip {
     grid-template-columns: 1fr !important;
   }
 

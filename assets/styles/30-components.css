@@ -1165,3 +1165,37 @@ footer,
 .app-toast-success {
   background: #0f766e;
 }
+
+.record-boundary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 2px 0 16px;
+  overflow: hidden;
+  border: 1px solid var(--soft-border);
+  border-radius: var(--radius-sm);
+  background: var(--soft-border);
+}
+
+.record-boundary-strip > div {
+  min-width: 0;
+  padding: 9px 12px;
+  background: var(--surface-bg);
+}
+
+.record-boundary-strip strong,
+.record-boundary-strip span {
+  display: block;
+}
+
+.record-boundary-strip strong {
+  color: #24322f;
+  font-size: 0.8rem;
+}
+
+.record-boundary-strip span {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}

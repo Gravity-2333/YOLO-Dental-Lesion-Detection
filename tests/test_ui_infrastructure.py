@@ -27,6 +27,7 @@ from src.dental_detection.ui_content import (
     AI_CHAT_INTRO_HTML,
     APP_HEADER_HTML,
     CASE_INTRO_HTML,
+    HISTORY_INTRO_HTML,
     WORKBENCH_HELP_TEXT,
     section_heading,
 )
@@ -344,10 +345,24 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("不能替代专业牙科医生诊断", WORKBENCH_HELP_TEXT)
 
     def test_user_facing_copy_avoids_internal_demo_instructions(self) -> None:
-        visible_copy = "".join((APP_HEADER_HTML, AI_CHAT_INTRO_HTML, CASE_INTRO_HTML))
+        visible_copy = "".join(
+            (APP_HEADER_HTML, AI_CHAT_INTRO_HTML, CASE_INTRO_HTML, HISTORY_INTRO_HTML)
+        )
         self.assertNotIn("答辩", visible_copy)
         self.assertNotIn("../yolov8-train", visible_copy)
         self.assertNotIn("演示提示", visible_copy)
+
+    def test_record_pages_explain_the_local_privacy_boundary(self) -> None:
+        for content in (CASE_INTRO_HTML, HISTORY_INTRO_HTML):
+            with self.subTest(content=content[:40]):
+                self.assertIn("本机数据目录", content)
+                self.assertIn("默认不随病例和历史保存", content)
+                self.assertIn("不会自动上传云端", content)
+                self.assertIn('class="record-boundary-strip"', content)
+
+        source = inspect.getsource(app.build_app)
+        self.assertIn("gr.HTML(HISTORY_INTRO_HTML)", source)
+        self.assertNotIn("自动保存最近检测摘要，默认不保存原始上传图", source)
 
     def test_new_chat_clears_conversation_and_export_state(self) -> None:
         chatbot, state, message, file_update, path = app.clear_current_chat()

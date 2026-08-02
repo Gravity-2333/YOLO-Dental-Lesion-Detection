@@ -38,6 +38,19 @@ AI_CHAT_INTRO_HTML = """
 <p class="ai-privacy-note">仅发送检测文字摘要，不上传牙科影像；回复仅供辅助参考，不替代专业牙科医生诊断。</p>
 """
 
+RECORD_BOUNDARY_HTML = """
+<div class="record-boundary-strip">
+  <div><strong>保存位置</strong><span>本机数据目录，可在设置中查看</span></div>
+  <div><strong>原始牙片</strong><span>默认不随病例和历史保存</span></div>
+  <div><strong>云端传输</strong><span>记录不会自动上传云端</span></div>
+</div>
+"""
+
+
 CASE_INTRO_HTML = """
 <div class="card-heading"><div><h2>病例记录</h2><p>保存检测摘要、检测框和建议，便于后续复查。</p></div></div>
-"""
+""" + RECORD_BOUNDARY_HTML
+
+HISTORY_INTRO_HTML = """
+<div class="card-heading"><div><h2>检测历史</h2><p>自动保存最近检测摘要，便于回看检测结果。</p></div></div>
+""" + RECORD_BOUNDARY_HTML

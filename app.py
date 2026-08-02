@@ -157,6 +157,7 @@ from src.dental_detection.ui_constants import (
 from src.dental_detection.ui_content import (
     APP_HEADER_HTML,
     CASE_INTRO_HTML,
+    HISTORY_INTRO_HTML,
     section_heading,
 )
 from src.dental_detection.ui_ai_chat_page import (
@@ -3385,10 +3386,7 @@ def build_app() -> gr.Blocks:
 
             with gr.Tab("检测历史") as history_tab:
                 with gr.Group(elem_classes=["section-card", "case-card"]):
-                    gr.HTML(
-                        '<div class="card-heading"><div><h2>检测历史</h2>'
-                        '<p>自动保存最近检测摘要，默认不保存原始上传图。</p></div></div>'
-                    )
+                    gr.HTML(HISTORY_INTRO_HTML)
                     history_patient_select = gr.Dropdown(
                         label="当前患者档案",
                         choices=patient_choices,
