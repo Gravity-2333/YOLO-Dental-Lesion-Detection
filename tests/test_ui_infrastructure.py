@@ -496,6 +496,47 @@ class UiContentTests(unittest.TestCase):
         self.assertNotIn("settings_model_mode.change(fn=sync_model_mode", source)
         self.assertNotIn("chat_btn.click(\n            fn=continue_chat", source)
 
+    def test_result_invalidations_cancel_running_inference(self) -> None:
+        source = inspect.getsource(app.build_app)
+        cancellation_event = source.split(
+            "inference_events = [single_detection_event, batch_detection_event]",
+            1,
+        )[1].split("def chain_detection_result_reset", 1)[0]
+        self.assertIn("fn=None", cancellation_event)
+        self.assertIn("cancels=inference_events", cancellation_event)
+        self.assertIn("queue=False", cancellation_event)
+        self.assertIn('show_progress="hidden"', cancellation_event)
+        for trigger in (
+            "image.input",
+            "batch_files.upload",
+            "primary_model_path.input",
+            "conf.input",
+            "model_mode.input",
+            "load_example_btn.click",
+            "apply_model_btn.click",
+            "patient_select.input",
+            "archive_patient_btn.click",
+            "clear_session_btn.click",
+            "save_settings_btn.click",
+        ):
+            with self.subTest(trigger=trigger):
+                self.assertIn(trigger, cancellation_event)
+
+        self.assertIn("single_detection_event = run_btn.click(", source)
+        self.assertIn("batch_detection_event = batch_btn.click(", source)
+
+    def test_manual_diagnostics_keep_only_latest_pending_request(self) -> None:
+        source = inspect.getsource(app.build_app)
+        event_ranges = (
+            ("test_btn.click(", "save_settings_btn.click("),
+            ("test_model_btn.click(", "default_storage_btn.click("),
+        )
+        for start, end in event_ranges:
+            with self.subTest(event=start):
+                event_source = source.split(start, 1)[1].split(end, 1)[0]
+                self.assertIn('trigger_mode="always_last"', event_source)
+                self.assertIn('show_progress="minimal"', event_source)
+
     def test_lightweight_ui_controls_do_not_block_the_page(self) -> None:
         source = inspect.getsource(app.build_app)
         event_ranges = (

@@ -2030,6 +2030,7 @@ try:
     assert "fn=clear_outputs_with_quality" in reset_helper, "统一重置链应清理旧检测/导出状态"
     assert "concurrency_id=RESULT_RESET_CONCURRENCY_ID" in reset_helper, "统一重置链应共享串行边界"
     assert 'trigger_mode="always_last"' in reset_helper, "统一重置链应丢弃过期的待处理请求"
+    assert "cancels=inference_events" in app_text, "输入、模型或患者变化时应取消过期检测回写"
     assert app_text.count("concurrency_id=RESULT_RESET_CONCURRENCY_ID") >= 6, (
         "图片、批量文件、参数和模型应用变化都应接入统一结果重置队列"
     )

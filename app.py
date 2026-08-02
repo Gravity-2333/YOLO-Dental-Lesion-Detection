@@ -3640,6 +3640,7 @@ def build_app() -> gr.Blocks:
             fn=load_tab_report_center_file,
             inputs=[report_center.report_select, storage_dir, history_patient_select],
             outputs=report_center.report_file,
+            trigger_mode="always_last",
             show_progress="minimal",
         )
 
@@ -3744,6 +3745,55 @@ def build_app() -> gr.Blocks:
         )
         chain_patient_workspace_refresh(restore_patient_event, case_patient_select)
 
+        single_detection_event = run_btn.click(
+            fn=run_single_detection,
+            inputs=[image, *common_inputs],
+            outputs=common_outputs,
+            concurrency_limit=1,
+            concurrency_id=INFERENCE_CONCURRENCY_ID,
+            show_progress="minimal",
+        )
+        batch_detection_event = batch_btn.click(
+            fn=run_batch_detection,
+            inputs=[batch_files, *common_inputs],
+            outputs=common_outputs,
+            concurrency_limit=1,
+            concurrency_id=INFERENCE_CONCURRENCY_ID,
+            show_progress="minimal",
+        )
+        inference_events = [single_detection_event, batch_detection_event]
+        gr.on(
+            triggers=[
+                image.input,
+                batch_files.upload,
+                batch_files.clear,
+                primary_model_path.input,
+                compare_model_path.input,
+                conf.input,
+                iou.input,
+                device_choice.input,
+                use_clahe.input,
+                model_mode.input,
+                settings_model_mode.input,
+                enable_compare.input,
+                load_example_btn.click,
+                apply_model_btn.click,
+                apply_model_card_btn.click,
+                patient_select.input,
+                case_patient_select.input,
+                history_patient_select.input,
+                add_patient_btn.click,
+                archive_patient_btn.click,
+                restore_patient_btn.click,
+                clear_session_btn.click,
+                save_settings_btn.click,
+            ],
+            fn=None,
+            cancels=inference_events,
+            queue=False,
+            show_progress="hidden",
+        )
+
         def chain_detection_result_reset(event):
             """Invalidate stale detection outputs without blocking the whole page."""
             return event.then(
@@ -3824,22 +3874,6 @@ def build_app() -> gr.Blocks:
             concurrency_id=RESULT_RESET_CONCURRENCY_ID,
             trigger_mode="always_last",
             show_progress="hidden",
-        )
-        run_btn.click(
-            fn=run_single_detection,
-            inputs=[image, *common_inputs],
-            outputs=common_outputs,
-            concurrency_limit=1,
-            concurrency_id=INFERENCE_CONCURRENCY_ID,
-            show_progress="minimal",
-        )
-        batch_btn.click(
-            fn=run_batch_detection,
-            inputs=[batch_files, *common_inputs],
-            outputs=common_outputs,
-            concurrency_limit=1,
-            concurrency_id=INFERENCE_CONCURRENCY_ID,
-            show_progress="minimal",
         )
         batch_select.input(
             fn=select_batch_item,
@@ -3957,6 +3991,7 @@ def build_app() -> gr.Blocks:
             outputs=test_result,
             concurrency_limit=1,
             concurrency_id=AI_REQUEST_CONCURRENCY_ID,
+            trigger_mode="always_last",
             show_progress="minimal",
         )
         save_settings_btn.click(
@@ -4151,6 +4186,7 @@ def build_app() -> gr.Blocks:
             outputs=model_feedback,
             concurrency_limit=1,
             concurrency_id=INFERENCE_CONCURRENCY_ID,
+            trigger_mode="always_last",
             show_progress="minimal",
         )
         default_storage_btn.click(
