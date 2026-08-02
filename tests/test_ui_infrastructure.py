@@ -214,6 +214,15 @@ class DependencyManifestTests(unittest.TestCase):
         self.assertIn("-r requirements.txt", development)
         self.assertIn("playwright", development.casefold())
 
+    def test_final_page_screenshots_reset_scroll_before_capture(self) -> None:
+        screenshot_source = (
+            Path(__file__).resolve().parents[1] / "scripts" / "capture_ui_screenshots.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("document.activeElement.blur()", screenshot_source)
+        self.assertIn("scrollingElement.scrollTop = 0", screenshot_source)
+        self.assertGreaterEqual(screenshot_source.count("reset_scroll=True"), 5)
+
 
 class UiContractTests(unittest.TestCase):
     def test_common_output_contract_preserves_declared_order(self) -> None:

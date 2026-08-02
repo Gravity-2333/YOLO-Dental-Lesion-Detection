@@ -73,7 +73,28 @@ def click_accordion(page, label: str) -> None:
     page.wait_for_timeout(800)
 
 
-def save(page, output_dir: Path, filename: str, *, full: bool = False) -> None:
+def save(
+    page,
+    output_dir: Path,
+    filename: str,
+    *,
+    full: bool = False,
+    reset_scroll: bool = False,
+) -> None:
+    if reset_scroll:
+        page.evaluate(
+            """() => {
+                if (document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                }
+                const scrollingElement = document.scrollingElement || document.documentElement;
+                scrollingElement.scrollTop = 0;
+                scrollingElement.scrollLeft = 0;
+                document.body.scrollTop = 0;
+                document.body.scrollLeft = 0;
+            }"""
+        )
+        page.wait_for_timeout(300)
     path = output_dir / filename
     page.screenshot(path=str(path), full_page=full)
     print(f"saved {path}")
@@ -159,7 +180,12 @@ def capture(args: argparse.Namespace) -> None:
             wait_ready(page, base_url)
             check_horizontal_overflow(page, "桌面工作台")
             check_navigation_responsiveness(page)
-            save(page, output_dir, name("01-workbench-desktop.png", suffix))
+            save(
+                page,
+                output_dir,
+                name("01-workbench-desktop.png", suffix),
+                reset_scroll=True,
+            )
 
             try:
                 click_tab(page, "设置")
@@ -206,14 +232,24 @@ def capture(args: argparse.Namespace) -> None:
                 )
                 page.wait_for_timeout(12000)
                 check_navigation_responsiveness(page)
-                save(page, output_dir, name("03-workbench-detection-result.png", suffix))
+                save(
+                    page,
+                    output_dir,
+                    name("03-workbench-detection-result.png", suffix),
+                    reset_scroll=True,
+                )
             except Exception as exc:
                 print(f"03 detection/upload screenshot failed: {exc}")
                 save(page, output_dir, name("03-workbench-detection-result.png", suffix))
 
             try:
                 click_tab(page, "AI 问答")
-                save(page, output_dir, name("04-ai-chat.png", suffix))
+                save(
+                    page,
+                    output_dir,
+                    name("04-ai-chat.png", suffix),
+                    reset_scroll=True,
+                )
             except Exception as exc:
                 print(f"04-ai-chat.png screenshot failed: {exc}")
                 save(page, output_dir, name("04-ai-chat.png", suffix))
@@ -223,7 +259,12 @@ def capture(args: argparse.Namespace) -> None:
                 try:
                     wait_ready(detail_page, base_url)
                     click_tab(detail_page, tab_name)
-                    save(detail_page, output_dir, name(filename, suffix))
+                    save(
+                        detail_page,
+                        output_dir,
+                        name(filename, suffix),
+                        reset_scroll=True,
+                    )
                     if tab_name == "设置":
                         click_accordion(detail_page, "存储与隐私")
                         check_visible_path_row_alignment(detail_page, "存储目录")
@@ -243,7 +284,12 @@ def capture(args: argparse.Namespace) -> None:
             try:
                 wait_ready(mobile, base_url)
                 check_horizontal_overflow(mobile, "移动端工作台")
-                save(mobile, output_dir, name("07-workbench-mobile.png", suffix))
+                save(
+                    mobile,
+                    output_dir,
+                    name("07-workbench-mobile.png", suffix),
+                    reset_scroll=True,
+                )
             finally:
                 mobile.close()
         finally:
