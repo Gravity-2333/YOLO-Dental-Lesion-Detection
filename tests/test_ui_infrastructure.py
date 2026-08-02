@@ -37,7 +37,7 @@ from src.dental_detection.ui_settings_page import (
     SettingsComponents,
     build_settings_page,
 )
-from src.dental_detection.ui_workbench_page import WorkbenchComponents
+from src.dental_detection.ui_workbench_page import WorkbenchComponents, build_workbench_page
 
 
 class UiAssetTests(unittest.TestCase):
@@ -335,6 +335,19 @@ class UiContractTests(unittest.TestCase):
 
 
 class UiContentTests(unittest.TestCase):
+    def test_workbench_shows_interpretation_before_technical_detection_details(self) -> None:
+        source = inspect.getsource(build_workbench_page)
+        insight_position = source.index('with gr.Row(elem_classes=["insight-grid"])')
+        detail_position = source.index(
+            'with gr.Group(elem_classes=["section-card", "result-table-card"])'
+        )
+
+        self.assertLess(insight_position, detail_position)
+        self.assertIn('"查看检测明细",\n                    open=False', source)
+        detail_source = source[detail_position : source.index("summary =", detail_position)]
+        self.assertIn("visible_class_filter = gr.CheckboxGroup", detail_source)
+        self.assertIn("det_table = gr.Dataframe", detail_source)
+
     def test_section_heading_escapes_dynamic_text(self) -> None:
         html = section_heading("<标题>", "A&B")
         self.assertIn("&lt;标题&gt;", html)

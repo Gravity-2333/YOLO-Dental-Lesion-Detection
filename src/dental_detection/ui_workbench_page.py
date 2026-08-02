@@ -295,23 +295,6 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                     )
                     result_image_file = gr.File(label="检测结果图 PNG", visible=False)
 
-            with gr.Group(elem_classes=["section-card", "result-table-card"]):
-                gr.HTML(legend_html())
-                visible_class_filter = gr.CheckboxGroup(
-                    label="显示类别",
-                    choices=[],
-                    value=[],
-                    interactive=False,
-                    elem_classes=["compact-control"],
-                )
-                det_table = gr.Dataframe(
-                    value=data.initial_detection_table,
-                    headers=list(DETECTION_TABLE_COLUMNS),
-                    label="检测框",
-                    wrap=False,
-                    interactive=False,
-                )
-
             with gr.Row(elem_classes=["insight-grid"]):
                 advice_box = gr.Textbox(
                     label="牙齿辅助建议",
@@ -326,6 +309,28 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                     interactive=False,
                     elem_classes=["panel-card"],
                 )
+
+            with gr.Group(elem_classes=["section-card", "result-table-card"]):
+                gr.HTML(legend_html())
+                with gr.Accordion(
+                    "查看检测明细",
+                    open=False,
+                    elem_classes=["result-details-accordion"],
+                ):
+                    visible_class_filter = gr.CheckboxGroup(
+                        label="显示类别",
+                        choices=[],
+                        value=[],
+                        interactive=False,
+                        elem_classes=["compact-control"],
+                    )
+                    det_table = gr.Dataframe(
+                        value=data.initial_detection_table,
+                        headers=list(DETECTION_TABLE_COLUMNS),
+                        label="检测框",
+                        wrap=False,
+                        interactive=False,
+                    )
             summary = gr.JSON(label="参数摘要", visible=False)
 
             with gr.Group(elem_classes=["section-card", "export-toolbar"]):
