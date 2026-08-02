@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 import re
 import sys
+from tempfile import TemporaryDirectory
 from time import perf_counter
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -71,6 +72,39 @@ def click_tab(page, tab_name: str) -> None:
 def click_accordion(page, label: str) -> None:
     page.get_by_role("button", name=re.compile(rf"^{re.escape(label)}")).first.click(timeout=15000)
     page.wait_for_timeout(800)
+
+
+def configure_isolated_detection_session(page, storage_dir: Path) -> bool:
+    click_tab(page, "设置")
+    click_accordion(page, "AI 接口")
+    ai_enabled = page.get_by_label("启用 AI 建议与问答")
+    if ai_enabled.count() != 1:
+        raise RuntimeError("截图会话无法唯一定位 AI 开关，已停止以避免外部请求。")
+    ai_was_enabled = ai_enabled.is_checked()
+    if ai_was_enabled:
+        ai_enabled.uncheck(timeout=10000)
+
+    click_accordion(page, "存储与隐私")
+    storage_input = page.get_by_label("存储目录")
+    if storage_input.count() != 1:
+        raise RuntimeError("截图会话无法唯一定位存储目录，已停止以避免写入真实数据。")
+    isolated_path = str(storage_dir.resolve())
+    storage_input.fill(isolated_path, timeout=10000)
+    if storage_input.input_value() != isolated_path:
+        raise RuntimeError("截图会话未能切换到临时数据目录，已停止以避免写入真实数据。")
+    click_tab(page, "检测工作台")
+    return ai_was_enabled
+
+
+def open_ai_page_for_capture(page, restore_enabled: bool) -> None:
+    if restore_enabled:
+        click_tab(page, "设置")
+        ai_enabled = page.get_by_label("启用 AI 建议与问答")
+        if not ai_enabled.is_visible():
+            click_accordion(page, "AI 接口")
+        if not ai_enabled.is_checked():
+            ai_enabled.check(timeout=10000)
+    click_tab(page, "AI 问答")
 
 
 def save(
@@ -173,7 +207,7 @@ def capture(args: argparse.Namespace) -> None:
 
     check_service(base_url)
 
-    with sync_playwright() as p:
+    with TemporaryDirectory(prefix="dental-ui-regression-") as temp_storage, sync_playwright() as p:
         browser = launch_chromium_with_fallback(p, headless=True)
         page = browser.new_page(viewport={"width": 1440, "height": 950})
         try:
@@ -207,8 +241,8 @@ def capture(args: argparse.Namespace) -> None:
                 print(f"02 screenshot failed: {exc}")
                 save(page, output_dir, name("02-workbench-model-selection.png", suffix))
 
+            ai_was_enabled = configure_isolated_detection_session(page, Path(temp_storage))
             try:
-                click_tab(page, "检测工作台")
                 if not example.exists():
                     raise RuntimeError(f"example image not found: {example}")
                 file_inputs = page.locator("input[type=file]")
@@ -231,7 +265,6 @@ def capture(args: argparse.Namespace) -> None:
                     timeout=120000,
                 )
                 page.wait_for_timeout(12000)
-                check_navigation_responsiveness(page)
                 save(
                     page,
                     output_dir,
@@ -243,7 +276,7 @@ def capture(args: argparse.Namespace) -> None:
                 save(page, output_dir, name("03-workbench-detection-result.png", suffix))
 
             try:
-                click_tab(page, "AI 问答")
+                open_ai_page_for_capture(page, ai_was_enabled)
                 save(
                     page,
                     output_dir,

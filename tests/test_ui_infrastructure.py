@@ -223,6 +223,19 @@ class DependencyManifestTests(unittest.TestCase):
         self.assertIn("scrollingElement.scrollTop = 0", screenshot_source)
         self.assertGreaterEqual(screenshot_source.count("reset_scroll=True"), 5)
 
+    def test_detection_screenshot_uses_an_isolated_non_ai_session(self) -> None:
+        screenshot_source = (
+            Path(__file__).resolve().parents[1] / "scripts" / "capture_ui_screenshots.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("TemporaryDirectory", screenshot_source)
+        self.assertIn("configure_isolated_detection_session", screenshot_source)
+        self.assertIn('page.get_by_label("存储目录")', screenshot_source)
+        self.assertIn("storage_input.fill(isolated_path", screenshot_source)
+        self.assertIn("ai_enabled.uncheck", screenshot_source)
+        self.assertNotIn('get_by_role("button", name="保存设置")', screenshot_source)
+        self.assertEqual(screenshot_source.count("check_navigation_responsiveness(page)"), 1)
+
 
 class UiContractTests(unittest.TestCase):
     def test_common_output_contract_preserves_declared_order(self) -> None:
