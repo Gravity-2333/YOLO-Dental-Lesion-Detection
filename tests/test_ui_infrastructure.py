@@ -411,6 +411,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('trigger_mode="always_last"', history_hydration)
         self.assertIn('show_progress="minimal"', history_hydration)
         self.assertIn("fn=load_tab_report_center_file", history_hydration)
+        self.assertIn(").success(", history_hydration)
         self.assertIn("inputs=[report_center.report_select", history_hydration)
         self.assertIn("outputs=report_center.report_file", history_hydration)
         self.assertIn("*report_metadata_outputs", history_hydration)
@@ -475,7 +476,7 @@ class UiContentTests(unittest.TestCase):
             "test_model_btn.click(",
             1,
         )[0]
-        apply_card_primary = apply_card_event.split(").then(", 1)[0]
+        apply_card_primary = apply_card_event.split(").success(", 1)[0]
         self.assertIn("concurrency_limit=1", apply_card_primary)
         self.assertIn("concurrency_id=MODEL_SCAN_CONCURRENCY_ID", apply_card_primary)
         self.assertIn('trigger_mode="always_last"', apply_card_primary)
@@ -484,7 +485,7 @@ class UiContentTests(unittest.TestCase):
             "apply_model_card_event =",
             1,
         )[0]
-        apply_selected_primary = apply_selected_event.split(").then(", 1)[0]
+        apply_selected_primary = apply_selected_event.split(").success(", 1)[0]
         self.assertIn("concurrency_limit=1", apply_selected_primary)
         self.assertIn("concurrency_id=MODEL_SCAN_CONCURRENCY_ID", apply_selected_primary)
         self.assertIn('trigger_mode="always_last"', apply_selected_primary)
@@ -609,6 +610,7 @@ class UiContentTests(unittest.TestCase):
             "# User-only listeners",
             1,
         )[0]
+        self.assertIn("return event.success(", helper_source)
         self.assertIn("concurrency_limit=1", helper_source)
         self.assertIn("concurrency_id=RESULT_RESET_CONCURRENCY_ID", helper_source)
         self.assertIn('trigger_mode="always_last"', helper_source)
@@ -623,7 +625,7 @@ class UiContentTests(unittest.TestCase):
             1,
         )[0]
         session_clear = save_followups.split("fn=clear_session_after_storage_change", 1)[1].split(
-            ").then(",
+            ").success(",
             1,
         )[0]
         self.assertIn("inputs=storage_changed_state", session_clear)
@@ -634,9 +636,11 @@ class UiContentTests(unittest.TestCase):
             "refresh_report_center_after_storage_change",
             "refresh_conversations_after_storage_change",
         ):
-            event_source = save_followups.split(f"fn={callback}", 1)[1].split(").then(", 1)[0]
+            event_source = save_followups.split(f"fn={callback}", 1)[1].split(").success(", 1)[0]
             self.assertIn('trigger_mode="always_last"', event_source)
             self.assertIn('show_progress="minimal"', event_source)
+        self.assertEqual(save_followups.count(").success("), 4)
+        self.assertNotIn(").then(", save_followups)
         self.assertIn("fn=refresh_ai_runtime_status", save_followups)
         self.assertIn("queue=False", save_followups)
         self.assertIn('show_progress="hidden"', save_followups)
@@ -646,6 +650,7 @@ class UiContentTests(unittest.TestCase):
             "reset_report_trash_confirmation",
         ):
             self.assertEqual(source.count(f"fn={callback}"), 2)
+            self.assertEqual(source.count(f").then(\n            fn={callback}"), 2)
         self.assertGreaterEqual(source.count('queue=False,\n            show_progress="hidden"'), 9)
 
         export_ranges = (
@@ -655,6 +660,7 @@ class UiContentTests(unittest.TestCase):
         for start, end in export_ranges:
             with self.subTest(export=start):
                 event_source = source.split(start, 1)[1].split(end, 1)[0]
+                self.assertIn(").success(", event_source)
                 followup = event_source.split("fn=refresh_report_center", 1)[1]
                 self.assertIn('trigger_mode="always_last"', followup)
                 self.assertIn('show_progress="minimal"', followup)
@@ -680,6 +686,8 @@ class UiContentTests(unittest.TestCase):
             "# Lazy-load record stores",
             1,
         )[0]
+        self.assertEqual(helper_source.count(".success("), 3)
+        self.assertNotIn(".then(", helper_source)
         self.assertEqual(helper_source.count('show_progress="hidden"'), 2)
         self.assertIn("concurrency_limit=1", helper_source)
         self.assertIn("concurrency_id=PATIENT_VIEW_CONCURRENCY_ID", helper_source)
@@ -701,11 +709,11 @@ class UiContentTests(unittest.TestCase):
             "run_btn.click(",
             1,
         )[0]
-        primary_event = event_source.split(").then(", 1)[0]
+        primary_event = event_source.split(").success(", 1)[0]
         self.assertIn("concurrency_limit=1", primary_event)
         self.assertIn('trigger_mode="always_last"', primary_event)
         self.assertIn('show_progress="minimal"', primary_event)
-        reset_event = event_source.split(").then(", 1)[1]
+        reset_event = event_source.split(").success(", 1)[1]
         self.assertIn("concurrency_id=RESULT_RESET_CONCURRENCY_ID", reset_event)
         self.assertIn('trigger_mode="always_last"', reset_event)
         self.assertIn('show_progress="hidden"', reset_event)
@@ -944,7 +952,7 @@ class UiContentTests(unittest.TestCase):
         for start, end in patient_event_ranges:
             with self.subTest(event=start):
                 event_source = source.split(start, 1)[1].split(end, 1)[0]
-                write_event = event_source.split(").then(", 1)[0]
+                write_event = event_source.split(").success(", 1)[0]
                 self.assertIn("concurrency_limit=1", write_event)
                 self.assertIn("concurrency_id=RECORD_WRITE_CONCURRENCY_ID", write_event)
                 self.assertIn('show_progress="minimal"', write_event)

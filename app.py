@@ -3586,16 +3586,16 @@ def build_app() -> gr.Blocks:
 
         def chain_patient_workspace_refresh(event, selected_patient):
             """Clear stale patient data, then hydrate only views opened this session."""
-            return event.then(
+            return event.success(
                 fn=clear_patient_session,
                 outputs=[image, batch_files, *common_outputs, case_id, case_note, chat_input],
                 show_progress="hidden",
-            ).then(
+            ).success(
                 fn=clear_patient_workspace_views,
                 inputs=conversation_loaded_state,
                 outputs=patient_workspace_outputs,
                 show_progress="hidden",
-            ).then(
+            ).success(
                 fn=refresh_patient_workspace_views,
                 inputs=[
                     case_loaded_state,
@@ -3644,7 +3644,7 @@ def build_app() -> gr.Blocks:
             outputs=[*history_list_outputs, *report_metadata_outputs, history_loaded_state],
             trigger_mode="always_last",
             show_progress="minimal",
-        ).then(
+        ).success(
             fn=load_tab_report_center_file,
             inputs=[report_center.report_select, storage_dir, history_patient_select],
             outputs=report_center.report_file,
@@ -3804,7 +3804,7 @@ def build_app() -> gr.Blocks:
 
         def chain_detection_result_reset(event):
             """Invalidate stale detection outputs without blocking the whole page."""
-            return event.then(
+            return event.success(
                 fn=clear_outputs_with_quality,
                 inputs=image,
                 outputs=common_outputs,
@@ -3874,7 +3874,7 @@ def build_app() -> gr.Blocks:
             concurrency_limit=1,
             trigger_mode="always_last",
             show_progress="minimal",
-        ).then(
+        ).success(
             fn=clear_outputs_with_quality,
             inputs=image,
             outputs=common_outputs,
@@ -4054,19 +4054,19 @@ def build_app() -> gr.Blocks:
             concurrency_limit=1,
             concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
             show_progress="minimal",
-        ).then(
+        ).success(
             fn=clear_session_after_storage_change,
             inputs=storage_changed_state,
             outputs=[image, batch_files, *common_outputs, case_id, case_note, chat_input],
             queue=False,
             show_progress="hidden",
-        ).then(
+        ).success(
             fn=refresh_report_center_after_storage_change,
             inputs=[storage_changed_state, storage_dir, history_patient_select],
             outputs=report_list_outputs,
             trigger_mode="always_last",
             show_progress="minimal",
-        ).then(
+        ).success(
             fn=refresh_conversations_after_storage_change,
             inputs=[
                 storage_changed_state,
@@ -4081,7 +4081,7 @@ def build_app() -> gr.Blocks:
             ],
             trigger_mode="always_last",
             show_progress="minimal",
-        ).then(
+        ).success(
             fn=refresh_ai_runtime_status,
             inputs=[chat_state, *settings.ai_request_inputs()],
             outputs=ai_runtime_status,
@@ -4198,7 +4198,7 @@ def build_app() -> gr.Blocks:
             concurrency_id=MODEL_SCAN_CONCURRENCY_ID,
             trigger_mode="always_last",
             show_progress="minimal",
-        ).then(
+        ).success(
             fn=_workbench_model_status_html,
             inputs=primary_model_path,
             outputs=workbench_model_status,
@@ -4214,7 +4214,7 @@ def build_app() -> gr.Blocks:
             concurrency_id=MODEL_SCAN_CONCURRENCY_ID,
             trigger_mode="always_last",
             show_progress="minimal",
-        ).then(
+        ).success(
             fn=_workbench_model_status_html,
             inputs=primary_model_path,
             outputs=workbench_model_status,
@@ -4275,7 +4275,7 @@ def build_app() -> gr.Blocks:
             concurrency_limit=1,
             concurrency_id=EXPORT_CONCURRENCY_ID,
             show_progress="minimal",
-        ).then(
+        ).success(
             fn=refresh_report_center,
             inputs=[storage_dir, history_patient_select],
             outputs=report_list_outputs,
@@ -4297,7 +4297,7 @@ def build_app() -> gr.Blocks:
             concurrency_limit=1,
             concurrency_id=EXPORT_CONCURRENCY_ID,
             show_progress="minimal",
-        ).then(
+        ).success(
             fn=refresh_report_center,
             inputs=[storage_dir, history_patient_select],
             outputs=report_list_outputs,
