@@ -164,6 +164,7 @@ from src.dental_detection.ui_ai_chat_page import (
     AiChatPageData,
     build_ai_chat_page,
     build_ai_runtime_status,
+    chat_export_button_state,
     load_conversation_history_item,
     refresh_conversation_history,
 )
@@ -4154,6 +4155,13 @@ def build_app() -> gr.Blocks:
             trigger_mode="once",
             show_progress="minimal",
         )
+        chatbot.change(
+            fn=chat_export_button_state,
+            inputs=chatbot,
+            outputs=export_btn,
+            queue=False,
+            show_progress="hidden",
+        )
         gr.on(
             triggers=[
                 patient_select.input,
@@ -4183,6 +4191,21 @@ def build_app() -> gr.Blocks:
             show_progress="hidden",
         )
         clear_chat_btn.click(
+            fn=clear_current_chat_with_status,
+            inputs=[batch_state, batch_select, *settings.ai_request_inputs()],
+            outputs=[
+                chatbot,
+                chat_state,
+                chat_input,
+                export_file,
+                export_path,
+                ai_runtime_status,
+            ],
+            cancels=chat_event,
+            queue=False,
+            show_progress="hidden",
+        )
+        chatbot.clear(
             fn=clear_current_chat_with_status,
             inputs=[batch_state, batch_select, *settings.ai_request_inputs()],
             outputs=[

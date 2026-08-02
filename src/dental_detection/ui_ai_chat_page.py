@@ -117,6 +117,10 @@ def load_conversation_history_item(
     )
 
 
+def chat_export_button_state(history: Any):
+    return gr.update(interactive=bool(history))
+
+
 def build_ai_chat_page(data: AiChatPageData) -> AiChatComponents:
     with gr.Group(elem_classes=["section-card", "chat-card"]):
         gr.HTML(AI_CHAT_INTRO_HTML)
@@ -180,6 +184,7 @@ def build_ai_chat_page(data: AiChatPageData) -> AiChatComponents:
             )
             export_button = gr.Button(
                 "导出对话",
+                interactive=False,
                 scale=2,
                 elem_classes=["secondary-action"],
             )

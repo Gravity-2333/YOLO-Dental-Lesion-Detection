@@ -31,7 +31,11 @@ from src.dental_detection.ui_content import (
     WORKBENCH_HELP_TEXT,
     section_heading,
 )
-from src.dental_detection.ui_ai_chat_page import build_ai_runtime_status
+from src.dental_detection.ui_ai_chat_page import (
+    build_ai_chat_page,
+    build_ai_runtime_status,
+    chat_export_button_state,
+)
 from src.dental_detection.ui_settings_page import (
     AI_REQUEST_KEYS,
     SettingsComponents,
@@ -335,6 +339,32 @@ class UiContractTests(unittest.TestCase):
 
 
 class UiContentTests(unittest.TestCase):
+    def test_chat_export_button_follows_the_conversation_state(self) -> None:
+        self.assertFalse(chat_export_button_state([])["interactive"])
+        self.assertTrue(
+            chat_export_button_state([{"role": "assistant", "content": "结果"}])[
+                "interactive"
+            ]
+        )
+        self.assertIn('"导出对话",\n                interactive=False', inspect.getsource(build_ai_chat_page))
+
+        source = inspect.getsource(app.build_app)
+        event_source = source.split("chatbot.change(", 1)[1].split("gr.on(", 1)[0]
+        self.assertIn("fn=chat_export_button_state", event_source)
+        self.assertIn("inputs=chatbot", event_source)
+        self.assertIn("outputs=export_btn", event_source)
+        self.assertIn("queue=False", event_source)
+        self.assertIn('show_progress="hidden"', event_source)
+
+        clear_source = source.split("chatbot.clear(", 1)[1].split(
+            "refresh_conversation_btn.click(", 1
+        )[0]
+        self.assertIn("fn=clear_current_chat_with_status", clear_source)
+        self.assertIn("chat_state", clear_source)
+        self.assertIn("ai_runtime_status", clear_source)
+        self.assertIn("cancels=chat_event", clear_source)
+        self.assertIn("queue=False", clear_source)
+
     def test_workbench_shows_interpretation_before_technical_detection_details(self) -> None:
         source = inspect.getsource(build_workbench_page)
         insight_position = source.index('with gr.Row(elem_classes=["insight-grid"])')
