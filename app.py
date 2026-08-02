@@ -140,6 +140,7 @@ from src.dental_detection.result_items import (
 from src.dental_detection.text_utils import json_safe_value, text_value
 from src.dental_detection.ui_assets import load_workbench_css, load_workbench_js
 from src.dental_detection.ui_contracts import (
+    COMMON_OUTPUT_KEYS,
     COMMON_OUTPUT_QUALITY_INDEX,
     common_input_components,
     common_output_components,
@@ -2117,6 +2118,13 @@ def clear_patient_session():
     return (None, None, *clear_outputs(clear_chat=True), "", "", "")
 
 
+def clear_session_after_storage_change(storage_changed: bool):
+    """Clear browser-session data only when settings switch the workspace root."""
+    if not storage_changed:
+        return tuple(gr.update() for _ in range(len(COMMON_OUTPUT_KEYS) + 5))
+    return clear_patient_session()
+
+
 def clear_patient_workspace_views(conversation_loaded: bool = False):
     """Clear patient-scoped UI before loading another patient's records."""
     return (
@@ -4046,6 +4054,12 @@ def build_app() -> gr.Blocks:
             concurrency_limit=1,
             concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
             show_progress="minimal",
+        ).then(
+            fn=clear_session_after_storage_change,
+            inputs=storage_changed_state,
+            outputs=[image, batch_files, *common_outputs, case_id, case_note, chat_input],
+            queue=False,
+            show_progress="hidden",
         ).then(
             fn=refresh_report_center_after_storage_change,
             inputs=[storage_changed_state, storage_dir, history_patient_select],

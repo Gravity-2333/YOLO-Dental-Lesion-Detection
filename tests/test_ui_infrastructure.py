@@ -232,6 +232,21 @@ class UiContractTests(unittest.TestCase):
         self.assertNotIn("value", values[COMMON_OUTPUT_KEYS.index("chatbot")])
         self.assertNotIn("value", values[COMMON_OUTPUT_KEYS.index("chat_state")])
 
+    def test_storage_switch_clears_the_current_browser_session(self) -> None:
+        unchanged = app.clear_session_after_storage_change(False)
+        changed = app.clear_session_after_storage_change(True)
+
+        self.assertEqual(len(unchanged), len(COMMON_OUTPUT_KEYS) + 5)
+        self.assertTrue(all("value" not in update for update in unchanged))
+        self.assertEqual(len(changed), len(COMMON_OUTPUT_KEYS) + 5)
+        self.assertIsNone(changed[0])
+        self.assertIsNone(changed[1])
+        self.assertEqual(changed[-3:], ("", "", ""))
+        common_values = changed[2 : 2 + len(COMMON_OUTPUT_KEYS)]
+        self.assertEqual(common_values[COMMON_OUTPUT_KEYS.index("batch_state")], [])
+        self.assertEqual(common_values[COMMON_OUTPUT_KEYS.index("chatbot")], [])
+        self.assertEqual(common_values[COMMON_OUTPUT_KEYS.index("chat_state")], [])
+
     def test_patient_switch_clears_all_patient_scoped_views_before_refresh(self) -> None:
         values = app.clear_patient_workspace_views()
         self.assertEqual(len(values), 26)
@@ -607,6 +622,14 @@ class UiContentTests(unittest.TestCase):
             "chat_event =",
             1,
         )[0]
+        session_clear = save_followups.split("fn=clear_session_after_storage_change", 1)[1].split(
+            ").then(",
+            1,
+        )[0]
+        self.assertIn("inputs=storage_changed_state", session_clear)
+        self.assertIn("outputs=[image, batch_files, *common_outputs, case_id, case_note, chat_input]", session_clear)
+        self.assertIn("queue=False", session_clear)
+        self.assertIn('show_progress="hidden"', session_clear)
         for callback in (
             "refresh_report_center_after_storage_change",
             "refresh_conversations_after_storage_change",
