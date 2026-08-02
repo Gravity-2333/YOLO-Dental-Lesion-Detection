@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from src.dental_detection import assistant, conversation_store, settings_store
 from src.dental_detection.advice import default_advice, detection_prompt
+from src.dental_detection.ai_detection_context import build_detection_text_context
 from src.dental_detection.ai_client import _friendly_ai_error, normalize_base_url, validate_ai_request
 from src.dental_detection.ai_defaults import DEFAULT_AI_MODEL, SAFETY_NOTICE
 from src.dental_detection.conversation_store import (
@@ -133,6 +134,56 @@ class AiClientTests(unittest.TestCase):
 
 
 class AdviceAndConversationTests(unittest.TestCase):
+    def test_detection_context_contains_only_the_selected_text_summary(self) -> None:
+        batch_state = [
+            {
+                "name": "private-patient-name.png",
+                "result": {
+                    "original": object(),
+                    "model_path": "C:/private/models/secret.pt",
+                    "model": "model-a",
+                    "detections": [
+                        {
+                            "class": "Caries",
+                            "confidence": 0.82,
+                            "图像区域": "图像左侧上方区域",
+                            "x1": 1,
+                            "y1": 2,
+                            "x2": 30,
+                            "y2": 40,
+                        }
+                    ],
+                },
+            },
+            {
+                "name": "second.png",
+                "result": {
+                    "model": "model-b",
+                    "detections": [{"class": "Impacted", "confidence": 0.7}],
+                },
+            },
+        ]
+
+        context = build_detection_text_context(batch_state, "private-patient-name.png")
+
+        self.assertTrue(context.available)
+        self.assertEqual(context.detection_count, 1)
+        self.assertIn("龋齿", context.prompt_text)
+        self.assertIn("图像左侧上方区域", context.prompt_text)
+        self.assertNotIn("private-patient-name", context.prompt_text)
+        self.assertNotIn("secret.pt", context.prompt_text)
+        self.assertNotIn("阻生牙", context.prompt_text)
+
+    def test_completed_detection_without_boxes_is_still_an_available_context(self) -> None:
+        context = build_detection_text_context(
+            [{"name": "当前单图", "result": {"model": "model-a", "detections": []}}],
+            "当前单图",
+        )
+
+        self.assertTrue(context.available)
+        self.assertEqual(context.detection_count, 0)
+        self.assertIn('"检测已完成": true', context.prompt_text)
+
     def test_advice_and_prompt_keep_safety_boundary(self) -> None:
         advice = default_advice([])
         prompt = detection_prompt([])

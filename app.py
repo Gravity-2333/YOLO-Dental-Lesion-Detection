@@ -16,6 +16,7 @@ import pandas as pd
 import torch
 
 from src.dental_detection.advice import default_advice, detection_prompt
+from src.dental_detection.ai_detection_context import build_detection_text_context
 from src.dental_detection.ai_client import chat_completion, normalize_base_url, test_chat_completion
 from src.dental_detection.ai_defaults import (
     DEFAULT_AI_BASE_URL,
@@ -2902,6 +2903,8 @@ def continue_chat(
     custom_prompt: str,
     advice_style: str,
     patient_id: str | None = None,
+    batch_state: list[dict[str, Any]] | None = None,
+    selected_name: str | None = None,
 ):
     user_message = (message or "").strip()
     if not user_message:
@@ -2938,6 +2941,13 @@ def continue_chat(
             system_prompt = settings.custom_prompt
             if style_prompt:
                 system_prompt = f"{system_prompt}\n{style_prompt}"
+            detection_context = build_detection_text_context(batch_state, selected_name)
+            system_prompt = (
+                f"{system_prompt}\n\n"
+                "当前检测文字上下文如下。只能依据这些结构化文字讨论当前检测；"
+                "其中不包含原始影像，不得把模型结果表述为最终诊断：\n"
+                f"{detection_context.prompt_text}"
+            )
             messages = [{"role": "system", "content": system_prompt}, *history, user_entry]
             answer = chat_completion(settings, messages, temperature=0.2, max_tokens=500)
         except Exception as exc:
@@ -2965,9 +2975,12 @@ def clear_current_chat():
     return [], [], "", _clear_file_output(), ""
 
 
-def clear_current_chat_with_status(*ai_inputs):
+def clear_current_chat_with_status(batch_state, selected_name, *ai_inputs):
     settings = _ai_settings(*ai_inputs)
-    return (*clear_current_chat(), build_ai_runtime_status([], settings))
+    return (
+        *clear_current_chat(),
+        build_ai_runtime_status([], settings, batch_state, selected_name),
+    )
 
 
 def refresh_ai_tab_content(
@@ -2975,6 +2988,8 @@ def refresh_ai_tab_content(
     storage_dir: str,
     patient_id: str,
     history: list[dict[str, str]],
+    batch_state,
+    selected_name,
     *ai_inputs,
 ):
     settings = _ai_settings(*ai_inputs)
@@ -2982,25 +2997,42 @@ def refresh_ai_tab_content(
         history_update, feedback = gr.update(), gr.update()
     else:
         history_update, feedback = refresh_conversation_history(storage_dir, patient_id)
-    return history_update, feedback, build_ai_runtime_status(history, settings), True
+    return (
+        history_update,
+        feedback,
+        build_ai_runtime_status(history, settings, batch_state, selected_name),
+        True,
+    )
 
 
 def load_saved_ai_conversation(
     file_name: str,
     storage_dir: str,
     patient_id: str,
+    batch_state,
+    selected_name,
     *ai_inputs,
 ):
     values = load_conversation_history_item(file_name, storage_dir, patient_id)
     settings = _ai_settings(*ai_inputs)
-    return (*values, build_ai_runtime_status(values[1], settings))
+    return (
+        *values,
+        build_ai_runtime_status(values[1], settings, batch_state, selected_name),
+    )
 
 
 def refresh_ai_runtime_status(
     history: list[dict[str, str]],
+    batch_state,
+    selected_name,
     *ai_inputs,
 ):
-    return build_ai_runtime_status(history, _ai_settings(*ai_inputs))
+    return build_ai_runtime_status(
+        history,
+        _ai_settings(*ai_inputs),
+        batch_state,
+        selected_name,
+    )
 
 
 def refresh_conversations_after_storage_change(
@@ -3620,6 +3652,8 @@ def build_app() -> gr.Blocks:
                 storage_dir,
                 patient_select,
                 chat_state,
+                batch_state,
+                batch_select,
                 *settings.ai_request_inputs(),
             ],
             outputs=[
@@ -4083,7 +4117,12 @@ def build_app() -> gr.Blocks:
             show_progress="minimal",
         ).success(
             fn=refresh_ai_runtime_status,
-            inputs=[chat_state, *settings.ai_request_inputs()],
+            inputs=[
+                chat_state,
+                batch_state,
+                batch_select,
+                *settings.ai_request_inputs(),
+            ],
             outputs=ai_runtime_status,
             queue=False,
             show_progress="hidden",
@@ -4096,6 +4135,8 @@ def build_app() -> gr.Blocks:
                 chat_state,
                 *settings.ai_request_inputs(),
                 patient_select,
+                batch_state,
+                batch_select,
             ],
             outputs=[chatbot, chat_state, chat_input, export_file, export_path],
             concurrency_limit=1,
@@ -4133,7 +4174,7 @@ def build_app() -> gr.Blocks:
         )
         clear_chat_btn.click(
             fn=clear_current_chat_with_status,
-            inputs=settings.ai_request_inputs(),
+            inputs=[batch_state, batch_select, *settings.ai_request_inputs()],
             outputs=[
                 chatbot,
                 chat_state,
@@ -4159,6 +4200,8 @@ def build_app() -> gr.Blocks:
                 conversation_select,
                 storage_dir,
                 patient_select,
+                batch_state,
+                batch_select,
                 *settings.ai_request_inputs(),
             ],
             outputs=[

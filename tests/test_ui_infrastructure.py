@@ -345,12 +345,76 @@ class UiContentTests(unittest.TestCase):
         loaded_status = build_ai_runtime_status(
             [{"role": "assistant", "content": "检测摘要"}],
             settings,
+            [
+                {
+                    "name": "当前单图",
+                    "result": {
+                        "model": "model-a",
+                        "detections": [{"class": "Caries", "confidence": 0.8}],
+                    },
+                }
+            ],
+            "当前单图",
         )
 
-        self.assertIn("尚未加载检测摘要", empty_status)
+        self.assertIn("尚无当前检测", empty_status)
+        self.assertIn("尚无对话", empty_status)
         self.assertIn("配置完整", empty_status)
         self.assertIn("&lt;local-model&gt;", empty_status)
-        self.assertIn("已加载当前对话上下文", loaded_status)
+        self.assertIn("已加载 · 1 个检测框", loaded_status)
+        self.assertIn("1 条消息", loaded_status)
+        self.assertIn("检测文字与提问，不含影像", loaded_status)
+
+    def test_continue_chat_sends_current_detection_text_without_private_artifacts(self) -> None:
+        batch_state = [
+            {
+                "name": "patient-private.png",
+                "result": {
+                    "model": "model-a",
+                    "model_path": "C:/private/secret.pt",
+                    "original": object(),
+                    "detections": [
+                        {
+                            "class": "Caries",
+                            "confidence": 0.8,
+                            "x1": 1,
+                            "y1": 2,
+                            "x2": 3,
+                            "y2": 4,
+                        }
+                    ],
+                },
+            }
+        ]
+
+        with patch.object(app, "chat_completion", return_value="已收到") as chat_mock:
+            app.continue_chat(
+                "请解释结果",
+                [],
+                True,
+                "http://127.0.0.1:8000/v1",
+                "local-model",
+                "直接 Key 值",
+                "",
+                "",
+                "",
+                False,
+                False,
+                False,
+                "",
+                "",
+                "简洁版",
+                "patient-1",
+                batch_state,
+                "patient-private.png",
+            )
+
+        messages = chat_mock.call_args.args[1]
+        system_message = messages[0]["content"]
+        self.assertIn("当前检测文字上下文", system_message)
+        self.assertIn("龋齿", system_message)
+        self.assertNotIn("patient-private", system_message)
+        self.assertNotIn("secret.pt", system_message)
 
     def test_api_key_mode_switch_preserves_visible_edits_without_plaintext_state(self) -> None:
         (

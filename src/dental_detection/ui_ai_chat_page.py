@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 import gradio as gr
 
+from .ai_detection_context import build_detection_text_context
 from .ai_client import normalize_base_url, validate_ai_request
 from .conversation_store import list_conversations, load_conversation
 from .gradio_files import clear_file_output
@@ -38,8 +39,15 @@ class AiChatComponents:
 def build_ai_runtime_status(
     history: list[dict[str, str]] | None,
     settings: AiSettings,
+    batch_state: Any = None,
+    selected_name: Any = None,
 ) -> str:
-    context_text = "已加载当前对话上下文" if history else "尚未加载检测摘要"
+    detection_context = build_detection_text_context(batch_state, selected_name)
+    if detection_context.available:
+        context_text = f"已加载 · {detection_context.detection_count} 个检测框"
+    else:
+        context_text = "尚无当前检测"
+    conversation_text = f"{len(history)} 条消息" if history else "尚无对话"
     configured, _, error = validate_ai_request(settings)
     if not settings.enabled:
         configuration_text = "AI 功能未开启"
@@ -54,6 +62,10 @@ def build_ai_runtime_status(
         '<div class="ai-context-strip ai-runtime-strip">'
         "<div><strong>检测上下文</strong>"
         f"<span>{escape(context_text)}</span></div>"
+        "<div><strong>当前对话</strong>"
+        f"<span>{escape(conversation_text)}</span></div>"
+        "<div><strong>发送范围</strong>"
+        "<span>检测文字与提问，不含影像</span></div>"
         "<div><strong>AI 配置</strong>"
         f"<span>{escape(configuration_text)}</span></div>"
         "<div><strong>接口与模型</strong>"
