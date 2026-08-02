@@ -177,6 +177,7 @@ AI_REQUEST_CONCURRENCY_ID = "dental-ai-request"
 EXPORT_CONCURRENCY_ID = "dental-export"
 RECORD_WRITE_CONCURRENCY_ID = "dental-record-write"
 MODEL_SCAN_CONCURRENCY_ID = "dental-model-scan"
+RESULT_VIEW_CONCURRENCY_ID = "dental-result-view"
 CASE_UI_LIMIT = 200
 HISTORY_UI_LIMIT = 200
 BATCH_TOTAL_UPLOAD_BYTES = 200 * 1024 * 1024
@@ -3803,10 +3804,18 @@ def build_app() -> gr.Blocks:
             control.input(fn=clear_outputs_with_quality, inputs=image, outputs=common_outputs)
         primary_model_path.input(fn=_workbench_model_status_html, inputs=primary_model_path, outputs=workbench_model_status)
         example_select.input(fn=_example_preview_text, inputs=example_select, outputs=example_info)
-        load_example_btn.click(fn=load_demo_example, inputs=example_select, outputs=[image, example_info]).then(
+        load_example_btn.click(
+            fn=load_demo_example,
+            inputs=example_select,
+            outputs=[image, example_info],
+            concurrency_limit=1,
+            trigger_mode="always_last",
+            show_progress="minimal",
+        ).then(
             fn=clear_outputs_with_quality,
             inputs=image,
             outputs=common_outputs,
+            show_progress="minimal",
         )
         run_btn.click(
             fn=run_single_detection,
@@ -3854,6 +3863,10 @@ def build_app() -> gr.Blocks:
                 export_report_btn,
                 save_case_btn,
             ],
+            concurrency_limit=1,
+            concurrency_id=RESULT_VIEW_CONCURRENCY_ID,
+            trigger_mode="always_last",
+            show_progress="minimal",
         )
         visible_class_filter.input(
             fn=update_detection_visibility,
@@ -3868,6 +3881,10 @@ def build_app() -> gr.Blocks:
                 result_image_file,
                 result_image_path,
             ],
+            concurrency_limit=1,
+            concurrency_id=RESULT_VIEW_CONCURRENCY_ID,
+            trigger_mode="always_last",
+            show_progress="minimal",
         )
         ai_enabled.input(fn=toggle_ai_settings, inputs=ai_enabled, outputs=ai_group)
         key_mode.input(

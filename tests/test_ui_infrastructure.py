@@ -492,6 +492,33 @@ class UiContentTests(unittest.TestCase):
         self.assertNotIn("settings_model_mode.change(fn=sync_model_mode", source)
         self.assertNotIn("chat_btn.click(\n            fn=continue_chat", source)
 
+    def test_result_view_redraws_share_one_latest_request_queue(self) -> None:
+        source = inspect.getsource(app.build_app)
+        event_ranges = (
+            ("batch_select.input(", "visible_class_filter.input("),
+            ("visible_class_filter.input(", "ai_enabled.input("),
+        )
+        for start, end in event_ranges:
+            with self.subTest(event=start):
+                event_source = source.split(start, 1)[1].split(end, 1)[0]
+                self.assertIn("concurrency_limit=1", event_source)
+                self.assertIn("concurrency_id=RESULT_VIEW_CONCURRENCY_ID", event_source)
+                self.assertIn('trigger_mode="always_last"', event_source)
+                self.assertIn('show_progress="minimal"', event_source)
+        self.assertEqual(source.count("concurrency_id=RESULT_VIEW_CONCURRENCY_ID"), 2)
+
+    def test_demo_example_load_keeps_only_latest_pending_request(self) -> None:
+        source = inspect.getsource(app.build_app)
+        event_source = source.split("load_example_btn.click(", 1)[1].split(
+            "run_btn.click(",
+            1,
+        )[0]
+        primary_event = event_source.split(").then(", 1)[0]
+        self.assertIn("concurrency_limit=1", primary_event)
+        self.assertIn('trigger_mode="always_last"', primary_event)
+        self.assertIn('show_progress="minimal"', primary_event)
+        self.assertEqual(event_source.count('show_progress="minimal"'), 2)
+
     def test_settings_save_does_not_move_existing_data_implicitly(self) -> None:
         source = inspect.getsource(app.save_ui_settings)
         self.assertIn("save_settings(settings, migrate_data=False)", source)
