@@ -430,6 +430,10 @@
     display: none;
   }
 
+  .guide-card .workbench-model-status .model-status-device {
+    display: block;
+  }
+
   .guide-card .workbench-model-status strong {
     line-height: 1.4;
   }

@@ -30,6 +30,17 @@ def build_advanced_model_warning_html() -> str:
     )
 
 
+def format_device_choice_label(device_choice: str | None) -> str:
+    choice = str(device_choice or "cpu").strip().lower()
+    if not choice.startswith("cuda"):
+        return "CPU"
+    try:
+        index = int(choice.split(":", 1)[1]) if ":" in choice else 0
+    except (IndexError, ValueError):
+        index = 0
+    return "CUDA GPU" if index == 0 else f"CUDA GPU {index}"
+
+
 def build_model_cards_html(cards: list[dict[str, Any]], selected_path: str | None = None) -> str:
     chunks = ['<div class="model-card-grid">']
     for card in cards:
@@ -77,6 +88,7 @@ def build_workbench_model_status_html(
     *,
     default_model_path: str | Path,
     recommended_paths: set[str] | list[str] | tuple[str, ...] | None = None,
+    device_choice: str | None = None,
 ) -> str:
     path = str(selected_path or default_model_path)
     card = next((item for item in cards if str(item.get("path")) == path), None)
@@ -102,10 +114,17 @@ def build_workbench_model_status_html(
             "请确认来源和兼容性" if advanced else "请确认模型可正常加载"
         )
 
+    device_html = (
+        '<span class="model-status-device">'
+        f"设备：{escape(format_device_choice_label(device_choice))}</span>"
+        if device_choice is not None
+        else ""
+    )
     return f"""
 <div class="workbench-model-status {status_class}">
   <strong>{escape(title)}</strong>
-  <span>类型：{escape(model_type)}</span>
-  <span>状态：{escape(status)}</span>
+  <span class="model-status-type">类型：{escape(model_type)}</span>
+  <span class="model-status-availability">状态：{escape(status)}</span>
+  {device_html}
 </div>
 """

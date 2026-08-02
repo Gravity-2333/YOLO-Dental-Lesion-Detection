@@ -202,7 +202,7 @@
 
 .workbench-model-status {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) auto auto;
+  grid-template-columns: minmax(240px, 1fr) auto auto auto;
   align-items: center;
   gap: 8px 18px;
   margin: 0;

@@ -288,8 +288,10 @@ def _device_choices() -> list[tuple[str, str]]:
     return choices
 
 
-def _default_device_choice() -> str:
-    choices = _device_choices()
+def _default_device_choice(
+    choices: list[tuple[str, str]] | None = None,
+) -> str:
+    choices = choices if choices is not None else _device_choices()
     return choices[1][1] if len(choices) > 1 else "cpu"
 
 
@@ -498,13 +500,17 @@ def _model_cards(selected_path: str | None = None) -> list[dict[str, Any]]:
     return build_model_cards(MODEL_REGISTRY)
 
 
-def _workbench_model_status_html(selected_path: str | None) -> str:
+def _workbench_model_status_html(
+    selected_path: str | None,
+    device_choice: str | None = None,
+) -> str:
     path = _model_path_or_default(selected_path, str(DEFAULT_MODEL_PATH))
     return build_workbench_model_status_html(
         path,
         _model_cards(path),
         default_model_path=str(DEFAULT_MODEL_PATH),
         recommended_paths=_recommended_model_paths(),
+        device_choice=device_choice,
     )
 
 
@@ -3193,6 +3199,7 @@ def build_app() -> gr.Blocks:
         else (model_choices[0][1] if model_choices else None)
     )
     device_choices = _device_choices()
+    default_device_choice = _default_device_choice(device_choices)
     with gr.Blocks(
         title="牙齿病变区域识别",
         elem_classes=["app-shell"],
@@ -3213,12 +3220,15 @@ def build_app() -> gr.Blocks:
                 workbench = build_workbench_page(
                     WorkbenchPageData(
                         saved=saved,
-                        model_status_html=_workbench_model_status_html(saved_primary_model_path),
+                        model_status_html=_workbench_model_status_html(
+                            saved_primary_model_path,
+                            default_device_choice,
+                        ),
                         patient_choices=patient_choices,
                         selected_patient_id=personal_workspace.patient.id,
                         example_choices=_example_choices(),
                         device_choices=device_choices,
-                        default_device_choice=_default_device_choice(),
+                        default_device_choice=default_device_choice,
                         initial_detection_table=_empty_table(),
                     )
                 )
@@ -3885,11 +3895,13 @@ def build_app() -> gr.Blocks:
                 trigger_mode="always_last",
                 show_progress="hidden",
             )
-        primary_model_path.input(
+        gr.on(
+            triggers=[primary_model_path.input, device_choice.input],
             fn=_workbench_model_status_html,
-            inputs=primary_model_path,
+            inputs=[primary_model_path, device_choice],
             outputs=workbench_model_status,
             trigger_mode="always_last",
+            queue=False,
             show_progress="hidden",
         )
         example_select.input(
@@ -4241,9 +4253,10 @@ def build_app() -> gr.Blocks:
             show_progress="minimal",
         ).success(
             fn=_workbench_model_status_html,
-            inputs=primary_model_path,
+            inputs=[primary_model_path, device_choice],
             outputs=workbench_model_status,
             trigger_mode="always_last",
+            queue=False,
             show_progress="hidden",
         )
         chain_detection_result_reset(apply_selected_model_event)
@@ -4257,9 +4270,10 @@ def build_app() -> gr.Blocks:
             show_progress="minimal",
         ).success(
             fn=_workbench_model_status_html,
-            inputs=primary_model_path,
+            inputs=[primary_model_path, device_choice],
             outputs=workbench_model_status,
             trigger_mode="always_last",
+            queue=False,
             show_progress="hidden",
         )
         chain_detection_result_reset(apply_model_card_event)
