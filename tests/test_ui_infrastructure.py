@@ -239,14 +239,8 @@ class UiContractTests(unittest.TestCase):
         self.assertTrue(app.clear_patient_workspace_views(True)[-1])
 
         source = inspect.getsource(app.build_app)
-        self.assertEqual(source.count("fn=clear_patient_workspace_views"), 6)
-        self.assertEqual(
-            source.count(
-                "fn=clear_patient_workspace_views,\n"
-                "            inputs=conversation_loaded_state"
-            ),
-            6,
-        )
+        self.assertEqual(source.count("fn=clear_patient_workspace_views"), 1)
+        self.assertEqual(source.count("chain_patient_workspace_refresh("), 7)
 
     def test_detection_table_contract_keeps_export_order(self) -> None:
         self.assertEqual(DETECTION_TABLE_COLUMNS[0:3], ("class", "中文名称", "confidence"))
@@ -506,6 +500,27 @@ class UiContentTests(unittest.TestCase):
                 self.assertIn('trigger_mode="always_last"', event_source)
                 self.assertIn('show_progress="minimal"', event_source)
         self.assertEqual(source.count("concurrency_id=RESULT_VIEW_CONCURRENCY_ID"), 2)
+
+    def test_patient_view_refreshes_share_one_latest_request_queue(self) -> None:
+        source = inspect.getsource(app.build_app)
+        helper_source = source.split("def chain_patient_workspace_refresh", 1)[1].split(
+            "# Lazy-load record stores",
+            1,
+        )[0]
+        self.assertEqual(helper_source.count('show_progress="hidden"'), 2)
+        self.assertIn("concurrency_limit=1", helper_source)
+        self.assertIn("concurrency_id=PATIENT_VIEW_CONCURRENCY_ID", helper_source)
+        self.assertIn('trigger_mode="always_last"', helper_source)
+        self.assertIn('show_progress="minimal"', helper_source)
+
+        clear_event = source.split("clear_session_btn.click(", 1)[1].split(
+            "patient_select_event =",
+            1,
+        )[0]
+        self.assertIn("queue=False", clear_event)
+        self.assertIn('show_progress="hidden"', clear_event)
+        self.assertEqual(source.count("fn=sync_patient_selections"), 3)
+        self.assertGreaterEqual(source.count('show_progress="hidden"'), 6)
 
     def test_demo_example_load_keeps_only_latest_pending_request(self) -> None:
         source = inspect.getsource(app.build_app)
