@@ -22,6 +22,7 @@ from src.dental_detection.conversation_store import (
     save_conversation,
 )
 from src.dental_detection.error_messages import concise_error_message, friendly_error_message
+from src.dental_detection.personal_workspace import PERSONAL_PATIENT_ID
 from src.dental_detection.settings_store import AiSettings
 from src.dental_detection.ui_ai_chat_page import (
     load_conversation_history_item,
@@ -253,6 +254,23 @@ class AdviceAndConversationTests(unittest.TestCase):
             self.assertEqual(loaded[4], "")
             with self.assertRaisesRegex(ValueError, "不属于当前患者"):
                 load_conversation(path.name, temp_dir, "patient-2")
+
+    def test_legacy_untagged_conversations_belong_only_to_personal_profile(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            messages = [{"role": "user", "content": "患者档案功能上线前的对话"}]
+            legacy_path = save_conversation(messages, temp_dir)
+
+            personal_entries = list_conversations(temp_dir, patient_id=PERSONAL_PATIENT_ID)
+            other_entries = list_conversations(temp_dir, patient_id="family-1")
+
+            self.assertEqual([entry.file_name for entry in personal_entries], [legacy_path.name])
+            self.assertEqual(other_entries, [])
+            self.assertEqual(
+                load_conversation(legacy_path.name, temp_dir, PERSONAL_PATIENT_ID),
+                messages,
+            )
+            with self.assertRaisesRegex(ValueError, "不属于当前患者"):
+                load_conversation(legacy_path.name, temp_dir, "family-1")
 
 
 if __name__ == "__main__":

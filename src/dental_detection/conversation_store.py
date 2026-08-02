@@ -12,6 +12,7 @@ from threading import RLock
 from typing import Any
 
 from .ai_defaults import SAFETY_NOTICE
+from .personal_workspace import PERSONAL_PATIENT_ID
 from .settings_store import conversation_dir, ensure_app_dirs
 
 
@@ -121,7 +122,9 @@ def list_conversations(
     limit: int = MAX_CONVERSATION_LIST_ITEMS,
     patient_id: str | None = None,
 ) -> list[ConversationEntry]:
-    expected_tag = _patient_tag(patient_id)
+    selected_patient_id = str(patient_id or "").strip()
+    expected_tag = _patient_tag(selected_patient_id)
+    accepts_legacy_personal = selected_patient_id in {"", PERSONAL_PATIENT_ID}
     try:
         max_items = max(1, min(int(limit), MAX_CONVERSATION_LIST_ITEMS))
     except (OverflowError, TypeError, ValueError):
@@ -137,7 +140,7 @@ def list_conversations(
                         continue
                     marker = re.search(r"_p([0-9a-f]{16})_", item.name)
                     item_tag = marker.group(1) if marker else ""
-                    if item_tag != expected_tag:
+                    if item_tag != expected_tag and not (accepts_legacy_personal and not item_tag):
                         continue
                     candidate = (_conversation_order_key(item.name), item.name)
                     if len(recent) < max_items:
@@ -172,10 +175,12 @@ def load_conversation(
     name = str(file_name or "").strip()
     if Path(name).name != name or not _CONVERSATION_NAME.fullmatch(name):
         raise ValueError("对话记录选择无效，请刷新列表后重试。")
-    expected_tag = _patient_tag(patient_id)
+    selected_patient_id = str(patient_id or "").strip()
+    expected_tag = _patient_tag(selected_patient_id)
     marker = re.search(r"_p([0-9a-f]{16})_", name)
     item_tag = marker.group(1) if marker else ""
-    if item_tag != expected_tag:
+    is_legacy_personal = not item_tag and selected_patient_id == PERSONAL_PATIENT_ID
+    if item_tag != expected_tag and not is_legacy_personal:
         raise ValueError("该对话记录不属于当前患者档案。")
     with _CONVERSATION_FILE_LOCK:
         ensure_app_dirs(storage_dir)
@@ -193,7 +198,9 @@ def load_conversation(
     if not isinstance(payload, dict):
         raise ValueError("对话记录格式无效。")
     stored_patient_id = str(payload.get("patient_id") or "").strip()
-    if stored_patient_id != str(patient_id or "").strip():
+    if not stored_patient_id and is_legacy_personal:
+        stored_patient_id = PERSONAL_PATIENT_ID
+    if stored_patient_id != selected_patient_id:
         raise ValueError("该对话记录不属于当前患者档案。")
     messages = _normalize_messages(payload.get("messages"))
     if not messages:
