@@ -2066,7 +2066,7 @@ def clear_all_history_records(
     )
 
 
-def clear_outputs():
+def clear_outputs(*, clear_chat: bool = False):
     return common_output_values(
         {
             "original": None,
@@ -2086,8 +2086,8 @@ def clear_outputs():
             "batch_overview": gr.update(value="", visible=False),
             "batch_state": [],
             "batch_select": gr.update(choices=[], value=None),
-            "chatbot": gr.update(),
-            "chat_state": gr.update(),
+            "chatbot": [] if clear_chat else gr.update(),
+            "chat_state": [] if clear_chat else gr.update(),
             "batch_export_file": _clear_file_output(),
             "batch_export_path": "",
             "batch_export_button": gr.update(interactive=False),
@@ -2114,7 +2114,7 @@ def clear_outputs_with_quality(image):
 
 
 def clear_patient_session():
-    return (None, None, *clear_outputs(), "", "")
+    return (None, None, *clear_outputs(clear_chat=True), "", "", "")
 
 
 def clear_patient_workspace_views(conversation_loaded: bool = False):
@@ -3580,7 +3580,7 @@ def build_app() -> gr.Blocks:
             """Clear stale patient data, then hydrate only views opened this session."""
             return event.then(
                 fn=clear_patient_session,
-                outputs=[image, batch_files, *common_outputs, case_id, case_note],
+                outputs=[image, batch_files, *common_outputs, case_id, case_note, chat_input],
                 show_progress="hidden",
             ).then(
                 fn=clear_patient_workspace_views,
@@ -3646,7 +3646,7 @@ def build_app() -> gr.Blocks:
 
         clear_session_btn.click(
             fn=clear_patient_session,
-            outputs=[image, batch_files, *common_outputs, case_id, case_note],
+            outputs=[image, batch_files, *common_outputs, case_id, case_note, chat_input],
             queue=False,
             show_progress="hidden",
         )
@@ -4088,6 +4088,34 @@ def build_app() -> gr.Blocks:
             concurrency_id=AI_REQUEST_CONCURRENCY_ID,
             trigger_mode="once",
             show_progress="minimal",
+        )
+        gr.on(
+            triggers=[
+                patient_select.input,
+                case_patient_select.input,
+                history_patient_select.input,
+                add_patient_btn.click,
+                archive_patient_btn.click,
+                restore_patient_btn.click,
+                clear_session_btn.click,
+                save_settings_btn.click,
+                ai_enabled.input,
+                base_url.input,
+                ai_model.input,
+                key_mode.input,
+                env_api_key.input,
+                direct_api_key_hidden.input,
+                direct_api_key_visible.input,
+                auto_save.input,
+                storage_dir.input,
+                custom_prompt.input,
+                advice_style.input,
+                load_conversation_btn.click,
+            ],
+            fn=None,
+            cancels=chat_event,
+            queue=False,
+            show_progress="hidden",
         )
         clear_chat_btn.click(
             fn=clear_current_chat_with_status,

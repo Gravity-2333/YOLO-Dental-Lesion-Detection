@@ -221,8 +221,16 @@ class UiContractTests(unittest.TestCase):
         values = app.clear_patient_session()
         self.assertIsNone(values[0])
         self.assertIsNone(values[1])
-        self.assertEqual(values[-2:], ("", ""))
-        self.assertEqual(len(values), len(COMMON_OUTPUT_KEYS) + 4)
+        common_values = values[2 : 2 + len(COMMON_OUTPUT_KEYS)]
+        self.assertEqual(common_values[COMMON_OUTPUT_KEYS.index("chatbot")], [])
+        self.assertEqual(common_values[COMMON_OUTPUT_KEYS.index("chat_state")], [])
+        self.assertEqual(values[-3:], ("", "", ""))
+        self.assertEqual(len(values), len(COMMON_OUTPUT_KEYS) + 5)
+
+    def test_generic_result_reset_preserves_the_current_chat(self) -> None:
+        values = app.clear_outputs()
+        self.assertNotIn("value", values[COMMON_OUTPUT_KEYS.index("chatbot")])
+        self.assertNotIn("value", values[COMMON_OUTPUT_KEYS.index("chat_state")])
 
     def test_patient_switch_clears_all_patient_scoped_views_before_refresh(self) -> None:
         values = app.clear_patient_workspace_views()
@@ -524,6 +532,31 @@ class UiContentTests(unittest.TestCase):
 
         self.assertIn("single_detection_event = run_btn.click(", source)
         self.assertIn("batch_detection_event = batch_btn.click(", source)
+
+    def test_patient_and_ai_changes_cancel_running_chat(self) -> None:
+        source = inspect.getsource(app.build_app)
+        chat_cancellation_event = source.split(
+            "chat_event = gr.on(",
+            1,
+        )[1].split("clear_chat_btn.click(", 1)[0]
+        self.assertIn("cancels=chat_event", chat_cancellation_event)
+        self.assertIn("queue=False", chat_cancellation_event)
+        self.assertIn('show_progress="hidden"', chat_cancellation_event)
+        for trigger in (
+            "patient_select.input",
+            "archive_patient_btn.click",
+            "clear_session_btn.click",
+            "save_settings_btn.click",
+            "ai_enabled.input",
+            "base_url.input",
+            "direct_api_key_hidden.input",
+            "auto_save.input",
+            "storage_dir.input",
+            "custom_prompt.input",
+            "load_conversation_btn.click",
+        ):
+            with self.subTest(trigger=trigger):
+                self.assertIn(trigger, chat_cancellation_event)
 
     def test_manual_diagnostics_keep_only_latest_pending_request(self) -> None:
         source = inspect.getsource(app.build_app)
