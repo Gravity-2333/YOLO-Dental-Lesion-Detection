@@ -41,7 +41,11 @@ from src.dental_detection.ui_settings_page import (
     SettingsComponents,
     build_settings_page,
 )
-from src.dental_detection.ui_workbench_page import WorkbenchComponents, build_workbench_page
+from src.dental_detection.ui_workbench_page import (
+    WorkbenchComponents,
+    analysis_button_state,
+    build_workbench_page,
+)
 
 
 class UiAssetTests(unittest.TestCase):
@@ -339,6 +343,33 @@ class UiContractTests(unittest.TestCase):
 
 
 class UiContentTests(unittest.TestCase):
+    def test_analysis_buttons_follow_uploaded_input_state(self) -> None:
+        self.assertFalse(analysis_button_state(None)["interactive"])
+        self.assertFalse(analysis_button_state([])["interactive"])
+        self.assertTrue(analysis_button_state(object())["interactive"])
+        self.assertTrue(analysis_button_state(["image.png"])["interactive"])
+
+        page_source = inspect.getsource(build_workbench_page)
+        self.assertIn('"开始分析",\n                            variant="primary",\n                            interactive=False,', page_source)
+        self.assertIn('"批量分析",\n                            variant="primary",\n                            interactive=False,', page_source)
+
+        source = inspect.getsource(app.build_app)
+        single_state_source = source.split("image.change(", 1)[1].split(
+            "batch_files.change(", 1
+        )[0]
+        batch_state_source = source.split("batch_files.change(", 1)[1].split(
+            "stale_result_controls", 1
+        )[0]
+        for event_source, input_name, button_name in (
+            (single_state_source, "image", "run_btn"),
+            (batch_state_source, "batch_files", "batch_btn"),
+        ):
+            self.assertIn("fn=analysis_button_state", event_source)
+            self.assertIn(f"inputs={input_name}", event_source)
+            self.assertIn(f"outputs={button_name}", event_source)
+            self.assertIn("queue=False", event_source)
+            self.assertIn('show_progress="hidden"', event_source)
+
     def test_chat_export_button_follows_the_conversation_state(self) -> None:
         self.assertFalse(chat_export_button_state([])["interactive"])
         self.assertTrue(

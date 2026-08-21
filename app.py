@@ -169,7 +169,11 @@ from src.dental_detection.ui_ai_chat_page import (
     refresh_conversation_history,
 )
 from src.dental_detection.ui_settings_page import SettingsPageData, build_settings_page
-from src.dental_detection.ui_workbench_page import WorkbenchPageData, build_workbench_page
+from src.dental_detection.ui_workbench_page import (
+    WorkbenchPageData,
+    analysis_button_state,
+    build_workbench_page,
+)
 from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
 from src.dental_detection.workspace_store import WorkspaceError
 from ultralytics import YOLO
@@ -3883,6 +3887,20 @@ def build_app() -> gr.Blocks:
             concurrency_limit=1,
             concurrency_id=RESULT_RESET_CONCURRENCY_ID,
             trigger_mode="always_last",
+            show_progress="hidden",
+        )
+        image.change(
+            fn=analysis_button_state,
+            inputs=image,
+            outputs=run_btn,
+            queue=False,
+            show_progress="hidden",
+        )
+        batch_files.change(
+            fn=analysis_button_state,
+            inputs=batch_files,
+            outputs=batch_btn,
+            queue=False,
             show_progress="hidden",
         )
         stale_result_controls = [primary_model_path, compare_model_path, conf, iou, device_choice, use_clahe]

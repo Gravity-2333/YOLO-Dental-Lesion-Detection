@@ -85,6 +85,16 @@ class WorkbenchComponents:
         )
 
 
+def analysis_button_state(value: Any):
+    if value is None:
+        available = False
+    elif isinstance(value, (list, tuple, set, dict)):
+        available = bool(value)
+    else:
+        available = True
+    return gr.update(interactive=available)
+
+
 def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
     with gr.Group(elem_classes=["section-card", "guide-card"]):
         workbench_model_status = gr.HTML(data.model_status_html)
@@ -122,6 +132,7 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                         run_btn = gr.Button(
                             "开始分析",
                             variant="primary",
+                            interactive=False,
                             elem_classes=["primary-action"],
                         )
                         with gr.Accordion("示例图片", open=False):
@@ -158,6 +169,7 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                         batch_btn = gr.Button(
                             "批量分析",
                             variant="primary",
+                            interactive=False,
                             elem_classes=["primary-action"],
                         )
                         batch_select = gr.Dropdown(label="查看图片", choices=[])
