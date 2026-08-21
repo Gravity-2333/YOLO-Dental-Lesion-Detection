@@ -57,6 +57,17 @@ def wait_ready(page, base_url: str) -> None:
 
 def click_tab(page, tab_name: str) -> None:
     tab = page.get_by_role("tab", name=tab_name).first
+    if tab.count() == 0 or not tab.is_visible():
+        overflow = page.get_by_role("button", name="更多").first
+        if overflow.count() == 0 or not overflow.is_visible():
+            raise RuntimeError(f"无法定位页面标签或更多菜单：{tab_name}")
+        overflow.click(timeout=15000)
+        menu_button = page.get_by_role("button", name=tab_name, exact=True).first
+        if menu_button.count() == 0 or not menu_button.is_visible():
+            raise RuntimeError(f"更多菜单中没有可见页面入口：{tab_name}")
+        menu_button.click(timeout=15000)
+        page.wait_for_timeout(1500)
+        return
     try:
         tab.click(timeout=15000)
     except Exception:
@@ -326,6 +337,16 @@ def capture(args: argparse.Namespace) -> None:
                     mobile,
                     output_dir,
                     name("07-workbench-mobile.png", suffix),
+                    reset_scroll=True,
+                )
+                click_tab(mobile, "设置")
+                mobile.locator(".settings-actions").wait_for(state="visible", timeout=15000)
+                check_horizontal_overflow(mobile, "移动端设置页")
+                save(
+                    mobile,
+                    output_dir,
+                    name("08-settings-mobile.png", suffix),
+                    full=True,
                     reset_scroll=True,
                 )
             finally:

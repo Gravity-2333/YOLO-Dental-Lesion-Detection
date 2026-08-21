@@ -828,11 +828,12 @@ td {
   width: min(1120px, 100%) !important;
   max-width: 1120px !important;
   justify-content: flex-end !important;
-  margin: 10px auto 0 !important;
-  padding: 12px 18px !important;
-  background: #fff !important;
-  border: 1px solid var(--card-border) !important;
-  border-radius: var(--radius) !important;
+  margin: 8px auto 0 !important;
+  padding: 10px 0 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-top: 1px solid var(--soft-border) !important;
+  border-radius: 0 !important;
 }
 
 .chat-card,

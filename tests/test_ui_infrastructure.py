@@ -146,6 +146,17 @@ class UiAssetTests(unittest.TestCase):
         settings_source = inspect.getsource(app.build_settings_page)
         self.assertEqual(settings_source.count('"path-picker-row"'), 2)
 
+    def test_settings_save_row_is_a_compact_page_action(self) -> None:
+        css = load_workbench_css()
+        rule = css.split(".settings-actions {", 1)[1].split("}", 1)[0]
+
+        self.assertIn("justify-content: flex-end !important", rule)
+        self.assertIn("padding: 10px 0 0 !important", rule)
+        self.assertIn("background: transparent !important", rule)
+        self.assertIn("border: 0 !important", rule)
+        self.assertIn("border-top: 1px solid var(--soft-border) !important", rule)
+        self.assertNotIn("border: 1px solid var(--card-border)", rule)
+
     def test_css_bundle_drops_retired_frontend_scaffolding(self) -> None:
         css = load_workbench_css()
         for retired_selector in (
@@ -272,6 +283,11 @@ class DependencyManifestTests(unittest.TestCase):
                 self.assertIn(f'("{tab_name}", "{filename}")', screenshot_source)
         self.assertIn('name("04-ai-chat.png", suffix)', screenshot_source)
         self.assertIn('name("07-workbench-mobile.png", suffix)', screenshot_source)
+        self.assertIn('name("08-settings-mobile.png", suffix)', screenshot_source)
+        self.assertIn('get_by_role("button", name="更多")', screenshot_source)
+        self.assertIn('get_by_role("button", name=tab_name, exact=True)', screenshot_source)
+        self.assertIn('mobile.locator(".settings-actions").wait_for', screenshot_source)
+        self.assertIn('check_horizontal_overflow(mobile, "移动端设置页")', screenshot_source)
         self.assertIn('full=tab_name == "检测历史"', screenshot_source)
 
     def test_detection_screenshot_uses_an_isolated_non_ai_session(self) -> None:
