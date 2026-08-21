@@ -343,6 +343,32 @@ class UiContractTests(unittest.TestCase):
 
 
 class UiContentTests(unittest.TestCase):
+    def test_case_actions_follow_the_selected_record(self) -> None:
+        empty_delete, empty_export = app.case_action_button_state(None)
+        selected_delete, selected_export = app.case_action_button_state("病例.json")
+        self.assertFalse(empty_delete["interactive"])
+        self.assertFalse(empty_export["interactive"])
+        self.assertTrue(selected_delete["interactive"])
+        self.assertTrue(selected_export["interactive"])
+
+        source = inspect.getsource(app.build_app)
+        self.assertIn(
+            '"移入回收站",\n                            interactive=False,',
+            source,
+        )
+        self.assertIn(
+            '"导出病例报告",\n                            interactive=False,',
+            source,
+        )
+        event_source = source.split("case_select.change(", 1)[1].split(
+            "refresh_history_btn.click(", 1
+        )[0]
+        self.assertIn("fn=case_action_button_state", event_source)
+        self.assertIn("inputs=case_select", event_source)
+        self.assertIn("outputs=[delete_case_btn, export_case_btn]", event_source)
+        self.assertIn("queue=False", event_source)
+        self.assertIn('show_progress="hidden"', event_source)
+
     def test_analysis_buttons_follow_uploaded_input_state(self) -> None:
         self.assertFalse(analysis_button_state(None)["interactive"])
         self.assertFalse(analysis_button_state([])["interactive"])

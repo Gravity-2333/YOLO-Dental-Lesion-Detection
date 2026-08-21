@@ -1894,6 +1894,11 @@ def load_case_record_and_clear_export(
     return load_case_record(choice, storage_dir, patient_id), _clear_file_output(), ""
 
 
+def case_action_button_state(choice: Any):
+    interactive = bool(str(choice or "").strip())
+    return gr.update(interactive=interactive), gr.update(interactive=interactive)
+
+
 def refresh_history_records(storage_dir: str, patient_id: str | None = None):
     _ensure_storage_root(storage_dir)
     rows = history_rows(storage_dir, patient_id, limit=HISTORY_UI_LIMIT)
@@ -3372,8 +3377,16 @@ def build_app() -> gr.Blocks:
                         case_date_to = gr.Textbox(label="结束日期", placeholder="YYYY-MM-DD", lines=1, max_lines=1)
                     with gr.Row(elem_classes=["compact-row"]):
                         search_case_btn = gr.Button("搜索/筛选", elem_classes=["secondary-action", "compact-button"])
-                        delete_case_btn = gr.Button("移入回收站", elem_classes=["danger-action", "compact-button"])
-                        export_case_btn = gr.Button("导出病例报告", elem_classes=["secondary-action", "compact-button"])
+                        delete_case_btn = gr.Button(
+                            "移入回收站",
+                            interactive=False,
+                            elem_classes=["danger-action", "compact-button"],
+                        )
+                        export_case_btn = gr.Button(
+                            "导出病例报告",
+                            interactive=False,
+                            elem_classes=["secondary-action", "compact-button"],
+                        )
                     case_select = gr.Dropdown(label="已保存病例", choices=_case_choices_from_rows(initial_case_rows))
                     with gr.Accordion(
                         "结构化病例列表",
@@ -4461,6 +4474,13 @@ def build_app() -> gr.Blocks:
             outputs=[case_detail, case_report_file, case_report_path],
             trigger_mode="always_last",
             show_progress="minimal",
+        )
+        case_select.change(
+            fn=case_action_button_state,
+            inputs=case_select,
+            outputs=[delete_case_btn, export_case_btn],
+            queue=False,
+            show_progress="hidden",
         )
         refresh_history_btn.click(
             fn=refresh_history_records,
