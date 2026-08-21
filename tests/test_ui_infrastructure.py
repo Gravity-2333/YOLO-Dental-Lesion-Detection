@@ -109,12 +109,18 @@ class UiAssetTests(unittest.TestCase):
             ("Upload file", "选择文件上传"),
             ("Paste from clipboard", "从剪贴板粘贴"),
             ("Copy conversation", "复制内容"),
+            ("Fullscreen", "全屏查看"),
+            ("Remove Image", "移除图片"),
         ):
             with self.subTest(source=source):
                 self.assertIn(f'["{source}", "{target}"]', javascript)
         self.assertIn("labelGeneratedIconButtons();", javascript)
         self.assertIn('button.setAttribute("aria-label", label)', javascript)
         self.assertIn('button.setAttribute("title", label)', javascript)
+        self.assertIn('document.querySelectorAll(".image-container > button")', javascript)
+        self.assertIn('button.setAttribute("aria-label", "查看图片")', javascript)
+        self.assertIn('button.setAttribute("title", "查看图片")', javascript)
+        self.assertIn("labelImageButtons();", javascript)
 
     def test_truncated_path_fields_expose_the_full_value_as_a_tooltip(self) -> None:
         javascript = load_workbench_js()

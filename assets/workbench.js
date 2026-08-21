@@ -9,6 +9,8 @@
     ["Upload file", "选择文件上传"],
     ["Paste from clipboard", "从剪贴板粘贴"],
     ["Copy conversation", "复制内容"],
+    ["Fullscreen", "全屏查看"],
+    ["Remove Image", "移除图片"],
   ]);
   let labelingScheduled = false;
   let runtimeAppId = "";
@@ -125,6 +127,17 @@
     });
   };
 
+  const labelImageButtons = () => {
+    document.querySelectorAll(".image-container > button").forEach((button) => {
+      if (!button.getAttribute("aria-label")) {
+        button.setAttribute("aria-label", "查看图片");
+      }
+      if (!button.getAttribute("title")) {
+        button.setAttribute("title", "查看图片");
+      }
+    });
+  };
+
   const syncPathValueTitle = (target) => {
     if (
       !(target instanceof HTMLInputElement)
@@ -151,6 +164,7 @@
     labelOverflowMenus();
     labelPathPickers();
     labelGeneratedIconButtons();
+    labelImageButtons();
     labelPathValues();
   };
 
