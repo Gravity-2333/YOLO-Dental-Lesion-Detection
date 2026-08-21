@@ -67,7 +67,7 @@ def _format_model_results(model_results: Any) -> list[str]:
             raw_count = sum(1 for _ in iter_detection_items(model_result_detections(item)))
         count = text_value(raw_count, "0")
         artifact_name = _model_artifact_name(model_result_path(item))
-        line = f"- {index}. {model} | 检测数量={count}"
+        line = f"{index}. {model} | 检测数量={count}"
         if artifact_name:
             line += f" | 模型文件={artifact_name}"
         lines.append(line)
@@ -144,7 +144,6 @@ def format_case_record(data: dict[str, Any] | None) -> str:
             display_name = det.get("中文名称") or det.get("class", "-")
             attention = det.get("关注等级") or "-"
             lines.append(
-                "- "
                 f"{index}. {det.get('class', '-')}"
                 f"（{display_name}）"
                 f"{' | 模型=' + text_value(det.get('模型')) if det.get('模型') else ''}"

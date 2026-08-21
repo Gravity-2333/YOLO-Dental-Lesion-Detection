@@ -49,6 +49,32 @@ from src.dental_detection.ui_workbench_page import (
 
 
 class UiAssetTests(unittest.TestCase):
+    def test_record_details_use_sanitized_markdown_panels(self) -> None:
+        source = inspect.getsource(app.build_app)
+        for component_name, label, elem_id in (
+            ("case_detail", "病例详情", "case-detail"),
+            ("history_detail", "历史详情", "history-detail"),
+        ):
+            end_marker = (
+                'with gr.Tab("检测历史")'
+                if component_name == "case_detail"
+                else "report_center = build_report_center"
+            )
+            component_source = source.split(f"{component_name} = gr.Markdown(", 1)[1].split(
+                end_marker, 1
+            )[0]
+            self.assertIn(f'label="{label}"', component_source)
+            self.assertIn("sanitize_html=True", component_source)
+            self.assertIn("line_breaks=True", component_source)
+            self.assertIn('buttons=["copy"]', component_source)
+            self.assertIn(f'elem_id="{elem_id}"', component_source)
+            self.assertIn('elem_classes=["record-detail"]', component_source)
+
+        css = load_workbench_css()
+        self.assertIn(".record-detail .prose strong", css)
+        self.assertNotIn('textarea[aria-label="病例详情"]', css)
+        self.assertNotIn('textarea[aria-label="历史详情"]', css)
+
     def test_css_bundle_is_complete_and_ordered(self) -> None:
         self.assertTrue(all(path.is_file() for path in CSS_BUNDLE_FILES))
         css = load_workbench_css()

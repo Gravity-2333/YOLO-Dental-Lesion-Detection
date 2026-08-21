@@ -1022,11 +1022,9 @@ select {
 
 textarea[aria-label="病例备注"],
 textarea[aria-label="病例反馈"],
-textarea[aria-label="病例详情"],
 textarea[aria-label="模型反馈"],
 textarea[aria-label="测试反馈"],
-textarea[aria-label="历史反馈"],
-textarea[aria-label="历史详情"] {
+textarea[aria-label="历史反馈"] {
   overflow-y: auto !important;
   resize: none !important;
 }
@@ -1051,18 +1049,37 @@ textarea[aria-label="结束日期"] {
   resize: none !important;
 }
 
-textarea[aria-label="病例详情"] {
+.record-detail {
   min-height: 220px !important;
   line-height: 1.65 !important;
   color: #1f2937 !important;
   background: var(--input-bg) !important;
+  border: 1px solid var(--input-border) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 14px 16px !important;
+  overflow: auto !important;
 }
 
-textarea[aria-label="历史详情"] {
-  min-height: 220px !important;
-  line-height: 1.65 !important;
-  color: #1f2937 !important;
-  background: var(--input-bg) !important;
+.record-detail .prose,
+.record-detail .prose p,
+.record-detail .prose li {
+  color: inherit !important;
+  line-height: inherit !important;
+}
+
+.record-detail .prose p {
+  margin: 0 0 8px !important;
+}
+
+.record-detail .prose ul,
+.record-detail .prose ol {
+  margin: 4px 0 10px !important;
+  padding-left: 22px !important;
+}
+
+.record-detail .prose strong {
+  color: #102a43 !important;
+  font-weight: 700 !important;
 }
 
 textarea[aria-label="AI 建议 Prompt"] {

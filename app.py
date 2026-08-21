@@ -3405,11 +3405,17 @@ def build_app() -> gr.Blocks:
                         max_lines=1,
                         elem_classes=["path-output"],
                     )
-                    case_detail = gr.Textbox(
+                    case_detail = gr.Markdown(
                         value=format_case_record(None),
                         label="病例详情",
-                        interactive=False,
-                        lines=14,
+                        show_label=True,
+                        sanitize_html=True,
+                        line_breaks=True,
+                        header_links=False,
+                        buttons=["copy"],
+                        container=True,
+                        elem_id="case-detail",
+                        elem_classes=["record-detail"],
                     )
 
             with gr.Tab("检测历史") as history_tab:
@@ -3451,11 +3457,17 @@ def build_app() -> gr.Blocks:
                             value=_history_table_html(initial_history_rows),
                             elem_classes=["record-table-shell"],
                         )
-                    history_detail = gr.Textbox(
+                    history_detail = gr.Markdown(
                         value=format_history_record(None),
                         label="历史详情",
-                        interactive=False,
-                        lines=14,
+                        show_label=True,
+                        sanitize_html=True,
+                        line_breaks=True,
+                        header_links=False,
+                        buttons=["copy"],
+                        container=True,
+                        elem_id="history-detail",
+                        elem_classes=["record-detail"],
                     )
                 report_center = build_report_center(
                     saved.storage_dir,

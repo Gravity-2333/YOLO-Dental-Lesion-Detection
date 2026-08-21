@@ -83,7 +83,7 @@ def assert_history_output_contract(page) -> None:
     if not any(marker in history_feedback for marker in ("历史记录", "检测历史")):
         raise RuntimeError(f"历史反馈组件内容串位：{history_feedback[:80]}")
 
-    history_detail = page.get_by_label("历史详情", exact=True).input_value()
+    history_detail = page.locator("#history-detail").inner_text()
     if "病例编号：" in history_detail:
         raise RuntimeError("历史详情错误显示为病例详情。")
 
