@@ -1894,7 +1894,7 @@ def load_case_record_and_clear_export(
     return load_case_record(choice, storage_dir, patient_id), _clear_file_output(), ""
 
 
-def case_action_button_state(choice: Any):
+def record_action_button_state(choice: Any):
     interactive = bool(str(choice or "").strip())
     return gr.update(interactive=interactive), gr.update(interactive=interactive)
 
@@ -3422,8 +3422,16 @@ def build_app() -> gr.Blocks:
                     )
                     with gr.Row(elem_classes=["compact-row"]):
                         refresh_history_btn = gr.Button("刷新历史", elem_classes=["secondary-action", "compact-button"])
-                        delete_history_btn = gr.Button("删除所选", elem_classes=["danger-action", "compact-button"])
-                        clear_history_btn = gr.Button("清空历史", elem_classes=["danger-action", "compact-button"])
+                        delete_history_btn = gr.Button(
+                            "删除所选",
+                            interactive=False,
+                            elem_classes=["danger-action", "compact-button"],
+                        )
+                        clear_history_btn = gr.Button(
+                            "清空历史",
+                            interactive=False,
+                            elem_classes=["danger-action", "compact-button"],
+                        )
                     history_feedback = gr.Textbox(
                         label="历史反馈",
                         interactive=False,
@@ -4476,7 +4484,7 @@ def build_app() -> gr.Blocks:
             show_progress="minimal",
         )
         case_select.change(
-            fn=case_action_button_state,
+            fn=record_action_button_state,
             inputs=case_select,
             outputs=[delete_case_btn, export_case_btn],
             queue=False,
@@ -4503,6 +4511,13 @@ def build_app() -> gr.Blocks:
         ).then(
             fn=reset_history_delete_confirmation,
             outputs=[delete_history_btn, history_delete_confirmation],
+            queue=False,
+            show_progress="hidden",
+        )
+        history_select.change(
+            fn=record_action_button_state,
+            inputs=history_select,
+            outputs=[delete_history_btn, clear_history_btn],
             queue=False,
             show_progress="hidden",
         )

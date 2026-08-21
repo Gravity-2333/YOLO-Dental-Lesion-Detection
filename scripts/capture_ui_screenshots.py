@@ -287,7 +287,11 @@ def capture(args: argparse.Namespace) -> None:
                 print(f"04-ai-chat.png screenshot failed: {exc}")
                 save(page, output_dir, name("04-ai-chat.png", suffix))
 
-            for tab_name, filename in [("病例记录", "05-cases.png"), ("设置", "06-settings.png")]:
+            for tab_name, filename in [
+                ("病例记录", "05-cases.png"),
+                ("检测历史", "06-history.png"),
+                ("设置", "06-settings.png"),
+            ]:
                 detail_page = browser.new_page(viewport={"width": 1440, "height": 950})
                 try:
                     wait_ready(detail_page, base_url)
@@ -296,6 +300,7 @@ def capture(args: argparse.Namespace) -> None:
                         detail_page,
                         output_dir,
                         name(filename, suffix),
+                        full=tab_name == "检测历史",
                         reset_scroll=True,
                     )
                     if tab_name == "设置":

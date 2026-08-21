@@ -232,6 +232,22 @@ class DependencyManifestTests(unittest.TestCase):
         self.assertIn("scrollingElement.scrollTop = 0", screenshot_source)
         self.assertGreaterEqual(screenshot_source.count("reset_scroll=True"), 5)
 
+    def test_final_screenshots_cover_every_primary_page(self) -> None:
+        screenshot_source = (
+            Path(__file__).resolve().parents[1] / "scripts" / "capture_ui_screenshots.py"
+        ).read_text(encoding="utf-8")
+
+        for tab_name, filename in (
+            ("病例记录", "05-cases.png"),
+            ("检测历史", "06-history.png"),
+            ("设置", "06-settings.png"),
+        ):
+            with self.subTest(tab_name=tab_name):
+                self.assertIn(f'("{tab_name}", "{filename}")', screenshot_source)
+        self.assertIn('name("04-ai-chat.png", suffix)', screenshot_source)
+        self.assertIn('name("07-workbench-mobile.png", suffix)', screenshot_source)
+        self.assertIn('full=tab_name == "检测历史"', screenshot_source)
+
     def test_detection_screenshot_uses_an_isolated_non_ai_session(self) -> None:
         screenshot_source = (
             Path(__file__).resolve().parents[1] / "scripts" / "capture_ui_screenshots.py"
@@ -344,8 +360,8 @@ class UiContractTests(unittest.TestCase):
 
 class UiContentTests(unittest.TestCase):
     def test_case_actions_follow_the_selected_record(self) -> None:
-        empty_delete, empty_export = app.case_action_button_state(None)
-        selected_delete, selected_export = app.case_action_button_state("病例.json")
+        empty_delete, empty_export = app.record_action_button_state(None)
+        selected_delete, selected_export = app.record_action_button_state("病例.json")
         self.assertFalse(empty_delete["interactive"])
         self.assertFalse(empty_export["interactive"])
         self.assertTrue(selected_delete["interactive"])
@@ -363,9 +379,35 @@ class UiContentTests(unittest.TestCase):
         event_source = source.split("case_select.change(", 1)[1].split(
             "refresh_history_btn.click(", 1
         )[0]
-        self.assertIn("fn=case_action_button_state", event_source)
+        self.assertIn("fn=record_action_button_state", event_source)
         self.assertIn("inputs=case_select", event_source)
         self.assertIn("outputs=[delete_case_btn, export_case_btn]", event_source)
+        self.assertIn("queue=False", event_source)
+        self.assertIn('show_progress="hidden"', event_source)
+
+    def test_history_actions_follow_the_available_records(self) -> None:
+        empty_delete, empty_clear = app.record_action_button_state("")
+        selected_delete, selected_clear = app.record_action_button_state("历史记录")
+        self.assertFalse(empty_delete["interactive"])
+        self.assertFalse(empty_clear["interactive"])
+        self.assertTrue(selected_delete["interactive"])
+        self.assertTrue(selected_clear["interactive"])
+
+        source = inspect.getsource(app.build_app)
+        self.assertIn(
+            '"删除所选",\n                            interactive=False,',
+            source,
+        )
+        self.assertIn(
+            '"清空历史",\n                            interactive=False,',
+            source,
+        )
+        event_source = source.split("history_select.change(", 1)[1].split(
+            "delete_history_btn.click(", 1
+        )[0]
+        self.assertIn("fn=record_action_button_state", event_source)
+        self.assertIn("inputs=history_select", event_source)
+        self.assertIn("outputs=[delete_history_btn, clear_history_btn]", event_source)
         self.assertIn("queue=False", event_source)
         self.assertIn('show_progress="hidden"', event_source)
 
