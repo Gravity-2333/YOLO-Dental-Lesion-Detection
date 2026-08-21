@@ -130,10 +130,10 @@
   const labelImageButtons = () => {
     document.querySelectorAll(".image-container > button").forEach((button) => {
       if (!button.getAttribute("aria-label")) {
-        button.setAttribute("aria-label", "查看图片");
+        button.setAttribute("aria-label", "打开图片预览");
       }
       if (!button.getAttribute("title")) {
-        button.setAttribute("title", "查看图片");
+        button.setAttribute("title", "打开图片预览");
       }
     });
   };

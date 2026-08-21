@@ -118,8 +118,9 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn('button.setAttribute("aria-label", label)', javascript)
         self.assertIn('button.setAttribute("title", label)', javascript)
         self.assertIn('document.querySelectorAll(".image-container > button")', javascript)
-        self.assertIn('button.setAttribute("aria-label", "查看图片")', javascript)
-        self.assertIn('button.setAttribute("title", "查看图片")', javascript)
+        self.assertIn('button.setAttribute("aria-label", "打开图片预览")', javascript)
+        self.assertIn('button.setAttribute("title", "打开图片预览")', javascript)
+        self.assertNotIn('button.setAttribute("aria-label", "查看图片")', javascript)
         self.assertIn("labelImageButtons();", javascript)
 
     def test_truncated_path_fields_expose_the_full_value_as_a_tooltip(self) -> None:
