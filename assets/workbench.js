@@ -5,6 +5,11 @@
     ".path-output input",
     ".path-output textarea",
   ].join(", ");
+  const GENERATED_BUTTON_LABELS = new Map([
+    ["Upload file", "选择文件上传"],
+    ["Paste from clipboard", "从剪贴板粘贴"],
+    ["Copy conversation", "复制内容"],
+  ]);
   let labelingScheduled = false;
   let runtimeAppId = "";
   let runtimeCheckInFlight = false;
@@ -104,6 +109,22 @@
     });
   };
 
+  const labelGeneratedIconButtons = () => {
+    document.querySelectorAll("button").forEach((button) => {
+      const label = GENERATED_BUTTON_LABELS.get(button.getAttribute("aria-label"))
+        || GENERATED_BUTTON_LABELS.get(button.getAttribute("title"));
+      if (!label) {
+        return;
+      }
+      if (button.getAttribute("aria-label") !== label) {
+        button.setAttribute("aria-label", label);
+      }
+      if (button.getAttribute("title") !== label) {
+        button.setAttribute("title", label);
+      }
+    });
+  };
+
   const syncPathValueTitle = (target) => {
     if (
       !(target instanceof HTMLInputElement)
@@ -129,6 +150,7 @@
   const labelIconActions = () => {
     labelOverflowMenus();
     labelPathPickers();
+    labelGeneratedIconButtons();
     labelPathValues();
   };
 
