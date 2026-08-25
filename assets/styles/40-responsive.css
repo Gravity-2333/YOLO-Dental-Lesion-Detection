@@ -172,6 +172,10 @@
     grid-template-columns: minmax(0, 1fr) 120px !important;
   }
 
+  .chat-card .row.path-row {
+    grid-template-columns: minmax(0, 1fr) 120px !important;
+  }
+
   .path-row > .icon-action,
   .row.path-row > button.icon-action {
     flex: 0 0 44px !important;
@@ -224,6 +228,14 @@
     width: 120px !important;
     min-width: 120px !important;
     max-width: 120px !important;
+  }
+
+  .chat-card .row.path-row > button.secondary-action {
+    flex: 0 0 120px !important;
+    width: 120px !important;
+    min-width: 120px !important;
+    max-width: 120px !important;
+    margin-bottom: 10px !important;
   }
 
   .model-row {
@@ -331,6 +343,12 @@
   .app-subtitle {
     font-size: 0.94rem;
     line-height: 1.55;
+  }
+
+  .chat-card .row.path-row > button.secondary-action {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: none !important;
   }
 
   .guide-card {

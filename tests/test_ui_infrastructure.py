@@ -168,6 +168,8 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("grid-template-columns: minmax(0, 1fr) 132px !important", tablet)
         self.assertIn("grid-template-columns: minmax(0, 1fr) 152px !important", tablet)
         self.assertIn("grid-template-columns: minmax(0, 1fr) 120px !important", tablet)
+        self.assertIn(".chat-card .row.path-row", tablet)
+        self.assertIn("margin-bottom: 10px !important", tablet)
         self.assertIn("grid-template-columns: minmax(0, 1fr) 112px !important", tablet)
         self.assertIn(".compact-row", tablet)
         self.assertIn("min-width: 104px !important", tablet)
@@ -176,6 +178,18 @@ class UiAssetTests(unittest.TestCase):
 
         settings_source = inspect.getsource(app.build_settings_page)
         self.assertEqual(settings_source.count('"path-picker-row"'), 2)
+
+    def test_mobile_chat_export_button_stretches_with_the_path_row(self) -> None:
+        css = load_workbench_css()
+        mobile = css.split("@media (max-width: 640px)", 1)[1]
+        rule = mobile.split(
+            ".chat-card .row.path-row > button.secondary-action",
+            1,
+        )[1].split("}", 1)[0]
+
+        self.assertIn("width: 100% !important", rule)
+        self.assertIn("min-width: 100% !important", rule)
+        self.assertIn("max-width: none !important", rule)
 
     def test_settings_save_row_is_a_compact_page_action(self) -> None:
         css = load_workbench_css()
