@@ -602,6 +602,30 @@ input[aria-label="对比模型路径"],
   opacity: 0.45 !important;
 }
 
+.comparison-results-section {
+  margin: 0 0 18px !important;
+  padding: 10px !important;
+  border: 1px solid #2f3d48 !important;
+  border-radius: var(--radius) !important;
+  background: #111820 !important;
+}
+
+.comparison-results-gallery {
+  margin: 0 !important;
+}
+
+.comparison-results-gallery .gallery-container,
+.comparison-results-gallery .grid-wrap,
+.comparison-results-gallery .grid-container {
+  background: #111820 !important;
+}
+
+.comparison-results-gallery > .label-wrap,
+.comparison-results-gallery label {
+  background: #111820 !important;
+  color: #d7e2ea !important;
+}
+
 .highres-result-card {
   max-height: 460px !important;
 }

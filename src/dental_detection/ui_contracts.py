@@ -10,6 +10,8 @@ COMMON_OUTPUT_KEYS = (
     "original",
     "model_input",
     "result",
+    "comparison_section",
+    "comparison_gallery",
     "highres_result",
     "crop_gallery",
     "crop_status",

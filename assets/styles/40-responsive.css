@@ -399,6 +399,15 @@
     max-height: 320px !important;
   }
 
+  .comparison-results-gallery,
+  .comparison-results-gallery .grid-wrap {
+    height: 390px !important;
+  }
+
+  .comparison-results-gallery .grid-container {
+    --grid-cols: 1 !important;
+  }
+
   .chat-window {
     height: 340px !important;
     min-height: 340px !important;

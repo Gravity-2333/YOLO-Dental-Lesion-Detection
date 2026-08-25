@@ -408,6 +408,13 @@ class UiContractTests(unittest.TestCase):
         self.assertNotIn("value", values[COMMON_OUTPUT_KEYS.index("chatbot")])
         self.assertNotIn("value", values[COMMON_OUTPUT_KEYS.index("chat_state")])
 
+    def test_empty_single_detection_request_is_a_quiet_reset(self) -> None:
+        values = app.run_single_detection(None, *([None] * len(COMMON_INPUT_KEYS)))
+
+        self.assertEqual(len(values), len(COMMON_OUTPUT_KEYS))
+        self.assertIsNone(values[COMMON_OUTPUT_KEYS.index("result")])
+        self.assertFalse(values[COMMON_OUTPUT_KEYS.index("comparison_section")]["visible"])
+
     def test_storage_switch_clears_the_current_browser_session(self) -> None:
         unchanged = app.clear_session_after_storage_change(False)
         changed = app.clear_session_after_storage_change(True)
@@ -961,11 +968,11 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('show_progress="hidden"', cancellation_event)
         for trigger in (
             "image.input",
+            "image.change",
             "batch_files.upload",
             "primary_model_path.input",
             "conf.input",
             "model_mode.input",
-            "load_example_btn.click",
             "apply_model_btn.click",
             "patient_select.input",
             "archive_patient_btn.click",
@@ -1308,6 +1315,36 @@ class UiContentTests(unittest.TestCase):
         self.assertIs(shared[1]["original"], original)
         self.assertIs(shared[1]["model_input"], model_input)
         self.assertIs(shared[1]["annotated"], secondary_annotated)
+
+    def test_comparison_gallery_identifies_models_and_stays_hidden_for_single_results(self) -> None:
+        primary_image = object()
+        compare_image = object()
+
+        comparison_section, comparison_gallery = app._comparison_gallery_updates(
+            [
+                {"model": "原始结构", "annotated": primary_image},
+                {"model": "优化结构", "annotated": compare_image},
+            ]
+        )
+        single_section, single_gallery = app._comparison_gallery_updates(
+            [{"model": "原始结构", "annotated": primary_image}]
+        )
+
+        self.assertTrue(comparison_section["visible"])
+        self.assertEqual(
+            comparison_gallery["value"],
+            [(primary_image, "主模型：原始结构"), (compare_image, "对比模型：优化结构")],
+        )
+        self.assertFalse(single_section["visible"])
+        self.assertEqual(single_gallery["value"], [(primary_image, "主模型：原始结构")])
+
+    def test_workbench_reserves_a_hidden_comparison_section(self) -> None:
+        source = inspect.getsource(build_workbench_page)
+
+        self.assertIn('label="完整模型对比结果"', source)
+        self.assertIn('gr.Group(visible=False, elem_classes=["comparison-results-section"])', source)
+        self.assertIn("comparison_section", COMMON_OUTPUT_KEYS)
+        self.assertIn("comparison_gallery", COMMON_OUTPUT_KEYS)
 
     def test_launch_bounds_upload_and_session_retention(self) -> None:
         launch = MagicMock(return_value=("app", "local", "share"))

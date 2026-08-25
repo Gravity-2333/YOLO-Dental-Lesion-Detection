@@ -958,6 +958,20 @@ def _report_annotated_image(result: dict[str, Any]) -> Any:
     return _first_present(result.get("full_annotated"), result.get("annotated"))
 
 
+def _comparison_gallery_updates(results: list[dict[str, Any]]):
+    items = []
+    for index, result in enumerate(results, start=1):
+        if not isinstance(result, dict):
+            continue
+        image = _report_annotated_image(result)
+        if image is None:
+            continue
+        role = "主模型" if index == 1 else "对比模型"
+        model = model_result_name(result, f"模型 {index}")
+        items.append((image, f"{role}：{model}"))
+    return gr.update(visible=len(items) > 1), gr.update(value=items)
+
+
 def _visible_class_choices(result: dict[str, Any] | None) -> list[str]:
     detections = _clean_detection_records(model_result_detections(result or {}))
     choices: list[str] = []
@@ -1472,13 +1486,11 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
         model_name = _summary_model_name(summary_data)
     if not model_name:
         model_name = "unknown"
-    model_names = list(
-        dict.fromkeys(
-            name
-            for model_result in all_results
-            if (name := model_result_name(model_result, ""))
-        )
-    )
+    model_names = []
+    for model_result in all_results:
+        model_display_name = model_result_name(model_result, "")
+        if model_display_name and model_display_name not in model_names:
+            model_names.append(model_display_name)
     if not model_names:
         model_names = [model_name]
 
@@ -2114,6 +2126,8 @@ def clear_outputs(*, clear_chat: bool = False):
             "original": None,
             "model_input": None,
             "result": None,
+            "comparison_section": gr.update(visible=False),
+            "comparison_gallery": gr.update(value=[]),
             "highres_result": None,
             "crop_gallery": [],
             "crop_status": "暂无疑似区域局部图",
@@ -2299,7 +2313,7 @@ def run_single_detection(
     history_limit: int | float,
 ):
     if image is None:
-        raise gr.Error("请先上传一张牙科影像。")
+        return clear_outputs_with_quality(None)
 
     device, cuda_available = _device(device_choice)
     selected_models = _configured_models(model_mode if enable_compare else MODEL_MODE_SINGLE, primary_model_path, compare_model_path)
@@ -2402,11 +2416,14 @@ def run_single_detection(
             chat_history = _conversation_from_advice(advice)
             batch_state[0]["advice"] = advice
     highres_image, crop_items, crop_text = _result_visual_outputs(primary)
+    comparison_section_update, comparison_gallery_update = _comparison_gallery_updates(all_results)
     return common_output_values(
         {
             "original": primary["original"],
             "model_input": primary["model_input"],
             "result": primary["annotated"],
+            "comparison_section": comparison_section_update,
+            "comparison_gallery": comparison_gallery_update,
             "highres_result": highres_image,
             "crop_gallery": crop_items,
             "crop_status": crop_text,
@@ -2616,11 +2633,14 @@ def run_batch_detection(
             first["advice"] = f"{first['advice']}\n\n{history_warning}"
             chat_history = _conversation_from_advice(first["advice"])
     highres_image, crop_items, crop_text = _result_visual_outputs(first["result"])
+    comparison_section_update, comparison_gallery_update = _comparison_gallery_updates(_item_results(first))
     return common_output_values(
         {
             "original": first["result"]["original"],
             "model_input": first["result"]["model_input"],
             "result": first["result"]["annotated"],
+            "comparison_section": comparison_section_update,
+            "comparison_gallery": comparison_gallery_update,
             "highres_result": highres_image,
             "crop_gallery": crop_items,
             "crop_status": crop_text,
@@ -2662,6 +2682,8 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
             None,
             None,
             None,
+            gr.update(visible=False),
+            gr.update(value=[]),
             None,
             [],
             "暂无疑似区域局部图",
@@ -2700,6 +2722,7 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
         result["original"],
         result["model_input"],
         result["annotated"],
+        *_comparison_gallery_updates(_item_results(item)),
         highres_image,
         crop_items,
         crop_text,
@@ -3580,6 +3603,8 @@ def build_app() -> gr.Blocks:
         original_output = workbench.original_output
         model_input_output = workbench.model_input_output
         result_output = workbench.result_output
+        comparison_section = workbench.comparison_section
+        comparison_gallery = workbench.comparison_gallery
         highres_result_output = workbench.highres_result_output
         crop_status = workbench.crop_status
         crop_gallery = workbench.crop_gallery
@@ -3645,6 +3670,8 @@ def build_app() -> gr.Blocks:
                 "original": original_output,
                 "model_input": model_input_output,
                 "result": result_output,
+                "comparison_section": comparison_section,
+                "comparison_gallery": comparison_gallery,
                 "highres_result": highres_result_output,
                 "crop_gallery": crop_gallery,
                 "crop_status": crop_status,
@@ -3970,6 +3997,7 @@ def build_app() -> gr.Blocks:
         gr.on(
             triggers=[
                 image.input,
+                image.change,
                 batch_files.upload,
                 batch_files.clear,
                 primary_model_path.input,
@@ -3981,7 +4009,6 @@ def build_app() -> gr.Blocks:
                 model_mode.input,
                 settings_model_mode.input,
                 enable_compare.input,
-                load_example_btn.click,
                 apply_model_btn.click,
                 apply_model_card_btn.click,
                 patient_select.input,
@@ -4103,6 +4130,8 @@ def build_app() -> gr.Blocks:
                 original_output,
                 model_input_output,
                 result_output,
+                comparison_section,
+                comparison_gallery,
                 highres_result_output,
                 crop_gallery,
                 crop_status,

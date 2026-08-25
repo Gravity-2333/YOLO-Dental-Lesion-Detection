@@ -47,8 +47,10 @@ class ExporterTests(unittest.TestCase):
 
         self.assertIn("使用模型: 主模型、对比模型", text_summary)
         self.assertIn("模型结果组数: 2", text_summary)
+        self.assertIn("图片名称: 当前单图", text_summary)
         self.assertIn("使用模型：主模型、对比模型", html_report)
         self.assertEqual(json_report["report"]["models"], ["主模型", "对比模型"])
+        self.assertEqual(json_report["report"]["image_name"], "当前单图")
 
     def test_concurrent_export_roots_are_claimed_atomically(self) -> None:
         with TemporaryDirectory() as temp_dir:

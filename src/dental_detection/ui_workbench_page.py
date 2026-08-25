@@ -57,6 +57,8 @@ class WorkbenchComponents:
     original_output: Any
     model_input_output: Any
     result_output: Any
+    comparison_section: Any
+    comparison_gallery: Any
     highres_result_output: Any
     crop_status: Any
     crop_gallery: Any
@@ -275,6 +277,17 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                             elem_classes=["result-card"],
                         )
 
+            with gr.Group(visible=False, elem_classes=["comparison-results-section"]) as comparison_section:
+                comparison_gallery = gr.Gallery(
+                    label="完整模型对比结果",
+                    columns=2,
+                    rows=1,
+                    height=300,
+                    allow_preview=True,
+                    object_fit="contain",
+                    elem_classes=["comparison-results-gallery"],
+                )
+
             with gr.Accordion("查看高清结果与疑似区域", open=False):
                 highres_result_output = gr.Image(
                     type="pil",
@@ -409,6 +422,8 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
         original_output=original_output,
         model_input_output=model_input_output,
         result_output=result_output,
+        comparison_section=comparison_section,
+        comparison_gallery=comparison_gallery,
         highres_result_output=highres_result_output,
         crop_status=crop_status,
         crop_gallery=crop_gallery,
