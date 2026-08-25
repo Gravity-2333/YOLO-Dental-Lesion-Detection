@@ -630,6 +630,16 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("queue=False", event_source)
         self.assertIn('show_progress="hidden"', event_source)
 
+        status_refresh_source = source.split("chat_event.success(", 1)[1].split(
+            "chatbot.change(", 1
+        )[0]
+        self.assertIn("fn=refresh_ai_runtime_status", status_refresh_source)
+        self.assertIn("chat_state", status_refresh_source)
+        self.assertIn("batch_state", status_refresh_source)
+        self.assertIn("ai_runtime_status", status_refresh_source)
+        self.assertIn("queue=False", status_refresh_source)
+        self.assertIn('show_progress="hidden"', status_refresh_source)
+
         clear_source = source.split("chatbot.clear(", 1)[1].split(
             "refresh_conversation_btn.click(", 1
         )[0]

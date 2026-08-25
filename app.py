@@ -4364,6 +4364,18 @@ def build_app() -> gr.Blocks:
             trigger_mode="once",
             show_progress="minimal",
         )
+        chat_event.success(
+            fn=refresh_ai_runtime_status,
+            inputs=[
+                chat_state,
+                batch_state,
+                batch_select,
+                *settings.ai_request_inputs(),
+            ],
+            outputs=ai_runtime_status,
+            queue=False,
+            show_progress="hidden",
+        )
         chatbot.change(
             fn=chat_export_button_state,
             inputs=chatbot,
