@@ -1812,7 +1812,7 @@ def delete_selected_case_record(
     date_from, date_to = _validate_case_date_filters(date_from, date_to)
     file_name = _case_file_name_from_choice(choice)
     try:
-        trash_path = move_case_to_trash(storage_dir, file_name, patient_id)
+        move_case_to_trash(storage_dir, file_name, patient_id)
     except (OSError, ValueError, FileNotFoundError) as exc:
         raise gr.Error(str(exc)) from exc
     rows = search_case_records(
@@ -1830,7 +1830,7 @@ def delete_selected_case_record(
     return (
         gr.update(choices=choices, value=selected),
         _case_table_html(rows),
-        f"病例已移入回收站：{trash_path}",
+        "病例已移入回收站。",
         _case_detail_from_choice(selected, storage_dir, patient_id),
         _clear_file_output(),
         "",

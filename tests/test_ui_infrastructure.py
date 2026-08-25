@@ -735,6 +735,38 @@ class UiContentTests(unittest.TestCase):
             self.assertTrue(Path(path_text).is_file())
             self.assertNotIn("已导出", path_text)
 
+    def test_case_trash_feedback_does_not_expose_storage_path(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            state = [
+                {
+                    "name": "case-image.png",
+                    "patient_id": "patient-1",
+                    "quality_text": "图像质量正常",
+                    "result": {"detections": []},
+                }
+            ]
+            saved = app.save_case_record(
+                state,
+                "case-image.png",
+                "回收站复验",
+                "",
+                temp_dir,
+            )
+            deleted = app.delete_selected_case_record(
+                saved[1]["value"],
+                "",
+                "全部",
+                "全部",
+                "",
+                "",
+                temp_dir,
+                "patient-1",
+            )
+
+            self.assertEqual(deleted[2], "病例已移入回收站。")
+            self.assertNotIn(temp_dir, deleted[2])
+            self.assertIsNone(deleted[0]["value"])
+
     def test_workbench_shows_interpretation_before_technical_detection_details(self) -> None:
         source = inspect.getsource(build_workbench_page)
         insight_position = source.index('with gr.Row(elem_classes=["insight-grid"])')
