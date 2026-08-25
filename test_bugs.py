@@ -21,10 +21,15 @@ try:
     from src.dental_detection.batch_summary import build_batch_summary
     from src.dental_detection.record_formatters import format_case_record
     from src.dental_detection.ui_assets import load_workbench_css
+    from src.dental_detection.ui_contracts import COMMON_OUTPUT_KEYS
     print("✓ 模块导入成功")
 except Exception as e:
     print(f"✗ 模块导入失败: {e}")
     sys.exit(1)
+
+
+def common_output(outputs, key):
+    return outputs[COMMON_OUTPUT_KEYS.index(key)]
 
 # 测试2: 检查配置加载
 print("\n测试2: 检查配置加载...")
@@ -371,8 +376,10 @@ try:
         "zip_report_path": r"C:\tmp\report.zip",
     }
     outputs = select_batch_item("001 - keep-path.png", [item], False)
-    assert outputs[19] == r"C:\tmp\report.docx", "切换图片后应保留 Word 报告路径"
-    assert outputs[22] == r"C:\tmp\report.zip", "切换图片后应保留 ZIP 报告路径"
+    word_report_path_index = 21
+    zip_report_path_index = 24
+    assert outputs[word_report_path_index] == r"C:\tmp\report.docx", "切换图片后应保留 Word 报告路径"
+    assert outputs[zip_report_path_index] == r"C:\tmp\report.zip", "切换图片后应保留 ZIP 报告路径"
     print("✓ 切换图片保留报告路径正常")
 except Exception as e:
     print(f"✗ 切换图片报告路径测试失败: {e}")
@@ -931,12 +938,12 @@ except Exception as e:
 print("\n测试32: 检查病例筛选短输入框不换行截断...")
 try:
     project_root = Path(__file__).parent
-    app_text = (project_root / "app.py").read_text(encoding="utf-8")
+    cases_page_text = (project_root / "src" / "dental_detection" / "ui_cases_page.py").read_text(encoding="utf-8")
     css_text = load_workbench_css()
     for label in ["病例编号 / 备注名称", "搜索病例", "开始日期", "结束日期"]:
-        assert f'label="{label}"' in app_text, f"{label} 输入框应存在"
-        label_index = app_text.index(f'label="{label}"')
-        snippet = app_text[label_index : label_index + 220]
+        assert f'label="{label}"' in cases_page_text, f"{label} 输入框应存在"
+        label_index = cases_page_text.index(f'label="{label}"')
+        snippet = cases_page_text[label_index : label_index + 220]
         assert "lines=1" in snippet and "max_lines=1" in snippet, f"{label} 应声明为单行输入框"
         assert f'textarea[aria-label="{label}"]' in css_text, f"{label} 应有单行样式兜底"
     short_input_rule = 'textarea[aria-label="病例编号 / 备注名称"],\ntextarea[aria-label="搜索病例"],'
@@ -1068,9 +1075,10 @@ try:
                 False,
                 100,
             )
-        advice_text = outputs[11]
-        overview_html = outputs[14].get("value", "") if isinstance(outputs[14], dict) else outputs[14]
-        batch_state = outputs[15]
+        advice_text = common_output(outputs, "advice")
+        overview_update = common_output(outputs, "batch_overview")
+        overview_html = overview_update.get("value", "") if isinstance(overview_update, dict) else overview_update
+        batch_state = common_output(outputs, "batch_state")
         assert "bad.png" not in advice_text and "处理失败" not in advice_text, (
             "首张成功图片的建议不应混入批量失败清单"
         )
@@ -1940,15 +1948,16 @@ try:
     import app
 
     with TemporaryDirectory() as temp_dir:
-        outputs = app.apply_model_card(str(DEFAULT_MODEL_PATH), temp_dir)
-    primary_update, dropdown_update, cards_html, info_text, feedback = outputs
+        outputs = app.apply_model_card(str(DEFAULT_MODEL_PATH), "主模型", temp_dir)
+    primary_update, compare_update, dropdown_update, cards_html, info_text, feedback = outputs
     assert primary_update["value"] == str(DEFAULT_MODEL_PATH), "模型卡片应填入主模型路径"
+    assert "value" not in compare_update, "选择主模型卡片不应覆盖对比模型路径"
     assert dropdown_update["value"] == str(DEFAULT_MODEL_PATH), "高级模型下拉框应同步选中模型卡片路径"
     assert any(value == str(DEFAULT_MODEL_PATH) for _, value in dropdown_update["choices"]), (
         "即使当前模型目录不包含卡片模型，也应临时补入下拉候选"
     )
     assert "selected" in cards_html and "YOLOv8m C2f-Faster-lite" in info_text, "模型信息区应同步当前卡片选择"
-    assert "已选择" in feedback, "卡片选择应返回明确反馈"
+    assert "填入主模型" in feedback, "卡片选择应返回明确反馈"
     print("✓ 模型卡片与高级下拉同步正常")
 except Exception as e:
     print(f"✗ 模型卡片与高级下拉同步测试失败: {e}")
@@ -2464,19 +2473,21 @@ try:
     from PIL import Image
 
     def assert_common_outputs_aligned(outputs):
-        assert len(outputs) == 34, f"主流程应返回 34 个输出，实际 {len(outputs)}"
-        assert getattr(outputs[29], "get", lambda *_: None)("value") == "导出 Word 报告", (
-            "Word 导出按钮应位于 common_outputs[29]"
+        assert len(outputs) == len(COMMON_OUTPUT_KEYS), (
+            f"主流程应返回 {len(COMMON_OUTPUT_KEYS)} 个输出，实际 {len(outputs)}"
         )
-        assert getattr(outputs[32], "get", lambda *_: None)("value") == "导出 ZIP 数据包", (
-            "ZIP 导出按钮应位于 common_outputs[32]"
-        )
-        assert getattr(outputs[27], "get", lambda *_: None)("value") != "导出 Word 报告", (
-            "word_report_file 文件组件不能收到按钮文字"
-        )
-        assert getattr(outputs[30], "get", lambda *_: None)("value") != "导出 ZIP 数据包", (
-            "report_file 文件组件不能收到按钮文字"
-        )
+        assert getattr(common_output(outputs, "word_export_button"), "get", lambda *_: None)("value") == (
+            "导出 Word 报告"
+        ), "Word 导出按钮应匹配命名输出契约"
+        assert getattr(common_output(outputs, "zip_export_button"), "get", lambda *_: None)("value") == (
+            "导出 ZIP 数据包"
+        ), "ZIP 导出按钮应匹配命名输出契约"
+        assert getattr(common_output(outputs, "word_report_file"), "get", lambda *_: None)("value") != (
+            "导出 Word 报告"
+        ), "word_report_file 文件组件不能收到按钮文字"
+        assert getattr(common_output(outputs, "zip_report_file"), "get", lambda *_: None)("value") != (
+            "导出 ZIP 数据包"
+        ), "zip_report_file 文件组件不能收到按钮文字"
 
     image = Image.new("RGB", (80, 60), "white")
     detection = {
@@ -2535,8 +2546,9 @@ try:
             100,
         )
         assert_common_outputs_aligned(single_outputs)
-        assert single_outputs[15][0].get("task_id"), "单图检测应生成工作区任务记录"
-        assert single_outputs[15][0].get("patient_id") == "personal-self", "单图任务应关联当前患者档案"
+        single_state = common_output(single_outputs, "batch_state")
+        assert single_state[0].get("task_id"), "单图检测应生成工作区任务记录"
+        assert single_state[0].get("patient_id") == "personal-self", "单图任务应关联当前患者档案"
 
         with TemporaryDirectory() as temp_dir:
             image_path = Path(temp_dir) / "batch.png"
@@ -2570,8 +2582,9 @@ try:
                 100,
             )
         assert_common_outputs_aligned(batch_outputs)
-        assert batch_outputs[15][0].get("task_id"), "批量检测应逐图生成工作区任务记录"
-        assert batch_outputs[15][0].get("patient_id") == "personal-self", "批量任务应关联当前患者档案"
+        batch_state = common_output(batch_outputs, "batch_state")
+        assert batch_state[0].get("task_id"), "批量检测应逐图生成工作区任务记录"
+        assert batch_state[0].get("patient_id") == "personal-self", "批量任务应关联当前患者档案"
         assert_common_outputs_aligned(app.clear_outputs())
     finally:
         app._detect_model_path = original_detect
