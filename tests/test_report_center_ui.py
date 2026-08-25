@@ -77,6 +77,11 @@ class ReportCenterUiTests(unittest.TestCase):
             refreshed = refresh_report_center(temp_dir, workspace.patient.id)
             self.assertEqual(len(refreshed), 6)
             self.assertEqual(refreshed[0]["value"], report.id)
+            self.assertEqual(
+                refreshed[0]["choices"][0],
+                (f"Word 报告 · {report_center_ui._local_timestamp(report.created_at)}", report.id),
+            )
+            self.assertNotIn(path.name, refreshed[0]["choices"][0][0])
             self.assertIn(path.name, refreshed[1])
             self.assertIn("record-table", refreshed[1])
             self.assertTrue(refreshed[3]["visible"])

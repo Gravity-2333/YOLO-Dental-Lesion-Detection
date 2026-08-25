@@ -3,9 +3,36 @@ from __future__ import annotations
 import unittest
 
 from src.dental_detection.record_formatters import format_case_record, format_history_record
+from src.dental_detection.record_views import history_choices_from_rows, history_id
 
 
 class RecordFormatterPrivacyTests(unittest.TestCase):
+    def test_history_choices_hide_internal_ids_but_keep_them_as_values(self) -> None:
+        choices = history_choices_from_rows(
+            [
+                {
+                    "检测时间": "2026-08-02T12:08:58",
+                    "图片名称": "当前单图",
+                    "记录ID": "history-internal-id",
+                },
+                {
+                    "检测时间": "2026-08-02T12:09:30",
+                    "图片名称": "复查牙片.png",
+                    "记录ID": "history-image-id",
+                },
+            ]
+        )
+
+        self.assertEqual(
+            choices,
+            [
+                ("2026-08-02 12:08:58", "history-internal-id"),
+                ("2026-08-02 12:09:30 · 复查牙片.png", "history-image-id"),
+            ],
+        )
+        self.assertEqual(history_id(choices[0][1]), "history-internal-id")
+        self.assertEqual(history_id("旧标签 | history-internal-id"), "history-internal-id")
+
     def test_detail_lists_do_not_mix_bullet_and_ordered_markers(self) -> None:
         record = {
             "created_at": "2026-08-02T12:00:00",

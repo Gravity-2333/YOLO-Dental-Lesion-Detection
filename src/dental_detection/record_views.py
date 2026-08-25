@@ -58,16 +58,21 @@ def history_table_html(rows: list[dict[str, Any]]) -> str:
     return dataframe_table_html(history_table_from_rows(rows), "当前患者暂无检测历史。")
 
 
-def history_choices_from_rows(rows: list[dict[str, Any]]) -> list[str]:
-    choices = []
+def history_choices_from_rows(rows: list[dict[str, Any]]) -> list[tuple[str, str]]:
+    choices: list[tuple[str, str]] = []
     for row in rows:
-        created_at = _short_choice_text(row.get("检测时间") or "", 32)
+        created_at = _short_choice_text(
+            str(row.get("检测时间") or "").replace("T", " ", 1),
+            32,
+        )
         image_name = _short_choice_text(row.get("图片名称") or "未命名图片")
-        record_id = row.get("记录ID", "")
+        record_id = str(row.get("记录ID") or "").strip()
         if record_id:
-            choices.append(f"{created_at} | {image_name} | {record_id}")
+            label = created_at if image_name == "当前单图" else f"{created_at} · {image_name}"
+            choices.append((label, record_id))
     return choices
 
 
 def history_id(choice: str) -> str:
-    return str(choice or "").split("|")[-1].strip()
+    value = str(choice or "").strip()
+    return value.split("|")[-1].strip() if "|" in value else value

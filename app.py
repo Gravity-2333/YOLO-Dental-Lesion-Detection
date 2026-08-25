@@ -1903,7 +1903,7 @@ def refresh_history_records(storage_dir: str, patient_id: str | None = None):
     _ensure_storage_root(storage_dir)
     rows = history_rows(storage_dir, patient_id, limit=HISTORY_UI_LIMIT)
     choices = _history_choices_from_rows(rows)
-    selected = choices[0] if choices else None
+    selected = choices[0][1] if choices else None
     return (
         gr.update(choices=choices, value=selected),
         _history_table_html(rows),

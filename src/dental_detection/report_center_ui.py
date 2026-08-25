@@ -76,7 +76,12 @@ def _report_choices(
         statuses = _report_statuses(storage_dir, reports)
     choices = []
     for report in reports:
-        label = f"{report.file_name} · {_local_timestamp(report.created_at)}"
+        format_key = str(report.report_format or "").strip().lower()
+        format_label = {"docx": "Word", "zip": "ZIP"}.get(
+            format_key,
+            format_key.upper() or "文件",
+        )
+        label = f"{format_label} 报告 · {_local_timestamp(report.created_at)}"
         if statuses.get(report.id) != "可用":
             label += " · 文件缺失"
         choices.append((label, report.id))
