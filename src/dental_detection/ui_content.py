@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from html import escape
+from itertools import count
 
 from .ai_defaults import SAFETY_NOTICE
+
+
+_TOAST_SEQUENCE = count(1)
 
 
 def _feedback_content(message: str) -> str:
@@ -12,7 +16,11 @@ def _feedback_content(message: str) -> str:
 def toast_html(message: str, kind: str = "success") -> str:
     if not message:
         return ""
-    return f'<div class="app-toast app-toast-{kind}">{_feedback_content(message)}</div>'
+    sequence = next(_TOAST_SEQUENCE)
+    return (
+        f'<div class="app-toast app-toast-{kind}" data-toast-sequence="{sequence}">'
+        f"{_feedback_content(message)}</div>"
+    )
 
 
 def inline_status_html(message: str, kind: str = "success") -> str:

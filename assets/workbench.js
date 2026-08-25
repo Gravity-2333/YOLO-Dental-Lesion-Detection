@@ -221,6 +221,18 @@
     });
   };
 
+  const restartUpdatedToast = (mutations) => {
+    mutations.forEach((mutation) => {
+      const toast = mutation.target;
+      if (!(toast instanceof HTMLElement) || !toast.matches(".app-toast")) {
+        return;
+      }
+      toast.style.animation = "none";
+      void toast.offsetWidth;
+      toast.style.removeProperty("animation");
+    });
+  };
+
   const start = () => {
     if (!document.body) {
       window.requestAnimationFrame(start);
@@ -238,6 +250,11 @@
     window.setInterval(checkRuntimeVersion, 30000);
     new MutationObserver(scheduleMenuLabeling).observe(document.body, {
       childList: true,
+      subtree: true,
+    });
+    new MutationObserver(restartUpdatedToast).observe(document.body, {
+      attributes: true,
+      attributeFilter: ["data-toast-sequence"],
       subtree: true,
     });
   };

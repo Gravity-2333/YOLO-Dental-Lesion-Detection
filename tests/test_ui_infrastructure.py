@@ -108,6 +108,10 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("window.location.reload()", javascript)
         self.assertIn("visibilitychange", javascript)
         self.assertIn("dataset.runtimeAppId", javascript)
+        self.assertIn("restartUpdatedToast", javascript)
+        self.assertIn('attributeFilter: ["data-toast-sequence"]', javascript)
+        self.assertIn('toast.style.animation = "none"', javascript)
+        self.assertIn("void toast.offsetWidth", javascript)
 
     def test_mobile_overflow_navigation_exposes_the_selected_page(self) -> None:
         javascript = load_workbench_js()
@@ -809,9 +813,12 @@ class UiContentTests(unittest.TestCase):
 
     def test_shared_feedback_html_escapes_content_and_keeps_display_mode(self) -> None:
         toast = toast_html("<失败>\nA&B", "warning")
+        repeated_toast = toast_html("<失败>\nA&B", "warning")
         inline = inline_status_html("<完成>")
 
         self.assertIn('class="app-toast app-toast-warning"', toast)
+        self.assertIn("data-toast-sequence=", toast)
+        self.assertNotEqual(toast, repeated_toast)
         self.assertIn("&lt;失败&gt;<br>A&amp;B", toast)
         self.assertIn('class="app-inline-status app-inline-status-success"', inline)
         self.assertIn('role="status"', inline)
