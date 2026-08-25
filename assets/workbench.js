@@ -12,6 +12,7 @@
     ["Fullscreen", "全屏查看"],
     ["Remove Image", "移除图片"],
   ]);
+  const TAB_ROOT_SELECTOR = ".main-tabs, .sub-tabs";
   let labelingScheduled = false;
   let runtimeAppId = "";
   let runtimeCheckInFlight = false;
@@ -86,13 +87,47 @@
 
   const labelOverflowMenus = () => {
     document.querySelectorAll(".overflow-menu > button").forEach((button) => {
-      if (button.getAttribute("aria-label") !== "更多") {
-        button.setAttribute("aria-label", "更多");
+      const tabRoot = button.closest(TAB_ROOT_SELECTOR);
+      const selectedLabel = button.classList.contains("overflow-item-selected")
+        ? String(tabRoot?.dataset.overflowSelectedLabel || "").trim()
+        : "";
+      const visibleLabel = selectedLabel || "更多";
+      const accessibleLabel = selectedLabel
+        ? `更多页面，当前：${selectedLabel}`
+        : "更多";
+      if (button.dataset.navLabel !== visibleLabel) {
+        button.dataset.navLabel = visibleLabel;
       }
-      if (button.getAttribute("title") !== "更多") {
-        button.setAttribute("title", "更多");
+      if (button.getAttribute("aria-label") !== accessibleLabel) {
+        button.setAttribute("aria-label", accessibleLabel);
+      }
+      if (button.getAttribute("title") !== accessibleLabel) {
+        button.setAttribute("title", accessibleLabel);
       }
     });
+  };
+
+  const trackOverflowSelection = (event) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    const button = event.target.closest("button");
+    const tabRoot = button?.closest(TAB_ROOT_SELECTOR);
+    if (!button || !tabRoot) {
+      return;
+    }
+    if (button.closest(".overflow-dropdown")) {
+      const selectedLabel = button.textContent.trim();
+      if (selectedLabel) {
+        tabRoot.dataset.overflowSelectedLabel = selectedLabel;
+      }
+      scheduleMenuLabeling();
+      return;
+    }
+    if (button.matches('[role="tab"]')) {
+      delete tabRoot.dataset.overflowSelectedLabel;
+      scheduleMenuLabeling();
+    }
   };
 
   const labelPathPickers = () => {
@@ -192,6 +227,7 @@
     ["input", "change", "focusin", "pointerover"].forEach((eventName) => {
       document.addEventListener(eventName, (event) => syncPathValueTitle(event.target), true);
     });
+    document.addEventListener("click", trackOverflowSelection, true);
     window.setInterval(checkRuntimeVersion, 30000);
     new MutationObserver(scheduleMenuLabeling).observe(document.body, {
       childList: true,

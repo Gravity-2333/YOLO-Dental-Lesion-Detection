@@ -92,6 +92,16 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("visibilitychange", javascript)
         self.assertIn("dataset.runtimeAppId", javascript)
 
+    def test_mobile_overflow_navigation_exposes_the_selected_page(self) -> None:
+        javascript = load_workbench_js()
+        css = load_workbench_css()
+
+        self.assertIn("trackOverflowSelection", javascript)
+        self.assertIn("dataset.overflowSelectedLabel", javascript)
+        self.assertIn("更多页面，当前：", javascript)
+        self.assertIn('content: attr(data-nav-label)', css)
+        self.assertIn("button.overflow-item-selected", css)
+
     def test_directory_picker_buttons_have_specific_accessible_names(self) -> None:
         settings_source = inspect.getsource(build_settings_page)
         javascript = load_workbench_js()

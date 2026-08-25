@@ -401,16 +401,23 @@
     display: inline-flex !important;
     align-items: center !important;
     gap: 4px !important;
-    min-width: 64px !important;
+    min-width: 96px !important;
     padding-left: 10px !important;
     padding-right: 10px !important;
   }
 
   .main-tabs .overflow-menu > button::after,
   .sub-tabs .overflow-menu > button::after {
-    content: "更多";
+    content: attr(data-nav-label);
     font-size: 0.82rem;
     font-weight: 650;
+  }
+
+  .main-tabs .overflow-menu > button.overflow-item-selected,
+  .sub-tabs .overflow-menu > button.overflow-item-selected {
+    color: var(--primary) !important;
+    background: #edf7f5 !important;
+    border-color: #8fc6bf !important;
   }
 
   .card-heading h2,
