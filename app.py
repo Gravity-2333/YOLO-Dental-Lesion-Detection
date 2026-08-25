@@ -1472,12 +1472,22 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
         model_name = _summary_model_name(summary_data)
     if not model_name:
         model_name = "unknown"
+    model_names = list(
+        dict.fromkeys(
+            name
+            for model_result in all_results
+            if (name := model_result_name(model_result, ""))
+        )
+    )
+    if not model_names:
+        model_names = [model_name]
 
     export_info = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "image_name": str(name),
         "display_name": display_name,
         "model": json_safe_value(model_name),
+        "models": json_safe_value(model_names),
         "suggestion_type": text_value(item.get("suggestion_type", "default"), "default"),
         "safety_notice": SAFETY_NOTICE,
     }
@@ -1546,6 +1556,8 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
                     f"图片名称: {name}",
                     f"列表显示名: {display_name}",
                     f"模型: {export_info['model']}",
+                    f"使用模型: {'、'.join(model_names)}",
+                    f"模型结果组数: {len(model_items)}",
                     f"建议类型: {export_info['suggestion_type']}",
                     f"主模型检测框数量: {len(detections)}",
                     f"全部模型检测框数量: {total_detections}",
@@ -1580,7 +1592,7 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
   <h1>牙齿病变辅助检测报告</h1>
   <p class="notice">{_html_escape(SAFETY_NOTICE)}</p>
   <p>生成时间：{_html_escape(export_info['created_at'])}</p>
-  <p>图片名称：{_html_escape(name)}；列表显示名：{_html_escape(display_name)}；模型：{_html_escape(export_info['model'])}</p>
+  <p>图片名称：{_html_escape(name)}；列表显示名：{_html_escape(display_name)}；使用模型：{_html_escape('、'.join(model_names))}</p>
   <div class="grid">
     <figure><img src="{image_files['original']}"><figcaption>原始上传图</figcaption></figure>
     <figure><img src="{image_files['input']}"><figcaption>实际送入模型的图</figcaption></figure>
