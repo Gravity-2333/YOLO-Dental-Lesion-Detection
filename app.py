@@ -2875,7 +2875,7 @@ def save_ui_settings(
         # buttons or tab entry will load records when needed.
         return (
             _inline_status("\n".join(feedback), "success"),
-            *([gr.update()] * 20),
+            *([gr.update()] * 21),
             False,
         )
     if workspace is None:
@@ -2892,6 +2892,7 @@ def save_ui_settings(
         _case_table_html([]),
         _case_detail_from_choice(None, settings.storage_dir, workspace.patient.id),
         case_message,
+        "",
         gr.update(choices=history_choices, value=None),
         _history_table_html([]),
         format_history_record(None),
@@ -4106,6 +4107,7 @@ def build_app() -> gr.Blocks:
                 case_table,
                 case_detail,
                 case_feedback,
+                patient_feedback,
                 history_select,
                 history_table,
                 history_detail,

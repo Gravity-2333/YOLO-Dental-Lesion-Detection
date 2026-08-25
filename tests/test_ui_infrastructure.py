@@ -1370,12 +1370,18 @@ class UiContentTests(unittest.TestCase):
         self.assertFalse(save_mock.call_args.kwargs["migrate_data"])
         case_rows_mock.assert_not_called()
         history_rows_mock.assert_not_called()
-        self.assertEqual(len(result), 22)
+        self.assertEqual(len(result), 23)
         self.assertIn("设置已保存", result[0])
         self.assertIn("app-inline-status", result[0])
         self.assertNotIn("app-toast", result[0])
         self.assertNotIn("settings.json", result[0])
+        self.assertEqual(result[5], "")
         self.assertEqual(result[-3:], (False, False, True))
+
+        save_event_source = inspect.getsource(app.build_app).split(
+            "save_settings_btn.click(", 1
+        )[1].split("concurrency_limit=1", 1)[0]
+        self.assertIn("patient_feedback", save_event_source)
 
     def test_settings_keep_old_config_when_new_workspace_preflight_fails(self) -> None:
         with (
