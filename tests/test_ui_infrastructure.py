@@ -38,7 +38,9 @@ from src.dental_detection.ui_content import (
     CASE_INTRO_HTML,
     HISTORY_INTRO_HTML,
     WORKBENCH_HELP_TEXT,
+    inline_status_html,
     section_heading,
+    toast_html,
 )
 from src.dental_detection.ui_ai_chat_page import (
     build_ai_chat_page,
@@ -804,6 +806,16 @@ class UiContentTests(unittest.TestCase):
         html = section_heading("<标题>", "A&B")
         self.assertIn("&lt;标题&gt;", html)
         self.assertIn("A&amp;B", html)
+
+    def test_shared_feedback_html_escapes_content_and_keeps_display_mode(self) -> None:
+        toast = toast_html("<失败>\nA&B", "warning")
+        inline = inline_status_html("<完成>")
+
+        self.assertIn('class="app-toast app-toast-warning"', toast)
+        self.assertIn("&lt;失败&gt;<br>A&amp;B", toast)
+        self.assertIn('class="app-inline-status app-inline-status-success"', inline)
+        self.assertIn('role="status"', inline)
+        self.assertIn("&lt;完成&gt;", inline)
 
     def test_shared_content_keeps_brand_and_safety_copy(self) -> None:
         self.assertIn("牙齿病变区域识别", APP_HEADER_HTML)

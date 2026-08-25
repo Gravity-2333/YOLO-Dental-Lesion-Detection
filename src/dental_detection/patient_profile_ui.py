@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from html import escape
 import sqlite3
 
 import gradio as gr
@@ -17,11 +16,8 @@ from .personal_workspace import (
     restore_personal_patient,
     update_personal_patient,
 )
+from .ui_content import toast_html
 from .workspace_store import WorkspaceError
-
-
-def _toast(message: str) -> str:
-    return f'<div class="app-toast app-toast-success">{escape(message)}</div>'
 
 
 def _gr_error(exc: BaseException, context: str) -> gr.Error:
@@ -68,7 +64,7 @@ def add_patient_profile(display_name: str, external_reference: str, storage_dir:
         gr.update(choices=choices, value=patient.id),
         "",
         "",
-        _toast(f"已创建患者档案：{patient.display_name}"),
+        toast_html(f"已创建患者档案：{patient.display_name}"),
         patient.id,
     )
 
@@ -110,7 +106,7 @@ def update_patient_profile(
         patient.display_name,
         patient.external_reference,
         gr.update(interactive=patient.id != PERSONAL_PATIENT_ID),
-        _toast(f"患者档案已更新：{patient.display_name}"),
+        toast_html(f"患者档案已更新：{patient.display_name}"),
         patient.id,
     )
 
@@ -132,7 +128,7 @@ def archive_patient_profile(patient_id: str, storage_dir: str):
         fallback.external_reference,
         gr.update(interactive=False),
         gr.update(interactive=bool(archived_choices)),
-        _toast(f"患者档案已归档：{archived.display_name}"),
+        toast_html(f"患者档案已归档：{archived.display_name}"),
         fallback.id,
     )
 
@@ -155,6 +151,6 @@ def restore_patient_profile(patient_id: str, storage_dir: str):
         restored.external_reference,
         gr.update(interactive=True),
         gr.update(interactive=bool(archived_choices)),
-        _toast(f"患者档案已恢复：{restored.display_name}"),
+        toast_html(f"患者档案已恢复：{restored.display_name}"),
         restored.id,
     )

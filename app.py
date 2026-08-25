@@ -163,7 +163,7 @@ from src.dental_detection.ui_constants import (
     MODEL_MODE_SINGLE,
     MODEL_SOURCE,
 )
-from src.dental_detection.ui_content import APP_HEADER_HTML
+from src.dental_detection.ui_content import APP_HEADER_HTML, inline_status_html, toast_html
 from src.dental_detection.ui_ai_chat_page import (
     AiChatPageData,
     build_ai_chat_page,
@@ -938,19 +938,6 @@ def _html_escape(value: Any) -> str:
         .replace(">", "&gt;")
         .replace('"', "&quot;")
     )
-
-
-def _toast(message: str, kind: str = "success") -> str:
-    if not message:
-        return ""
-    return f'<div class="app-toast app-toast-{kind}">{_html_escape(message).replace(chr(10), "<br>")}</div>'
-
-
-def _inline_status(message: str, kind: str = "success") -> str:
-    if not message:
-        return ""
-    content = _html_escape(message).replace(chr(10), "<br>")
-    return f'<div class="app-inline-status app-inline-status-{kind}" role="status">{content}</div>'
 
 
 def _friendly_gr_error(exc: BaseException | str, context: str = "操作失败") -> gr.Error:
@@ -2874,7 +2861,7 @@ def save_ui_settings(
         # archives. Existing selectors remain valid and explicit refresh
         # buttons or tab entry will load records when needed.
         return (
-            _inline_status("\n".join(feedback), "success"),
+            inline_status_html("\n".join(feedback), "success"),
             *([gr.update()] * 23),
             False,
         )
@@ -2887,7 +2874,7 @@ def save_ui_settings(
     case_message = "当前存储位置暂无病例记录。"
     history_message = "当前存储位置暂无检测历史。"
     return (
-        _inline_status("\n".join(feedback), "success"),
+        inline_status_html("\n".join(feedback), "success"),
         gr.update(choices=case_choices, value=None),
         _case_table_html([]),
         _case_detail_from_choice(None, settings.storage_dir, workspace.patient.id),
@@ -3184,8 +3171,8 @@ def sync_model_mode(model_mode: str, primary_model_path: str, compare_model_path
                 gr.update(value=selected_mode),
                 gr.update(value=selected_mode),
                 gr.update(visible=False),
-                gr.update(value=_toast(message, "warning"), visible=True),
-                gr.update(value=_toast(message, "warning")),
+                gr.update(value=toast_html(message, "warning"), visible=True),
+                gr.update(value=toast_html(message, "warning")),
             )
     return (
         gr.update(value=selected_mode),
@@ -3197,20 +3184,20 @@ def sync_model_mode(model_mode: str, primary_model_path: str, compare_model_path
 
 
 def default_storage_dir():
-    return str(APP_HOME), _toast(f"已恢复默认数据目录：{APP_HOME}。保存设置后生效。")
+    return str(APP_HOME), toast_html(f"已恢复默认数据目录：{APP_HOME}。保存设置后生效。")
 
 
 def choose_storage_dir(storage_dir: str, request: gr.Request | None = None):
     if not _is_local_browser_request(request):
-        return gr.update(), _toast("远程访问无法打开服务器端目录选择器，请直接填写服务器上的存储目录。")
+        return gr.update(), toast_html("远程访问无法打开服务器端目录选择器，请直接填写服务器上的存储目录。")
     selected = _choose_directory_dialog("选择数据存储目录", storage_dir or APP_HOME)
     if not selected:
-        return gr.update(), _toast("未选择新的数据存储目录。")
+        return gr.update(), toast_html("未选择新的数据存储目录。")
     root = _safe_existing_root(selected)
     if root is None:
-        return gr.update(), _toast("选择的数据存储目录不可访问，请手动检查路径后重试。", "error")
+        return gr.update(), toast_html("选择的数据存储目录不可访问，请手动检查路径后重试。", "error")
     path = str(root)
-    return gr.update(value=path), _toast(f"已选择数据存储目录：{path}。保存设置后生效。")
+    return gr.update(value=path), toast_html(f"已选择数据存储目录：{path}。保存设置后生效。")
 
 
 def _with_current_defaults(saved: AiSettings, *, config_exists: bool = False) -> AiSettings:

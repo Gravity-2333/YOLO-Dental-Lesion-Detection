@@ -5,6 +5,25 @@ from html import escape
 from .ai_defaults import SAFETY_NOTICE
 
 
+def _feedback_content(message: str) -> str:
+    return escape(str(message)).replace("\n", "<br>")
+
+
+def toast_html(message: str, kind: str = "success") -> str:
+    if not message:
+        return ""
+    return f'<div class="app-toast app-toast-{kind}">{_feedback_content(message)}</div>'
+
+
+def inline_status_html(message: str, kind: str = "success") -> str:
+    if not message:
+        return ""
+    return (
+        f'<div class="app-inline-status app-inline-status-{kind}" role="status">'
+        f"{_feedback_content(message)}</div>"
+    )
+
+
 def section_heading(title: str, description: str) -> str:
     return (
         '<div class="section-heading">'
