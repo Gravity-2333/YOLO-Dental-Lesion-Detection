@@ -1351,6 +1351,8 @@ class UiContentTests(unittest.TestCase):
         case_rows_mock.assert_not_called()
         history_rows_mock.assert_not_called()
         self.assertEqual(len(result), 22)
+        self.assertIn("设置已保存", result[0])
+        self.assertNotIn("settings.json", result[0])
         self.assertEqual(result[-3:], (False, False, True))
 
     def test_settings_keep_old_config_when_new_workspace_preflight_fails(self) -> None:

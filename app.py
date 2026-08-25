@@ -2850,7 +2850,7 @@ def save_ui_settings(
     try:
         # Switching the active data root must stay a fast, non-destructive
         # settings operation. Bulk migration remains an explicit helper.
-        path = save_settings(settings, migrate_data=False)
+        save_settings(settings, migrate_data=False)
     except (OSError, RuntimeError, ValueError, TypeError) as exc:
         text = str(exc).casefold()
         context = (
@@ -2859,7 +2859,7 @@ def save_ui_settings(
             else "设置保存失败"
         )
         raise _friendly_gr_error(exc, context) from exc
-    feedback = [f"设置已保存：{path}"]
+    feedback = ["设置已保存。"]
     if storage_changed:
         feedback.append("数据目录已切换；旧目录内容未自动搬移。")
     if not storage_changed:
