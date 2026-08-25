@@ -539,6 +539,41 @@ class UiContentTests(unittest.TestCase):
             self.assertIn("queue=False", event_source)
             self.assertIn('show_progress="hidden"', event_source)
 
+    def test_compare_mode_reverts_before_inference_when_models_match(self) -> None:
+        (
+            workbench_update,
+            settings_update,
+            path_update,
+            workbench_feedback,
+            settings_feedback,
+        ) = app.sync_model_mode(
+            app.MODEL_MODE_COMPARE, "same-model.pt", "same-model.pt"
+        )
+
+        self.assertEqual(workbench_update["value"], app.MODEL_MODE_SINGLE)
+        self.assertEqual(settings_update["value"], app.MODEL_MODE_SINGLE)
+        self.assertFalse(path_update["visible"])
+        self.assertTrue(workbench_feedback["visible"])
+        self.assertIn("设置 &gt; 模型配置", workbench_feedback["value"])
+        self.assertIn("设置 &gt; 模型配置", settings_feedback["value"])
+
+    def test_compare_mode_stays_selected_for_distinct_models(self) -> None:
+        (
+            workbench_update,
+            settings_update,
+            path_update,
+            workbench_feedback,
+            settings_feedback,
+        ) = app.sync_model_mode(
+            app.MODEL_MODE_COMPARE, "primary-model.pt", "compare-model.pt"
+        )
+
+        self.assertEqual(workbench_update["value"], app.MODEL_MODE_COMPARE)
+        self.assertEqual(settings_update["value"], app.MODEL_MODE_COMPARE)
+        self.assertTrue(path_update["visible"])
+        self.assertFalse(workbench_feedback["visible"])
+        self.assertNotIn("value", settings_feedback)
+
     def test_chat_export_button_follows_the_conversation_state(self) -> None:
         self.assertFalse(chat_export_button_state([])["interactive"])
         self.assertTrue(

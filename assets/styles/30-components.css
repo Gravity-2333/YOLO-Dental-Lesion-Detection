@@ -1184,6 +1184,10 @@ footer,
   background: #0f766e;
 }
 
+.app-toast-warning {
+  background: #8a5a00;
+}
+
 .record-boundary-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

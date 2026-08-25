@@ -412,7 +412,10 @@ def _configured_models(model_mode: str, primary_model_path: str, compare_model_p
     if model_mode == MODEL_MODE_COMPARE:
         compare = Path(_model_path_or_default(compare_model_path, str(MODEL_REGISTRY[MODEL_SOURCE]["path"])))
         if primary == compare:
-            raise gr.Error("对比模型不能与主模型使用同一个权重文件，请选择另一个模型后再运行对比。")
+            raise gr.Error(
+                "对比模型不能与主模型使用同一个权重文件，"
+                "请前往“设置 > 模型配置”选择另一个模型后再运行对比。"
+            )
         models.append((model_label_from_path(compare), compare))
     return models
 
@@ -3140,8 +3143,31 @@ def on_enable_compare_change(enable_compare: bool):
     return gr.update(), gr.update(), gr.update()
 
 
-def sync_model_mode(model_mode: str):
-    return gr.update(value=model_mode), gr.update(visible=model_mode == MODEL_MODE_COMPARE)
+def sync_model_mode(model_mode: str, primary_model_path: str, compare_model_path: str):
+    selected_mode = model_mode or MODEL_MODE_SINGLE
+    if selected_mode == MODEL_MODE_COMPARE:
+        try:
+            _validate_compare_model_selection(selected_mode, primary_model_path, compare_model_path)
+        except gr.Error:
+            message = (
+                "暂时无法启用对比模型：请前往“设置 > 模型配置”，"
+                "为主模型和对比模型选择不同的权重文件。"
+            )
+            selected_mode = MODEL_MODE_SINGLE
+            return (
+                gr.update(value=selected_mode),
+                gr.update(value=selected_mode),
+                gr.update(visible=False),
+                gr.update(value=_toast(message, "warning"), visible=True),
+                gr.update(value=_toast(message, "warning")),
+            )
+    return (
+        gr.update(value=selected_mode),
+        gr.update(value=selected_mode),
+        gr.update(visible=selected_mode == MODEL_MODE_COMPARE),
+        gr.update(value="", visible=False),
+        gr.update(),
+    )
 
 
 def default_storage_dir():
@@ -3517,6 +3543,7 @@ def build_app() -> gr.Blocks:
         batch_word_path = workbench.batch_word_path
         batch_overview = workbench.batch_overview
         model_mode = workbench.model_mode
+        model_mode_feedback = workbench.model_mode_feedback
         device_choice = workbench.device_choice
         conf = workbench.conf
         iou = workbench.iou
@@ -4060,16 +4087,28 @@ def build_app() -> gr.Blocks:
         )
         model_mode_event = model_mode.input(
             fn=sync_model_mode,
-            inputs=model_mode,
-            outputs=[settings_model_mode, compare_model_path],
+            inputs=[model_mode, primary_model_path, compare_model_path],
+            outputs=[
+                model_mode,
+                settings_model_mode,
+                compare_model_path,
+                model_mode_feedback,
+                settings_feedback,
+            ],
             queue=False,
             show_progress="hidden",
         )
         chain_detection_result_reset(model_mode_event)
         settings_model_mode_event = settings_model_mode.input(
             fn=sync_model_mode,
-            inputs=settings_model_mode,
-            outputs=[model_mode, compare_model_path],
+            inputs=[settings_model_mode, primary_model_path, compare_model_path],
+            outputs=[
+                model_mode,
+                settings_model_mode,
+                compare_model_path,
+                model_mode_feedback,
+                settings_feedback,
+            ],
             queue=False,
             show_progress="hidden",
         )

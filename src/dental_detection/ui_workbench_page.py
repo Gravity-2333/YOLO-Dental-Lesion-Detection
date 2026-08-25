@@ -49,6 +49,7 @@ class WorkbenchComponents:
     batch_word_path: Any
     batch_overview: Any
     model_mode: Any
+    model_mode_feedback: Any
     device_choice: Any
     conf: Any
     iou: Any
@@ -215,6 +216,7 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                     label="模型模式",
                     elem_classes=["segmented-control"],
                 )
+                model_mode_feedback = gr.HTML(value="", visible=False, container=False)
                 if len(data.device_choices) > 2:
                     device_choice = gr.Dropdown(
                         choices=data.device_choices,
@@ -399,6 +401,7 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
         batch_word_path=batch_word_path,
         batch_overview=batch_overview,
         model_mode=model_mode,
+        model_mode_feedback=model_mode_feedback,
         device_choice=device_choice,
         conf=conf,
         iou=iou,
