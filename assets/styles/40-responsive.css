@@ -1,8 +1,4 @@
 @media (max-width: 900px) {
-  .gradio-container {
-    max-width: calc(100vw - 24px) !important;
-  }
-
   .app-header {
     display: block;
     padding-top: 18px;
@@ -338,10 +334,6 @@
 }
 
 @media (max-width: 640px) {
-  .gradio-container {
-    max-width: calc(100vw - 16px) !important;
-  }
-
   .ai-context-strip,
   .record-boundary-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;

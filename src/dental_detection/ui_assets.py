@@ -7,6 +7,7 @@ from .config import PROJECT_ROOT
 
 ASSET_ROOT = PROJECT_ROOT / "assets"
 STYLE_ROOT = ASSET_ROOT / "styles"
+ROOT_SHELL_STYLE_PATH = STYLE_ROOT / "root-shell.css"
 
 # Loading order is part of the frontend contract: tokens first, responsive
 # overrides last. New UI work should extend the narrowest matching module.
@@ -31,6 +32,11 @@ def load_text_bundle(paths: tuple[Path, ...]) -> str:
 
 def load_workbench_css() -> str:
     return load_text_bundle(CSS_BUNDLE_FILES)
+
+
+def load_root_shell_head() -> str:
+    css = load_text_bundle((ROOT_SHELL_STYLE_PATH,))
+    return f"<style>\n{css}</style>"
 
 
 def load_workbench_js() -> str:

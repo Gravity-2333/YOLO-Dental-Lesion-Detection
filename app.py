@@ -139,7 +139,11 @@ from src.dental_detection.result_items import (
     model_result_path,
 )
 from src.dental_detection.text_utils import json_safe_value, text_value
-from src.dental_detection.ui_assets import load_workbench_css, load_workbench_js
+from src.dental_detection.ui_assets import (
+    load_root_shell_head,
+    load_workbench_css,
+    load_workbench_js,
+)
 from src.dental_detection.ui_contracts import (
     COMMON_OUTPUT_KEYS,
     COMMON_OUTPUT_QUALITY_INDEX,
@@ -4644,6 +4648,7 @@ def launch_app(args: argparse.Namespace):
         share=args.share,
         theme=_workbench_theme(),
         css=load_workbench_css(),
+        head=load_root_shell_head(),
         js=load_workbench_js(),
         allowed_paths=[str(root) for root in _allowed_file_roots()],
         state_session_capacity=STATE_SESSION_CAPACITY,

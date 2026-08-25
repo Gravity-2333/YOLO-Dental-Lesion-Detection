@@ -1,0 +1,24 @@
+/*
+ * Gradio scopes launch(css=...) below its internal .contain node. Rules that
+ * size the outer application shell must be injected through launch(head=...).
+ */
+@media (max-width: 900px) {
+  gradio-app > .gradio-container {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    margin-right: auto !important;
+    margin-left: auto !important;
+  }
+}
+
+@media (max-width: 640px) {
+  gradio-app > .gradio-container {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+  }
+
+  gradio-app > .gradio-container > .main.fillable {
+    padding-right: 8px !important;
+    padding-left: 8px !important;
+  }
+}

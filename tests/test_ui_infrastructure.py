@@ -16,7 +16,13 @@ from src.dental_detection import patient_profile_ui
 from src.dental_detection.record_views import case_table_html
 from src.dental_detection.report_center_ui import build_report_center
 from src.dental_detection.settings_store import AiSettings
-from src.dental_detection.ui_assets import CSS_BUNDLE_FILES, load_workbench_css, load_workbench_js
+from src.dental_detection.ui_assets import (
+    CSS_BUNDLE_FILES,
+    ROOT_SHELL_STYLE_PATH,
+    load_root_shell_head,
+    load_workbench_css,
+    load_workbench_js,
+)
 from src.dental_detection.ui_contracts import (
     COMMON_INPUT_KEYS,
     COMMON_OUTPUT_KEYS,
@@ -115,6 +121,18 @@ class UiAssetTests(unittest.TestCase):
             "    grid-column: 1 / -1;",
             mobile_css,
         )
+
+    def test_root_shell_styles_are_injected_without_gradio_scoping(self) -> None:
+        head = load_root_shell_head()
+
+        self.assertTrue(ROOT_SHELL_STYLE_PATH.is_file())
+        self.assertTrue(head.startswith("<style>"))
+        self.assertTrue(head.endswith("</style>"))
+        self.assertIn("gradio-app > .gradio-container", head)
+        self.assertIn("width: calc(100vw - 16px) !important", head)
+        self.assertIn("> .main.fillable", head)
+        self.assertIn("padding-right: 8px !important", head)
+        self.assertIn("padding-left: 8px !important", head)
 
     def test_directory_picker_buttons_have_specific_accessible_names(self) -> None:
         settings_source = inspect.getsource(build_settings_page)
@@ -1397,6 +1415,7 @@ class UiContentTests(unittest.TestCase):
         with (
             patch.object(app, "build_app", return_value=SimpleNamespace(launch=launch)),
             patch.object(app, "_workbench_theme", return_value="theme"),
+            patch.object(app, "load_root_shell_head", return_value="<style>root</style>"),
             patch.object(app, "load_workbench_css", return_value="css"),
             patch.object(app, "load_workbench_js", return_value="js"),
             patch.object(app, "_allowed_file_roots", return_value=[Path("root")]),
@@ -1406,6 +1425,7 @@ class UiContentTests(unittest.TestCase):
         kwargs = launch.call_args.kwargs
         self.assertEqual(kwargs["state_session_capacity"], app.STATE_SESSION_CAPACITY)
         self.assertEqual(kwargs["max_file_size"], app.MAX_UPLOAD_FILE_SIZE)
+        self.assertEqual(kwargs["head"], "<style>root</style>")
         source = inspect.getsource(app.build_app)
         self.assertGreaterEqual(source.count("time_to_live=SESSION_STATE_TTL_SECONDS"), 7)
 
