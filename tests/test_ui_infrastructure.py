@@ -14,6 +14,7 @@ import unittest
 import app
 from src.dental_detection import patient_profile_ui
 from src.dental_detection.record_views import case_table_html
+from src.dental_detection.report_center_ui import build_report_center
 from src.dental_detection.settings_store import AiSettings
 from src.dental_detection.ui_assets import CSS_BUNDLE_FILES, load_workbench_css, load_workbench_js
 from src.dental_detection.ui_contracts import (
@@ -37,6 +38,8 @@ from src.dental_detection.ui_ai_chat_page import (
     build_ai_runtime_status,
     chat_export_button_state,
 )
+from src.dental_detection.ui_cases_page import CasesComponents, build_cases_page
+from src.dental_detection.ui_history_page import HistoryComponents, build_history_page
 from src.dental_detection.ui_settings_page import (
     AI_REQUEST_KEYS,
     SettingsComponents,
@@ -51,19 +54,12 @@ from src.dental_detection.ui_workbench_page import (
 
 class UiAssetTests(unittest.TestCase):
     def test_record_details_use_sanitized_markdown_panels(self) -> None:
-        source = inspect.getsource(app.build_app)
-        for component_name, label, elem_id in (
-            ("case_detail", "病例详情", "case-detail"),
-            ("history_detail", "历史详情", "history-detail"),
+        for builder, component_name, label, elem_id in (
+            (build_cases_page, "case_detail", "病例详情", "case-detail"),
+            (build_history_page, "history_detail", "历史详情", "history-detail"),
         ):
-            end_marker = (
-                'with gr.Tab("检测历史")'
-                if component_name == "case_detail"
-                else "report_center = build_report_center"
-            )
-            component_source = source.split(f"{component_name} = gr.Markdown(", 1)[1].split(
-                end_marker, 1
-            )[0]
+            source = inspect.getsource(builder)
+            component_source = source.split(f"{component_name} = gr.Markdown(", 1)[1]
             self.assertIn(f'label="{label}"', component_source)
             self.assertIn("sanitize_html=True", component_source)
             self.assertIn("line_breaks=True", component_source)
@@ -487,15 +483,16 @@ class UiContentTests(unittest.TestCase):
         self.assertTrue(selected_delete["interactive"])
         self.assertTrue(selected_export["interactive"])
 
+        page_source = inspect.getsource(build_cases_page)
+        self.assertIn(
+            '"移入回收站",\n                interactive=False,',
+            page_source,
+        )
+        self.assertIn(
+            '"导出病例报告",\n                interactive=False,',
+            page_source,
+        )
         source = inspect.getsource(app.build_app)
-        self.assertIn(
-            '"移入回收站",\n                            interactive=False,',
-            source,
-        )
-        self.assertIn(
-            '"导出病例报告",\n                            interactive=False,',
-            source,
-        )
         event_source = source.split("case_select.change(", 1)[1].split(
             "refresh_history_btn.click(", 1
         )[0]
@@ -513,15 +510,16 @@ class UiContentTests(unittest.TestCase):
         self.assertTrue(selected_delete["interactive"])
         self.assertTrue(selected_clear["interactive"])
 
+        page_source = inspect.getsource(build_history_page)
+        self.assertIn(
+            '"删除所选",\n                interactive=False,',
+            page_source,
+        )
+        self.assertIn(
+            '"清空历史",\n                interactive=False,',
+            page_source,
+        )
         source = inspect.getsource(app.build_app)
-        self.assertIn(
-            '"删除所选",\n                            interactive=False,',
-            source,
-        )
-        self.assertIn(
-            '"清空历史",\n                            interactive=False,',
-            source,
-        )
         event_source = source.split("history_select.change(", 1)[1].split(
             "delete_history_btn.click(", 1
         )[0]
@@ -687,9 +685,23 @@ class UiContentTests(unittest.TestCase):
                 self.assertIn("不会自动上传云端", content)
                 self.assertIn('class="record-boundary-strip"', content)
 
+        cases_source = inspect.getsource(build_cases_page)
+        history_source = inspect.getsource(build_history_page)
+        self.assertIn("gr.HTML(CASE_INTRO_HTML)", cases_source)
+        self.assertIn("gr.HTML(HISTORY_INTRO_HTML)", history_source)
+        self.assertNotIn(
+            "自动保存最近检测摘要，默认不保存原始上传图",
+            cases_source + history_source,
+        )
+
+    def test_record_pages_use_named_component_collections(self) -> None:
         source = inspect.getsource(app.build_app)
-        self.assertIn("gr.HTML(HISTORY_INTRO_HTML)", source)
-        self.assertNotIn("自动保存最近检测摘要，默认不保存原始上传图", source)
+        self.assertIn("cases = build_cases_page(", source)
+        self.assertIn("history = build_history_page(", source)
+        self.assertNotIn('with gr.Group(elem_classes=["section-card", "case-card"])', source)
+        self.assertIn("patient_select", {field.name for field in fields(CasesComponents)})
+        self.assertIn("case_detail", {field.name for field in fields(CasesComponents)})
+        self.assertIn("report_center", {field.name for field in fields(HistoryComponents)})
 
     def test_new_chat_clears_conversation_and_export_state(self) -> None:
         chatbot, state, message, file_update, path = app.clear_current_chat()
@@ -839,8 +851,8 @@ class UiContentTests(unittest.TestCase):
 
     def test_record_tables_are_lightweight_and_lazy_until_expanded(self) -> None:
         source = inspect.getsource(app.build_app)
-        self.assertIn('"结构化病例列表"', source)
-        self.assertIn('"结构化历史列表"', source)
+        self.assertIn('"结构化病例列表"', inspect.getsource(build_cases_page))
+        self.assertIn('"结构化历史列表"', inspect.getsource(build_history_page))
         self.assertIn("initial_case_rows: list[dict[str, Any]] = []", source)
         self.assertIn("initial_history_rows: list[dict[str, Any]] = []", source)
         self.assertIn("case_tab.select(", source)
@@ -873,8 +885,11 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('trigger_mode="always_last"', report_load_event)
         self.assertIn('show_progress="minimal"', report_load_event)
         self.assertNotIn("queue=False", report_load_event)
-        self.assertIn('open=False,\n                        elem_classes=["compact-accordion"]', source)
-        report_source = inspect.getsource(app.build_report_center)
+        record_page_source = inspect.getsource(build_cases_page) + inspect.getsource(
+            build_history_page
+        )
+        self.assertIn('open=False,\n            elem_classes=["compact-accordion"]', record_page_source)
+        report_source = inspect.getsource(build_report_center)
         self.assertIn('"结构化报告列表"', report_source)
         self.assertIn('open=False,\n            elem_classes=["compact-accordion"]', report_source)
         self.assertNotIn("gr.Dataframe", report_source)
@@ -939,9 +954,9 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(source.count("concurrency_id=MODEL_SCAN_CONCURRENCY_ID"), 3)
 
     def test_case_note_starts_compact_and_can_expand(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = inspect.getsource(build_cases_page)
         self.assertIn('label="病例备注"', source)
-        self.assertIn("lines=1,\n                            max_lines=3,", source)
+        self.assertIn("lines=1,\n                max_lines=3,", source)
 
     def test_record_table_html_escapes_untrusted_values(self) -> None:
         html = case_table_html([{"病例编号": '<script>alert("x")</script>'}])
