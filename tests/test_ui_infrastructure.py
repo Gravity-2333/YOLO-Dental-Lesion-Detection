@@ -693,6 +693,48 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("cancels=chat_event", clear_source)
         self.assertIn("queue=False", clear_source)
 
+    def test_chat_events_refresh_recent_conversation_choices(self) -> None:
+        source = inspect.getsource(app.build_app)
+        self.assertIn("fn=refresh_conversation_history_after_chat", source)
+        self.assertIn("inputs=[auto_save, storage_dir, patient_select]", source)
+        self.assertIn("chat_export_event.success(", source)
+
+        with patch.object(
+            app,
+            "refresh_conversation_history",
+            return_value=("latest-conversation", "updated-feedback"),
+        ) as refresh_mock:
+            skipped = app.refresh_conversation_history_after_chat(
+                False,
+                "storage-root",
+                "patient-1",
+            )
+            refreshed = app.refresh_conversation_history_after_chat(
+                True,
+                "storage-root",
+                "patient-1",
+            )
+
+        refresh_mock.assert_called_once_with(
+            "storage-root",
+            "patient-1",
+            feedback="已更新最近对话列表。",
+        )
+        self.assertNotIn("value", skipped[0])
+        self.assertNotIn("value", skipped[1])
+        self.assertEqual(refreshed, ("latest-conversation", "updated-feedback"))
+
+    def test_manual_conversation_export_returns_direct_path(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, path_text = app.export_chat(
+                [{"role": "assistant", "content": "检测摘要"}],
+                temp_dir,
+                "patient-1",
+            )
+
+            self.assertTrue(Path(path_text).is_file())
+            self.assertNotIn("已导出", path_text)
+
     def test_workbench_shows_interpretation_before_technical_detection_details(self) -> None:
         source = inspect.getsource(build_workbench_page)
         insight_position = source.index('with gr.Row(elem_classes=["insight-grid"])')

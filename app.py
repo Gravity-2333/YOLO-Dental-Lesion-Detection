@@ -3077,6 +3077,20 @@ def refresh_conversations_after_storage_change(
     return history_update, feedback, True
 
 
+def refresh_conversation_history_after_chat(
+    auto_save: bool,
+    storage_dir: str,
+    patient_id: str,
+):
+    if not auto_save:
+        return gr.update(), gr.update()
+    return refresh_conversation_history(
+        storage_dir,
+        patient_id,
+        feedback="已更新最近对话列表。",
+    )
+
+
 def export_chat(
     history: list[dict[str, str]],
     storage_dir: str,
@@ -3093,7 +3107,7 @@ def export_chat(
     except (OSError, RuntimeError, TypeError) as exc:
         raise _friendly_gr_error(exc, "对话导出失败") from exc
     _remember_allowed_file_root(path.parent)
-    return _file_component_output(path), f"已导出：{path}"
+    return _file_component_output(path), str(path)
 
 
 def toggle_ai_settings(enabled: bool):
@@ -4176,6 +4190,13 @@ def build_app() -> gr.Blocks:
             queue=False,
             show_progress="hidden",
         )
+        chat_event.success(
+            fn=refresh_conversation_history_after_chat,
+            inputs=[auto_save, storage_dir, patient_select],
+            outputs=[conversation_select, conversation_feedback],
+            queue=False,
+            show_progress="hidden",
+        )
         chatbot.change(
             fn=chat_export_button_state,
             inputs=chatbot,
@@ -4350,12 +4371,19 @@ def build_app() -> gr.Blocks:
             queue=False,
             show_progress="hidden",
         )
-        export_btn.click(
+        chat_export_event = export_btn.click(
             fn=export_chat,
             inputs=[chat_state, storage_dir, patient_select],
             outputs=[export_file, export_path],
             concurrency_limit=1,
             concurrency_id=EXPORT_CONCURRENCY_ID,
+            show_progress="minimal",
+        )
+        chat_export_event.success(
+            fn=refresh_conversation_history,
+            inputs=[storage_dir, patient_select],
+            outputs=[conversation_select, conversation_feedback],
+            trigger_mode="always_last",
             show_progress="minimal",
         )
         export_batch_btn.click(
