@@ -342,6 +342,21 @@
     max-width: calc(100vw - 16px) !important;
   }
 
+  .ai-context-strip,
+  .record-boundary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .ai-context-strip > div:last-child,
+  .record-boundary-strip > div:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .ai-context-strip > div,
+  .record-boundary-strip > div {
+    padding: 9px 10px;
+  }
+
   .app-title {
     font-size: 1.55rem;
   }

@@ -100,6 +100,22 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn('content: attr(data-nav-label)', css)
         self.assertIn("button.overflow-item-selected", css)
 
+    def test_mobile_status_strips_use_compact_two_column_layout(self) -> None:
+        css = load_workbench_css()
+        mobile_css = css.split("@media (max-width: 640px)", 1)[1]
+
+        self.assertIn(
+            ".ai-context-strip,\n  .record-boundary-strip {\n"
+            "    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;",
+            mobile_css,
+        )
+        self.assertIn(
+            ".ai-context-strip > div:last-child,\n"
+            "  .record-boundary-strip > div:last-child {\n"
+            "    grid-column: 1 / -1;",
+            mobile_css,
+        )
+
     def test_directory_picker_buttons_have_specific_accessible_names(self) -> None:
         settings_source = inspect.getsource(build_settings_page)
         javascript = load_workbench_js()
@@ -668,6 +684,10 @@ class UiContentTests(unittest.TestCase):
     def test_shared_content_keeps_brand_and_safety_copy(self) -> None:
         self.assertIn("牙齿病变区域识别", APP_HEADER_HTML)
         self.assertIn("不能替代专业牙科医生诊断", WORKBENCH_HELP_TEXT)
+        self.assertIn("不上传牙科影像", AI_CHAT_INTRO_HTML)
+        self.assertIn("不替代专业牙科医生诊断", AI_CHAT_INTRO_HTML)
+        self.assertNotIn("ai-privacy-note", AI_CHAT_INTRO_HTML)
+        self.assertNotIn("自动保存最近检测摘要", HISTORY_INTRO_HTML)
 
     def test_user_facing_copy_avoids_internal_demo_instructions(self) -> None:
         visible_copy = "".join(

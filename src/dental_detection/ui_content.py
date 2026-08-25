@@ -33,9 +33,8 @@ WORKBENCH_HELP_TEXT = (
 
 AI_CHAT_INTRO_HTML = """
 <div class="card-heading">
-  <div><h2>AI 问答</h2><p>完成检测后，可以继续追问关注区域和复查建议。</p></div>
+  <div><h2>AI 问答</h2><p>基于当前检测文字摘要继续追问，不上传牙科影像；回复仅供辅助参考，不替代专业牙科医生诊断。</p></div>
 </div>
-<p class="ai-privacy-note">仅发送检测文字摘要，不上传牙科影像；回复仅供辅助参考，不替代专业牙科医生诊断。</p>
 """
 
 RECORD_BOUNDARY_HTML = """
@@ -52,5 +51,5 @@ CASE_INTRO_HTML = """
 """ + RECORD_BOUNDARY_HTML
 
 HISTORY_INTRO_HTML = """
-<div class="card-heading"><div><h2>检测历史</h2><p>自动保存最近检测摘要，便于回看检测结果。</p></div></div>
+<div class="card-heading"><div><h2>检测历史</h2><p>查看已保存的检测摘要，便于回顾分析结果。</p></div></div>
 """ + RECORD_BOUNDARY_HTML
