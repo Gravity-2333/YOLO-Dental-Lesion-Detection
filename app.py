@@ -415,7 +415,7 @@ def _configured_models(model_mode: str, primary_model_path: str, compare_model_p
         if primary == compare:
             raise gr.Error(
                 "对比模型不能与主模型使用同一个权重文件，"
-                "请前往“设置 > 模型配置”选择另一个模型后再运行对比。"
+                "请前往“设置 > 模型与推理”选择另一个模型后再运行对比。"
             )
         models.append((model_label_from_path(compare), compare))
     return models
@@ -557,7 +557,12 @@ def _current_model_info_markdown(selected_path: str | None = None) -> str:
     return format_model_info_markdown(cards[0])
 
 
-def apply_model_card(selected_path: str, model_dir: str | None = None, include_advanced: bool = False):
+def apply_model_card(
+    selected_path: str,
+    target: str,
+    model_dir: str | None = None,
+    include_advanced: bool = False,
+):
     if not selected_path:
         raise gr.Error("请先选择一个模型卡片。")
     card = next((item for item in _model_cards() if item.get("path") == selected_path), None)
@@ -575,12 +580,14 @@ def apply_model_card(selected_path: str, model_dir: str | None = None, include_a
     )
     if not any(path == value for _, value in choices):
         choices = [(f"{model_label_from_path(path)}  |  {path}", path), *choices]
+    primary_update, compare_update, cards_update, info_update, _ = apply_selected_model(path, target)
     return (
-        gr.update(value=path),
+        primary_update,
+        compare_update,
         gr.update(choices=choices, value=path),
-        build_model_cards_html(_model_cards(path), path),
-        _current_model_info_markdown(path),
-        f"已选择{card['title']}：{card['name']}",
+        cards_update,
+        info_update,
+        f"已将{card['title']}“{card['name']}”填入{target}。",
     )
 
 
@@ -3156,7 +3163,7 @@ def sync_model_mode(model_mode: str, primary_model_path: str, compare_model_path
             _validate_compare_model_selection(selected_mode, primary_model_path, compare_model_path)
         except gr.Error:
             message = (
-                "暂时无法启用对比模型：请前往“设置 > 模型配置”，"
+                "暂时无法启用对比模型：请前往“设置 > 模型与推理”，"
                 "为主模型和对比模型选择不同的权重文件。"
             )
             selected_mode = MODEL_MODE_SINGLE
@@ -4446,8 +4453,15 @@ def build_app() -> gr.Blocks:
         chain_detection_result_reset(apply_selected_model_event)
         apply_model_card_event = apply_model_card_btn.click(
             fn=apply_model_card,
-            inputs=[model_card_select, model_dir, show_advanced_models],
-            outputs=[primary_model_path, model_file_select, model_cards_view, model_info_markdown, model_feedback],
+            inputs=[model_card_select, model_apply_target, model_dir, show_advanced_models],
+            outputs=[
+                primary_model_path,
+                compare_model_path,
+                model_file_select,
+                model_cards_view,
+                model_info_markdown,
+                model_feedback,
+            ],
             concurrency_limit=1,
             concurrency_id=MODEL_SCAN_CONCURRENCY_ID,
             trigger_mode="always_last",

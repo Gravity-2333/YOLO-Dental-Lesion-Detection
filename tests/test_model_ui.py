@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import unittest
+from unittest.mock import patch
 
 import app
 from src.dental_detection.config import DEFAULT_MODEL_PATH, MODEL_REGISTRY
@@ -14,6 +15,30 @@ from src.dental_detection.ui_assets import load_workbench_css
 
 
 class WorkbenchModelStatusTests(unittest.TestCase):
+    def test_model_card_respects_the_selected_apply_target(self) -> None:
+        selected_path = str(DEFAULT_MODEL_PATH)
+        card = {
+            "path": selected_path,
+            "available": True,
+            "title": "兼容模型",
+            "name": "测试模型",
+        }
+
+        for target in ("主模型", "对比模型"):
+            updates = ({"primary": target}, {"compare": target}, {"cards": target}, {"info": target}, "unused")
+            with self.subTest(target=target), patch.object(app, "_model_cards", return_value=[card]), patch.object(
+                app,
+                "scan_model_files",
+                return_value=[],
+            ), patch.object(app, "apply_selected_model", return_value=updates) as apply_selected:
+                result = app.apply_model_card(selected_path, target)
+
+            apply_selected.assert_called_once_with(str(DEFAULT_MODEL_PATH.resolve()), target)
+            self.assertEqual(result[:2], updates[:2])
+            self.assertEqual(result[3:5], updates[2:4])
+            self.assertEqual(result[2]["value"], str(DEFAULT_MODEL_PATH.resolve()))
+            self.assertIn(target, result[5])
+
     def test_default_device_uses_the_same_choices_as_the_workbench(self) -> None:
         choices = [("CPU", "cpu"), ("CUDA GPU 3", "cuda:3")]
 

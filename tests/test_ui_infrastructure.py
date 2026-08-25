@@ -586,8 +586,8 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(settings_update["value"], app.MODEL_MODE_SINGLE)
         self.assertFalse(path_update["visible"])
         self.assertTrue(workbench_feedback["visible"])
-        self.assertIn("设置 &gt; 模型配置", workbench_feedback["value"])
-        self.assertIn("设置 &gt; 模型配置", settings_feedback["value"])
+        self.assertIn("设置 &gt; 模型与推理", workbench_feedback["value"])
+        self.assertIn("设置 &gt; 模型与推理", settings_feedback["value"])
 
     def test_compare_mode_stays_selected_for_distinct_models(self) -> None:
         (
@@ -908,6 +908,8 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("concurrency_id=MODEL_SCAN_CONCURRENCY_ID", apply_card_primary)
         self.assertIn('trigger_mode="always_last"', apply_card_primary)
         self.assertIn('show_progress="minimal"', apply_card_primary)
+        self.assertIn("inputs=[model_card_select, model_apply_target, model_dir, show_advanced_models]", apply_card_primary)
+        self.assertIn("compare_model_path", apply_card_primary)
         apply_selected_event = source.split("apply_selected_model_event = apply_model_btn.click(", 1)[1].split(
             "apply_model_card_event =",
             1,
