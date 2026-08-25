@@ -21,19 +21,22 @@ class PatientProfileUiTests(unittest.TestCase):
             patient = create_personal_patient(temp_dir, "家人", external_reference="P-1")
             updated = app.update_patient_profile(patient.id, "家庭成员", "P-2", temp_dir)
 
-            self.assertEqual(len(updated), 7)
+            self.assertEqual(len(updated), 8)
             self.assertTrue(all(item.get("value") == patient.id for item in updated[:3]))
+            self.assertEqual(updated[-1], patient.id)
             self.assertEqual(get_personal_patient(temp_dir, patient.id).display_name, "家庭成员")
 
             archived = app.archive_patient_profile(patient.id, temp_dir)
-            self.assertEqual(len(archived), 9)
+            self.assertEqual(len(archived), 10)
             self.assertTrue(all(item.get("value") == PERSONAL_PATIENT_ID for item in archived[:3]))
+            self.assertEqual(archived[-1], PERSONAL_PATIENT_ID)
             self.assertNotIn(patient.id, {value for _, value in personal_patient_choices(temp_dir)})
             self.assertIn(patient.id, {value for _, value in personal_archived_patient_choices(temp_dir)})
 
             restored = app.restore_patient_profile(patient.id, temp_dir)
-            self.assertEqual(len(restored), 9)
+            self.assertEqual(len(restored), 10)
             self.assertTrue(all(item.get("value") == patient.id for item in restored[:3]))
+            self.assertEqual(restored[-1], patient.id)
             self.assertIn(patient.id, {value for _, value in personal_patient_choices(temp_dir)})
 
     def test_default_personal_profile_cannot_be_archived(self) -> None:

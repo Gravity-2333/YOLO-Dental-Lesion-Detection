@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import unittest
 
 import app
+from src.dental_detection import patient_profile_ui
 from src.dental_detection.record_views import case_table_html
 from src.dental_detection.settings_store import AiSettings
 from src.dental_detection.ui_assets import CSS_BUNDLE_FILES, load_workbench_css, load_workbench_js
@@ -391,6 +392,17 @@ class UiContractTests(unittest.TestCase):
         self.assertEqual(values[-3:], ("", "", ""))
         self.assertEqual(len(values), len(COMMON_OUTPUT_KEYS) + 5)
 
+        synced = app.sync_patient_selections_with_session_clear("patient-2")
+        self.assertEqual(synced[0]["value"], "patient-2")
+        self.assertEqual(synced[1]["value"], "patient-2")
+        self.assertEqual(len(synced), len(values) + 3)
+        self.assertIsNone(synced[2])
+        self.assertIsNone(synced[3])
+        synced_common = synced[4 : 4 + len(COMMON_OUTPUT_KEYS)]
+        self.assertEqual(synced_common[COMMON_OUTPUT_KEYS.index("batch_state")], [])
+        self.assertEqual(synced_common[COMMON_OUTPUT_KEYS.index("chat_state")], [])
+        self.assertEqual(synced[-1], "patient-2")
+
     def test_generic_result_reset_preserves_the_current_chat(self) -> None:
         values = app.clear_outputs()
         self.assertNotIn("value", values[COMMON_OUTPUT_KEYS.index("chatbot")])
@@ -538,6 +550,26 @@ class UiContentTests(unittest.TestCase):
             self.assertIn(f"outputs={button_name}", event_source)
             self.assertIn("queue=False", event_source)
             self.assertIn('show_progress="hidden"', event_source)
+
+    def test_patient_choices_refresh_across_browser_sessions(self) -> None:
+        choices = [("张女士 · P-TEST-001", "patient-2"), ("本人", "personal-self")]
+        with patch.object(patient_profile_ui, "personal_patient_choices", return_value=choices):
+            current_updates = patient_profile_ui.refresh_patient_selection_choices(
+                "storage", "patient-2"
+            )
+            fallback_updates = patient_profile_ui.refresh_patient_selection_choices(
+                "storage", "missing"
+            )
+
+        self.assertEqual(len(current_updates), 3)
+        self.assertTrue(all(update["choices"] == choices for update in current_updates))
+        self.assertTrue(all(update["value"] == "patient-2" for update in current_updates))
+        self.assertTrue(all(update["value"] == "personal-self" for update in fallback_updates))
+
+        source = inspect.getsource(app.build_app)
+        self.assertNotIn("demo.load(\n            fn=refresh_patient_selection_choices", source)
+        self.assertNotIn("workbench_tab.select(\n            fn=refresh_patient_selection_choices", source)
+        self.assertEqual(source.count("fn=refresh_patient_selection_choices"), 2)
 
     def test_compare_mode_reverts_before_inference_when_models_match(self) -> None:
         (
@@ -1095,7 +1127,8 @@ class UiContentTests(unittest.TestCase):
         )[0]
         self.assertIn("queue=False", clear_event)
         self.assertIn('show_progress="hidden"', clear_event)
-        self.assertEqual(source.count("fn=sync_patient_selections"), 3)
+        self.assertEqual(source.count("fn=sync_patient_selections_with_session_clear"), 3)
+        self.assertEqual(source.count("session_cleared=True"), 3)
         self.assertGreaterEqual(source.count('show_progress="hidden"'), 6)
 
     def test_demo_example_load_keeps_only_latest_pending_request(self) -> None:

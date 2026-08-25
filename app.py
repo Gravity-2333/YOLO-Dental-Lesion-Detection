@@ -101,6 +101,7 @@ from src.dental_detection.patient_profile_ui import (
     add_patient_profile,
     archive_patient_profile,
     load_patient_profile_form,
+    refresh_patient_selection_choices,
     restore_patient_profile,
     sync_patient_selections,
     update_patient_profile,
@@ -2139,6 +2140,11 @@ def clear_patient_session():
     return (None, None, *clear_outputs(clear_chat=True), "", "", "")
 
 
+def sync_patient_selections_with_session_clear(patient_id: str | None):
+    selected = str(patient_id or "").strip() or None
+    return (*sync_patient_selections(selected), *clear_patient_session(), selected)
+
+
 def clear_session_after_storage_change(storage_changed: bool):
     """Clear browser-session data only when settings switch the workspace root."""
     if not storage_changed:
@@ -3249,6 +3255,10 @@ def build_app() -> gr.Blocks:
         history_clear_confirmation = gr.State({}, time_to_live=SESSION_STATE_TTL_SECONDS)
         report_trash_confirmation = gr.State({}, time_to_live=SESSION_STATE_TTL_SECONDS)
         conversation_loaded_state = gr.State(False, time_to_live=SESSION_STATE_TTL_SECONDS)
+        patient_refresh_id_state = gr.State(
+            personal_workspace.patient.id,
+            time_to_live=SESSION_STATE_TTL_SECONDS,
+        )
         gr.HTML(APP_HEADER_HTML)
 
         with gr.Tabs(elem_classes=["main-tabs"]):
@@ -3689,13 +3699,30 @@ def build_app() -> gr.Blocks:
             conversation_loaded_state,
         ]
 
-        def chain_patient_workspace_refresh(event, selected_patient):
+        patient_session_outputs = [
+            image,
+            batch_files,
+            *common_outputs,
+            case_id,
+            case_note,
+            chat_input,
+        ]
+
+        def chain_patient_workspace_refresh(
+            event,
+            selected_patient,
+            *,
+            session_cleared: bool = False,
+        ):
             """Clear stale patient data, then hydrate only views opened this session."""
-            return event.success(
-                fn=clear_patient_session,
-                outputs=[image, batch_files, *common_outputs, case_id, case_note, chat_input],
-                show_progress="hidden",
-            ).success(
+            chain = event
+            if not session_cleared:
+                chain = chain.success(
+                    fn=clear_patient_session,
+                    outputs=patient_session_outputs,
+                    show_progress="hidden",
+                )
+            return chain.success(
                 fn=clear_patient_workspace_views,
                 inputs=conversation_loaded_state,
                 outputs=patient_workspace_outputs,
@@ -3718,6 +3745,7 @@ def build_app() -> gr.Blocks:
 
         # Lazy-load record stores when their tabs become visible. This keeps
         # startup and tab navigation responsive even with large local archives.
+        patient_choice_outputs = [patient_select, case_patient_select, history_patient_select]
         ai_tab.select(
             fn=refresh_ai_tab_content,
             inputs=[
@@ -3739,6 +3767,12 @@ def build_app() -> gr.Blocks:
             show_progress="minimal",
         )
         case_tab.select(
+            fn=refresh_patient_selection_choices,
+            inputs=[storage_dir, case_patient_select],
+            outputs=patient_choice_outputs,
+            trigger_mode="always_last",
+            show_progress="hidden",
+        ).success(
             fn=lazy_refresh_case_records,
             inputs=[case_loaded_state, storage_dir, case_patient_select],
             outputs=[*case_list_outputs, case_loaded_state],
@@ -3746,6 +3780,12 @@ def build_app() -> gr.Blocks:
             show_progress="minimal",
         )
         history_tab.select(
+            fn=refresh_patient_selection_choices,
+            inputs=[storage_dir, history_patient_select],
+            outputs=patient_choice_outputs,
+            trigger_mode="always_last",
+            show_progress="hidden",
+        ).success(
             fn=lazy_refresh_history_page,
             inputs=[history_loaded_state, storage_dir, history_patient_select],
             outputs=[*history_list_outputs, *report_metadata_outputs, history_loaded_state],
@@ -3761,34 +3801,61 @@ def build_app() -> gr.Blocks:
 
         clear_session_btn.click(
             fn=clear_patient_session,
-            outputs=[image, batch_files, *common_outputs, case_id, case_note, chat_input],
+            outputs=patient_session_outputs,
             queue=False,
             show_progress="hidden",
         )
         patient_select_event = patient_select.input(
-            fn=sync_patient_selections,
+            fn=sync_patient_selections_with_session_clear,
             inputs=patient_select,
-            outputs=[case_patient_select, history_patient_select],
+            outputs=[
+                case_patient_select,
+                history_patient_select,
+                *patient_session_outputs,
+                patient_refresh_id_state,
+            ],
             trigger_mode="always_last",
             show_progress="hidden",
         )
-        chain_patient_workspace_refresh(patient_select_event, patient_select)
+        chain_patient_workspace_refresh(
+            patient_select_event,
+            patient_refresh_id_state,
+            session_cleared=True,
+        )
         case_patient_select_event = case_patient_select.input(
-            fn=sync_patient_selections,
+            fn=sync_patient_selections_with_session_clear,
             inputs=case_patient_select,
-            outputs=[patient_select, history_patient_select],
+            outputs=[
+                patient_select,
+                history_patient_select,
+                *patient_session_outputs,
+                patient_refresh_id_state,
+            ],
             trigger_mode="always_last",
             show_progress="hidden",
         )
-        chain_patient_workspace_refresh(case_patient_select_event, case_patient_select)
+        chain_patient_workspace_refresh(
+            case_patient_select_event,
+            patient_refresh_id_state,
+            session_cleared=True,
+        )
         history_patient_select_event = history_patient_select.input(
-            fn=sync_patient_selections,
+            fn=sync_patient_selections_with_session_clear,
             inputs=history_patient_select,
-            outputs=[patient_select, case_patient_select],
+            outputs=[
+                patient_select,
+                case_patient_select,
+                *patient_session_outputs,
+                patient_refresh_id_state,
+            ],
             trigger_mode="always_last",
             show_progress="hidden",
         )
-        chain_patient_workspace_refresh(history_patient_select_event, history_patient_select)
+        chain_patient_workspace_refresh(
+            history_patient_select_event,
+            patient_refresh_id_state,
+            session_cleared=True,
+        )
         add_patient_event = add_patient_btn.click(
             fn=add_patient_profile,
             inputs=[new_patient_name, new_patient_reference, storage_dir],
@@ -3799,12 +3866,13 @@ def build_app() -> gr.Blocks:
                 new_patient_name,
                 new_patient_reference,
                 patient_feedback,
+                patient_refresh_id_state,
             ],
             concurrency_limit=1,
             concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
             show_progress="minimal",
         )
-        chain_patient_workspace_refresh(add_patient_event, case_patient_select)
+        chain_patient_workspace_refresh(add_patient_event, patient_refresh_id_state)
         save_patient_btn.click(
             fn=update_patient_profile,
             inputs=[case_patient_select, edit_patient_name, edit_patient_reference, storage_dir],
@@ -3816,6 +3884,7 @@ def build_app() -> gr.Blocks:
                 edit_patient_reference,
                 archive_patient_btn,
                 patient_feedback,
+                patient_refresh_id_state,
             ],
             concurrency_limit=1,
             concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
@@ -3834,12 +3903,13 @@ def build_app() -> gr.Blocks:
                 archive_patient_btn,
                 restore_patient_btn,
                 patient_feedback,
+                patient_refresh_id_state,
             ],
             concurrency_limit=1,
             concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
             show_progress="minimal",
         )
-        chain_patient_workspace_refresh(archive_patient_event, case_patient_select)
+        chain_patient_workspace_refresh(archive_patient_event, patient_refresh_id_state)
         restore_patient_event = restore_patient_btn.click(
             fn=restore_patient_profile,
             inputs=[archived_patient_select, storage_dir],
@@ -3853,12 +3923,13 @@ def build_app() -> gr.Blocks:
                 archive_patient_btn,
                 restore_patient_btn,
                 patient_feedback,
+                patient_refresh_id_state,
             ],
             concurrency_limit=1,
             concurrency_id=RECORD_WRITE_CONCURRENCY_ID,
             show_progress="minimal",
         )
-        chain_patient_workspace_refresh(restore_patient_event, case_patient_select)
+        chain_patient_workspace_refresh(restore_patient_event, patient_refresh_id_state)
 
         single_detection_event = run_btn.click(
             fn=run_single_detection,

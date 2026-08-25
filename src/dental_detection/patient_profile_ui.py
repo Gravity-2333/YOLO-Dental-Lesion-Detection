@@ -33,6 +33,22 @@ def sync_patient_selections(patient_id: str | None):
     return gr.update(value=value), gr.update(value=value)
 
 
+def refresh_patient_selection_choices(storage_dir: str, patient_id: str | None):
+    try:
+        choices = personal_patient_choices(storage_dir)
+    except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
+        raise _gr_error(exc, "患者档案列表读取失败") from exc
+    values = {value for _, value in choices}
+    selected = str(patient_id or "").strip()
+    if selected not in values:
+        selected = (
+            PERSONAL_PATIENT_ID
+            if PERSONAL_PATIENT_ID in values
+            else (choices[0][1] if choices else None)
+        )
+    return tuple(gr.update(choices=choices, value=selected) for _ in range(3))
+
+
 def add_patient_profile(display_name: str, external_reference: str, storage_dir: str):
     name = str(display_name or "").strip()
     if not name:
@@ -53,6 +69,7 @@ def add_patient_profile(display_name: str, external_reference: str, storage_dir:
         "",
         "",
         _toast(f"已创建患者档案：{patient.display_name}"),
+        patient.id,
     )
 
 
@@ -94,6 +111,7 @@ def update_patient_profile(
         patient.external_reference,
         gr.update(interactive=patient.id != PERSONAL_PATIENT_ID),
         _toast(f"患者档案已更新：{patient.display_name}"),
+        patient.id,
     )
 
 
@@ -115,6 +133,7 @@ def archive_patient_profile(patient_id: str, storage_dir: str):
         gr.update(interactive=False),
         gr.update(interactive=bool(archived_choices)),
         _toast(f"患者档案已归档：{archived.display_name}"),
+        fallback.id,
     )
 
 
@@ -137,4 +156,5 @@ def restore_patient_profile(patient_id: str, storage_dir: str):
         gr.update(interactive=True),
         gr.update(interactive=bool(archived_choices)),
         _toast(f"患者档案已恢复：{restored.display_name}"),
+        restored.id,
     )
