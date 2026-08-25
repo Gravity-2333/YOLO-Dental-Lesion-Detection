@@ -1594,10 +1594,9 @@ def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, 
     _sync_report_path(batch_state, [item], zip_path, "zip_report_path")
     update_history_report_paths([item], zip_path, storage_dir)
     workspace_warning = _register_workspace_report(item, zip_path, storage_dir, "zip")
-    message = f"已导出单图报告：{zip_path}"
     if workspace_warning:
-        message = f"{message}\n{workspace_warning}"
-    return _file_component_output(zip_path), message, batch_state
+        gr.Warning(workspace_warning)
+    return _file_component_output(zip_path), str(zip_path), batch_state
 
 
 def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
@@ -1653,10 +1652,9 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
     _sync_report_path(batch_state, [item], path, "word_report_path")
     update_history_report_paths([item], path, storage_dir)
     workspace_warning = _register_workspace_report(item, path, storage_dir, "docx")
-    message = f"已导出 Word 报告：{path}"
     if workspace_warning:
-        message = f"{message}\n{workspace_warning}"
-    return _file_component_output(path), message, batch_state
+        gr.Warning(workspace_warning)
+    return _file_component_output(path), str(path), batch_state
 
 
 def download_result_image(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
@@ -1672,7 +1670,7 @@ def download_result_image(batch_state: list[dict[str, Any]], selected_name: str,
     except Exception as exc:
         raise _friendly_gr_error(exc, "检测结果图保存失败") from exc
     _remember_allowed_file_root(path.parent)
-    return _file_component_output(path), f"已生成检测结果图：{path}"
+    return _file_component_output(path), str(path)
 
 
 def save_case_record(
@@ -1721,7 +1719,7 @@ def save_case_record(
         choices[0] if choices else None,
     )
     return (
-        f"病例记录已保存：{path}",
+        "病例记录已保存。",
         gr.update(choices=choices, value=selected),
         _case_table_html(rows),
         format_case_record(payload),
@@ -1853,7 +1851,7 @@ def export_selected_case_record(
     except (OSError, UnicodeDecodeError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
         raise gr.Error(f"病例文件损坏或无法读取：{exc}") from exc
     _remember_allowed_file_root(path.parent)
-    return _file_component_output(path), f"已导出病例报告：{path}"
+    return _file_component_output(path), str(path)
 
 
 def load_case_record(

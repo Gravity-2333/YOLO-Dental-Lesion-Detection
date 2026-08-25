@@ -38,8 +38,8 @@ class ExporterTests(unittest.TestCase):
         ]
 
         with TemporaryDirectory() as temp_dir:
-            _, message, _ = app.export_single_report(state, "当前单图", temp_dir)
-            zip_path = Path(message.split("：", 1)[1])
+            _, path_text, _ = app.export_single_report(state, "当前单图", temp_dir)
+            zip_path = Path(path_text)
             with ZipFile(zip_path) as archive:
                 text_summary = archive.read("summary.txt").decode("utf-8")
                 html_report = archive.read("report.html").decode("utf-8")
@@ -51,6 +51,44 @@ class ExporterTests(unittest.TestCase):
         self.assertIn("使用模型：主模型、对比模型", html_report)
         self.assertEqual(json_report["report"]["models"], ["主模型", "对比模型"])
         self.assertEqual(json_report["report"]["image_name"], "当前单图")
+
+    def test_user_facing_export_fields_return_direct_paths(self) -> None:
+        image = Image.new("RGB", (48, 32), "white")
+        state = [
+            {
+                "name": "当前单图",
+                "result": {
+                    "model": "主模型",
+                    "model_path": "models/primary.pt",
+                    "original": image,
+                    "model_input": image,
+                    "annotated": image,
+                    "detections": [],
+                },
+                "summary": {},
+                "advice": "辅助建议",
+            }
+        ]
+
+        with TemporaryDirectory() as temp_dir:
+            _, zip_path_text, state = app.export_single_report(state, "当前单图", temp_dir)
+            _, word_path_text, state = app.export_word_report(state, "当前单图", temp_dir)
+            _, image_path_text = app.download_result_image(state, "当前单图", temp_dir)
+            case_values = app.save_case_record(state, "当前单图", "路径复验", "", temp_dir)
+            _, case_path_text = app.export_selected_case_record(
+                case_values[1]["value"],
+                temp_dir,
+            )
+
+            for path_text in (
+                zip_path_text,
+                word_path_text,
+                image_path_text,
+                case_path_text,
+            ):
+                with self.subTest(path_text=path_text):
+                    self.assertTrue(Path(path_text).is_file())
+            self.assertEqual(case_values[0], "病例记录已保存。")
 
     def test_concurrent_export_roots_are_claimed_atomically(self) -> None:
         with TemporaryDirectory() as temp_dir:
