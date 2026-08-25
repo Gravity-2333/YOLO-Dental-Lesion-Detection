@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from src.dental_detection.ai_defaults import SAFETY_NOTICE
 from src.dental_detection.record_formatters import format_case_record, format_history_record
 from src.dental_detection.record_views import history_choices_from_rows, history_id
 
@@ -103,6 +104,42 @@ class RecordFormatterPrivacyTests(unittest.TestCase):
         self.assertIn("模型文件=optimized.mlpackage", detail)
         self.assertNotIn("/srv/private/models", detail)
         self.assertNotIn("路径=", detail)
+
+    def test_record_details_show_report_filename_without_local_directory(self) -> None:
+        windows_path = r"C:\Users\tester\private\reports\review.zip"
+        posix_path = "/srv/private/reports/review.docx"
+
+        case_detail = format_case_record(
+            {
+                "case_id": "case-001",
+                "image_name": "dental.png",
+                "report_path": windows_path,
+            }
+        )
+        history_detail = format_history_record(
+            {
+                "created_at": "2026-08-26T02:00:00",
+                "image_name": "dental.png",
+                "report_path": posix_path,
+            }
+        )
+
+        self.assertIn("报告文件：review.zip", case_detail)
+        self.assertNotIn(r"C:\Users\tester", case_detail)
+        self.assertIn("报告文件：review.docx", history_detail)
+        self.assertNotIn("/srv/private", history_detail)
+
+    def test_case_detail_does_not_repeat_existing_safety_notice(self) -> None:
+        detail = format_case_record(
+            {
+                "case_id": "case-001",
+                "image_name": "dental.png",
+                "suggestion": f"检测摘要：未检测到明确目标。\n\n安全声明：{SAFETY_NOTICE}",
+                "safety_notice": SAFETY_NOTICE,
+            }
+        )
+
+        self.assertEqual(detail.count(SAFETY_NOTICE), 1)
 
 
 if __name__ == "__main__":

@@ -449,7 +449,8 @@ try:
         record = load_history_record(rows[0]["记录ID"], temp_dir)
         assert record["report_path"] == r"C:\tmp\zip-only-report.zip", "历史记录应在没有Word路径时保留ZIP报告路径"
         detail = format_history_record(record)
-        assert r"C:\tmp\zip-only-report.zip" in detail, "历史详情应显示ZIP报告路径"
+        assert "报告文件：zip-only-report.zip" in detail, "历史详情应显示ZIP报告文件名"
+        assert r"C:\tmp" not in detail, "历史详情不应显示ZIP报告绝对目录"
 
         latest_item = {
             "name": "latest-report.png",

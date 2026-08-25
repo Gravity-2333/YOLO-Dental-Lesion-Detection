@@ -47,7 +47,7 @@ def _record_detections(data: dict[str, Any]) -> list[dict[str, Any]]:
     return _clean_detection_records(data.get("detections"))
 
 
-def _model_artifact_name(value: Any) -> str:
+def _path_artifact_name(value: Any) -> str:
     path_text = text_value(value).strip().rstrip("/\\")
     if not path_text:
         return ""
@@ -66,7 +66,7 @@ def _format_model_results(model_results: Any) -> list[str]:
         if raw_count in {"", None}:
             raw_count = sum(1 for _ in iter_detection_items(model_result_detections(item)))
         count = text_value(raw_count, "0")
-        artifact_name = _model_artifact_name(model_result_path(item))
+        artifact_name = _path_artifact_name(model_result_path(item))
         line = f"{index}. {model} | 检测数量={count}"
         if artifact_name:
             line += f" | 模型文件={artifact_name}"
@@ -81,7 +81,7 @@ def _format_summary_value(key: str, value: Any) -> list[str]:
             if isinstance(item, dict):
                 model = item.get("模型") or item.get("model") or f"模型 {index}"
                 count = item.get("检测数量", item.get("count", "-"))
-                artifact_name = _model_artifact_name(
+                artifact_name = _path_artifact_name(
                     item.get("路径") or item.get("模型路径") or item.get("model_path")
                 )
                 line = f"  {index}. {model} | 检测数量={count}"
@@ -128,7 +128,7 @@ def format_case_record(data: dict[str, Any] | None) -> str:
         lines.append(f"病例备注：{text_value(note)}")
     report_path = data.get("report_path") or data.get("word_report_path") or data.get("zip_report_path")
     if report_path:
-        lines.append(f"报告路径：{report_path}")
+        lines.append(f"报告文件：{_path_artifact_name(report_path)}")
     lines.extend(_format_model_results(data.get("model_results")))
 
     lines.extend(["", "检测摘要："])
@@ -163,7 +163,7 @@ def format_case_record(data: dict[str, Any] | None) -> str:
     if suggestion:
         lines.extend(["", "辅助建议：", suggestion])
     notice = data.get("safety_notice") or SAFETY_NOTICE
-    if notice:
+    if notice and text_value(notice).strip() not in text_value(suggestion):
         lines.extend(["", notice])
     return "\n".join(lines)
 
@@ -179,6 +179,7 @@ def format_history_record(record: dict[str, Any] | None) -> str:
         class_text = "、".join(text_value(item).strip() for item in classes if text_value(item).strip()) or "无"
     else:
         class_text = "无"
+    report_name = _path_artifact_name(record.get("report_path")) or "暂无"
     lines = [
         f"检测时间：{text_value(record.get('created_at'))}",
         f"图片名称：{text_value(record.get('image_name'))}",
@@ -188,7 +189,7 @@ def format_history_record(record: dict[str, Any] | None) -> str:
         f"涉及类别：{class_text}",
         f"最高置信度：{text_value(record.get('max_confidence'), '无')}",
         f"关注等级：{text_value(record.get('level'))}",
-        f"报告路径：{text_value(record.get('report_path'), '暂无')}",
+        f"报告文件：{report_name}",
     ]
     display_name = text_value(record.get("display_name")).strip()
     image_name = text_value(record.get("image_name")).strip()
