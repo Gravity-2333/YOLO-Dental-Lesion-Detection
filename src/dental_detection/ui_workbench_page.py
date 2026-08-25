@@ -122,7 +122,7 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                     )
                 with gr.Tabs(elem_classes=["sub-tabs"]):
                     with gr.Tab("单张分析"):
-                        gr.HTML(section_heading("上传影像", "请上传牙科影像或选择脱敏示例图开始检测。"))
+                        gr.HTML(section_heading("上传影像", "请上传牙科影像，或选择合成示例体验流程。"))
                         image = gr.Image(
                             type="pil",
                             label="上传牙科影像",
@@ -138,9 +138,9 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                             interactive=False,
                             elem_classes=["primary-action"],
                         )
-                        with gr.Accordion("示例图片", open=False):
+                        with gr.Accordion("合成示例", open=False):
                             example_select = gr.Dropdown(
-                                label="选择脱敏示例",
+                                label="选择示例",
                                 choices=data.example_choices,
                                 value=None,
                             )

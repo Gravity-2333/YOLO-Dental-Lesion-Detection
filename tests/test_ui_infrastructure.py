@@ -13,6 +13,7 @@ import unittest
 
 import app
 from src.dental_detection import patient_profile_ui
+from src.dental_detection.example_assets import EXAMPLE_DIR, example_choices, example_preview_text
 from src.dental_detection.record_views import case_table_html
 from src.dental_detection.report_center_ui import build_report_center
 from src.dental_detection.settings_store import AiSettings
@@ -59,6 +60,17 @@ from src.dental_detection.ui_workbench_page import (
 
 
 class UiAssetTests(unittest.TestCase):
+    def test_marked_examples_do_not_claim_model_detection_results(self) -> None:
+        choices = example_choices()
+        caries_path = EXAMPLE_DIR / "示例_龋齿.png"
+        preview = example_preview_text(str(caries_path))
+
+        self.assertTrue(choices)
+        self.assertTrue(all(" | " not in label for label, _ in choices))
+        self.assertNotIn("预期类别", preview)
+        self.assertIn("素材预先绘制", preview)
+        self.assertIn("不是模型检测结果", preview)
+
     def test_record_details_use_sanitized_markdown_panels(self) -> None:
         for builder, component_name, label, elem_id in (
             (build_cases_page, "case_detail", "病例详情", "case-detail"),

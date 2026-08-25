@@ -19,7 +19,7 @@ from src.dental_detection.browser_fallback import launch_chromium_with_fallback
 
 DEFAULT_BASE_URL = "http://127.0.0.1:7860"
 DEFAULT_OUTPUT = PROJECT_ROOT / "docs" / "ai-bridge" / "screenshots" / "ui-regression"
-DEFAULT_EXAMPLE = PROJECT_ROOT / "assets" / "examples" / "dental" / "示例_龋齿.png"
+DEFAULT_EXAMPLE = PROJECT_ROOT / "assets" / "examples" / "dental" / "示例_无明显目标.png"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

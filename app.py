@@ -65,6 +65,11 @@ from src.dental_detection.gradio_files import (
     safe_existing_root as _safe_existing_root,
 )
 from src.dental_detection.error_messages import concise_error_message, friendly_error_message
+from src.dental_detection.example_assets import (
+    EXAMPLE_DIR,
+    example_choices as _example_choices,
+    example_preview_text as _example_preview_text,
+)
 from src.dental_detection.exporters import (
     cleanup_payload_dir,
     create_zip_from_directory,
@@ -179,8 +184,6 @@ from src.dental_detection.visualization import crop_detection_regions, draw_dete
 from src.dental_detection.workspace_store import WorkspaceError
 from ultralytics import YOLO
 
-EXAMPLE_DIR = PROJECT_ROOT / "assets" / "examples" / "dental"
-EXAMPLE_META_PATH = EXAMPLE_DIR / "示例图片说明.json"
 INFERENCE_CONCURRENCY_ID = "dental-inference"
 AI_REQUEST_CONCURRENCY_ID = "dental-ai-request"
 EXPORT_CONCURRENCY_ID = "dental-export"
@@ -985,53 +988,6 @@ def _visible_class_choices(result: dict[str, Any] | None) -> list[str]:
 def _visible_class_update(result: dict[str, Any] | None):
     choices = _visible_class_choices(result)
     return gr.update(choices=choices, value=choices, interactive=bool(choices))
-
-
-def _load_example_metadata() -> list[dict[str, Any]]:
-    if not EXAMPLE_META_PATH.exists():
-        return []
-    try:
-        data = json.loads(EXAMPLE_META_PATH.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return []
-    if not isinstance(data, list):
-        return []
-    items = []
-    for item in data:
-        if not isinstance(item, dict):
-            continue
-        file_name = Path(str(item.get("文件名") or "")).name
-        path = EXAMPLE_DIR / file_name
-        if file_name and path.exists():
-            items.append({**item, "path": path})
-    return items
-
-
-def _example_choices() -> list[tuple[str, str]]:
-    choices = []
-    for item in _load_example_metadata():
-        name = str(item.get("示例名称") or item.get("文件名") or item["path"].name)
-        expected = str(item.get("预期类别") or "").strip()
-        label = f"{name} | {expected}" if expected else name
-        choices.append((label, str(item["path"])))
-    return choices
-
-
-def _example_preview_text(path_text: str | None) -> str:
-    if not path_text:
-        return "选择示例后会在这里显示说明。"
-    target = Path(path_text)
-    for item in _load_example_metadata():
-        if item["path"] == target:
-            return "\n".join(
-                [
-                    f"示例名称：{item.get('示例名称', target.name)}",
-                    f"预期类别：{item.get('预期类别', '未标注')}",
-                    f"脱敏状态：{item.get('是否脱敏', '是')}",
-                    str(item.get("说明文本") or ""),
-                ]
-            ).strip()
-    return "未找到该示例说明。"
 
 
 def load_demo_example(path_text: str | None):
