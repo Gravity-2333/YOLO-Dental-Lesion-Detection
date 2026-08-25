@@ -388,7 +388,7 @@ except Exception as e:
 print("\n测试14: 检查对比模型ZIP导出包含分模型结果图...")
 try:
     from PIL import Image
-    from app import export_batch_results, export_single_report
+    from app import export_batch_results, export_batch_word_report, export_single_report
 
     image = Image.new("RGB", (80, 60), "white")
     model_a = {
@@ -429,12 +429,16 @@ try:
         assert any("model_01" in name and name.endswith("_result.png") for name in names), "单图ZIP应包含主模型结果图"
         assert any("model_02" in name and name.endswith("_result.png") for name in names), "单图ZIP应包含副模型结果图"
 
-        _, _, batch_state = export_batch_results(batch_state, temp_dir)
+        _, batch_zip_path_text, batch_state = export_batch_results(batch_state, temp_dir)
         batch_zip = Path(batch_state[0]["zip_report_path"])
+        assert Path(batch_zip_path_text) == batch_zip, "批量 ZIP 路径框应返回可直接使用的纯路径"
         with zipfile.ZipFile(batch_zip) as archive:
             names = archive.namelist()
         assert any("model_01" in name and name.endswith("_result.png") for name in names), "批量ZIP应包含主模型结果图"
         assert any("model_02" in name and name.endswith("_result.png") for name in names), "批量ZIP应包含副模型结果图"
+
+        _, batch_word_path_text, batch_state = export_batch_word_report(batch_state, temp_dir)
+        assert Path(batch_word_path_text).is_file(), "批量 Word 路径框应返回可直接使用的纯路径"
     print("✓ 对比模型ZIP分模型结果图正常")
 except Exception as e:
     print(f"✗ 对比模型ZIP分模型结果图测试失败: {e}")

@@ -1393,7 +1393,7 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
             pass
     _sync_report_path(batch_state, batch_state, zip_path, "zip_report_path")
     update_history_report_paths(batch_state, zip_path, storage_dir)
-    return _file_component_output(zip_path), f"已导出：{zip_path}", batch_state
+    return _file_component_output(zip_path), str(zip_path), batch_state
 
 
 def export_batch_word_report(batch_state: list[dict[str, Any]], storage_dir: str):
@@ -1413,7 +1413,7 @@ def export_batch_word_report(batch_state: list[dict[str, Any]], storage_dir: str
         raise _friendly_gr_error(exc, "批量 Word 报告导出失败") from exc
     _sync_report_path(batch_state, batch_state, path, "word_report_path")
     update_history_report_paths(batch_state, path, storage_dir)
-    return _file_component_output(path), f"已导出批量 Word 报告：{path}", batch_state
+    return _file_component_output(path), str(path), batch_state
 
 
 def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
@@ -2095,7 +2095,7 @@ def clear_outputs(*, clear_chat: bool = False):
             "advice": "",
             "quality": "等待上传图像",
             "summary": gr.update(value={}, visible=False),
-            "batch_overview": gr.update(value="", visible=False),
+            "batch_overview": "",
             "batch_state": [],
             "batch_select": gr.update(choices=[], value=None),
             "chatbot": [] if clear_chat else gr.update(),
@@ -2391,7 +2391,7 @@ def run_single_detection(
             "advice": advice,
             "quality": quality_text,
             "summary": gr.update(value=summary, visible=show_summary),
-            "batch_overview": gr.update(value="", visible=False),
+            "batch_overview": "",
             "batch_state": batch_state,
             "batch_select": gr.update(choices=["当前单图"], value="当前单图"),
             "chatbot": chat_history,
@@ -2608,7 +2608,7 @@ def run_batch_detection(
             "advice": first["advice"],
             "quality": first.get("quality_text") or assess_image_quality(first["result"]["original"]),
             "summary": gr.update(value=first["summary"], visible=show_summary),
-            "batch_overview": gr.update(value=batch_overview_html(overview), visible=True),
+            "batch_overview": batch_overview_html(overview),
             "batch_state": batch_state,
             "batch_select": gr.update(choices=choices, value=choices[0]),
             "chatbot": chat_history,

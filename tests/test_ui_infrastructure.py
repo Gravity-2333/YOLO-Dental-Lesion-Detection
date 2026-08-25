@@ -1376,6 +1376,18 @@ class UiContentTests(unittest.TestCase):
             with self.assertRaisesRegex(app.gr.Error, "总大小超过"):
                 app._normalize_batch_files(["large-image.tif"])
 
+    def test_batch_overview_host_remains_mounted_between_runs(self) -> None:
+        workbench_source = inspect.getsource(build_workbench_page)
+        self.assertIn('value="",\n                            container=False,', workbench_source)
+        self.assertIn('elem_classes=["batch-overview-host"]', workbench_source)
+
+        self.assertIn('"batch_overview": ""', inspect.getsource(app.clear_outputs))
+        self.assertIn('"batch_overview": ""', inspect.getsource(app.run_single_detection))
+        self.assertIn(
+            '"batch_overview": batch_overview_html(overview)',
+            inspect.getsource(app.run_batch_detection),
+        )
+
     def test_compare_results_share_identical_source_images(self) -> None:
         original = object()
         model_input = object()

@@ -203,7 +203,11 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                             max_lines=1,
                             elem_classes=["path-output"],
                         )
-                        batch_overview = gr.HTML(visible=False)
+                        batch_overview = gr.HTML(
+                            value="",
+                            container=False,
+                            elem_classes=["batch-overview-host"],
+                        )
 
             with gr.Group(elem_classes=["section-card", "panel-card"]):
                 gr.HTML(
