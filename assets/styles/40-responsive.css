@@ -168,6 +168,10 @@
     grid-template-columns: minmax(0, 1fr) 152px !important;
   }
 
+  .export-toolbar .row.path-row {
+    grid-template-columns: minmax(0, 1fr) 152px !important;
+  }
+
   .chat-card .path-row {
     grid-template-columns: minmax(0, 1fr) 120px !important;
   }
@@ -221,6 +225,14 @@
     width: 152px !important;
     min-width: 152px !important;
     max-width: 152px !important;
+  }
+
+  .export-toolbar .row.path-row > button.secondary-action {
+    flex: 0 0 152px !important;
+    width: 152px !important;
+    min-width: 152px !important;
+    max-width: 152px !important;
+    margin-bottom: 10px !important;
   }
 
   .chat-card .path-row > .secondary-action,
@@ -346,6 +358,12 @@
   }
 
   .chat-card .row.path-row > button.secondary-action {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: none !important;
+  }
+
+  .export-toolbar .row.path-row > button.secondary-action {
     width: 100% !important;
     min-width: 100% !important;
     max-width: none !important;

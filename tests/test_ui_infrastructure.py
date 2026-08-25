@@ -98,6 +98,7 @@ class UiAssetTests(unittest.TestCase):
 
         self.assertIn("trackOverflowSelection", javascript)
         self.assertIn("dataset.overflowSelectedLabel", javascript)
+        self.assertIn('".overflow-dropdown > button.selected"', javascript)
         self.assertIn("更多页面，当前：", javascript)
         self.assertIn('content: attr(data-nav-label)', css)
         self.assertIn("button.overflow-item-selected", css)
@@ -167,6 +168,7 @@ class UiAssetTests(unittest.TestCase):
         )
         self.assertIn("grid-template-columns: minmax(0, 1fr) 132px !important", tablet)
         self.assertIn("grid-template-columns: minmax(0, 1fr) 152px !important", tablet)
+        self.assertIn(".export-toolbar .row.path-row", tablet)
         self.assertIn("grid-template-columns: minmax(0, 1fr) 120px !important", tablet)
         self.assertIn(".chat-card .row.path-row", tablet)
         self.assertIn("margin-bottom: 10px !important", tablet)
@@ -184,6 +186,18 @@ class UiAssetTests(unittest.TestCase):
         mobile = css.split("@media (max-width: 640px)", 1)[1]
         rule = mobile.split(
             ".chat-card .row.path-row > button.secondary-action",
+            1,
+        )[1].split("}", 1)[0]
+
+        self.assertIn("width: 100% !important", rule)
+        self.assertIn("min-width: 100% !important", rule)
+        self.assertIn("max-width: none !important", rule)
+
+    def test_mobile_workbench_export_buttons_stretch_with_the_path_row(self) -> None:
+        css = load_workbench_css()
+        mobile = css.split("@media (max-width: 640px)", 1)[1]
+        rule = mobile.split(
+            ".export-toolbar .row.path-row > button.secondary-action",
             1,
         )[1].split("}", 1)[0]
 

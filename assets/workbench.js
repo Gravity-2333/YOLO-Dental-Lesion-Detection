@@ -88,9 +88,16 @@
   const labelOverflowMenus = () => {
     document.querySelectorAll(".overflow-menu > button").forEach((button) => {
       const tabRoot = button.closest(TAB_ROOT_SELECTOR);
+      const selectedMenuItem = button.parentElement?.querySelector(
+        ".overflow-dropdown > button.selected",
+      );
+      const inferredLabel = String(selectedMenuItem?.textContent || "").trim();
       const selectedLabel = button.classList.contains("overflow-item-selected")
-        ? String(tabRoot?.dataset.overflowSelectedLabel || "").trim()
+        ? String(tabRoot?.dataset.overflowSelectedLabel || inferredLabel).trim()
         : "";
+      if (selectedLabel && tabRoot && !tabRoot.dataset.overflowSelectedLabel) {
+        tabRoot.dataset.overflowSelectedLabel = selectedLabel;
+      }
       const visibleLabel = selectedLabel || "更多";
       const accessibleLabel = selectedLabel
         ? `更多页面，当前：${selectedLabel}`
