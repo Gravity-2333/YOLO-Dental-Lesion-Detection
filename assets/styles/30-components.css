@@ -851,13 +851,49 @@ td {
 .settings-actions {
   width: min(1120px, 100%) !important;
   max-width: 1120px !important;
+  align-items: center !important;
   justify-content: flex-end !important;
+  flex-wrap: nowrap !important;
+  gap: 12px !important;
   margin: 8px auto 0 !important;
   padding: 10px 0 0 !important;
   background: transparent !important;
   border: 0 !important;
   border-top: 1px solid var(--soft-border) !important;
   border-radius: 0 !important;
+}
+
+.settings-feedback {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.settings-feedback .html-container,
+.settings-feedback .prose {
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.app-inline-status {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  padding: 8px 12px;
+  border-left: 3px solid #0f766e;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: #eef8f6;
+  color: #0f5f59;
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1.45;
 }
 
 .chat-card,

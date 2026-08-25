@@ -253,11 +253,31 @@ class UiAssetTests(unittest.TestCase):
         rule = css.split(".settings-actions {", 1)[1].split("}", 1)[0]
 
         self.assertIn("justify-content: flex-end !important", rule)
+        self.assertIn("flex-wrap: nowrap !important", rule)
         self.assertIn("padding: 10px 0 0 !important", rule)
         self.assertIn("background: transparent !important", rule)
         self.assertIn("border: 0 !important", rule)
         self.assertIn("border-top: 1px solid var(--soft-border) !important", rule)
         self.assertNotIn("border: 1px solid var(--card-border)", rule)
+        self.assertIn(".settings-feedback {", css)
+        self.assertIn(".app-inline-status {", css)
+        feedback_rule = css.split(".settings-feedback {", 1)[1].split("}", 1)[0]
+        self.assertIn("flex: 1 1 0 !important", feedback_rule)
+        self.assertIn("width: auto !important", feedback_rule)
+
+        mobile = css.split("@media (max-width: 640px)", 1)[1]
+        mobile_feedback_rule = mobile.split(
+            ".settings-actions > .settings-feedback {", 1
+        )[1].split("}", 1)[0]
+        self.assertIn("flex: 0 0 auto !important", mobile_feedback_rule)
+        self.assertIn("width: 100% !important", mobile_feedback_rule)
+
+        settings_source = inspect.getsource(app.build_settings_page)
+        action_source = settings_source.split('with gr.Row(elem_classes=["settings-actions"]):', 1)[1]
+        self.assertLess(
+            action_source.index("settings_feedback = gr.HTML"),
+            action_source.index("save_settings_btn = gr.Button"),
+        )
 
     def test_css_bundle_drops_retired_frontend_scaffolding(self) -> None:
         css = load_workbench_css()
@@ -1352,6 +1372,8 @@ class UiContentTests(unittest.TestCase):
         history_rows_mock.assert_not_called()
         self.assertEqual(len(result), 22)
         self.assertIn("设置已保存", result[0])
+        self.assertIn("app-inline-status", result[0])
+        self.assertNotIn("app-toast", result[0])
         self.assertNotIn("settings.json", result[0])
         self.assertEqual(result[-3:], (False, False, True))
 

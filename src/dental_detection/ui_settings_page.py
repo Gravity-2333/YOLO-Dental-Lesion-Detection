@@ -353,10 +353,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                     )
 
     with gr.Row(elem_classes=["settings-actions"]):
+        settings_feedback = gr.HTML(elem_classes=["settings-feedback"])
         save_settings_btn = gr.Button(
             "保存设置", variant="primary", elem_classes=["primary-action", "compact-button"]
         )
-    settings_feedback = gr.HTML()
 
     return SettingsComponents(
         enable_compare=enable_compare,

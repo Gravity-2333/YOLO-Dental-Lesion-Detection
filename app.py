@@ -946,6 +946,13 @@ def _toast(message: str, kind: str = "success") -> str:
     return f'<div class="app-toast app-toast-{kind}">{_html_escape(message).replace(chr(10), "<br>")}</div>'
 
 
+def _inline_status(message: str, kind: str = "success") -> str:
+    if not message:
+        return ""
+    content = _html_escape(message).replace(chr(10), "<br>")
+    return f'<div class="app-inline-status app-inline-status-{kind}" role="status">{content}</div>'
+
+
 def _friendly_gr_error(exc: BaseException | str, context: str = "操作失败") -> gr.Error:
     return gr.Error(friendly_error_message(exc, context))
 
@@ -2867,7 +2874,7 @@ def save_ui_settings(
         # archives. Existing selectors remain valid and explicit refresh
         # buttons or tab entry will load records when needed.
         return (
-            _toast("\n".join(feedback), "success"),
+            _inline_status("\n".join(feedback), "success"),
             *([gr.update()] * 20),
             False,
         )
@@ -2880,7 +2887,7 @@ def save_ui_settings(
     case_message = "当前存储位置暂无病例记录。"
     history_message = "当前存储位置暂无检测历史。"
     return (
-        _toast("\n".join(feedback), "success"),
+        _inline_status("\n".join(feedback), "success"),
         gr.update(choices=case_choices, value=None),
         _case_table_html([]),
         _case_detail_from_choice(None, settings.storage_dir, workspace.patient.id),

@@ -334,6 +334,28 @@
 }
 
 @media (max-width: 640px) {
+  .settings-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .settings-actions > button.primary-action {
+    order: 1;
+  }
+
+  .settings-actions > .settings-feedback {
+    order: 2;
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .settings-feedback .app-inline-status {
+    justify-content: center;
+    text-align: center;
+  }
+
   .ai-context-strip,
   .record-boundary-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
