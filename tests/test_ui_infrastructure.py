@@ -123,6 +123,12 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("更多页面，当前：", javascript)
         self.assertIn('content: attr(data-nav-label)', css)
         self.assertIn("button.overflow-item-selected", css)
+        self.assertIn(
+            '.main-tabs [role="tablist"] {\n'
+            "    display: grid !important;\n"
+            "    grid-template-columns: repeat(3, minmax(0, 1fr));",
+            css.split("@media (max-width: 640px)", 1)[1],
+        )
 
     def test_mobile_status_strips_use_compact_two_column_layout(self) -> None:
         css = load_workbench_css()
