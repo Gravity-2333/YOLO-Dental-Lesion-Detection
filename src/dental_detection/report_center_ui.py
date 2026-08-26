@@ -32,7 +32,7 @@ REPORT_TRASH_CONFIRM_LABEL = "再次点击确认"
 class ReportCenterComponents:
     report_select: gr.Dropdown
     report_table: gr.HTML
-    report_detail: gr.Textbox
+    report_detail: gr.Markdown
     report_file: gr.File
     report_feedback: gr.Textbox
     refresh_button: gr.Button
@@ -134,7 +134,6 @@ def _report_detail(storage_dir: str, report: ReportAsset | None) -> str:
             f"格式：{report.report_format.upper()}",
             f"生成时间：{_local_timestamp(report.created_at)}",
             f"模型：{report.model_version or '未记录'}",
-            f"检测任务：{report.task_id}",
             f"文件状态：{status}",
         ]
     )
@@ -199,11 +198,17 @@ def build_report_center(
             label="下载报告",
             visible=bool(initial_file["visible"]),
         )
-        report_detail = gr.Textbox(
+        report_detail = gr.Markdown(
             value=_report_detail(storage_dir, selected),
             label="报告详情",
-            interactive=False,
-            lines=7,
+            show_label=True,
+            sanitize_html=True,
+            line_breaks=True,
+            header_links=False,
+            buttons=["copy"],
+            container=True,
+            elem_id="report-detail",
+            elem_classes=["record-detail"],
         )
     return ReportCenterComponents(
         report_select=report_select,

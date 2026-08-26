@@ -77,6 +77,7 @@ class UiAssetTests(unittest.TestCase):
         for builder, component_name, label, elem_id in (
             (build_cases_page, "case_detail", "病例详情", "case-detail"),
             (build_history_page, "history_detail", "历史详情", "history-detail"),
+            (build_report_center, "report_detail", "报告详情", "report-detail"),
         ):
             source = inspect.getsource(builder)
             component_source = source.split(f"{component_name} = gr.Markdown(", 1)[1]
@@ -89,8 +90,10 @@ class UiAssetTests(unittest.TestCase):
 
         css = load_workbench_css()
         self.assertIn(".record-detail .prose strong", css)
+        self.assertIn("#report-detail", css)
         self.assertNotIn('textarea[aria-label="病例详情"]', css)
         self.assertNotIn('textarea[aria-label="历史详情"]', css)
+        self.assertNotIn('textarea[aria-label="报告详情"]', css)
 
     def test_css_bundle_is_complete_and_ordered(self) -> None:
         self.assertTrue(all(path.is_file() for path in CSS_BUNDLE_FILES))

@@ -1143,6 +1143,10 @@ textarea[aria-label="结束日期"] {
   font-weight: 700 !important;
 }
 
+#report-detail {
+  min-height: 170px !important;
+}
+
 textarea[aria-label="AI 建议 Prompt"] {
   min-height: 150px !important;
   line-height: 1.6 !important;

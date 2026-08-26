@@ -123,6 +123,8 @@ class ReportCenterUiTests(unittest.TestCase):
                 workspace.patient.id,
             )
             self.assertIn("model-a@1", detail)
+            self.assertNotIn("检测任务", detail)
+            self.assertNotIn(report.task_id, detail)
             self.assertTrue(file_update["visible"])
             self.assertEqual(feedback, "")
             self.assertTrue(trash_update["interactive"])
