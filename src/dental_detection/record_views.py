@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from html import escape
 from typing import Any
 
@@ -20,13 +21,34 @@ def case_table(rows: list[dict[str, Any]]) -> pd.DataFrame:
     return pd.DataFrame(visible_rows, columns=CASE_TABLE_COLUMNS)
 
 
-def case_choices_from_rows(rows: list[dict[str, Any]]) -> list[str]:
-    return [
-        f"{_short_choice_text(row.get('保存时间') or '', 32)} | "
-        f"{_short_choice_text(row.get('病例编号') or row.get('文件名'))} | "
-        f"{_short_choice_text(row.get('图片名称') or '未命名图片')} | {row.get('文件名')}"
-        for row in rows
-    ]
+def case_choices_from_rows(rows: list[dict[str, Any]]) -> list[tuple[str, str]]:
+    choice_parts: list[tuple[str, str]] = []
+    for row in rows:
+        file_name = str(row.get("文件名") or "").strip()
+        if not file_name:
+            continue
+        created_at = _short_choice_text(
+            str(row.get("保存时间") or "").replace("T", " ", 1),
+            32,
+        )
+        case_id = _short_choice_text(row.get("病例编号") or "")
+        image_name = _short_choice_text(row.get("图片名称") or "未命名图片")
+        record_name = case_id if case_id != "-" else image_name
+        label_parts = [created_at, record_name]
+        if case_id != "-" and image_name not in {"-", "当前单图", case_id}:
+            label_parts.append(image_name)
+        choice_parts.append((" · ".join(label_parts), file_name))
+
+    totals = Counter(label for label, _ in choice_parts)
+    positions: Counter[str] = Counter()
+    choices = []
+    for base_label, file_name in choice_parts:
+        label = base_label
+        if totals[base_label] > 1:
+            positions[base_label] += 1
+            label = f"{base_label} {positions[base_label]}/{totals[base_label]}"
+        choices.append((label, file_name))
+    return choices
 
 
 def history_table_from_rows(rows: list[dict[str, Any]]) -> pd.DataFrame:

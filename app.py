@@ -906,7 +906,8 @@ def _case_detail_from_choice(
 
 
 def _case_file_name_from_choice(choice: str) -> str:
-    file_name = str(choice or "").split("|")[-1].strip()
+    raw_value = str(choice or "").strip()
+    file_name = raw_value.split("|")[-1].strip() if "|" in raw_value else raw_value
     if Path(file_name).name != file_name or not file_name.startswith("case_") or not file_name.endswith(".json"):
         raise gr.Error("病例选择无效，请刷新病例列表后重试。")
     return file_name
@@ -1726,10 +1727,9 @@ def save_case_record(
         message = "病例记录已保存。"
     rows = list_case_records(storage_dir, item.get("patient_id"), limit=CASE_UI_LIMIT)
     choices = _case_choices_from_rows(rows)
-    # 精确匹配：choices 格式为 "created_at | case_id | image_name | filename.json"
     selected = next(
-        (choice for choice in choices if choice.split("|")[-1].strip() == selected_file_name),
-        choices[0] if choices else None,
+        (value for _, value in choices if value == selected_file_name),
+        choices[0][1] if choices else None,
     )
     return (
         message,
@@ -1745,7 +1745,7 @@ def refresh_case_records(storage_dir: str, patient_id: str | None = None):
     _ensure_storage_root(storage_dir)
     rows = list_case_records(storage_dir, patient_id, limit=CASE_UI_LIMIT)
     choices = _case_choices_from_rows(rows)
-    selected = choices[0] if choices else None
+    selected = choices[0][1] if choices else None
     return (
         gr.update(choices=choices, value=selected),
         _case_table_html(rows),
@@ -1793,7 +1793,7 @@ def search_case_records_ui(
         limit=CASE_UI_LIMIT,
     )
     choices = _case_choices_from_rows(rows)
-    selected = choices[0] if choices else None
+    selected = choices[0][1] if choices else None
     message = (
         f"已显示前 {CASE_UI_LIMIT} 条匹配病例，请继续缩小筛选范围。"
         if len(rows) >= CASE_UI_LIMIT
@@ -1839,7 +1839,7 @@ def delete_selected_case_record(
         limit=CASE_UI_LIMIT,
     )
     choices = _case_choices_from_rows(rows)
-    selected = choices[0] if choices else None
+    selected = choices[0][1] if choices else None
     return (
         gr.update(choices=choices, value=selected),
         _case_table_html(rows),

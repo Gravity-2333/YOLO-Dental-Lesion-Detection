@@ -4,10 +4,54 @@ import unittest
 
 from src.dental_detection.ai_defaults import SAFETY_NOTICE
 from src.dental_detection.record_formatters import format_case_record, format_history_record
-from src.dental_detection.record_views import history_choices_from_rows, history_id
+from src.dental_detection.record_views import (
+    case_choices_from_rows,
+    history_choices_from_rows,
+    history_id,
+)
 
 
 class RecordFormatterPrivacyTests(unittest.TestCase):
+    def test_case_detail_localizes_suggestion_source(self) -> None:
+        self.assertIn(
+            "建议来源：内置建议",
+            format_case_record({"suggestion_type": "default"}),
+        )
+        self.assertIn(
+            "建议来源：AI 建议",
+            format_case_record({"suggestion_type": "ai"}),
+        )
+
+    def test_case_choices_hide_file_names_but_keep_them_as_values(self) -> None:
+        choices = case_choices_from_rows(
+            [
+                {
+                    "保存时间": "2026-08-27T01:27:21",
+                    "病例编号": "复查-001",
+                    "图片名称": "当前单图",
+                    "文件名": "case_internal_001.json",
+                },
+                {
+                    "保存时间": "2026-08-27T01:27:21",
+                    "病例编号": "复查-002",
+                    "图片名称": "右侧牙片.png",
+                    "文件名": "case_internal_002.json",
+                },
+            ]
+        )
+
+        self.assertEqual(
+            choices,
+            [
+                ("2026-08-27 01:27:21 · 复查-001", "case_internal_001.json"),
+                (
+                    "2026-08-27 01:27:21 · 复查-002 · 右侧牙片.png",
+                    "case_internal_002.json",
+                ),
+            ],
+        )
+        self.assertNotIn("case_internal", " ".join(label for label, _ in choices))
+
     def test_history_choices_hide_internal_ids_but_keep_them_as_values(self) -> None:
         choices = history_choices_from_rows(
             [

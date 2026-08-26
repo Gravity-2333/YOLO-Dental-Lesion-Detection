@@ -55,6 +55,11 @@ def _path_artifact_name(value: Any) -> str:
     return path_type(path_text).name
 
 
+def _suggestion_source_label(value: Any) -> str:
+    source = text_value(value, "default").strip()
+    return {"default": "内置建议", "ai": "AI 建议"}.get(source.casefold(), source)
+
+
 def _format_model_results(model_results: Any) -> list[str]:
     model_items = list(iter_model_result_items(model_results))
     if not model_items:
@@ -117,7 +122,7 @@ def format_case_record(data: dict[str, Any] | None) -> str:
         f"病例编号：{text_value(data.get('case_id'), '未填写')}",
         f"保存时间：{text_value(data.get('created_at'), '-')}",
         f"图片名称：{text_value(data.get('image_name'), '-')}",
-        f"建议来源：{text_value(data.get('suggestion_type'), 'default')}",
+        f"建议来源：{_suggestion_source_label(data.get('suggestion_type'))}",
     ]
     display_name = text_value(data.get("display_name")).strip()
     image_name = text_value(data.get("image_name")).strip()
