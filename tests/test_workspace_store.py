@@ -255,6 +255,28 @@ class WorkspaceStoreTests(unittest.TestCase):
             [report],
         )
 
+    def test_duplicate_patient_labels_are_numbered_without_changing_values(self) -> None:
+        first = create_personal_patient(self.temp_dir.name, "家人")
+        second = create_personal_patient(self.temp_dir.name, "家人")
+
+        active_choices = personal_patient_choices(self.temp_dir.name)
+        duplicate_choices = [
+            (label, value)
+            for label, value in active_choices
+            if value in {first.id, second.id}
+        ]
+
+        self.assertEqual(
+            {label for label, _ in duplicate_choices},
+            {"家人 1/2", "家人 2/2"},
+        )
+        self.assertEqual({value for _, value in duplicate_choices}, {first.id, second.id})
+
+        archive_personal_patient(self.temp_dir.name, first.id)
+        archive_personal_patient(self.temp_dir.name, second.id)
+        archived_choices = personal_archived_patient_choices(self.temp_dir.name)
+        self.assertEqual({label for label, _ in archived_choices}, {"家人 1/2", "家人 2/2"})
+
     def test_personal_report_rejects_files_outside_storage_root(self) -> None:
         workspace = ensure_personal_workspace(self.temp_dir.name)
         task = record_completed_detection(

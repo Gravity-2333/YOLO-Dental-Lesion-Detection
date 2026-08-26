@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 import sqlite3
 from pathlib import Path
@@ -59,27 +60,35 @@ def ensure_personal_workspace(
 
 def personal_patient_choices(storage_dir: str | Path | None = None) -> list[tuple[str, str]]:
     workspace = ensure_personal_workspace(storage_dir)
-    return [
-        (
-            patient.display_name
-            + (f" · {patient.external_reference}" if patient.external_reference else ""),
-            patient.id,
-        )
-        for patient in workspace.store.list_patients(workspace.user.id)
-    ]
+    return _patient_choices(workspace.store.list_patients(workspace.user.id))
 
 
 def personal_archived_patient_choices(storage_dir: str | Path | None = None) -> list[tuple[str, str]]:
     workspace = ensure_personal_workspace(storage_dir)
-    return [
-        (
-            patient.display_name
-            + (f" · {patient.external_reference}" if patient.external_reference else ""),
-            patient.id,
-        )
+    archived = [
+        patient
         for patient in workspace.store.list_patients(workspace.user.id, include_archived=True)
         if patient.is_archived
     ]
+    return _patient_choices(archived)
+
+
+def _patient_choices(patients: list[PatientProfile]) -> list[tuple[str, str]]:
+    base_labels = [
+        patient.display_name
+        + (f" · {patient.external_reference}" if patient.external_reference else "")
+        for patient in patients
+    ]
+    totals = Counter(base_labels)
+    positions: Counter[str] = Counter()
+    choices = []
+    for patient, base_label in zip(patients, base_labels):
+        label = base_label
+        if totals[base_label] > 1:
+            positions[base_label] += 1
+            label = f"{base_label} {positions[base_label]}/{totals[base_label]}"
+        choices.append((label, patient.id))
+    return choices
 
 
 def get_personal_patient(
