@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -74,16 +75,30 @@ def _report_choices(
 ) -> list[tuple[str, str]]:
     if statuses is None:
         statuses = _report_statuses(storage_dir, reports)
-    choices = []
+    choice_parts = []
     for report in reports:
         format_key = str(report.report_format or "").strip().lower()
         format_label = {"docx": "Word", "zip": "ZIP"}.get(
             format_key,
             format_key.upper() or "文件",
         )
-        label = f"{format_label} 报告 · {_local_timestamp(report.created_at)}"
-        if statuses.get(report.id) != "可用":
-            label += " · 文件缺失"
+        timestamp = _local_timestamp(report.created_at)
+        missing = statuses.get(report.id) != "可用"
+        base_label = f"{format_label} 报告 · {timestamp}"
+        if missing:
+            base_label += " · 文件缺失"
+        choice_parts.append((report, format_label, timestamp, missing, base_label))
+
+    totals = Counter(part[-1] for part in choice_parts)
+    positions: Counter[str] = Counter()
+    choices = []
+    for report, format_label, timestamp, missing, base_label in choice_parts:
+        label = base_label
+        if totals[base_label] > 1:
+            positions[base_label] += 1
+            label = f"{format_label} 报告 {positions[base_label]}/{totals[base_label]} · {timestamp}"
+            if missing:
+                label += " · 文件缺失"
         choices.append((label, report.id))
     return choices
 

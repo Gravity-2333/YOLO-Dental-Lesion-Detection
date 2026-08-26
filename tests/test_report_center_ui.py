@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -195,6 +196,30 @@ class ReportCenterUiTests(unittest.TestCase):
                 refresh_report_center(temp_dir, workspace.patient.id)
 
             self.assertEqual(status_mock.call_count, 2)
+
+    def test_reports_created_in_the_same_second_receive_compact_sequence_labels(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            workspace = ensure_personal_workspace(temp_dir)
+            first, _ = self._create_report(temp_dir, workspace.patient.id, "first.docx")
+            second, _ = self._create_report(temp_dir, workspace.patient.id, "second.docx")
+            second = replace(second, created_at=first.created_at)
+
+            choices = report_center_ui._report_choices(
+                temp_dir,
+                [first, second],
+                {first.id: "可用", second.id: "可用"},
+            )
+            timestamp = report_center_ui._local_timestamp(first.created_at)
+
+            self.assertEqual(
+                choices,
+                [
+                    (f"Word 报告 1/2 · {timestamp}", first.id),
+                    (f"Word 报告 2/2 · {timestamp}", second.id),
+                ],
+            )
+            self.assertNotIn("first.docx", choices[0][0])
+            self.assertNotIn("second.docx", choices[1][0])
 
     def test_missing_report_file_can_remove_stale_record(self) -> None:
         with TemporaryDirectory() as temp_dir:
