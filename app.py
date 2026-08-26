@@ -1925,7 +1925,7 @@ def lazy_refresh_history_page(
 ):
     """Load history and reports once; explicit refresh buttons remain available."""
     if loaded:
-        return (*([gr.update()] * 9), True)
+        return (*([gr.update()] * 9), "", True)
     (
         report_select,
         report_table,
@@ -1941,6 +1941,7 @@ def lazy_refresh_history_page(
         report_detail,
         report_feedback,
         report_trash_button,
+        str(report_select.get("value") or ""),
         True,
     )
 
@@ -3276,6 +3277,7 @@ def build_app() -> gr.Blocks:
         chat_state = gr.State([], time_to_live=SESSION_STATE_TTL_SECONDS)
         case_loaded_state = gr.State(False, time_to_live=SESSION_STATE_TTL_SECONDS)
         history_loaded_state = gr.State(False, time_to_live=SESSION_STATE_TTL_SECONDS)
+        report_file_target_state = gr.State("", time_to_live=SESSION_STATE_TTL_SECONDS)
         storage_changed_state = gr.State(False, time_to_live=SESSION_STATE_TTL_SECONDS)
         history_delete_confirmation = gr.State({}, time_to_live=SESSION_STATE_TTL_SECONDS)
         history_clear_confirmation = gr.State({}, time_to_live=SESSION_STATE_TTL_SECONDS)
@@ -3662,12 +3664,17 @@ def build_app() -> gr.Blocks:
         ).success(
             fn=lazy_refresh_history_page,
             inputs=[history_loaded_state, storage_dir, history_patient_select],
-            outputs=[*history_list_outputs, *report_metadata_outputs, history_loaded_state],
+            outputs=[
+                *history_list_outputs,
+                *report_metadata_outputs,
+                report_file_target_state,
+                history_loaded_state,
+            ],
             trigger_mode="always_last",
             show_progress="minimal",
         ).success(
             fn=load_tab_report_center_file,
-            inputs=[report_center.report_select, storage_dir, history_patient_select],
+            inputs=[report_file_target_state, storage_dir, history_patient_select],
             outputs=report_center.report_file,
             trigger_mode="always_last",
             show_progress="minimal",

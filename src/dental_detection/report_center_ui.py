@@ -286,8 +286,11 @@ def load_tab_report_center_file(
     storage_dir: str,
     patient_id: str,
 ):
-    """Hydrate the selected report file, falling back only on first tab entry."""
-    _, file_output, _, _ = load_active_report_center_item(report_id, storage_dir, patient_id)
+    """Hydrate the report requested by the tab refresh without reading a dropdown input."""
+    active_id = str(report_id or "").strip()
+    if not active_id:
+        return gr.update()
+    _, file_output, _, _ = load_report_center_item(active_id, storage_dir, patient_id)
     return file_output
 
 

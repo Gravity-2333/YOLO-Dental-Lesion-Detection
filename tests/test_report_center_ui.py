@@ -102,8 +102,15 @@ class ReportCenterUiTests(unittest.TestCase):
             self.assertIn("model-a@1", active_detail)
             self.assertTrue(active_file["visible"])
 
-            initial_file = load_tab_report_center_file(
+            no_pending_file = load_tab_report_center_file(
                 "",
+                temp_dir,
+                workspace.patient.id,
+            )
+            self.assertEqual(no_pending_file, gr.update())
+
+            initial_file = load_tab_report_center_file(
+                report.id,
                 temp_dir,
                 workspace.patient.id,
             )

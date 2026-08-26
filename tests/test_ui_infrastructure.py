@@ -1066,7 +1066,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('show_progress="minimal"', history_hydration)
         self.assertIn("fn=load_tab_report_center_file", history_hydration)
         self.assertIn(").success(", history_hydration)
-        self.assertIn("inputs=[report_center.report_select", history_hydration)
+        self.assertIn("inputs=[report_file_target_state", history_hydration)
         self.assertIn("outputs=report_center.report_file", history_hydration)
         self.assertIn("*report_metadata_outputs", history_hydration)
         self.assertNotIn("*report_list_outputs", history_hydration)
@@ -1761,7 +1761,8 @@ class UiContentTests(unittest.TestCase):
         case_result = app.lazy_refresh_case_records(True, "unused", "patient-1")
         history_result = app.lazy_refresh_history_page(True, "unused", "patient-1")
         self.assertEqual(len(case_result), 7)
-        self.assertEqual(len(history_result), 10)
+        self.assertEqual(len(history_result), 11)
+        self.assertEqual(history_result[-2], "")
         self.assertTrue(case_result[-1])
         self.assertTrue(history_result[-1])
 
