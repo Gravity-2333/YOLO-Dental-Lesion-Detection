@@ -589,3 +589,27 @@
     min-width: 78px !important;
   }
 }
+
+@media (max-width: 360px) {
+  .path-picker-row {
+    grid-template-columns: minmax(0, 1fr) 44px 88px !important;
+    column-gap: 4px !important;
+  }
+
+  .path-picker-row > :first-child label {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .path-picker-row > :first-child label span {
+    white-space: nowrap !important;
+  }
+
+  .path-picker-row > .secondary-action,
+  .row.path-picker-row > button.secondary-action {
+    flex-basis: 88px !important;
+    width: 88px !important;
+    min-width: 88px !important;
+    max-width: 88px !important;
+  }
+}

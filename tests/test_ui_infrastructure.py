@@ -255,6 +255,16 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("height: 44px !important", mobile)
         self.assertIn("margin-bottom: 0 !important", mobile)
 
+        narrow_mobile = css.split("@media (max-width: 360px)", 1)[1]
+        self.assertIn(
+            "grid-template-columns: minmax(0, 1fr) 44px 88px !important",
+            narrow_mobile,
+        )
+        self.assertIn("column-gap: 4px !important", narrow_mobile)
+        self.assertIn("padding-left: 8px !important", narrow_mobile)
+        self.assertIn("white-space: nowrap !important", narrow_mobile)
+        self.assertIn("width: 88px !important", narrow_mobile)
+
     def test_mobile_chat_export_button_stretches_with_the_path_row(self) -> None:
         css = load_workbench_css()
         mobile = css.split("@media (max-width: 640px)", 1)[1]
