@@ -39,6 +39,7 @@ from src.dental_detection.settings_store import (
 )
 from src.dental_detection.case_store import (
     export_case_report,
+    find_matching_case_record,
     list_case_records,
     load_case_record as load_case_record_data,
     move_case_to_trash,
@@ -1682,8 +1683,6 @@ def save_case_record(
     case_id_text = str(case_id or "").strip()
     case_note_text = str(case_note or "").strip()
     image_name = item.get("name") or item.get("image_name") or "当前单图"
-    safe_case = _safe_stem(case_id_text or image_name or "case")
-    path = _unique_case_path(storage_dir, stamp, safe_case)
     payload = {
         "created_at": now.isoformat(timespec="seconds"),
         "case_id": case_id_text or "未填写",
@@ -1704,16 +1703,36 @@ def save_case_record(
         "suggestion": item.get("advice", ""),
         "safety_notice": SAFETY_NOTICE,
     }
-    _write_text(path, json.dumps(json_safe_value(payload), ensure_ascii=False, indent=2, allow_nan=False))
+    existing = find_matching_case_record(
+        storage_dir,
+        item.get("patient_id"),
+        task_id=payload["task_id"],
+        case_id=payload["case_id"],
+        note=payload["note"],
+        image_name=payload["image_name"],
+    )
+    if existing:
+        payload = existing["_data"]
+        selected_file_name = existing["文件名"]
+        message = "相同病例已保存，未重复创建。"
+    else:
+        safe_case = _safe_stem(case_id_text or image_name or "case")
+        path = _unique_case_path(storage_dir, stamp, safe_case)
+        _write_text(
+            path,
+            json.dumps(json_safe_value(payload), ensure_ascii=False, indent=2, allow_nan=False),
+        )
+        selected_file_name = path.name
+        message = "病例记录已保存。"
     rows = list_case_records(storage_dir, item.get("patient_id"), limit=CASE_UI_LIMIT)
     choices = _case_choices_from_rows(rows)
     # 精确匹配：choices 格式为 "created_at | case_id | image_name | filename.json"
     selected = next(
-        (choice for choice in choices if choice.split("|")[-1].strip() == path.name),
+        (choice for choice in choices if choice.split("|")[-1].strip() == selected_file_name),
         choices[0] if choices else None,
     )
     return (
-        "病例记录已保存。",
+        message,
         gr.update(choices=choices, value=selected),
         _case_table_html(rows),
         format_case_record(payload),

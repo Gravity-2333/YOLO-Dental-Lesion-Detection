@@ -793,6 +793,35 @@ class UiContentTests(unittest.TestCase):
             self.assertNotIn(temp_dir, deleted[2])
             self.assertIsNone(deleted[0]["value"])
 
+    def test_repeated_case_save_reuses_the_same_detection_record(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            state = [
+                {
+                    "name": "case-image.png",
+                    "patient_id": "patient-1",
+                    "task_id": "task-1",
+                    "quality_text": "图像质量正常",
+                    "result": {"detections": []},
+                }
+            ]
+
+            first = app.save_case_record(
+                state, "case-image.png", "复查-001", "同一备注", temp_dir
+            )
+            repeated = app.save_case_record(
+                state, "case-image.png", "复查-001", "同一备注", temp_dir
+            )
+
+            self.assertEqual(first[0], "病例记录已保存。")
+            self.assertEqual(repeated[0], "相同病例已保存，未重复创建。")
+            self.assertEqual(first[1]["value"], repeated[1]["value"])
+            self.assertEqual(len(list(app.case_dir(temp_dir).glob("case_*.json"))), 1)
+
+            app.save_case_record(
+                state, "case-image.png", "复查-001", "修改后的备注", temp_dir
+            )
+            self.assertEqual(len(list(app.case_dir(temp_dir).glob("case_*.json"))), 2)
+
     def test_workbench_shows_interpretation_before_technical_detection_details(self) -> None:
         source = inspect.getsource(build_workbench_page)
         insight_position = source.index('with gr.Row(elem_classes=["insight-grid"])')

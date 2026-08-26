@@ -150,6 +150,36 @@ def list_case_records(
     return rows
 
 
+def find_matching_case_record(
+    storage_dir: str,
+    patient_id: str | None,
+    *,
+    task_id: str,
+    case_id: str,
+    note: str,
+    image_name: str,
+) -> dict[str, Any] | None:
+    expected_task_id = str(task_id or "").strip()
+    if not expected_task_id:
+        return None
+    expected = {
+        "task_id": expected_task_id,
+        "case_id": str(case_id or "").strip(),
+        "note": str(note or "").strip(),
+        "image_name": str(image_name or "").strip(),
+    }
+    for row in _iter_case_records(storage_dir, patient_id):
+        data = row.get("_data")
+        if not isinstance(data, dict) or "错误" in data:
+            continue
+        if all(
+            text_value(data.get(key)).strip() == value
+            for key, value in expected.items()
+        ):
+            return row
+    return None
+
+
 def search_case_records(
     storage_dir: str,
     keyword: str,
