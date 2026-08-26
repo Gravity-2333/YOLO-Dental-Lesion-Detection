@@ -81,7 +81,7 @@ def history_table_html(rows: list[dict[str, Any]]) -> str:
 
 
 def history_choices_from_rows(rows: list[dict[str, Any]]) -> list[tuple[str, str]]:
-    choices: list[tuple[str, str]] = []
+    choice_parts: list[tuple[str, str]] = []
     for row in rows:
         created_at = _short_choice_text(
             str(row.get("检测时间") or "").replace("T", " ", 1),
@@ -91,7 +91,17 @@ def history_choices_from_rows(rows: list[dict[str, Any]]) -> list[tuple[str, str
         record_id = str(row.get("记录ID") or "").strip()
         if record_id:
             label = created_at if image_name == "当前单图" else f"{created_at} · {image_name}"
-            choices.append((label, record_id))
+            choice_parts.append((label, record_id))
+
+    totals = Counter(label for label, _ in choice_parts)
+    positions: Counter[str] = Counter()
+    choices = []
+    for base_label, record_id in choice_parts:
+        label = base_label
+        if totals[base_label] > 1:
+            positions[base_label] += 1
+            label = f"{base_label} {positions[base_label]}/{totals[base_label]}"
+        choices.append((label, record_id))
     return choices
 
 

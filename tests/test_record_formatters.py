@@ -78,6 +78,43 @@ class RecordFormatterPrivacyTests(unittest.TestCase):
         self.assertEqual(history_id(choices[0][1]), "history-internal-id")
         self.assertEqual(history_id("旧标签 | history-internal-id"), "history-internal-id")
 
+    def test_history_choices_number_duplicate_display_labels(self) -> None:
+        choices = history_choices_from_rows(
+            [
+                {
+                    "检测时间": "2026-08-27T01:38:55",
+                    "图片名称": "当前单图",
+                    "记录ID": f"history-{index}",
+                }
+                for index in range(3)
+            ]
+        )
+
+        self.assertEqual(
+            [label for label, _ in choices],
+            [
+                "2026-08-27 01:38:55 1/3",
+                "2026-08-27 01:38:55 2/3",
+                "2026-08-27 01:38:55 3/3",
+            ],
+        )
+        self.assertEqual(
+            [value for _, value in choices],
+            ["history-0", "history-1", "history-2"],
+        )
+
+    def test_history_detail_localizes_missing_model_name(self) -> None:
+        detail = format_history_record(
+            {
+                "model": "unknown",
+                "model_results": [{"model": "unknown", "detections": []}],
+            }
+        )
+
+        self.assertIn("模型：未记录", detail)
+        self.assertIn("1. 模型 1 | 检测数量=0", detail)
+        self.assertNotIn("unknown", detail)
+
     def test_detail_lists_do_not_mix_bullet_and_ordered_markers(self) -> None:
         record = {
             "created_at": "2026-08-02T12:00:00",

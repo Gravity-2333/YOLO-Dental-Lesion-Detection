@@ -623,6 +623,10 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("queue=False", event_source)
         self.assertIn('show_progress="hidden"', event_source)
 
+        history_source = inspect.getsource(build_history_page)
+        history_select_source = history_source.split("history_select = gr.Dropdown(", 1)[1]
+        self.assertIn("allow_custom_value=True", history_select_source.split("with gr.Accordion", 1)[0])
+
     def test_analysis_buttons_follow_uploaded_input_state(self) -> None:
         self.assertFalse(analysis_button_state(None)["interactive"])
         self.assertFalse(analysis_button_state([])["interactive"])

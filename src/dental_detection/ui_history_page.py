@@ -64,6 +64,7 @@ def build_history_page(data: HistoryPageData) -> HistoryComponents:
         history_select = gr.Dropdown(
             label="检测历史",
             choices=history_choices_from_rows(data.initial_history_rows),
+            allow_custom_value=True,
         )
         with gr.Accordion(
             "结构化历史列表",

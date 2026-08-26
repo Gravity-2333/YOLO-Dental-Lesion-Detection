@@ -60,13 +60,18 @@ def _suggestion_source_label(value: Any) -> str:
     return {"default": "内置建议", "ai": "AI 建议"}.get(source.casefold(), source)
 
 
+def _model_display_name(value: Any, fallback: str = "未记录") -> str:
+    model = text_value(value).strip()
+    return fallback if not model or model.casefold() == "unknown" else model
+
+
 def _format_model_results(model_results: Any) -> list[str]:
     model_items = list(iter_model_result_items(model_results))
     if not model_items:
         return []
     lines = ["", "模型结果明细："]
     for index, item in enumerate(model_items, start=1):
-        model = text_value(model_result_name(item, f"模型 {index}"), f"模型 {index}")
+        model = _model_display_name(model_result_name(item, f"模型 {index}"), f"模型 {index}")
         raw_count = item.get("detection_count", item.get("检测数量"))
         if raw_count in {"", None}:
             raw_count = sum(1 for _ in iter_detection_items(model_result_detections(item)))
@@ -84,7 +89,10 @@ def _format_summary_value(key: str, value: Any) -> list[str]:
         lines = ["- 模型结果:"]
         for index, item in enumerate(value, start=1):
             if isinstance(item, dict):
-                model = item.get("模型") or item.get("model") or f"模型 {index}"
+                model = _model_display_name(
+                    item.get("模型") or item.get("model"),
+                    f"模型 {index}",
+                )
                 count = item.get("检测数量", item.get("count", "-"))
                 artifact_name = _path_artifact_name(
                     item.get("路径") or item.get("模型路径") or item.get("model_path")
@@ -188,7 +196,7 @@ def format_history_record(record: dict[str, Any] | None) -> str:
     lines = [
         f"检测时间：{text_value(record.get('created_at'))}",
         f"图片名称：{text_value(record.get('image_name'))}",
-        f"模型：{text_value(record.get('model'))}",
+        f"模型：{_model_display_name(record.get('model'))}",
         f"CLAHE 增强：{'是' if record.get('use_clahe') else '否'}",
         f"检测数量：{text_value(record.get('detection_count'), '0')}",
         f"涉及类别：{class_text}",
