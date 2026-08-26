@@ -236,6 +236,22 @@ class UiAssetTests(unittest.TestCase):
         settings_source = inspect.getsource(app.build_settings_page)
         self.assertEqual(settings_source.count('"path-picker-row"'), 2)
 
+    def test_mobile_settings_path_rows_keep_all_controls_aligned(self) -> None:
+        css = load_workbench_css()
+        mobile = css.split("@media (max-width: 640px)", 1)[1]
+
+        self.assertIn(
+            "grid-template-columns: minmax(0, 1fr) 44px 112px !important",
+            mobile.split(".path-picker-row", 1)[1],
+        )
+        self.assertIn(".row.path-picker-row > button.icon-action", mobile)
+        self.assertIn("width: 44px !important", mobile)
+        self.assertIn(".row.path-picker-row > button.secondary-action", mobile)
+        self.assertIn("width: 112px !important", mobile)
+        self.assertIn("align-self: end !important", mobile)
+        self.assertIn("height: 44px !important", mobile)
+        self.assertIn("margin-bottom: 0 !important", mobile)
+
     def test_mobile_chat_export_button_stretches_with_the_path_row(self) -> None:
         css = load_workbench_css()
         mobile = css.split("@media (max-width: 640px)", 1)[1]

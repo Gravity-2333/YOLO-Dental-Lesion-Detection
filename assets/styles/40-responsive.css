@@ -334,6 +334,38 @@
 }
 
 @media (max-width: 640px) {
+  .path-picker-row {
+    grid-template-columns: minmax(0, 1fr) 44px 112px !important;
+    align-items: end !important;
+    column-gap: 8px !important;
+  }
+
+  .path-picker-row > .icon-action,
+  .row.path-picker-row > button.icon-action {
+    flex: 0 0 44px !important;
+    align-self: end !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    margin-bottom: 0 !important;
+  }
+
+  .path-picker-row > .secondary-action,
+  .row.path-picker-row > button.secondary-action {
+    flex: 0 0 112px !important;
+    align-self: end !important;
+    width: 112px !important;
+    min-width: 112px !important;
+    max-width: 112px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    margin-bottom: 0 !important;
+  }
+
   .settings-actions {
     flex-direction: column !important;
     align-items: stretch !important;
