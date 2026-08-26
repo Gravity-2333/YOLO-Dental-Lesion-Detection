@@ -306,6 +306,27 @@ class AdviceAndConversationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "不属于当前患者"):
                 load_conversation(path.name, temp_dir, "patient-2")
 
+    def test_conversation_history_numbers_duplicate_display_labels(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            messages = [{"role": "user", "content": "同秒保存"}]
+            paths = [
+                save_conversation(messages, temp_dir, patient_id="patient-1")
+                for _ in range(3)
+            ]
+            shared_timestamp = 1_700_000_000
+            for path in paths:
+                os.utime(path, (shared_timestamp, shared_timestamp))
+
+            selector_update, _ = refresh_conversation_history(temp_dir, "patient-1")
+            choices = selector_update["choices"]
+
+            self.assertEqual(len(choices), 3)
+            self.assertEqual(
+                {label.rsplit(" ", 1)[-1] for label, _ in choices},
+                {"1/3", "2/3", "3/3"},
+            )
+            self.assertEqual({value for _, value in choices}, {path.name for path in paths})
+
     def test_legacy_untagged_conversations_belong_only_to_personal_profile(self) -> None:
         with TemporaryDirectory() as temp_dir:
             messages = [{"role": "user", "content": "患者档案功能上线前的对话"}]

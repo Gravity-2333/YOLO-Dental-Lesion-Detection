@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from html import escape
 from typing import Any
@@ -9,7 +10,7 @@ import gradio as gr
 
 from .ai_detection_context import build_detection_text_context
 from .ai_client import normalize_base_url, validate_ai_request
-from .conversation_store import list_conversations, load_conversation
+from .conversation_store import ConversationEntry, list_conversations, load_conversation
 from .gradio_files import clear_file_output
 from .settings_store import AiSettings
 from .ui_content import AI_CHAT_INTRO_HTML
@@ -83,17 +84,28 @@ def refresh_conversation_history(
         entries = list_conversations(storage_dir, patient_id=patient_id)
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         raise gr.Error(f"对话记录读取失败：{exc}") from exc
-    choices = [
-        (
-            f"{entry.modified_at:%Y-%m-%d %H:%M:%S} · "
-            f"{'自动保存' if entry.auto_saved else '手动导出'}",
-            entry.file_name,
-        )
-        for entry in entries
-    ]
+    choices = _conversation_choices(entries)
     selected = choices[0][1] if choices else None
     message = feedback or ("已加载最近对话列表。" if choices else "暂无本地对话记录。")
     return gr.update(choices=choices, value=selected), message
+
+
+def _conversation_choices(entries: list[ConversationEntry]) -> list[tuple[str, str]]:
+    base_labels = [
+        f"{entry.modified_at:%Y-%m-%d %H:%M:%S} · "
+        f"{'自动保存' if entry.auto_saved else '手动导出'}"
+        for entry in entries
+    ]
+    totals = Counter(base_labels)
+    positions: Counter[str] = Counter()
+    choices = []
+    for entry, base_label in zip(entries, base_labels):
+        label = base_label
+        if totals[base_label] > 1:
+            positions[base_label] += 1
+            label = f"{base_label} {positions[base_label]}/{totals[base_label]}"
+        choices.append((label, entry.file_name))
+    return choices
 
 
 def load_conversation_history_item(
