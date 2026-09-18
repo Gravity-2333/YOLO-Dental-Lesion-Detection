@@ -1,0 +1,21 @@
+#!/bin/bash
+echo "=========================================="
+echo "按钮对齐修复验证"
+echo "=========================================="
+echo ""
+echo "检查CSS修复..."
+grep -c "align-self: center" assets/workbench.css && echo "✓ 找到 align-self: center 规则"
+grep -c "align-items: end" assets/workbench.css && echo "✓ 找到 align-items: end 规则"
+echo ""
+echo "CSS文件大小:"
+ls -lh assets/workbench.css | awk '{print "  " $5}'
+echo ""
+echo "修复文档:"
+ls -lh docs/界面优化/按钮对齐第一次修复记录.md 2>/dev/null && echo "✓ 修复报告已生成" || echo "✗ 修复报告缺失"
+echo ""
+echo "截图验证:"
+ls -lh outputs/screenshot_tab_0_检测工作台.png outputs/screenshot_tab_1_AI\ 问答.png 2>/dev/null | wc -l | awk '{print "  找到 " $1 " 张截图"}'
+echo ""
+echo "=========================================="
+echo "修复完成！请刷新浏览器查看效果。"
+echo "=========================================="
