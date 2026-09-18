@@ -18,13 +18,13 @@ $stderrLog = Join-Path $logDirectory "gradio.stderr.log"
 
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 
-# Keep the long-running command processor hidden while retaining diagnostics.
+# Keep the long-running command processor minimized while retaining diagnostics.
 $runnerArguments = '/d /s /c ""{0}""' -f $runScriptPath
 $runner = Start-Process `
     -FilePath $env:ComSpec `
     -ArgumentList $runnerArguments `
     -WorkingDirectory $projectRoot `
-    -WindowStyle Hidden `
+    -WindowStyle Minimized `
     -RedirectStandardOutput $stdoutLog `
     -RedirectStandardError $stderrLog `
     -PassThru

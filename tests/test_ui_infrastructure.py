@@ -347,7 +347,7 @@ class UiAssetTests(unittest.TestCase):
 
 
 class ProjectLauncherTests(unittest.TestCase):
-    def test_service_launcher_uses_hidden_background_runner(self) -> None:
+    def test_service_launcher_uses_minimized_background_runner(self) -> None:
         project_root = Path(__file__).resolve().parents[1]
         batch_source = (project_root / "start_project.bat").read_text(encoding="utf-8")
         launcher_source = (project_root / "scripts" / "start_project.ps1").read_text(
@@ -364,7 +364,8 @@ class ProjectLauncherTests(unittest.TestCase):
         self.assertNotIn('start "YOLO Dental Gradio"', batch_source)
         self.assertNotIn("/k", batch_source.lower())
         self.assertIn("Start-Process", launcher_source)
-        self.assertIn("-WindowStyle Hidden", launcher_source)
+        self.assertIn("-WindowStyle Minimized", launcher_source)
+        self.assertNotIn("-WindowStyle Hidden", launcher_source)
         self.assertIn("run_gradio_server.bat", launcher_source)
         self.assertIn("-RedirectStandardOutput", launcher_source)
         self.assertIn("-RedirectStandardError", launcher_source)
@@ -465,6 +466,17 @@ class DependencyManifestTests(unittest.TestCase):
         self.assertIn("ai_enabled.uncheck", screenshot_source)
         self.assertNotIn('get_by_role("button", name="保存设置")', screenshot_source)
         self.assertEqual(screenshot_source.count("check_navigation_responsiveness(page)"), 1)
+
+    def test_responsiveness_check_reads_report_markdown_panel(self) -> None:
+        responsiveness_source = (
+            Path(__file__).resolve().parents[1] / "scripts" / "check_ui_responsiveness.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('page.locator("#report-detail").inner_text()', responsiveness_source)
+        self.assertNotIn(
+            'page.get_by_label("报告详情", exact=True).input_value()',
+            responsiveness_source,
+        )
 
 
 class UiContractTests(unittest.TestCase):

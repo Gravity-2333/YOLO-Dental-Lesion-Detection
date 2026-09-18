@@ -91,7 +91,7 @@ def assert_history_output_contract(page) -> None:
     if "检测时间：" in report_feedback:
         raise RuntimeError("报告反馈错误显示为历史详情。")
 
-    report_detail = page.get_by_label("报告详情", exact=True).input_value()
+    report_detail = page.locator("#report-detail").inner_text()
     if "检测时间：" in report_detail or "病例编号：" in report_detail:
         raise RuntimeError("报告详情组件内容串位。")
 
