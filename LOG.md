@@ -2192,3 +2192,32 @@ Gradio 在重复返回完全相同的反馈结构时会复用已有 DOM 节点�
 ### 影响
 
 本轮只调整历史资料与本地资料的存放和版本边界，不改变应用功能、正式脚本、模型、训练集、用户数据或运行参数。旧验证脚本继续保留用于追溯，但不再作为当前验收入口。
+
+## 2026-09-18 16:58 | 0970a7f
+
+### 目标
+
+确认两个正式模型权重的项目内存放状态，并修复 `yolo` 环境中 Ultralytics editable 安装仍指向已删除旧目录的问题。
+
+### 修改
+
+- 确认 baseline 与 C2f-Faster-lite 两个正式 `best.pt` 均已位于 `models/final_candidates/`，未复制、移动或改写模型文件。
+- 确认优化模型依赖的自定义源码位于同级 `yolov8-train` 仓库，当前提交为 `0970a7f5064f8f023209aacfcaa7864aa9e23ba9`，包含 `C2fFasterLite` 定义和对应模型配置。
+- 关闭运行中的项目服务，将 `yolo` 环境里的 Ultralytics editable 安装从不存在的 `E:\code\AI\YOLO\yolo8` 重新绑定到 `E:\code\AI\YOLO\yolov8-train`；安装过程使用 `--no-deps`，未升级其他依赖。
+- 按项目启动脚本重新以最小化 CMD 窗口启动服务。
+
+### 原因
+
+旧 editable 安装的元数据仍指向已经不存在的源码目录，导致在项目路径注入逻辑之外直接执行 `import ultralytics` 时失败。当前应用虽然会临时优先加载 `yolov8-train` 而保持可用，但环境自身处于不一致状态，也容易让独立工具或后续维护误判依赖是否正常。
+
+### 验证
+
+- `pip show ultralytics` 的 editable 项目位置已变为 `E:\code\AI\YOLO\yolov8-train`，版本为 `8.4.52`；直接导入解析到该目录，并能导入 `ultralytics.nn.modules.dental_neck.C2fFasterLite`。
+- `pip check` 未发现依赖冲突。
+- `scripts/pre_demo_check.py` 全量通过，包括 177 项单元测试、模型加载、兼容回归与综合优化验证。
+- 使用真实测试图 `data/dental_lesion_final/images/test/v2_test_test_0.png` 分别调用 baseline 和优化模型，前者返回 6 个检测框，后者返回 4 个检测框。
+- 服务通过正式启动脚本恢复，页面返回 HTTP 200，后台 CMD 保持最小化，错误日志为 0 字节。
+
+### 影响
+
+只修复本机 `yolo` 环境对正确自定义训练源码的绑定，不改变项目代码、模型权重、训练集、推理参数或用户数据。优化模型仍使用训练时配套的 `yolov8-train` 自定义实现。
