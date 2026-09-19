@@ -424,6 +424,28 @@ button[aria-disabled="true"] {
   padding-right: 48px !important;
 }
 
+.gradio-container .wrap-inner:has(> .secondary-wrap > input[role="listbox"]),
+.gradio-container .wrap-inner:has(> .secondary-wrap > input[role="combobox"]) {
+  min-height: 42px !important;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+.gradio-container input[role="listbox"],
+.gradio-container input[role="combobox"],
+.gradio-container input[data-testid="dropdown-input"] {
+  color: var(--text-main) !important;
+  -webkit-text-fill-color: var(--text-main) !important;
+  opacity: 1 !important;
+}
+
+.gradio-container input[role="listbox"]:disabled,
+.gradio-container input[role="combobox"]:disabled,
+.gradio-container input[data-testid="dropdown-input"]:disabled {
+  color: var(--text-muted) !important;
+  -webkit-text-fill-color: var(--text-muted) !important;
+}
+
 .model-row .secondary-action,
 .model-row .secondary-action button {
   width: 132px !important;

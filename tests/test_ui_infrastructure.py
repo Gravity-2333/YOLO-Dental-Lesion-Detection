@@ -213,6 +213,24 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn(".row.compact-row > button", css)
         self.assertIn("height: var(--primary-height) !important", css)
 
+    def test_dropdown_selected_value_stays_visible_with_a_roomier_control(self) -> None:
+        css = load_workbench_css()
+        value_rule = css.split(
+            '.gradio-container input[role="listbox"],', 1
+        )[1].split("}", 1)[0]
+        shell_rule = css.split(
+            '.gradio-container .wrap-inner:has(> .secondary-wrap > input[role="listbox"]),',
+            1,
+        )[1].split("}", 1)[0]
+
+        self.assertNotIn('.dropdown input[role="listbox"]', css)
+        self.assertIn("color: var(--text-main) !important", value_rule)
+        self.assertIn("-webkit-text-fill-color: var(--text-main) !important", value_rule)
+        self.assertIn("opacity: 1 !important", value_rule)
+        self.assertIn("min-height: 42px !important", shell_rule)
+        self.assertIn("padding-top: 8px !important", shell_rule)
+        self.assertIn("padding-bottom: 8px !important", shell_rule)
+
     def test_tablet_settings_path_rows_keep_the_desktop_alignment(self) -> None:
         css = load_workbench_css()
         tablet = css.split(
