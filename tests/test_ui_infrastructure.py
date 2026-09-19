@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import hashlib
 import os
 from dataclasses import fields
 from pathlib import Path
@@ -13,7 +14,12 @@ import unittest
 
 import app
 from src.dental_detection import patient_profile_ui
-from src.dental_detection.example_assets import EXAMPLE_DIR, example_choices, example_preview_text
+from src.dental_detection.example_assets import (
+    EXAMPLE_DIR,
+    example_choices,
+    example_preview_text,
+    load_example_metadata,
+)
 from src.dental_detection.record_views import case_table_html
 from src.dental_detection.report_center_ui import build_report_center
 from src.dental_detection.settings_store import AiSettings
@@ -62,16 +68,22 @@ from src.dental_detection.ui_workbench_page import (
 
 
 class UiAssetTests(unittest.TestCase):
-    def test_marked_examples_do_not_claim_model_detection_results(self) -> None:
+    def test_examples_use_unmarked_real_dataset_images(self) -> None:
         choices = example_choices()
-        caries_path = EXAMPLE_DIR / "示例_龋齿.png"
+        caries_path = EXAMPLE_DIR / "真实示例_龋齿_v2_test_test_102.png"
         preview = example_preview_text(str(caries_path))
 
         self.assertTrue(choices)
         self.assertTrue(all(" | " not in label for label, _ in choices))
-        self.assertNotIn("预期类别", preview)
-        self.assertIn("素材预先绘制", preview)
-        self.assertIn("不是模型检测结果", preview)
+        self.assertIn("data/dental_lesion_final/images/test/v2_test_test_102.png", preview)
+        self.assertIn("未预先绘制检测框", preview)
+        self.assertIn("当前所选模型实际推理", preview)
+
+        for item in load_example_metadata():
+            source = Path(app.PROJECT_ROOT) / item["数据集来源"]
+            self.assertTrue(source.is_file())
+            self.assertEqual(item["path"].read_bytes(), source.read_bytes())
+            self.assertEqual(hashlib.sha256(item["path"].read_bytes()).hexdigest(), item["SHA256"])
 
     def test_record_details_use_sanitized_markdown_panels(self) -> None:
         for builder, component_name, label, elem_id in (
@@ -483,7 +495,8 @@ class DependencyManifestTests(unittest.TestCase):
         self.assertIn("storage_input.fill(isolated_path", screenshot_source)
         self.assertIn("ai_enabled.uncheck", screenshot_source)
         self.assertNotIn('get_by_role("button", name="保存设置")', screenshot_source)
-        self.assertEqual(screenshot_source.count("check_navigation_responsiveness(page)"), 1)
+        self.assertNotIn("check_navigation_responsiveness", screenshot_source)
+        self.assertIn('click_tab(page, "检测工作台")', screenshot_source)
 
     def test_responsiveness_check_reads_report_markdown_panel(self) -> None:
         responsiveness_source = (
@@ -923,7 +936,8 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("&lt;完成&gt;", inline)
 
     def test_shared_content_keeps_brand_and_safety_copy(self) -> None:
-        self.assertIn("牙齿病变区域识别", APP_HEADER_HTML)
+        self.assertIn("智能健康牙齿分析", APP_HEADER_HTML)
+        self.assertIn("医生主导，模型辅助", APP_HEADER_HTML)
         self.assertIn("不能替代专业牙科医生诊断", WORKBENCH_HELP_TEXT)
         self.assertIn("不上传牙科影像", AI_CHAT_INTRO_HTML)
         self.assertIn("不替代专业牙科医生诊断", AI_CHAT_INTRO_HTML)

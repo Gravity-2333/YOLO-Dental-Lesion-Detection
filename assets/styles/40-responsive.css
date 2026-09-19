@@ -1,7 +1,11 @@
 @media (max-width: 900px) {
   .app-header {
-    display: block;
-    padding-top: 18px;
+    display: flex;
+    padding: 12px 4px;
+  }
+
+  .app-header-meta {
+    display: none;
   }
 
   .workbench-grid,
@@ -404,18 +408,30 @@
   }
 
   .app-title {
-    font-size: 1.55rem;
+    font-size: 1.3rem;
   }
 
   .app-header {
-    min-height: 60px;
-    padding-top: 14px;
-    padding-bottom: 6px;
+    min-height: 72px;
+    gap: 12px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .app-brand-mark {
+    flex-basis: 44px;
+    width: 44px;
+    height: 44px;
+    font-size: 0.9rem;
+  }
+
+  .app-eyebrow {
+    font-size: 0.62rem;
   }
 
   .app-subtitle {
-    font-size: 0.94rem;
-    line-height: 1.55;
+    font-size: 0.78rem;
+    line-height: 1.4;
   }
 
   .chat-card .row.path-row > button.secondary-action {
@@ -532,9 +548,9 @@
 
   .main-tabs .overflow-menu > button.overflow-item-selected,
   .sub-tabs .overflow-menu > button.overflow-item-selected {
-    color: var(--primary) !important;
-    background: #edf7f5 !important;
-    border-color: #8fc6bf !important;
+    color: var(--brand-ink) !important;
+    background: #f4eee7 !important;
+    border-color: var(--brand-gold) !important;
   }
 
   .card-heading h2,

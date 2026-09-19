@@ -43,10 +43,13 @@ def section_heading(title: str, description: str) -> str:
 
 APP_HEADER_HTML = """
 <header class="app-header">
-  <div>
-    <h1 class="app-title">牙齿病变区域识别</h1>
-    <p class="app-subtitle">牙科影像辅助筛查、记录与报告管理</p>
+  <div class="app-brand-mark" aria-hidden="true">AI</div>
+  <div class="app-brand-copy">
+    <p class="app-eyebrow">CLINICAL DENTAL WORKSPACE</p>
+    <h1 class="app-title">智能健康牙齿分析</h1>
+    <p class="app-subtitle">牙科影像辅助筛查、AI 分析与病例管理</p>
   </div>
+  <div class="app-header-meta"><strong>本地工作区</strong><span>医生主导，模型辅助</span></div>
 </header>
 """
 

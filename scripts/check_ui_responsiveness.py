@@ -161,6 +161,20 @@ def assert_no_page_overflow(page, label: str) -> None:
         raise RuntimeError(f"{label} 横向溢出：{size['scroll']} > {size['client']}")
 
 
+def assert_home_page_ready(page) -> None:
+    hero = page.locator(".home-hero-image")
+    hero.wait_for(state="visible", timeout=15000)
+    page.wait_for_function(
+        "element => Boolean(element && element.complete && element.naturalWidth > 0)",
+        arg=hero.element_handle(),
+        timeout=15000,
+    )
+    for label in ("开始单张分析", "进入批量检查"):
+        button = page.get_by_role("button", name=label, exact=True)
+        if button.count() != 1 or not button.is_visible():
+            raise RuntimeError(f"首页入口不可用：{label}")
+
+
 def assert_viewer_label_contrast(page, minimum: float = 4.5) -> None:
     contrasts = page.evaluate(
         """() => {
@@ -267,10 +281,13 @@ def main() -> int:
         page.set_default_timeout(10000)
         page.goto(base_url, wait_until="domcontentloaded", timeout=90000)
         page.wait_for_timeout(6000)
+        assert_no_page_overflow(page, "桌面首页")
+        assert_home_page_ready(page)
+        timed_click(page, top_tab(page, "检测工作台"), "进入检测工作台", args.max_seconds, timings)
         assert_no_page_overflow(page, "桌面工作台")
         assert_viewer_label_contrast(page)
 
-        names = ["检测工作台", "AI 问答", "病例记录", "检测历史", "设置"]
+        names = ["首页", "检测工作台", "AI 问答", "病例记录", "检测历史", "设置"]
         for cycle in range(max(1, int(args.cycles))):
             for name in names:
                 timed_click(page, top_tab(page, name), f"主导航 {cycle + 1}/{name}", args.max_seconds, timings)
@@ -355,7 +372,7 @@ def main() -> int:
         for name in ["结构化历史列表", "结构化报告列表"]:
             timed_click(page, accordion(page, name), f"展开{name}", args.max_seconds, timings)
 
-        for name in ["设置", "检测工作台", "检测历史", "病例记录", "AI 问答"]:
+        for name in ["首页", "设置", "检测工作台", "检测历史", "病例记录", "AI 问答"]:
             timed_click(page, top_tab(page, name), f"重组件后导航/{name}", args.max_seconds, timings)
         assert_no_page_overflow(page, "重组件展开后的桌面页面")
 
@@ -379,6 +396,10 @@ def main() -> int:
         mobile = browser.new_page(viewport={"width": 390, "height": 900}, is_mobile=True)
         mobile.goto(base_url, wait_until="domcontentloaded", timeout=90000)
         mobile.wait_for_timeout(4000)
+        assert_home_page_ready(mobile)
+        assert_no_page_overflow(mobile, "移动端首页")
+        top_tab(mobile, "检测工作台").click(timeout=10000)
+        wait_for_ui(mobile)
         assert_no_page_overflow(mobile, "移动端工作台")
         mobile.close()
         browser.close()

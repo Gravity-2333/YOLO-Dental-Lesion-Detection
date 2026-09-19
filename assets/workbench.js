@@ -137,6 +137,43 @@
     }
   };
 
+  const navigationButton = (rootSelector, label) => {
+    const root = document.querySelector(rootSelector);
+    if (!root) {
+      return null;
+    }
+    return [...root.querySelectorAll('button[role="tab"], .overflow-dropdown > button')]
+      .find((button) => button.textContent.trim() === label) || null;
+  };
+
+  const activateTab = (rootSelector, label) => {
+    const button = navigationButton(rootSelector, label);
+    if (!button) {
+      return false;
+    }
+    button.click();
+    return true;
+  };
+
+  const navigateFromHome = (event) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    const trigger = event.target.closest("[data-app-target]");
+    if (!trigger) {
+      return;
+    }
+    const pageLabel = String(trigger.dataset.appTarget || "").trim();
+    const workbenchLabel = String(trigger.dataset.workbenchTarget || "").trim();
+    if (!pageLabel || !activateTab(".main-tabs", pageLabel)) {
+      return;
+    }
+    if (workbenchLabel) {
+      window.requestAnimationFrame(() => activateTab(".sub-tabs", workbenchLabel));
+    }
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
+  };
+
   const labelPathPickers = () => {
     [
       ["#model-dir-picker button", "选择模型目录"],
@@ -247,6 +284,7 @@
       document.addEventListener(eventName, (event) => syncPathValueTitle(event.target), true);
     });
     document.addEventListener("click", trackOverflowSelection, true);
+    document.addEventListener("click", navigateFromHome, true);
     window.setInterval(checkRuntimeVersion, 30000);
     new MutationObserver(scheduleMenuLabeling).observe(document.body, {
       childList: true,

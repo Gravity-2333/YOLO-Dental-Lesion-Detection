@@ -21,15 +21,48 @@ body,
 }
 
 .app-header {
+  position: relative;
   display: flex;
   align-items: center;
-  min-height: 72px;
-  padding: 12px 2px 10px;
+  gap: 16px;
+  min-height: 86px;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--soft-border);
+  background: #ffffff;
+}
+
+.app-brand-mark {
+  display: grid;
+  flex: 0 0 50px;
+  width: 50px;
+  height: 50px;
+  place-items: center;
+  border-left: 5px solid var(--brand-gold);
+  background: var(--brand-ink);
+  color: #ffffff;
+  font-family: "Arial Narrow", Arial, sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.app-brand-copy {
+  min-width: 0;
+}
+
+.app-eyebrow {
+  margin: 0 0 3px;
+  color: var(--brand-gold-dark);
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0;
 }
 
 .app-title {
-  color: var(--text-main);
-  font-size: 1.55rem;
+  color: var(--brand-ink);
+  font-family: "Arial Narrow", "Microsoft YaHei", sans-serif;
+  font-size: 1.48rem;
+  font-weight: 900;
   line-height: 1.2;
   margin: 0;
   letter-spacing: 0;
@@ -42,9 +75,39 @@ body,
   margin: 4px 0 0;
 }
 
+.app-header-meta {
+  display: grid;
+  gap: 2px;
+  margin-left: auto;
+  padding-left: 18px;
+  border-left: 1px solid var(--soft-border);
+  text-align: right;
+}
+
+.app-header-meta strong {
+  color: var(--brand-ink);
+  font-size: 0.78rem;
+}
+
+.app-header-meta span {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
 .main-tabs > .tab-nav,
 .sub-tabs > .tab-nav {
   border-bottom: 1px solid var(--soft-border) !important;
+}
+
+.main-tabs > .tab-nav,
+.main-tabs > [role="tablist"] {
+  position: sticky !important;
+  top: 0;
+  z-index: 70;
+  margin: 0 !important;
+  padding: 0 4px !important;
+  background: rgba(255, 255, 255, 0.97) !important;
+  box-shadow: 0 8px 22px rgba(20, 25, 26, 0.04);
 }
 
 .main-tabs > .tab-nav,
@@ -58,26 +121,29 @@ body,
 
 .main-tabs > .tab-nav,
 .main-tabs [role="tablist"] {
-  gap: 24px !important;
-  min-height: 46px;
+  gap: 28px !important;
+  min-height: 54px;
 }
 
 .tabs button[role="tab"] {
   border-radius: 0 !important;
   border-width: 0 0 2px !important;
-  color: #3f4c49 !important;
+  color: #343a39 !important;
   font-weight: 600 !important;
-  padding-left: 2px !important;
-  padding-right: 2px !important;
+  padding: 0 2px !important;
   box-shadow: none !important;
   outline: none !important;
 }
 
 .tabs button[role="tab"][aria-selected="true"] {
-  color: var(--primary) !important;
-  border-color: var(--accent) !important;
+  color: var(--brand-ink) !important;
+  border-color: var(--brand-gold) !important;
+}
+
+.tabs button[role="tab"][aria-selected="true"]::after {
+  background: var(--brand-gold) !important;
 }
 
 .tabs button[role="tab"]:focus-visible {
-  background: #edf7f5 !important;
+  background: #f4eee7 !important;
 }

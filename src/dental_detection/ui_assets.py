@@ -14,9 +14,11 @@ ROOT_SHELL_STYLE_PATH = STYLE_ROOT / "root-shell.css"
 CSS_BUNDLE_FILES = (
     STYLE_ROOT / "00-tokens.css",
     STYLE_ROOT / "10-foundation.css",
+    STYLE_ROOT / "15-home.css",
     STYLE_ROOT / "20-layout.css",
     STYLE_ROOT / "30-components.css",
     STYLE_ROOT / "40-responsive.css",
+    STYLE_ROOT / "45-home-responsive.css",
     STYLE_ROOT / "50-utilities.css",
 )
 JS_BUNDLE_FILES = (ASSET_ROOT / "workbench.js",)

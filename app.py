@@ -175,6 +175,7 @@ from src.dental_detection.ui_ai_chat_page import (
 )
 from src.dental_detection.ui_cases_page import CasesPageData, build_cases_page
 from src.dental_detection.ui_history_page import HistoryPageData, build_history_page
+from src.dental_detection.ui_home_page import build_home_page
 from src.dental_detection.ui_settings_page import SettingsPageData, build_settings_page
 from src.dental_detection.ui_workbench_page import (
     WorkbenchPageData,
@@ -3270,7 +3271,7 @@ def build_app() -> gr.Blocks:
     device_choices = _device_choices()
     default_device_choice = _default_device_choice(device_choices)
     with gr.Blocks(
-        title="牙齿病变区域识别",
+        title="智能健康牙齿分析",
         elem_classes=["app-shell"],
     ) as demo:
         batch_state = gr.State([], time_to_live=SESSION_STATE_TTL_SECONDS)
@@ -3290,6 +3291,8 @@ def build_app() -> gr.Blocks:
         gr.HTML(APP_HEADER_HTML)
 
         with gr.Tabs(elem_classes=["main-tabs"]):
+            with gr.Tab("首页"):
+                build_home_page()
             with gr.Tab("检测工作台"):
                 workbench = build_workbench_page(
                     WorkbenchPageData(

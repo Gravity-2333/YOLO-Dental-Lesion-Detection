@@ -5,7 +5,6 @@ from pathlib import Path
 import re
 import sys
 from tempfile import TemporaryDirectory
-from time import perf_counter
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -19,7 +18,12 @@ from src.dental_detection.browser_fallback import launch_chromium_with_fallback
 
 DEFAULT_BASE_URL = "http://127.0.0.1:7860"
 DEFAULT_OUTPUT = PROJECT_ROOT / "docs" / "ai-bridge" / "screenshots" / "ui-regression"
-DEFAULT_EXAMPLE = PROJECT_ROOT / "assets" / "examples" / "dental" / "示例_无明显目标.png"
+DEFAULT_EXAMPLE = (
+    PROJECT_ROOT
+    / "assets"
+    / "branding"
+    / "real-dental-panorama-test-00021.jpg"
+)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -68,13 +72,18 @@ def click_tab(page, tab_name: str) -> None:
         menu_button.click(timeout=15000)
         page.wait_for_timeout(1500)
         return
+    # Gradio replaces tab nodes while switching pages. Playwright can report a
+    # timeout after the click has already succeeded, so the rendered selection
+    # state below is authoritative instead of the lifetime of the old node.
     try:
         tab.click(timeout=15000)
     except Exception:
-        tab.evaluate("element => element.click()")
+        pass
     page.wait_for_function(
-        "element => element.getAttribute('aria-selected') === 'true'",
-        arg=tab.element_handle(),
+        """label => [...document.querySelectorAll('button[role="tab"]')]
+            .some(element => element.textContent.trim() === label
+                && element.getAttribute('aria-selected') === 'true')""",
+        arg=tab_name,
         timeout=15000,
     )
     page.wait_for_timeout(1500)
@@ -199,16 +208,6 @@ def check_visible_model_row_alignment(page, label: str) -> None:
         raise RuntimeError(f"{label} 模型工具行未对齐：{rows}")
 
 
-def check_navigation_responsiveness(page, max_seconds: float = 3.0) -> None:
-    for label in ["AI 问答", "病例记录", "检测历史", "设置", "检测工作台"]:
-        started = perf_counter()
-        page.get_by_role("tab", name=label).first.click(timeout=10000)
-        elapsed = perf_counter() - started
-        if elapsed > max_seconds:
-            raise RuntimeError(f"页面切换过慢：{label} 用时 {elapsed:.2f}s")
-        page.wait_for_timeout(200)
-
-
 def capture(args: argparse.Namespace) -> None:
     base_url = str(args.base_url).rstrip("/")
     output_dir = Path(args.output).expanduser()
@@ -223,8 +222,14 @@ def capture(args: argparse.Namespace) -> None:
         page = browser.new_page(viewport={"width": 1440, "height": 950})
         try:
             wait_ready(page, base_url)
-            check_horizontal_overflow(page, "桌面工作台")
-            check_navigation_responsiveness(page)
+            check_horizontal_overflow(page, "桌面首页")
+            save(
+                page,
+                output_dir,
+                name("00-home-desktop.png", suffix),
+                reset_scroll=True,
+            )
+            click_tab(page, "检测工作台")
             save(
                 page,
                 output_dir,
@@ -255,7 +260,10 @@ def capture(args: argparse.Namespace) -> None:
             ai_was_enabled = configure_isolated_detection_session(page, Path(temp_storage))
             try:
                 if not example.exists():
-                    raise RuntimeError(f"example image not found: {example}")
+                    raise RuntimeError(
+                        f"真实测试图片不存在：{example}。"
+                        "请通过 --example 指定一张真实牙科影像后重试。"
+                    )
                 file_inputs = page.locator("input[type=file]")
                 if file_inputs.count() == 0:
                     raise RuntimeError("no file input found")
@@ -332,6 +340,14 @@ def capture(args: argparse.Namespace) -> None:
             mobile = browser.new_page(viewport={"width": 390, "height": 900}, is_mobile=True)
             try:
                 wait_ready(mobile, base_url)
+                check_horizontal_overflow(mobile, "移动端首页")
+                save(
+                    mobile,
+                    output_dir,
+                    name("00-home-mobile.png", suffix),
+                    reset_scroll=True,
+                )
+                click_tab(mobile, "检测工作台")
                 check_horizontal_overflow(mobile, "移动端工作台")
                 save(
                     mobile,

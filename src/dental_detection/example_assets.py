@@ -52,13 +52,11 @@ def example_preview_text(path_text: str | None) -> str:
             continue
         lines = [
             f"示例名称：{item.get('示例名称', target.name)}",
-            f"示意主题：{item.get('示意主题', '通用流程')}",
-            f"脱敏状态：{item.get('是否脱敏', '是')}",
+            f"影像类别：{item.get('影像类别', '牙科影像')}",
+            f"数据集来源：{item.get('数据集来源', '项目真实数据集')}",
+            f"标签来源：{item.get('标签来源', '项目真实数据集标签')}",
         ]
-        marker_notice = str(item.get("素材标记说明") or "").strip()
-        if marker_notice:
-            lines.append(f"素材标记：{marker_notice}")
-        description = str(item.get("说明文本") or "").strip()
+        description = str(item.get("素材说明") or "").strip()
         if description:
             lines.append(description)
         return "\n".join(lines)
