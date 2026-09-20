@@ -99,6 +99,11 @@ body,
   border-bottom: 1px solid var(--soft-border) !important;
 }
 
+.sub-tabs > .tab-wrapper,
+.result-view-tabs > .tab-wrapper {
+  min-height: 54px;
+}
+
 .main-tabs > .tab-nav,
 .main-tabs > [role="tablist"] {
   position: sticky !important;

@@ -104,22 +104,21 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
         with gr.Accordion("识别说明", open=False, elem_classes=["compact-accordion"]):
             gr.Markdown(WORKBENCH_HELP_TEXT)
 
+    with gr.Row(elem_classes=["workbench-patient-bar"]):
+        patient_select = gr.Dropdown(
+            label="当前患者档案",
+            choices=data.patient_choices,
+            value=data.selected_patient_id,
+            elem_classes=["compact-control"],
+        )
+        clear_session_btn = gr.Button(
+            "清空会话",
+            elem_classes=["secondary-action", "compact-button"],
+        )
+
     with gr.Row(elem_classes=["workbench-grid"]):
         with gr.Column(scale=4, elem_classes=["control-panel"]):
             with gr.Group(elem_classes=["section-card", "upload-card"]):
-                with gr.Row(elem_classes=["compact-row"]):
-                    patient_select = gr.Dropdown(
-                        label="当前患者档案",
-                        choices=data.patient_choices,
-                        value=data.selected_patient_id,
-                        scale=8,
-                        elem_classes=["compact-control"],
-                    )
-                    clear_session_btn = gr.Button(
-                        "清空会话",
-                        scale=2,
-                        elem_classes=["secondary-action", "compact-button"],
-                    )
                 with gr.Tabs(elem_classes=["sub-tabs"]):
                     with gr.Tab("单张分析"):
                         gr.HTML(section_heading("上传影像", "请上传牙科影像，或选择真实测试集样本体验流程。"))

@@ -364,7 +364,7 @@ class UiAssetTests(unittest.TestCase):
             with self.subTest(selector=retired_selector):
                 self.assertNotIn(retired_selector, css)
 
-    def test_comparison_slider_uses_the_light_aligned_viewer(self) -> None:
+    def test_comparison_slider_uses_normal_flow_light_viewer(self) -> None:
         css = load_workbench_css()
         js = load_workbench_js()
         self.assertIn(".image-compare-stage", css)
@@ -372,8 +372,10 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn(".image-compare-label", css)
         self.assertIn("--compare-position", css)
         viewer_rule = css.split(".clinical-viewer {", 1)[1].split("}", 1)[0]
-        self.assertIn("margin-top: 37.5px !important", viewer_rule)
+        self.assertIn("margin-top: 0 !important", viewer_rule)
         self.assertIn("background: #ffffff !important", viewer_rule)
+        self.assertIn(".workbench-patient-bar {", css)
+        self.assertIn(".sub-tabs > .tab-wrapper", css)
         self.assertIn("syncImageComparison", js)
 
 

@@ -1,3 +1,32 @@
+.workbench-patient-bar {
+  align-items: flex-end !important;
+  gap: 12px !important;
+  margin-bottom: 14px !important;
+  padding: 14px 18px !important;
+  overflow: visible !important;
+  background: #ffffff !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+.workbench-patient-bar > .form {
+  flex: 0 1 380px !important;
+  width: min(380px, 100%) !important;
+  min-width: 260px !important;
+}
+
+.workbench-patient-bar .compact-control {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.workbench-patient-bar > .compact-button {
+  flex: 0 0 160px !important;
+  width: 160px !important;
+  min-width: 160px !important;
+}
+
 .workbench-grid {
   align-items: flex-start !important;
   gap: 18px !important;

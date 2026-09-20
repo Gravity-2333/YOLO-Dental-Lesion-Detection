@@ -223,6 +223,23 @@ def check_workbench_tab_alignment(page) -> None:
         raise RuntimeError(f"工作台选项卡未对齐：{rows}")
 
 
+def check_patient_toolbar_clearance(page, minimum_gap: int = 8) -> None:
+    layout = page.evaluate(
+        """() => {
+            const patient = document.querySelector('.workbench-patient-bar .compact-control');
+            const tabs = document.querySelector('.sub-tabs [role="tablist"]');
+            if (!patient || !tabs) return null;
+            const patientRect = patient.getBoundingClientRect();
+            const tabsRect = tabs.getBoundingClientRect();
+            return {patientBottom: patientRect.bottom, tabsTop: tabsRect.top};
+        }"""
+    )
+    if layout is None:
+        raise RuntimeError("工作台患者工具栏或分析选项卡缺失")
+    if layout["tabsTop"] - layout["patientBottom"] < minimum_gap:
+        raise RuntimeError(f"分析选项卡遮挡患者选择框：{layout}")
+
+
 def capture(args: argparse.Namespace) -> None:
     base_url = str(args.base_url).rstrip("/")
     output_dir = Path(args.output).expanduser()
@@ -246,6 +263,7 @@ def capture(args: argparse.Namespace) -> None:
             )
             click_tab(page, "检测工作台")
             check_workbench_tab_alignment(page)
+            check_patient_toolbar_clearance(page)
             save(
                 page,
                 output_dir,

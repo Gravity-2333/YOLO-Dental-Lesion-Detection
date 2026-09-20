@@ -592,10 +592,11 @@ input[aria-label="对比模型路径"],
 
 .clinical-viewer {
   align-items: stretch !important;
-  margin-top: 37.5px !important;
-  padding: 12px !important;
+  margin-top: 0 !important;
+  padding: 0 !important;
   background: #ffffff !important;
   border-color: var(--card-border) !important;
+  border-top: 0 !important;
   box-shadow: var(--shadow-card) !important;
 }
 
@@ -607,7 +608,7 @@ input[aria-label="对比模型路径"],
 .clinical-viewer .result-view-tabs [role="tablist"] {
   gap: 28px !important;
   min-height: 54px !important;
-  padding: 0 !important;
+  padding: 0 12px !important;
   border-bottom: 1px solid var(--soft-border) !important;
   background: #ffffff !important;
 }
@@ -626,7 +627,7 @@ input[aria-label="对比模型路径"],
 }
 
 .clinical-viewer .result-view-tabs .tabitem {
-  padding: 12px 0 0 !important;
+  padding: 12px !important;
   background: #ffffff !important;
 }
 

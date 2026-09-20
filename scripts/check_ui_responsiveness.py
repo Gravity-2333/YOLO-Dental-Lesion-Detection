@@ -243,6 +243,24 @@ def assert_workbench_tab_rows_aligned(page, tolerance: int = 1) -> None:
         raise RuntimeError(f"工作台选项卡未对齐：{rows}")
 
 
+def assert_patient_toolbar_does_not_overlap_tabs(page, minimum_gap: int = 8) -> None:
+    layout = page.evaluate(
+        """() => {
+            const patient = document.querySelector('.workbench-patient-bar .compact-control');
+            const tabs = document.querySelector('.sub-tabs [role="tablist"]');
+            if (!patient || !tabs) return null;
+            const patientRect = patient.getBoundingClientRect();
+            const tabsRect = tabs.getBoundingClientRect();
+            return {patientBottom: patientRect.bottom, tabsTop: tabsRect.top};
+        }"""
+    )
+    if layout is None:
+        raise RuntimeError("工作台患者工具栏或分析选项卡缺失")
+    gap = layout["tabsTop"] - layout["patientBottom"]
+    if gap < minimum_gap:
+        raise RuntimeError(f"分析选项卡遮挡患者选择框：{layout}，间距 {gap}px")
+
+
 def assert_rows_aligned(
     page,
     label: str,
@@ -304,6 +322,7 @@ def main() -> int:
         assert_no_page_overflow(page, "桌面工作台")
         assert_viewer_label_contrast(page)
         assert_workbench_tab_rows_aligned(page)
+        assert_patient_toolbar_does_not_overlap_tabs(page)
 
         names = ["首页", "检测工作台", "AI 问答", "病例记录", "检测历史", "设置"]
         for cycle in range(max(1, int(args.cycles))):
