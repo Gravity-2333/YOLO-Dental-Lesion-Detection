@@ -279,6 +279,30 @@ def _result_visual_outputs(result: dict[str, Any] | None) -> tuple[Any, list[tup
     return annotated, gallery, status
 
 
+def _prepare_batch_item_view(item: dict[str, Any]) -> dict[str, Any]:
+    """Build the expensive, display-only payload once after batch inference."""
+    result = item["result"]
+    highres_image, crop_items, crop_text = _result_visual_outputs(result)
+    comparison_section, comparison_view = _comparison_view_updates(_item_results(item))
+    return {
+        "comparison_section": comparison_section,
+        "comparison_view": comparison_view,
+        "highres_image": highres_image,
+        "crop_items": crop_items,
+        "crop_text": crop_text,
+        "visible_class_filter": _visible_class_update(result),
+    }
+
+
+def _batch_item_view(item: dict[str, Any]) -> dict[str, Any]:
+    cached = item.get("view_cache")
+    if isinstance(cached, dict):
+        return cached
+    cached = _prepare_batch_item_view(item)
+    item["view_cache"] = cached
+    return cached
+
+
 def _quality_payload(image) -> tuple[str, str]:
     if image is None:
         return "等待上传图像", "未知"
@@ -2572,21 +2596,21 @@ def run_batch_detection(
         )
         if workspace_warning:
             workspace_warnings.append(f"{file_name}：{workspace_warning}")
-        batch_state.append(
-            {
-                "name": file_name,
-                "display_name": f"{index:03d} - {file_name}",
-                "task_id": task_id,
-                "patient_id": patient_id,
-                "result": result,
-                "all_results": all_results,
-                "advice": advice,
-                "suggestion_type": _suggestion_type(settings.enabled),
-                "quality_text": quality_text,
-                "quality_level": quality_level,
-                "summary": item_summary,
-            }
-        )
+        item = {
+            "name": file_name,
+            "display_name": f"{index:03d} - {file_name}",
+            "task_id": task_id,
+            "patient_id": patient_id,
+            "result": result,
+            "all_results": all_results,
+            "advice": advice,
+            "suggestion_type": _suggestion_type(settings.enabled),
+            "quality_text": quality_text,
+            "quality_level": quality_level,
+            "summary": item_summary,
+        }
+        item["view_cache"] = _prepare_batch_item_view(item)
+        batch_state.append(item)
 
     if not batch_state:
         error_detail = "; ".join(batch_errors[:5])
@@ -2616,22 +2640,21 @@ def run_batch_detection(
         if history_warning:
             first["advice"] = f"{first['advice']}\n\n{history_warning}"
             chat_history = _conversation_from_advice(first["advice"])
-    highres_image, crop_items, crop_text = _result_visual_outputs(first["result"])
-    comparison_section_update, comparison_view_update = _comparison_view_updates(_item_results(first))
+    first_view = _batch_item_view(first)
     return common_output_values(
         {
             "original": first["result"]["original"],
             "model_input": first["result"]["model_input"],
             "result": first["result"]["annotated"],
-            "comparison_section": comparison_section_update,
-            "comparison_view": comparison_view_update,
-            "highres_result": highres_image,
-            "crop_gallery": crop_items,
-            "crop_status": crop_text,
+            "comparison_section": first_view["comparison_section"],
+            "comparison_view": first_view["comparison_view"],
+            "highres_result": first_view["highres_image"],
+            "crop_gallery": first_view["crop_items"],
+            "crop_status": first_view["crop_text"],
             "result_image_file": _clear_file_output(),
             "result_image_path": "",
             "download_result_button": gr.update(value="下载检测结果图", interactive=True),
-            "visible_class_filter": _visible_class_update(first["result"]),
+            "visible_class_filter": first_view["visible_class_filter"],
             "detection_table": first["result"]["table"],
             "advice": first["advice"],
             "quality": first.get("quality_text") or assess_image_quality(first["result"]["original"]),
@@ -2699,21 +2722,22 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
     result.pop("_visible_detections", None)
     if result.get("full_annotated") is not None:
         result["annotated"] = result["full_annotated"]
-    highres_image, crop_items, crop_text = _result_visual_outputs(result)
+    view = _batch_item_view(item)
     word_path = _path_text(item.get("word_report_path"))
     zip_path = _path_text(item.get("zip_report_path"))
     return (
         result["original"],
         result["model_input"],
         result["annotated"],
-        *_comparison_view_updates(_item_results(item)),
-        highres_image,
-        crop_items,
-        crop_text,
+        view["comparison_section"],
+        view["comparison_view"],
+        view["highres_image"],
+        view["crop_items"],
+        view["crop_text"],
         _clear_file_output(),
         "",
         gr.update(value="下载检测结果图", interactive=True),
-        _visible_class_update(result),
+        view["visible_class_filter"],
         result["table"],
         item["advice"],
         item.get("quality_text") or assess_image_quality(result["original"]),

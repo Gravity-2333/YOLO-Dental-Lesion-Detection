@@ -1687,6 +1687,34 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("原始影像", single_view["value"])
         self.assertIn('type="range"', single_view["value"])
 
+    def test_batch_item_switch_reuses_prepared_view(self) -> None:
+        image = Image.new("RGB", (80, 60), "white")
+        item = {
+            "name": "cached.png",
+            "display_name": "001 - cached.png",
+            "result": {
+                "original": image,
+                "model_input": image,
+                "annotated": image,
+                "full_annotated": image,
+                "table": [],
+                "detections": [],
+            },
+            "advice": "测试建议",
+            "quality_text": "测试质量",
+            "summary": {},
+        }
+        item["view_cache"] = app._prepare_batch_item_view(item)
+
+        with (
+            patch.object(app, "_result_visual_outputs", side_effect=AssertionError("不应重新生成局部图")),
+            patch.object(app, "_comparison_view_updates", side_effect=AssertionError("不应重新生成对比视图")),
+        ):
+            outputs = app.select_batch_item(item["display_name"], [item], False)
+
+        self.assertIs(outputs[0], image)
+        self.assertIs(outputs[5], image)
+
     def test_workbench_reserves_a_hidden_comparison_section(self) -> None:
         source = inspect.getsource(build_workbench_page)
 
