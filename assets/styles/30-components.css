@@ -427,18 +427,33 @@ button[aria-disabled="true"] {
 .gradio-container .wrap-inner:has(> .secondary-wrap > input[role="listbox"]),
 .gradio-container .wrap-inner:has(> .secondary-wrap > input[role="combobox"]) {
   min-height: 46px !important;
-  padding-top: 8px !important;
-  padding-bottom: 8px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.gradio-container .wrap-inner:has(> .secondary-wrap > input[role="listbox"]) > .secondary-wrap,
+.gradio-container .wrap-inner:has(> .secondary-wrap > input[role="combobox"]) > .secondary-wrap {
+  min-height: 46px !important;
+  padding: 8px 12px !important;
   background: #ffffff !important;
   border: 1px solid #aeb8b3 !important;
   border-radius: var(--radius-sm) !important;
   box-shadow: 0 1px 2px rgba(24, 31, 30, 0.06) !important;
 }
 
-.gradio-container .wrap-inner:has(> .secondary-wrap > input[role="listbox"]):focus-within,
-.gradio-container .wrap-inner:has(> .secondary-wrap > input[role="combobox"]):focus-within {
+.gradio-container .wrap-inner:has(> .secondary-wrap > input[role="listbox"]):focus-within > .secondary-wrap,
+.gradio-container .wrap-inner:has(> .secondary-wrap > input[role="combobox"]):focus-within > .secondary-wrap {
   border-color: var(--brand-gold-dark) !important;
   box-shadow: 0 0 0 3px rgba(198, 154, 103, 0.18) !important;
+}
+
+.gradio-container .wrap-inner > .secondary-wrap > input[role="listbox"]:focus,
+.gradio-container .wrap-inner > .secondary-wrap > input[role="combobox"]:focus,
+.gradio-container .wrap-inner > .secondary-wrap > input[data-testid="dropdown-input"]:focus {
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 .gradio-container input[role="listbox"],
@@ -609,8 +624,13 @@ input[aria-label="对比模型路径"],
   gap: 28px !important;
   min-height: 54px !important;
   padding: 0 12px !important;
-  border-bottom: 1px solid var(--soft-border) !important;
+  border-bottom: 0 !important;
   background: #ffffff !important;
+}
+
+.sub-tabs [role="tablist"]::after,
+.result-view-tabs [role="tablist"]::after {
+  display: none !important;
 }
 
 .clinical-viewer .result-view-tabs button[role="tab"] {

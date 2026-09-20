@@ -79,6 +79,10 @@
   margin-top: 34px;
 }
 
+.home-page .home-hero-actions .home-action {
+  margin-bottom: 0 !important;
+}
+
 .home-action,
 .home-text-action {
   min-height: 48px;
@@ -277,6 +281,7 @@
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr);
   gap: 14px;
+  margin-bottom: 0 !important;
   padding: 26px 24px 26px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.18);
 }

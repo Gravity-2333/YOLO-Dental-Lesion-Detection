@@ -241,9 +241,49 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("-webkit-text-fill-color: var(--text-main) !important", value_rule)
         self.assertIn("opacity: 1 !important", value_rule)
         self.assertIn("min-height: 46px !important", shell_rule)
-        self.assertIn("border: 1px solid #aeb8b3 !important", shell_rule)
-        self.assertIn("padding-top: 8px !important", shell_rule)
-        self.assertIn("padding-bottom: 8px !important", shell_rule)
+        self.assertIn("border: 0 !important", shell_rule)
+        self.assertIn("padding: 0 !important", shell_rule)
+
+    def test_dropdowns_use_one_inner_frame(self) -> None:
+        css = load_workbench_css()
+        outer_rule = css.split(
+            '.gradio-container .wrap-inner:has(> .secondary-wrap > input[role="listbox"]),', 1
+        )[1].split("}", 1)[0]
+        inner_rule = css.split(
+            '.gradio-container .wrap-inner:has(> .secondary-wrap > input[role="listbox"]) > .secondary-wrap,', 1
+        )[1].split("}", 1)[0]
+        focus_rule = css.split(
+            '.gradio-container .wrap-inner > .secondary-wrap > input[role="listbox"]:focus,', 1
+        )[1].split("}", 1)[0]
+
+        self.assertIn("border: 0 !important", outer_rule)
+        self.assertIn("border: 1px solid #aeb8b3 !important", inner_rule)
+        self.assertIn("box-shadow: none !important", focus_rule)
+
+    def test_workbench_tab_rows_do_not_draw_full_width_rules(self) -> None:
+        css = load_workbench_css()
+        wrapper_rule = css.split(
+            ".sub-tabs > .tab-wrapper,", 1
+        )[1].split("}", 1)[0]
+        result_tabs = css.split(
+            '.clinical-viewer .result-view-tabs [role="tablist"] {', 1
+        )[1].split("}", 1)[0]
+        tab_rule = css.split(
+            '.sub-tabs [role="tablist"]::after,', 1
+        )[1].split("}", 1)[0]
+
+        self.assertIn("margin-bottom: 0 !important", wrapper_rule)
+        self.assertIn("padding-bottom: 0 !important", wrapper_rule)
+        self.assertIn("border-bottom: 0 !important", result_tabs)
+        self.assertIn("display: none !important", tab_rule)
+
+    def test_home_prose_defaults_do_not_offset_buttons_or_workflow_cells(self) -> None:
+        css = load_workbench_css()
+        button_rule = css.split(".home-page .home-hero-actions .home-action {", 1)[1].split("}", 1)[0]
+        workflow_rule = css.split(".home-workflow-steps li {", 1)[1].split("}", 1)[0]
+
+        self.assertIn("margin-bottom: 0 !important", button_rule)
+        self.assertIn("margin-bottom: 0 !important", workflow_rule)
 
     def test_tablet_settings_path_rows_keep_the_desktop_alignment(self) -> None:
         css = load_workbench_css()

@@ -175,6 +175,37 @@ def assert_home_page_ready(page) -> None:
             raise RuntimeError(f"首页入口不可用：{label}")
 
 
+def assert_home_grid_and_actions_align(page, tolerance: int = 1) -> None:
+    layout = page.evaluate(
+        """() => {
+            const buttons = [...document.querySelectorAll('.home-hero-actions .home-action')];
+            const steps = [...document.querySelectorAll('.home-workflow-steps li')];
+            return {
+                buttons: buttons.map(element => {
+                    const rect = element.getBoundingClientRect();
+                    return {
+                        top: rect.top,
+                        bottom: rect.bottom,
+                        marginBottom: parseFloat(getComputedStyle(element).marginBottom),
+                    };
+                }),
+                steps: steps.map(element => ({
+                    marginBottom: parseFloat(getComputedStyle(element).marginBottom),
+                })),
+            };
+        }"""
+    )
+    if len(layout["buttons"]) != 2 or len(layout["steps"]) != 4:
+        raise RuntimeError(f"首页按钮或流程步骤缺失：{layout}")
+    if any(item["marginBottom"] > tolerance for item in layout["buttons"] + layout["steps"]):
+        raise RuntimeError(f"首页组件仍带有 Gradio 默认下边距：{layout}")
+    if (
+        abs(layout["buttons"][0]["top"] - layout["buttons"][1]["top"]) > tolerance
+        or abs(layout["buttons"][0]["bottom"] - layout["buttons"][1]["bottom"]) > tolerance
+    ):
+        raise RuntimeError(f"首页入口按钮未齐平：{layout['buttons']}")
+
+
 def assert_viewer_label_contrast(page, minimum: float = 4.5) -> None:
     contrasts = page.evaluate(
         """() => {
@@ -241,6 +272,58 @@ def assert_workbench_tab_rows_aligned(page, tolerance: int = 1) -> None:
     height_delta = abs(rows[0]["height"] - rows[1]["height"])
     if top_delta > tolerance or height_delta > tolerance:
         raise RuntimeError(f"工作台选项卡未对齐：{rows}")
+
+
+def assert_workbench_tabs_have_no_full_width_rule(page) -> None:
+    rules = page.evaluate(
+        """() => ['.sub-tabs', '.result-view-tabs'].map(selector => {
+            const row = document.querySelector(`${selector} [role="tablist"]`);
+            const wrapper = document.querySelector(`${selector} > .tab-wrapper`);
+            if (!row || !wrapper) return null;
+            const style = getComputedStyle(row);
+            const after = getComputedStyle(row, '::after');
+            const wrapperStyle = getComputedStyle(wrapper);
+            return {
+                selector,
+                borderBottom: parseFloat(style.borderBottomWidth),
+                afterDisplay: after.display,
+                afterHeight: parseFloat(after.height) || 0,
+                wrapperMarginBottom: parseFloat(wrapperStyle.marginBottom),
+                wrapperPaddingBottom: parseFloat(wrapperStyle.paddingBottom),
+            };
+        })"""
+    )
+    if any(item is None for item in rules):
+        raise RuntimeError(f"工作台选项卡行缺失：{rules}")
+    if any(
+        item["borderBottom"] > 0
+        or item["afterDisplay"] != "none"
+        or item["wrapperMarginBottom"] > 0
+        or item["wrapperPaddingBottom"] > 0
+        for item in rules
+    ):
+        raise RuntimeError(f"工作台选项卡仍有整行细线：{rules}")
+
+
+def assert_example_dropdown_has_single_frame(page) -> None:
+    details = page.evaluate(
+        """() => {
+            const input = document.querySelector('input[aria-label="选择示例"]');
+            const inner = input?.closest('.secondary-wrap');
+            const outer = input?.closest('.wrap-inner');
+            if (!input || !inner || !outer) return null;
+            input.focus();
+            return {
+                outerBorder: parseFloat(getComputedStyle(outer).borderTopWidth),
+                innerBorder: parseFloat(getComputedStyle(inner).borderTopWidth),
+                inputShadow: getComputedStyle(input).boxShadow,
+            };
+        }"""
+    )
+    if details is None:
+        raise RuntimeError("真实示例下拉框缺失")
+    if details["outerBorder"] > 0 or details["innerBorder"] < 1 or details["inputShadow"] != "none":
+        raise RuntimeError(f"真实示例下拉框仍存在双层边界：{details}")
 
 
 def assert_patient_toolbar_does_not_overlap_tabs(page, minimum_gap: int = 8) -> None:
@@ -337,11 +420,15 @@ def main() -> int:
         page.wait_for_timeout(6000)
         assert_no_page_overflow(page, "桌面首页")
         assert_home_page_ready(page)
+        assert_home_grid_and_actions_align(page)
         timed_click(page, top_tab(page, "检测工作台"), "进入检测工作台", args.max_seconds, timings)
         assert_no_page_overflow(page, "桌面工作台")
         assert_viewer_label_contrast(page)
         assert_workbench_tab_rows_aligned(page)
+        assert_workbench_tabs_have_no_full_width_rule(page)
         assert_patient_toolbar_does_not_overlap_tabs(page)
+        ensure_accordion_open(page, accordion(page, "真实牙片示例"), "展开真实牙片示例", args.max_seconds, timings)
+        assert_example_dropdown_has_single_frame(page)
 
         names = ["首页", "检测工作台", "AI 问答", "病例记录", "检测历史", "设置"]
         for cycle in range(max(1, int(args.cycles))):

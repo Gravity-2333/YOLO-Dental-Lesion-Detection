@@ -102,6 +102,8 @@ body,
 .sub-tabs > .tab-wrapper,
 .result-view-tabs > .tab-wrapper {
   min-height: 54px;
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
 }
 
 .main-tabs > .tab-nav,
