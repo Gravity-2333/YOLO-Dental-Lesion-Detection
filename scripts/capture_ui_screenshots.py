@@ -228,8 +228,10 @@ def check_patient_toolbar_clearance(page, minimum_gap: int = 8) -> None:
         """() => {
             const patient = document.querySelector('.workbench-patient-bar .compact-control');
             const button = document.querySelector('.patient-control-row > button');
+            const outerFrame = document.querySelector('.patient-control-row .wrap-inner');
+            const innerFrame = document.querySelector('.patient-control-row .secondary-wrap');
             const tabs = document.querySelector('.sub-tabs [role="tablist"]');
-            if (!patient || !button || !tabs) return null;
+            if (!patient || !button || !outerFrame || !innerFrame || !tabs) return null;
             const patientRect = patient.getBoundingClientRect();
             const buttonRect = button.getBoundingClientRect();
             const tabsRect = tabs.getBoundingClientRect();
@@ -239,6 +241,8 @@ def check_patient_toolbar_clearance(page, minimum_gap: int = 8) -> None:
                 buttonTop: buttonRect.top,
                 buttonBottom: buttonRect.bottom,
                 tabsTop: tabsRect.top,
+                outerBorder: parseFloat(getComputedStyle(outerFrame).borderTopWidth),
+                innerBorder: parseFloat(getComputedStyle(innerFrame).borderTopWidth),
             };
         }"""
     )
@@ -251,6 +255,8 @@ def check_patient_toolbar_clearance(page, minimum_gap: int = 8) -> None:
         or abs(layout["patientBottom"] - layout["buttonBottom"]) > 1
     ):
         raise RuntimeError(f"患者选择框与清空会话按钮未对齐：{layout}")
+    if layout["outerBorder"] > 0 or layout["innerBorder"] < 1:
+        raise RuntimeError(f"患者选择框仍存在双层边框：{layout}")
 
 
 def capture(args: argparse.Namespace) -> None:

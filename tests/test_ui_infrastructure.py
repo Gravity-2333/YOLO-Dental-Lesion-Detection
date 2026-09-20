@@ -376,6 +376,14 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("background: #ffffff !important", viewer_rule)
         self.assertIn(".workbench-patient-bar {", css)
         self.assertIn(".patient-control-row {", css)
+        outer_rule = css.split(
+            ".patient-control-row .compact-control .wrap-inner {", 1
+        )[1].split("}", 1)[0]
+        inner_rule = css.split(
+            ".patient-control-row .compact-control .secondary-wrap {", 1
+        )[1].split("}", 1)[0]
+        self.assertIn("border: 0 !important", outer_rule)
+        self.assertIn("border: 1px solid #aeb8b3 !important", inner_rule)
         self.assertIn(".sub-tabs > .tab-wrapper", css)
         self.assertIn("syncImageComparison", js)
 
