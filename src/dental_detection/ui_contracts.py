@@ -11,7 +11,7 @@ COMMON_OUTPUT_KEYS = (
     "model_input",
     "result",
     "comparison_section",
-    "comparison_gallery",
+    "comparison_view",
     "highres_result",
     "crop_gallery",
     "crop_status",

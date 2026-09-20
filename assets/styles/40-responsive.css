@@ -476,13 +476,19 @@
     max-height: 320px !important;
   }
 
-  .comparison-results-gallery,
-  .comparison-results-gallery .grid-wrap {
-    height: 390px !important;
+  .short-select {
+    width: 100% !important;
+    max-width: none !important;
   }
 
-  .comparison-results-gallery .grid-container {
-    --grid-cols: 1 !important;
+  .settings-card .short-select.auto-margin {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .image-compare-stage {
+    min-height: 240px;
+    max-height: 390px;
   }
 
   .chat-window {

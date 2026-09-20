@@ -48,6 +48,7 @@ from src.dental_detection.case_store import (
 from src.dental_detection.config import DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJECT_ROOT
 from src.dental_detection.batch_summary import build_batch_summary
 from src.dental_detection.batch_overview_view import batch_overview_csv_text, batch_overview_html
+from src.dental_detection.comparison_view import build_comparison_html, empty_comparison_html
 from src.dental_detection.history_store import (
     append_history_records,
     clear_history_records,
@@ -416,7 +417,7 @@ def _configured_models(model_mode: str, primary_model_path: str, compare_model_p
     primary = Path(_model_path_or_default(primary_model_path, str(DEFAULT_MODEL_PATH)))
     models = [(model_label_from_path(primary), primary)]
     if model_mode == MODEL_MODE_COMPARE:
-        compare = Path(_model_path_or_default(compare_model_path, str(MODEL_REGISTRY[MODEL_SOURCE]["path"])))
+        compare = Path(_distinct_compare_model_path(str(primary), compare_model_path))
         if primary == compare:
             raise gr.Error(
                 "对比模型不能与主模型使用同一个权重文件，"
@@ -424,6 +425,18 @@ def _configured_models(model_mode: str, primary_model_path: str, compare_model_p
             )
         models.append((model_label_from_path(compare), compare))
     return models
+
+
+def _distinct_compare_model_path(primary_model_path: str, compare_model_path: str) -> str:
+    primary = Path(_model_path_or_default(primary_model_path, str(DEFAULT_MODEL_PATH)))
+    compare = Path(_model_path_or_default(compare_model_path, str(MODEL_REGISTRY[MODEL_SOURCE]["path"])))
+    if compare != primary:
+        return str(compare)
+    for model in MODEL_REGISTRY.values():
+        candidate = Path(model["path"]).expanduser().resolve()
+        if candidate != primary and candidate.exists():
+            return str(candidate)
+    return str(compare)
 
 
 def _validate_compare_model_selection(model_mode: str, primary_model_path: str, compare_model_path: str) -> None:
@@ -958,18 +971,20 @@ def _report_annotated_image(result: dict[str, Any]) -> Any:
     return _first_present(result.get("full_annotated"), result.get("annotated"))
 
 
-def _comparison_gallery_updates(results: list[dict[str, Any]]):
-    items = []
-    for index, result in enumerate(results, start=1):
-        if not isinstance(result, dict):
-            continue
-        image = _report_annotated_image(result)
-        if image is None:
-            continue
-        role = "主模型" if index == 1 else "对比模型"
-        model = model_result_name(result, f"模型 {index}")
-        items.append((image, f"{role}：{model}"))
-    return gr.update(visible=len(items) > 1), gr.update(value=items)
+def _comparison_view_updates(results: list[dict[str, Any]]):
+    valid = [
+        result
+        for result in results
+        if isinstance(result, dict) and _report_annotated_image(result) is not None
+    ]
+    if not valid:
+        return gr.update(visible=False), gr.update(value=empty_comparison_html())
+    normalized = []
+    for result in valid:
+        item = dict(result)
+        item["annotated"] = _report_annotated_image(result)
+        normalized.append(item)
+    return gr.update(visible=True), gr.update(value=build_comparison_html(normalized))
 
 
 def _visible_class_choices(result: dict[str, Any] | None) -> list[str]:
@@ -2096,7 +2111,7 @@ def clear_outputs(*, clear_chat: bool = False):
             "model_input": None,
             "result": None,
             "comparison_section": gr.update(visible=False),
-            "comparison_gallery": gr.update(value=[]),
+            "comparison_view": empty_comparison_html(),
             "highres_result": None,
             "crop_gallery": [],
             "crop_status": "暂无疑似区域局部图",
@@ -2385,14 +2400,14 @@ def run_single_detection(
             chat_history = _conversation_from_advice(advice)
             batch_state[0]["advice"] = advice
     highres_image, crop_items, crop_text = _result_visual_outputs(primary)
-    comparison_section_update, comparison_gallery_update = _comparison_gallery_updates(all_results)
+    comparison_section_update, comparison_view_update = _comparison_view_updates(all_results)
     return common_output_values(
         {
             "original": primary["original"],
             "model_input": primary["model_input"],
             "result": primary["annotated"],
             "comparison_section": comparison_section_update,
-            "comparison_gallery": comparison_gallery_update,
+            "comparison_view": comparison_view_update,
             "highres_result": highres_image,
             "crop_gallery": crop_items,
             "crop_status": crop_text,
@@ -2602,14 +2617,14 @@ def run_batch_detection(
             first["advice"] = f"{first['advice']}\n\n{history_warning}"
             chat_history = _conversation_from_advice(first["advice"])
     highres_image, crop_items, crop_text = _result_visual_outputs(first["result"])
-    comparison_section_update, comparison_gallery_update = _comparison_gallery_updates(_item_results(first))
+    comparison_section_update, comparison_view_update = _comparison_view_updates(_item_results(first))
     return common_output_values(
         {
             "original": first["result"]["original"],
             "model_input": first["result"]["model_input"],
             "result": first["result"]["annotated"],
             "comparison_section": comparison_section_update,
-            "comparison_gallery": comparison_gallery_update,
+            "comparison_view": comparison_view_update,
             "highres_result": highres_image,
             "crop_gallery": crop_items,
             "crop_status": crop_text,
@@ -2652,7 +2667,7 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
             None,
             None,
             gr.update(visible=False),
-            gr.update(value=[]),
+            empty_comparison_html(),
             None,
             [],
             "暂无疑似区域局部图",
@@ -2691,7 +2706,7 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
         result["original"],
         result["model_input"],
         result["annotated"],
-        *_comparison_gallery_updates(_item_results(item)),
+        *_comparison_view_updates(_item_results(item)),
         highres_image,
         crop_items,
         crop_text,
@@ -2840,6 +2855,11 @@ def save_ui_settings(
         str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
     )
     if settings.enable_compare:
+        if settings.model_mode == MODEL_MODE_COMPARE:
+            settings.compare_model_path = _distinct_compare_model_path(
+                settings.primary_model_path,
+                settings.compare_model_path,
+            )
         _validate_compare_model_selection(settings.model_mode, settings.primary_model_path, settings.compare_model_path)
     settings.save_history = bool(save_history)
     settings.history_limit = _normalize_history_limit(history_limit)
@@ -3179,9 +3199,17 @@ def on_enable_compare_change(enable_compare: bool):
 
 def sync_model_mode(model_mode: str, primary_model_path: str, compare_model_path: str):
     selected_mode = model_mode or MODEL_MODE_SINGLE
+    resolved_compare_path = compare_model_path
+    auto_paired = False
     if selected_mode == MODEL_MODE_COMPARE:
+        requested_compare_path = _model_path_or_default(
+            compare_model_path,
+            str(MODEL_REGISTRY[MODEL_SOURCE]["path"]),
+        )
+        resolved_compare_path = _distinct_compare_model_path(primary_model_path, compare_model_path)
+        auto_paired = Path(resolved_compare_path) != Path(requested_compare_path)
         try:
-            _validate_compare_model_selection(selected_mode, primary_model_path, compare_model_path)
+            _validate_compare_model_selection(selected_mode, primary_model_path, resolved_compare_path)
         except gr.Error:
             message = (
                 "暂时无法启用对比模型：请前往“设置 > 模型与推理”，"
@@ -3198,9 +3226,12 @@ def sync_model_mode(model_mode: str, primary_model_path: str, compare_model_path
     return (
         gr.update(value=selected_mode),
         gr.update(value=selected_mode),
-        gr.update(visible=selected_mode == MODEL_MODE_COMPARE),
-        gr.update(value="", visible=False),
-        gr.update(),
+        gr.update(value=resolved_compare_path, visible=selected_mode == MODEL_MODE_COMPARE),
+        gr.update(
+            value=toast_html("已自动配对另一个项目模型，可直接开始对比检测。", "success") if auto_paired else "",
+            visible=auto_paired,
+        ),
+        gr.update(value=toast_html("已自动修正对比模型配对。", "success")) if auto_paired else gr.update(),
     )
 
 
@@ -3437,7 +3468,7 @@ def build_app() -> gr.Blocks:
         model_input_output = workbench.model_input_output
         result_output = workbench.result_output
         comparison_section = workbench.comparison_section
-        comparison_gallery = workbench.comparison_gallery
+        comparison_view = workbench.comparison_view
         highres_result_output = workbench.highres_result_output
         crop_status = workbench.crop_status
         crop_gallery = workbench.crop_gallery
@@ -3504,7 +3535,7 @@ def build_app() -> gr.Blocks:
                 "model_input": model_input_output,
                 "result": result_output,
                 "comparison_section": comparison_section,
-                "comparison_gallery": comparison_gallery,
+                "comparison_view": comparison_view,
                 "highres_result": highres_result_output,
                 "crop_gallery": crop_gallery,
                 "crop_status": crop_status,
@@ -3835,7 +3866,6 @@ def build_app() -> gr.Blocks:
         gr.on(
             triggers=[
                 image.input,
-                image.change,
                 batch_files.upload,
                 batch_files.clear,
                 primary_model_path.input,
@@ -3969,7 +3999,7 @@ def build_app() -> gr.Blocks:
                 model_input_output,
                 result_output,
                 comparison_section,
-                comparison_gallery,
+                comparison_view,
                 highres_result_output,
                 crop_gallery,
                 crop_status,

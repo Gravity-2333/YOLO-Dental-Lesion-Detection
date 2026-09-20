@@ -250,6 +250,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                     choices=["简洁版", "医生版", "患者版"],
                     value=saved.advice_style,
                     label="AI 建议风格",
+                    elem_classes=["compact-control", "short-select"],
                 )
                 with gr.Group(visible=saved.enabled, elem_classes=["panel-card"]) as ai_group:
                     with gr.Row(elem_classes=["compact-row"]):

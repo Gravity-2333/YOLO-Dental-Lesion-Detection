@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 import unittest
 
 import app
+from PIL import Image
 from src.dental_detection import patient_profile_ui
 from src.dental_detection.example_assets import (
     EXAMPLE_DIR,
@@ -239,7 +240,8 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("color: var(--text-main) !important", value_rule)
         self.assertIn("-webkit-text-fill-color: var(--text-main) !important", value_rule)
         self.assertIn("opacity: 1 !important", value_rule)
-        self.assertIn("min-height: 42px !important", shell_rule)
+        self.assertIn("min-height: 46px !important", shell_rule)
+        self.assertIn("border: 1px solid #aeb8b3 !important", shell_rule)
         self.assertIn("padding-top: 8px !important", shell_rule)
         self.assertIn("padding-bottom: 8px !important", shell_rule)
 
@@ -362,18 +364,14 @@ class UiAssetTests(unittest.TestCase):
             with self.subTest(selector=retired_selector):
                 self.assertNotIn(retired_selector, css)
 
-    def test_comparison_image_labels_keep_dark_viewer_contrast(self) -> None:
+    def test_comparison_slider_keeps_dark_viewer_contrast(self) -> None:
         css = load_workbench_css()
-        viewer_rule = css.split(".clinical-viewer .comparison-image-panel", 1)[1].split(
-            "}",
-            1,
-        )[0]
-        self.assertIn("background: transparent !important", viewer_rule)
-        self.assertIn("border: 0 !important", viewer_rule)
-        self.assertIn(
-            ".clinical-viewer .comparison-image-panel > .styler",
-            css,
-        )
+        js = load_workbench_js()
+        self.assertIn(".image-compare-stage", css)
+        self.assertIn(".image-compare-divider", css)
+        self.assertIn(".image-compare-label", css)
+        self.assertIn("--compare-position", css)
+        self.assertIn("syncImageComparison", js)
 
 
 class ProjectLauncherTests(unittest.TestCase):
@@ -384,6 +382,9 @@ class ProjectLauncherTests(unittest.TestCase):
             encoding="utf-8"
         )
         runner_source = (project_root / "scripts" / "run_gradio_server.bat").read_text(
+            encoding="utf-8"
+        )
+        config_source = (project_root / "scripts" / "project_config.bat").read_text(
             encoding="utf-8"
         )
         stop_source = (project_root / "scripts" / "stop_project.ps1").read_text(
@@ -400,6 +401,9 @@ class ProjectLauncherTests(unittest.TestCase):
         self.assertIn("-RedirectStandardOutput", launcher_source)
         self.assertIn("-RedirectStandardError", launcher_source)
         self.assertIn('set "PYTHONUNBUFFERED=1"', runner_source)
+        self.assertIn('set "PYTHONFAULTHANDLER=1"', runner_source)
+        self.assertIn("$env:PYTHON_EXE", launcher_source)
+        self.assertIn('if not defined PYTHON_EXE set "PYTHON_EXE="', config_source)
         self.assertIn("run_gradio_server.bat", stop_source)
 
     def test_service_launcher_reports_immediate_runner_failure(self) -> None:
@@ -730,7 +734,7 @@ class UiContentTests(unittest.TestCase):
         self.assertNotIn("workbench_tab.select(\n            fn=refresh_patient_selection_choices", source)
         self.assertEqual(source.count("fn=refresh_patient_selection_choices"), 2)
 
-    def test_compare_mode_reverts_before_inference_when_models_match(self) -> None:
+    def test_compare_mode_auto_pairs_project_models_when_paths_match(self) -> None:
         (
             workbench_update,
             settings_update,
@@ -741,12 +745,13 @@ class UiContentTests(unittest.TestCase):
             app.MODEL_MODE_COMPARE, "same-model.pt", "same-model.pt"
         )
 
-        self.assertEqual(workbench_update["value"], app.MODEL_MODE_SINGLE)
-        self.assertEqual(settings_update["value"], app.MODEL_MODE_SINGLE)
-        self.assertFalse(path_update["visible"])
+        self.assertEqual(workbench_update["value"], app.MODEL_MODE_COMPARE)
+        self.assertEqual(settings_update["value"], app.MODEL_MODE_COMPARE)
+        self.assertTrue(path_update["visible"])
+        self.assertNotEqual(Path(path_update["value"]), Path("same-model.pt"))
         self.assertTrue(workbench_feedback["visible"])
-        self.assertIn("设置 &gt; 模型与推理", workbench_feedback["value"])
-        self.assertIn("设置 &gt; 模型与推理", settings_feedback["value"])
+        self.assertIn("自动配对", workbench_feedback["value"])
+        self.assertIn("自动修正", settings_feedback["value"])
 
     def test_compare_mode_stays_selected_for_distinct_models(self) -> None:
         (
@@ -1268,7 +1273,6 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('show_progress="hidden"', cancellation_event)
         for trigger in (
             "image.input",
-            "image.change",
             "batch_files.upload",
             "primary_model_path.input",
             "conf.input",
@@ -1640,35 +1644,42 @@ class UiContentTests(unittest.TestCase):
         self.assertIs(shared[1]["model_input"], model_input)
         self.assertIs(shared[1]["annotated"], secondary_annotated)
 
-    def test_comparison_gallery_identifies_models_and_stays_hidden_for_single_results(self) -> None:
-        primary_image = object()
-        compare_image = object()
+    def test_comparison_view_uses_model_results_or_original_image(self) -> None:
+        image_path = (
+            Path(__file__).resolve().parents[1]
+            / "data"
+            / "dental_lesion_final"
+            / "images"
+            / "train"
+            / "periapical_train_00011.jpg"
+        )
+        with Image.open(image_path) as source:
+            primary_image = source.copy()
 
-        comparison_section, comparison_gallery = app._comparison_gallery_updates(
+        comparison_section, comparison_view = app._comparison_view_updates(
             [
-                {"model": "原始结构", "annotated": primary_image},
-                {"model": "优化结构", "annotated": compare_image},
+                {"model": "原始结构", "annotated": primary_image, "original": primary_image},
+                {"model": "优化结构", "annotated": primary_image, "original": primary_image},
             ]
         )
-        single_section, single_gallery = app._comparison_gallery_updates(
-            [{"model": "原始结构", "annotated": primary_image}]
+        single_section, single_view = app._comparison_view_updates(
+            [{"model": "原始结构", "annotated": primary_image, "original": primary_image}]
         )
 
         self.assertTrue(comparison_section["visible"])
-        self.assertEqual(
-            comparison_gallery["value"],
-            [(primary_image, "主模型：原始结构"), (compare_image, "对比模型：优化结构")],
-        )
-        self.assertFalse(single_section["visible"])
-        self.assertEqual(single_gallery["value"], [(primary_image, "主模型：原始结构")])
+        self.assertIn("原始结构", comparison_view["value"])
+        self.assertIn("优化结构", comparison_view["value"])
+        self.assertTrue(single_section["visible"])
+        self.assertIn("原始影像", single_view["value"])
+        self.assertIn('type="range"', single_view["value"])
 
     def test_workbench_reserves_a_hidden_comparison_section(self) -> None:
         source = inspect.getsource(build_workbench_page)
 
-        self.assertIn('label="完整模型对比结果"', source)
+        self.assertIn('with gr.Tab("滑动对比")', source)
         self.assertIn('gr.Group(visible=False, elem_classes=["comparison-results-section"])', source)
         self.assertIn("comparison_section", COMMON_OUTPUT_KEYS)
-        self.assertIn("comparison_gallery", COMMON_OUTPUT_KEYS)
+        self.assertIn("comparison_view", COMMON_OUTPUT_KEYS)
 
     def test_launch_bounds_upload_and_session_retention(self) -> None:
         launch = MagicMock(return_value=("app", "local", "share"))

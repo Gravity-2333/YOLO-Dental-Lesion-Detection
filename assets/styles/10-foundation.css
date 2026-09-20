@@ -136,8 +136,9 @@ body,
 }
 
 .tabs button[role="tab"][aria-selected="true"] {
-  color: var(--brand-ink) !important;
+  color: var(--brand-gold-dark) !important;
   border-color: var(--brand-gold) !important;
+  background: #f7f0e8 !important;
 }
 
 .tabs button[role="tab"][aria-selected="true"]::after {

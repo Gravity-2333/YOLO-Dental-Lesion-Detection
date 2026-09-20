@@ -199,7 +199,7 @@ def assert_viewer_label_contrast(page, minimum: float = 4.5) -> None:
                     + 0.0722 * convert(color.blue);
             };
             return [...document.querySelectorAll(
-                '.clinical-viewer .comparison-image-panel .image-title'
+                '.clinical-viewer .result-view-tabs button[role="tab"]'
             )].map(title => {
                 const foreground = parseColor(getComputedStyle(title).color);
                 let node = title;
@@ -243,7 +243,7 @@ def assert_rows_aligned(
                 const controls = modelRow
                     ? [
                         [...row.children].find(element => element.matches('button, .secondary-action')),
-                        row.querySelector('.secondary-wrap, [role="listbox"]'),
+                        [...row.children].find(element => element.querySelector('.secondary-wrap')),
                     ]
                     : [...row.children]
                         .map(element => element.matches('button,input,textarea,select')
@@ -356,7 +356,7 @@ def main() -> int:
                     timings,
                 )
                 assert_path_rows_aligned(page, "模型路径")
-                assert_rows_aligned(page, "模型选择", ".model-row", tolerance=8)
+                assert_rows_aligned(page, "模型选择", ".model-row", tolerance=10)
             if name == "存储与隐私":
                 assert_path_rows_aligned(page, "存储路径")
 

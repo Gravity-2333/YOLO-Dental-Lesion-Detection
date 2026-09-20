@@ -247,6 +247,16 @@
     labelPathValues();
   };
 
+  const syncImageComparison = (target) => {
+    if (!(target instanceof HTMLInputElement) || !target.matches(".image-compare-range")) {
+      return;
+    }
+    const comparison = target.closest("[data-image-compare]");
+    if (comparison instanceof HTMLElement) {
+      comparison.style.setProperty("--compare-position", `${target.value}%`);
+    }
+  };
+
   const scheduleMenuLabeling = () => {
     if (labelingScheduled) {
       return;
@@ -285,6 +295,7 @@
     });
     document.addEventListener("click", trackOverflowSelection, true);
     document.addEventListener("click", navigateFromHome, true);
+    document.addEventListener("input", (event) => syncImageComparison(event.target), true);
     window.setInterval(checkRuntimeVersion, 30000);
     new MutationObserver(scheduleMenuLabeling).observe(document.body, {
       childList: true,

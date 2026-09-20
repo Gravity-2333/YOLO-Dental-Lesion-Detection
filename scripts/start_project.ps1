@@ -18,6 +18,17 @@ $stderrLog = Join-Path $logDirectory "gradio.stderr.log"
 
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 
+# Resolve the environment interpreter once so the long-running service is not
+# hosted beneath `mamba run`, which makes native Windows failures harder to diagnose.
+$configPath = Join-Path $PSScriptRoot "project_config.bat"
+if (-not $env:PYTHON_EXE -and (Test-Path -LiteralPath $configPath)) {
+    $probe = & $env:ComSpec /d /s /c "`"$configPath`" && `"%MAMBA_EXE%`" run -n %MAMBA_ENV% python -c `"import sys; print(sys.executable)`"" 2>$null
+    $candidate = $probe | Where-Object { $_ -and (Test-Path -LiteralPath $_.Trim()) } | Select-Object -Last 1
+    if ($candidate) {
+        $env:PYTHON_EXE = $candidate.Trim()
+    }
+}
+
 # Keep the long-running command processor minimized while retaining diagnostics.
 $runnerArguments = '/d /s /c ""{0}""' -f $runScriptPath
 $runner = Start-Process `

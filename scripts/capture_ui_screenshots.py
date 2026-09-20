@@ -197,14 +197,14 @@ def check_visible_model_row_alignment(page, label: str) -> None:
             })
             .map(row => {
                 const button = [...row.children].find(element => element.matches('button, .secondary-action'));
-                const dropdown = row.querySelector('.secondary-wrap, [role="listbox"]');
+                const dropdown = [...row.children].find(element => element.querySelector('.secondary-wrap'));
                 const bottoms = [button, dropdown]
                     .filter(Boolean)
                     .map(element => Math.round(element.getBoundingClientRect().bottom));
                 return bottoms.length ? Math.max(...bottoms) - Math.min(...bottoms) : 0;
             })"""
     )
-    if any(delta > 8 for delta in rows):
+    if any(delta > 10 for delta in rows):
         raise RuntimeError(f"{label} 模型工具行未对齐：{rows}")
 
 

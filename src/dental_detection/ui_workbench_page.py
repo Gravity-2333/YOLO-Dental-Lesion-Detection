@@ -58,7 +58,7 @@ class WorkbenchComponents:
     model_input_output: Any
     result_output: Any
     comparison_section: Any
-    comparison_gallery: Any
+    comparison_view: Any
     highres_result_output: Any
     crop_status: Any
     crop_gallery: Any
@@ -248,49 +248,45 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                     )
 
         with gr.Column(scale=7, elem_classes=["result-panel"]):
-            with gr.Row(elem_classes=["image-grid", "clinical-viewer"]):
-                with gr.Column(scale=7, elem_classes=["image-panel", "primary-image-panel"]):
-                    gr.HTML('<div class="image-title">AI 检测结果</div>')
-                    result_output = gr.Image(
-                        type="pil",
-                        label="检测结果",
-                        show_label=False,
-                        height=420,
-                        placeholder="完成检测后显示",
-                        elem_classes=["result-card", "primary-result-card"],
-                    )
-                with gr.Column(scale=3, elem_classes=["comparison-strip"]):
-                    with gr.Group(elem_classes=["image-panel", "comparison-image-panel"]):
+            with gr.Group(elem_classes=["image-grid", "clinical-viewer"]):
+                with gr.Tabs(elem_classes=["result-view-tabs"]):
+                    with gr.Tab("检测结果"):
+                        gr.HTML('<div class="image-title">AI 检测结果</div>')
+                        result_output = gr.Image(
+                            type="pil",
+                            label="检测结果",
+                            show_label=False,
+                            height=470,
+                            placeholder="完成检测后显示",
+                            elem_classes=["result-card", "primary-result-card"],
+                        )
+                    with gr.Tab("滑动对比"):
+                        with gr.Group(visible=False, elem_classes=["comparison-results-section"]) as comparison_section:
+                            comparison_view = gr.HTML(
+                                value="",
+                                container=False,
+                                elem_classes=["comparison-view-host"],
+                            )
+                    with gr.Tab("原始影像"):
                         gr.HTML('<div class="image-title">原始影像</div>')
                         original_output = gr.Image(
                             type="pil",
                             label="原图",
                             show_label=False,
-                            height=194,
+                            height=470,
                             placeholder="等待上传",
                             elem_classes=["result-card"],
                         )
-                    with gr.Group(elem_classes=["image-panel", "comparison-image-panel"]):
+                    with gr.Tab("模型输入"):
                         gr.HTML('<div class="image-title">模型输入</div>')
                         model_input_output = gr.Image(
                             type="pil",
                             label="模型输入",
                             show_label=False,
-                            height=194,
+                            height=470,
                             placeholder="完成检测后显示",
                             elem_classes=["result-card"],
                         )
-
-            with gr.Group(visible=False, elem_classes=["comparison-results-section"]) as comparison_section:
-                comparison_gallery = gr.Gallery(
-                    label="完整模型对比结果",
-                    columns=2,
-                    rows=1,
-                    height=300,
-                    allow_preview=True,
-                    object_fit="contain",
-                    elem_classes=["comparison-results-gallery"],
-                )
 
             with gr.Accordion("查看高清结果与疑似区域", open=False):
                 highres_result_output = gr.Image(
@@ -427,7 +423,7 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
         model_input_output=model_input_output,
         result_output=result_output,
         comparison_section=comparison_section,
-        comparison_gallery=comparison_gallery,
+        comparison_view=comparison_view,
         highres_result_output=highres_result_output,
         crop_status=crop_status,
         crop_gallery=crop_gallery,

@@ -286,50 +286,16 @@ except Exception as e:
     print(f"✗ 批量同名图片总览测试失败: {e}")
     sys.exit(1)
 
-print("\n测试12: 检查对比模式禁止重复模型...")
+print("\n测试12: 检查对比模式自动修正重复模型...")
 try:
-    from app import MODEL_MODE_COMPARE, _configured_models, _with_current_defaults, save_ui_settings, test_model_file
+    from app import MODEL_MODE_COMPARE, _configured_models, _distinct_compare_model_path, _with_current_defaults
     from src.dental_detection.assistant import AiSettings, DEFAULT_AI_BASE_URL
 
-    try:
-        _configured_models(MODEL_MODE_COMPARE, str(DEFAULT_MODEL_PATH), str(DEFAULT_MODEL_PATH))
-    except Exception as exc:
-        assert "同一个权重文件" in str(exc), "重复模型应提示用户选择另一个模型"
-    else:
-        raise AssertionError("对比模式不应允许主模型和对比模型指向同一文件")
-
-    message = test_model_file(str(DEFAULT_MODEL_PATH), str(DEFAULT_MODEL_PATH), MODEL_MODE_COMPARE)
-    assert "同一个权重文件" in message, "测试模型按钮应直接提示重复模型，而不是泛化为加载失败"
-
-    with TemporaryDirectory() as temp_dir:
-        try:
-            save_ui_settings(
-                False,
-                "https://api.deepseek.com/v1",
-                "deepseek-chat",
-                "环境变量",
-                "DEEPSEEK_API_KEY",
-                "",
-                "",
-                False,
-                False,
-                True,
-                temp_dir,
-                "",
-                "简洁版",
-                True,
-                False,
-                MODEL_MODE_COMPARE,
-                "models",
-                str(DEFAULT_MODEL_PATH),
-                str(DEFAULT_MODEL_PATH),
-                True,
-                100,
-            )
-        except Exception as exc:
-            assert "同一个权重文件" in str(exc), "保存设置也应拦截重复模型配置"
-        else:
-            raise AssertionError("保存设置不应接受重复模型对比配置")
+    resolved = _distinct_compare_model_path(str(DEFAULT_MODEL_PATH), str(DEFAULT_MODEL_PATH))
+    assert Path(resolved) != Path(DEFAULT_MODEL_PATH), "重复模型应自动配对另一个项目模型"
+    configured = _configured_models(MODEL_MODE_COMPARE, str(DEFAULT_MODEL_PATH), str(DEFAULT_MODEL_PATH))
+    assert len(configured) == 2, "自动配对后应返回两个模型"
+    assert configured[0][1] != configured[1][1], "自动配对后的模型路径必须不同"
 
     openai_settings = AiSettings(
         base_url="https://api.openai.com/v1",
@@ -348,9 +314,9 @@ try:
     )
     migrated = _with_current_defaults(old_default, config_exists=False)
     assert migrated.base_url == DEFAULT_AI_BASE_URL, "首次运行旧默认配置应迁移为当前默认服务"
-    print("✓ 对比模式重复模型拦截正常")
+    print("✓ 对比模式重复模型自动修正正常")
 except Exception as e:
-    print(f"✗ 对比模式重复模型测试失败: {e}")
+    print(f"✗ 对比模式重复模型自动修正测试失败: {e}")
     sys.exit(1)
 
 print("\n测试13: 检查切换图片保留已导出报告路径...")

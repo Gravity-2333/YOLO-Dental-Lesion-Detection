@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import cv2
 import numpy as np
 from PIL import Image, ImageStat
 
@@ -39,7 +38,15 @@ def assess_image_quality_detail(image: Image.Image) -> ImageQualityResult:
     stat = ImageStat.Stat(gray)
     brightness = float(stat.mean[0])
     contrast = float(stat.stddev[0])
-    blur_score = float(cv2.Laplacian(gray_array, cv2.CV_64F).var())
+    gray_float = gray_array.astype(np.float32, copy=False)
+    laplacian = (
+        -4.0 * gray_float[1:-1, 1:-1]
+        + gray_float[:-2, 1:-1]
+        + gray_float[2:, 1:-1]
+        + gray_float[1:-1, :-2]
+        + gray_float[1:-1, 2:]
+    )
+    blur_score = float(laplacian.var()) if laplacian.size else 0.0
     overexposed_ratio = float(np.mean(gray_array >= 245))
     underexposed_ratio = float(np.mean(gray_array <= 10))
     aspect_ratio = max(width, height) / max(1, min(width, height))
