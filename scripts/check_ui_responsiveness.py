@@ -226,6 +226,23 @@ def assert_viewer_label_contrast(page, minimum: float = 4.5) -> None:
         raise RuntimeError(f"检测查看器标签对比度不足：{contrasts}")
 
 
+def assert_workbench_tab_rows_aligned(page, tolerance: int = 1) -> None:
+    rows = page.evaluate(
+        """() => ['.sub-tabs', '.result-view-tabs'].map(selector => {
+            const row = document.querySelector(`${selector} [role="tablist"]`);
+            if (!row) return null;
+            const rect = row.getBoundingClientRect();
+            return {selector, top: rect.top, height: rect.height};
+        })"""
+    )
+    if any(row is None for row in rows):
+        raise RuntimeError(f"工作台选项卡行缺失：{rows}")
+    top_delta = abs(rows[0]["top"] - rows[1]["top"])
+    height_delta = abs(rows[0]["height"] - rows[1]["height"])
+    if top_delta > tolerance or height_delta > tolerance:
+        raise RuntimeError(f"工作台选项卡未对齐：{rows}")
+
+
 def assert_rows_aligned(
     page,
     label: str,
@@ -286,6 +303,7 @@ def main() -> int:
         timed_click(page, top_tab(page, "检测工作台"), "进入检测工作台", args.max_seconds, timings)
         assert_no_page_overflow(page, "桌面工作台")
         assert_viewer_label_contrast(page)
+        assert_workbench_tab_rows_aligned(page)
 
         names = ["首页", "检测工作台", "AI 问答", "病例记录", "检测历史", "设置"]
         for cycle in range(max(1, int(args.cycles))):

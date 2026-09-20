@@ -592,10 +592,11 @@ input[aria-label="对比模型路径"],
 
 .clinical-viewer {
   align-items: stretch !important;
+  margin-top: 37.5px !important;
   padding: 12px !important;
-  background: #161b1f !important;
-  border-color: #2d373e !important;
-  box-shadow: 0 12px 28px rgba(10, 18, 22, 0.16) !important;
+  background: #ffffff !important;
+  border-color: var(--card-border) !important;
+  box-shadow: var(--shadow-card) !important;
 }
 
 .clinical-viewer .result-view-tabs {
@@ -604,39 +605,46 @@ input[aria-label="对比模型路径"],
 }
 
 .clinical-viewer .result-view-tabs [role="tablist"] {
-  gap: 8px !important;
-  padding: 0 2px 10px !important;
-  border-bottom: 1px solid #303a41 !important;
+  gap: 28px !important;
+  min-height: 54px !important;
+  padding: 0 !important;
+  border-bottom: 1px solid var(--soft-border) !important;
+  background: #ffffff !important;
 }
 
 .clinical-viewer .result-view-tabs button[role="tab"] {
-  min-height: 38px !important;
-  padding: 7px 12px !important;
-  color: #b7c2c5 !important;
-  background: #161b1f !important;
+  min-height: 54px !important;
+  padding: 0 2px !important;
+  color: #343a39 !important;
+  background: #ffffff !important;
 }
 
 .clinical-viewer .result-view-tabs button[role="tab"][aria-selected="true"] {
-  color: #f2cf9f !important;
-  background: #242b2f !important;
+  color: var(--brand-gold-dark) !important;
+  background: #f7f0e8 !important;
   border-color: var(--brand-gold) !important;
 }
 
+.clinical-viewer .result-view-tabs .tabitem {
+  padding: 12px 0 0 !important;
+  background: #ffffff !important;
+}
+
 .clinical-viewer .image-title {
-  color: #dce5e3;
+  color: var(--text-main);
   font-size: 0.82rem;
   font-weight: 650;
 }
 
 .clinical-viewer .primary-image-panel .image-title {
-  color: #8ed3c8;
+  color: var(--primary);
 }
 
 .clinical-viewer .result-card,
 .clinical-viewer .result-card .image-container,
 .clinical-viewer .result-card [data-testid="image"] {
-  background: #0b0f12 !important;
-  border-color: #303a41 !important;
+  background: #ffffff !important;
+  border-color: var(--input-border) !important;
 }
 
 .clinical-viewer .result-card .image-container {
@@ -661,7 +669,7 @@ input[aria-label="对比模型路径"],
 }
 
 .clinical-viewer .result-card svg {
-  color: #82908f !important;
+  color: #88928f !important;
   opacity: 0.45 !important;
 }
 
@@ -670,7 +678,13 @@ input[aria-label="对比模型路径"],
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
-  background: #0b0f12 !important;
+  background: #ffffff !important;
+}
+
+.comparison-view-host .html-container,
+.comparison-view-host .prose,
+.image-compare {
+  background: #ffffff !important;
 }
 
 .image-compare-stage {
@@ -679,8 +693,8 @@ input[aria-label="对比模型路径"],
   aspect-ratio: var(--compare-aspect);
   max-height: 520px;
   overflow: hidden;
-  background: #080b0d;
-  border: 1px solid #303a41;
+  background: #ffffff;
+  border: 1px solid var(--input-border);
   border-radius: var(--radius-sm);
   user-select: none;
 }
@@ -711,8 +725,8 @@ input[aria-label="对比模型路径"],
   left: var(--compare-position);
   width: 2px;
   transform: translateX(-1px);
-  background: #ffffff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.32);
+  background: var(--brand-gold-dark);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.72);
   pointer-events: none;
 }
 
@@ -750,9 +764,9 @@ input[aria-label="对比模型路径"],
   max-width: 42%;
   padding: 6px 9px;
   overflow: hidden;
-  color: #ffffff;
-  background: rgba(16, 22, 25, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   font-size: 0.78rem;
   font-weight: 650;
@@ -765,7 +779,7 @@ input[aria-label="对比模型路径"],
 
 .image-compare-caption {
   margin: 9px 0 0;
-  color: #aeb9bb;
+  color: var(--text-muted);
   font-size: 0.78rem;
   text-align: center;
 }
@@ -775,11 +789,12 @@ input[aria-label="对比模型路径"],
   place-items: center;
   min-height: 360px;
   padding: 28px;
-  color: #aeb9bb;
+  color: var(--text-muted);
+  background: #ffffff;
   text-align: center;
 }
 
-.image-compare-empty strong { color: #dce5e3; }
+.image-compare-empty strong { color: var(--text-main); }
 .image-compare-empty span { font-size: 0.84rem; }
 
 .highres-result-card {

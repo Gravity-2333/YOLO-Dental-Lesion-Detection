@@ -208,6 +208,21 @@ def check_visible_model_row_alignment(page, label: str) -> None:
         raise RuntimeError(f"{label} 模型工具行未对齐：{rows}")
 
 
+def check_workbench_tab_alignment(page) -> None:
+    rows = page.evaluate(
+        """() => ['.sub-tabs', '.result-view-tabs'].map(selector => {
+            const row = document.querySelector(`${selector} [role="tablist"]`);
+            if (!row) return null;
+            const rect = row.getBoundingClientRect();
+            return {selector, top: rect.top, height: rect.height};
+        })"""
+    )
+    if any(row is None for row in rows):
+        raise RuntimeError(f"工作台选项卡行缺失：{rows}")
+    if abs(rows[0]["top"] - rows[1]["top"]) > 1 or abs(rows[0]["height"] - rows[1]["height"]) > 1:
+        raise RuntimeError(f"工作台选项卡未对齐：{rows}")
+
+
 def capture(args: argparse.Namespace) -> None:
     base_url = str(args.base_url).rstrip("/")
     output_dir = Path(args.output).expanduser()
@@ -230,6 +245,7 @@ def capture(args: argparse.Namespace) -> None:
                 reset_scroll=True,
             )
             click_tab(page, "检测工作台")
+            check_workbench_tab_alignment(page)
             save(
                 page,
                 output_dir,

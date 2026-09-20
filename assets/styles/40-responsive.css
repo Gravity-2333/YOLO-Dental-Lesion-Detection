@@ -59,6 +59,10 @@
     flex-direction: column !important;
   }
 
+  .clinical-viewer {
+    margin-top: 0 !important;
+  }
+
   .clinical-viewer .comparison-strip {
     flex: 1 1 auto !important;
     width: 100% !important;
