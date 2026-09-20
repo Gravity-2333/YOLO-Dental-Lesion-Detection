@@ -1,6 +1,6 @@
 .workbench-patient-bar {
-  align-items: flex-end !important;
-  gap: 12px !important;
+  align-items: flex-start !important;
+  gap: 0 !important;
   margin-bottom: 14px !important;
   padding: 14px 18px !important;
   overflow: visible !important;
@@ -10,21 +10,48 @@
   box-shadow: var(--shadow-soft) !important;
 }
 
-.workbench-patient-bar > .form {
-  flex: 0 1 380px !important;
-  width: min(380px, 100%) !important;
-  min-width: 260px !important;
+.patient-control-group {
+  flex: 0 1 552px !important;
+  width: min(552px, 100%) !important;
+  min-width: 0 !important;
+  gap: 8px !important;
 }
 
-.workbench-patient-bar .compact-control {
+.patient-control-label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.patient-control-row {
+  align-items: stretch !important;
+  flex-wrap: nowrap !important;
+  gap: 12px !important;
   width: 100% !important;
+  overflow: visible !important;
+}
+
+.patient-control-row > .form {
+  flex: 1 1 auto !important;
+  width: auto !important;
   min-width: 0 !important;
 }
 
-.workbench-patient-bar > .compact-button {
+.patient-control-row .compact-control {
+  width: 100% !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+}
+
+.patient-control-row > .compact-button {
   flex: 0 0 160px !important;
   width: 160px !important;
+  height: 46px !important;
   min-width: 160px !important;
+  min-height: 46px !important;
 }
 
 .workbench-grid {

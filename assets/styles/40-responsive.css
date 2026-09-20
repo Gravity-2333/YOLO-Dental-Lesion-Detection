@@ -346,13 +346,19 @@
 }
 
 @media (max-width: 640px) {
-  .workbench-patient-bar {
+  .patient-control-group {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .patient-control-row {
     flex-direction: column !important;
     align-items: stretch !important;
   }
 
-  .workbench-patient-bar > .form,
-  .workbench-patient-bar > .compact-button {
+  .patient-control-row > .form,
+  .patient-control-row > .compact-button {
     flex: 1 1 auto !important;
     width: 100% !important;
     min-width: 0 !important;

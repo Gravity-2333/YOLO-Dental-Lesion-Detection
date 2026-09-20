@@ -105,16 +105,20 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
             gr.Markdown(WORKBENCH_HELP_TEXT)
 
     with gr.Row(elem_classes=["workbench-patient-bar"]):
-        patient_select = gr.Dropdown(
-            label="当前患者档案",
-            choices=data.patient_choices,
-            value=data.selected_patient_id,
-            elem_classes=["compact-control"],
-        )
-        clear_session_btn = gr.Button(
-            "清空会话",
-            elem_classes=["secondary-action", "compact-button"],
-        )
+        with gr.Column(elem_classes=["patient-control-group"]):
+            gr.HTML('<div class="patient-control-label">当前患者档案</div>', container=False)
+            with gr.Row(elem_classes=["patient-control-row"]):
+                patient_select = gr.Dropdown(
+                    label="当前患者档案",
+                    show_label=False,
+                    choices=data.patient_choices,
+                    value=data.selected_patient_id,
+                    elem_classes=["compact-control"],
+                )
+                clear_session_btn = gr.Button(
+                    "清空会话",
+                    elem_classes=["secondary-action", "compact-button"],
+                )
 
     with gr.Row(elem_classes=["workbench-grid"]):
         with gr.Column(scale=4, elem_classes=["control-panel"]):

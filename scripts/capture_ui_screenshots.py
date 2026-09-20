@@ -227,17 +227,30 @@ def check_patient_toolbar_clearance(page, minimum_gap: int = 8) -> None:
     layout = page.evaluate(
         """() => {
             const patient = document.querySelector('.workbench-patient-bar .compact-control');
+            const button = document.querySelector('.patient-control-row > button');
             const tabs = document.querySelector('.sub-tabs [role="tablist"]');
-            if (!patient || !tabs) return null;
+            if (!patient || !button || !tabs) return null;
             const patientRect = patient.getBoundingClientRect();
+            const buttonRect = button.getBoundingClientRect();
             const tabsRect = tabs.getBoundingClientRect();
-            return {patientBottom: patientRect.bottom, tabsTop: tabsRect.top};
+            return {
+                patientTop: patientRect.top,
+                patientBottom: patientRect.bottom,
+                buttonTop: buttonRect.top,
+                buttonBottom: buttonRect.bottom,
+                tabsTop: tabsRect.top,
+            };
         }"""
     )
     if layout is None:
         raise RuntimeError("工作台患者工具栏或分析选项卡缺失")
     if layout["tabsTop"] - layout["patientBottom"] < minimum_gap:
         raise RuntimeError(f"分析选项卡遮挡患者选择框：{layout}")
+    if (
+        abs(layout["patientTop"] - layout["buttonTop"]) > 1
+        or abs(layout["patientBottom"] - layout["buttonBottom"]) > 1
+    ):
+        raise RuntimeError(f"患者选择框与清空会话按钮未对齐：{layout}")
 
 
 def capture(args: argparse.Namespace) -> None:

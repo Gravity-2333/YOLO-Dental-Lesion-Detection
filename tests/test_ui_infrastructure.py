@@ -375,6 +375,7 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("margin-top: 0 !important", viewer_rule)
         self.assertIn("background: #ffffff !important", viewer_rule)
         self.assertIn(".workbench-patient-bar {", css)
+        self.assertIn(".patient-control-row {", css)
         self.assertIn(".sub-tabs > .tab-wrapper", css)
         self.assertIn("syncImageComparison", js)
 
