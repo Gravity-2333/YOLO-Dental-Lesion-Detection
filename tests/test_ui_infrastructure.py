@@ -129,6 +129,18 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn('toast.style.animation = "none"', javascript)
         self.assertIn("void toast.offsetWidth", javascript)
 
+    def test_primary_navigation_switches_to_a_translucent_floating_state(self) -> None:
+        javascript = load_workbench_js()
+        css = load_workbench_css()
+
+        self.assertIn("syncStickyNavigation", javascript)
+        self.assertIn('header.getBoundingClientRect().bottom <= 0', javascript)
+        self.assertIn('mainTabs.classList.toggle("app-nav-floating", shouldFloat)', javascript)
+        self.assertIn('window.addEventListener("scroll", scheduleStickyNavigation', javascript)
+        self.assertIn(".main-tabs.app-nav-floating", css)
+        self.assertIn("background: rgba(23, 27, 29, 0.86) !important", css)
+        self.assertIn("backdrop-filter: blur(14px) saturate(115%)", css)
+
     def test_mobile_overflow_navigation_exposes_the_selected_page(self) -> None:
         javascript = load_workbench_js()
         css = load_workbench_css()

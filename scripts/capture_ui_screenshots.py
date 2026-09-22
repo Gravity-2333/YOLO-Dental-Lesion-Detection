@@ -280,6 +280,18 @@ def capture(args: argparse.Namespace) -> None:
                 name("00-home-desktop.png", suffix),
                 reset_scroll=True,
             )
+            page.evaluate(
+                """() => {
+                    const header = document.querySelector('.app-header');
+                    window.scrollTo(0, Math.ceil((header?.offsetHeight || 86) + 180));
+                }"""
+            )
+            page.wait_for_function(
+                "() => document.querySelector('.main-tabs')?.classList.contains('app-nav-floating')",
+                timeout=5000,
+            )
+            save(page, output_dir, name("00-home-floating-nav.png", suffix))
+            page.evaluate("window.scrollTo(0, 0)")
             click_tab(page, "检测工作台")
             check_workbench_tab_alignment(page)
             check_patient_toolbar_clearance(page)
@@ -400,6 +412,18 @@ def capture(args: argparse.Namespace) -> None:
                     name("00-home-mobile.png", suffix),
                     reset_scroll=True,
                 )
+                mobile.evaluate(
+                    """() => {
+                        const header = document.querySelector('.app-header');
+                        window.scrollTo(0, Math.ceil((header?.offsetHeight || 72) + 180));
+                    }"""
+                )
+                mobile.wait_for_function(
+                    "() => document.querySelector('.main-tabs')?.classList.contains('app-nav-floating')",
+                    timeout=5000,
+                )
+                save(mobile, output_dir, name("00-home-floating-nav-mobile.png", suffix))
+                mobile.evaluate("window.scrollTo(0, 0)")
                 click_tab(mobile, "检测工作台")
                 check_horizontal_overflow(mobile, "移动端工作台")
                 save(

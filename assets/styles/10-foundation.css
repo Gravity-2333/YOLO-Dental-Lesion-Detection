@@ -106,15 +106,46 @@ body,
   padding-bottom: 0 !important;
 }
 
-.main-tabs > .tab-nav,
-.main-tabs > [role="tablist"] {
-  position: sticky !important;
-  top: 0;
+.main-tabs > .tab-wrapper {
+  position: relative !important;
   z-index: 70;
   margin: 0 !important;
   padding: 0 4px !important;
   background: rgba(255, 255, 255, 0.97) !important;
   box-shadow: 0 8px 22px rgba(20, 25, 26, 0.04);
+  backdrop-filter: blur(0);
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.main-tabs.app-nav-floating > .tab-wrapper {
+  position: fixed !important;
+  top: 0;
+  left: var(--app-shell-left, 24px);
+  width: var(--app-shell-width, calc(100vw - 48px));
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(23, 27, 29, 0.86) !important;
+  box-shadow: 0 12px 30px rgba(18, 23, 24, 0.2);
+  -webkit-backdrop-filter: blur(14px) saturate(115%);
+  backdrop-filter: blur(14px) saturate(115%);
+}
+
+.main-tabs.app-nav-floating {
+  padding-top: var(--app-nav-height, 54px) !important;
+}
+
+.main-tabs.app-nav-floating > .tab-wrapper button[role="tab"],
+.main-tabs.app-nav-floating .overflow-menu > button {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+.main-tabs.app-nav-floating > .tab-wrapper button[role="tab"][aria-selected="true"],
+.main-tabs.app-nav-floating .overflow-menu > button.overflow-item-selected {
+  color: #f2c991 !important;
+  border-color: var(--brand-gold-light) !important;
+  background: rgba(198, 154, 103, 0.16) !important;
 }
 
 .main-tabs > .tab-nav,

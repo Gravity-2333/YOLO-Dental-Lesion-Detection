@@ -14,6 +14,7 @@
   ]);
   const TAB_ROOT_SELECTOR = ".main-tabs, .sub-tabs";
   let labelingScheduled = false;
+  let stickyNavigationScheduled = false;
   let runtimeAppId = "";
   let runtimeCheckInFlight = false;
   let runtimeReloading = false;
@@ -268,6 +269,34 @@
     });
   };
 
+  const syncStickyNavigation = () => {
+    const shell = document.querySelector(".gradio-container");
+    const header = shell?.querySelector(".app-header");
+    const navigation = shell?.querySelector(".main-tabs > .tab-wrapper");
+    const mainTabs = navigation?.closest(".main-tabs");
+    if (!(shell instanceof HTMLElement) || !header || !navigation || !mainTabs) {
+      return;
+    }
+    const shellRect = shell.getBoundingClientRect();
+    mainTabs.style.setProperty("--app-shell-left", `${Math.max(0, shellRect.left)}px`);
+    mainTabs.style.setProperty("--app-shell-width", `${shellRect.width}px`);
+    mainTabs.style.setProperty("--app-nav-height", `${navigation.getBoundingClientRect().height}px`);
+    const pageScrollTop = document.scrollingElement?.scrollTop || window.scrollY || 0;
+    const shouldFloat = pageScrollTop > 0 && header.getBoundingClientRect().bottom <= 0;
+    mainTabs.classList.toggle("app-nav-floating", shouldFloat);
+  };
+
+  const scheduleStickyNavigation = () => {
+    if (stickyNavigationScheduled) {
+      return;
+    }
+    stickyNavigationScheduled = true;
+    window.requestAnimationFrame(() => {
+      stickyNavigationScheduled = false;
+      syncStickyNavigation();
+    });
+  };
+
   const restartUpdatedToast = (mutations) => {
     mutations.forEach((mutation) => {
       const toast = mutation.target;
@@ -286,6 +315,7 @@
       return;
     }
     labelIconActions();
+    syncStickyNavigation();
     void checkRuntimeVersion();
     window.addEventListener("focus", checkRuntimeVersion);
     window.addEventListener("online", checkRuntimeVersion);
@@ -296,8 +326,13 @@
     document.addEventListener("click", trackOverflowSelection, true);
     document.addEventListener("click", navigateFromHome, true);
     document.addEventListener("input", (event) => syncImageComparison(event.target), true);
+    window.addEventListener("scroll", scheduleStickyNavigation, { passive: true });
+    window.addEventListener("resize", scheduleStickyNavigation, { passive: true });
     window.setInterval(checkRuntimeVersion, 30000);
-    new MutationObserver(scheduleMenuLabeling).observe(document.body, {
+    new MutationObserver(() => {
+      scheduleMenuLabeling();
+      scheduleStickyNavigation();
+    }).observe(document.body, {
       childList: true,
       subtree: true,
     });

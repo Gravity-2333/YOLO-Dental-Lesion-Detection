@@ -175,6 +175,58 @@ def assert_home_page_ready(page) -> None:
             raise RuntimeError(f"首页入口不可用：{label}")
 
 
+def assert_primary_navigation_floating_state(page) -> None:
+    initial = page.evaluate(
+        """() => {
+            const mainTabs = document.querySelector('.main-tabs');
+            const nav = document.querySelector('.main-tabs > .tab-wrapper');
+            return {
+                floating: Boolean(mainTabs?.classList.contains('app-nav-floating')),
+                position: nav ? getComputedStyle(nav).position : '',
+            };
+        }"""
+    )
+    if initial["floating"] or initial["position"] != "relative":
+        raise RuntimeError(f"主导航初始状态不正确：{initial}")
+
+    page.evaluate(
+        """() => {
+            const header = document.querySelector('.app-header');
+            const headerBottom = header
+                ? header.getBoundingClientRect().bottom + window.scrollY
+                : 110;
+            window.scrollTo(0, Math.ceil(headerBottom + 24));
+        }"""
+    )
+    page.wait_for_function(
+        "() => document.querySelector('.main-tabs')?.classList.contains('app-nav-floating')",
+        timeout=5000,
+    )
+    floating = page.evaluate(
+        """() => {
+            const nav = document.querySelector('.main-tabs > .tab-wrapper');
+            const style = nav ? getComputedStyle(nav) : null;
+            const color = style?.backgroundColor || '';
+            const channels = (color.match(/[\\d.]+/g) || []).map(Number);
+            return {
+                top: nav?.getBoundingClientRect().top ?? -999,
+                alpha: channels.length > 3 ? channels[3] : 1,
+                backdrop: style?.backdropFilter || style?.webkitBackdropFilter || '',
+            };
+        }"""
+    )
+    if abs(floating["top"]) > 1 or not 0.65 <= floating["alpha"] < 1:
+        raise RuntimeError(f"主导航未正确悬浮或背景不透明：{floating}")
+    if not floating["backdrop"] or floating["backdrop"] == "none":
+        raise RuntimeError(f"主导航缺少半透明模糊效果：{floating}")
+
+    page.evaluate("window.scrollTo(0, 0)")
+    page.wait_for_function(
+        "() => !document.querySelector('.main-tabs')?.classList.contains('app-nav-floating')",
+        timeout=5000,
+    )
+
+
 def assert_home_grid_and_actions_align(page, tolerance: int = 1) -> None:
     layout = page.evaluate(
         """() => {
@@ -420,6 +472,7 @@ def main() -> int:
         page.wait_for_timeout(6000)
         assert_no_page_overflow(page, "桌面首页")
         assert_home_page_ready(page)
+        assert_primary_navigation_floating_state(page)
         assert_home_grid_and_actions_align(page)
         timed_click(page, top_tab(page, "检测工作台"), "进入检测工作台", args.max_seconds, timings)
         assert_no_page_overflow(page, "桌面工作台")
@@ -541,6 +594,7 @@ def main() -> int:
         mobile.wait_for_timeout(4000)
         assert_home_page_ready(mobile)
         assert_no_page_overflow(mobile, "移动端首页")
+        assert_primary_navigation_floating_state(mobile)
         top_tab(mobile, "检测工作台").click(timeout=10000)
         wait_for_ui(mobile)
         assert_no_page_overflow(mobile, "移动端工作台")
