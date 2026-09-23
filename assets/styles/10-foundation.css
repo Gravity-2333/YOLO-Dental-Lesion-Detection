@@ -200,7 +200,7 @@ body,
   width: max-content;
   min-width: 220px;
   max-width: 300px;
-  padding: 14px 6px;
+  padding: 14px 0;
   border: 1px solid #eceeeb;
   background: #ffffff;
   box-shadow: 0 18px 38px rgba(20, 25, 26, 0.13);
@@ -227,6 +227,7 @@ body,
 
 .app-nav-submenu li {
   position: relative;
+  width: 100%;
 }
 
 .app-nav-submenu button {
@@ -236,7 +237,7 @@ body,
   gap: 18px;
   width: 100%;
   min-height: 42px;
-  padding: 8px 16px;
+  padding: 8px 22px;
   border: 0;
   background: transparent;
   color: #3e4544;
@@ -261,7 +262,7 @@ body,
 
 .app-nav-submenu-level-2 {
   top: 12px;
-  right: calc(100% + 8px);
+  right: 100%;
 }
 
 .app-nav-submenu .app-nav-menu-item.is-open > .app-nav-submenu-level-2,

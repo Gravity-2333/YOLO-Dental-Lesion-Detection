@@ -323,9 +323,13 @@ def assert_test_navigation_menu(page) -> None:
             const first = document.querySelector('.app-nav-submenu-level-1');
             const second = document.querySelector('.app-nav-submenu-level-2');
             const trigger = document.querySelector('.app-nav-submenu-trigger');
+            const item = trigger.closest('.app-nav-menu-item');
             return {
                 firstLeft: first.getBoundingClientRect().left,
+                firstRight: first.getBoundingClientRect().right,
                 secondRight: second.getBoundingClientRect().right,
+                itemLeft: item.getBoundingClientRect().left,
+                itemRight: item.getBoundingClientRect().right,
                 transform: getComputedStyle(trigger).transform,
                 color: getComputedStyle(trigger).color,
             };
@@ -333,8 +337,52 @@ def assert_test_navigation_menu(page) -> None:
     )
     if nested_state["secondRight"] > nested_state["firstLeft"] + 2:
         raise RuntimeError(f"Test 二级菜单没有在可用方向展开：{nested_state}")
+    if abs(nested_state["secondRight"] - nested_state["itemLeft"]) > 1:
+        raise RuntimeError(f"Test 二级菜单与父条目之间存在鼠标断层：{nested_state}")
+    if (
+        abs(nested_state["itemLeft"] - nested_state["firstLeft"]) > 2
+        or abs(nested_state["itemRight"] - nested_state["firstRight"]) > 2
+    ):
+        raise RuntimeError(f"Test 一级菜单条目没有横向撑满菜单：{nested_state}")
     if nested_state["transform"] in ("none", "matrix(1, 0, 0, 1, 0, 0)"):
         raise RuntimeError(f"Test 子菜单条目缺少轻微右移动画：{nested_state}")
+
+    trigger_box = nested_trigger.bounding_box()
+    setting_item = page.locator('.app-nav-submenu-level-2 [data-app-target="设置"]')
+    setting_box = setting_item.bounding_box()
+    if not trigger_box or not setting_box:
+        raise RuntimeError("Test 二级菜单鼠标轨迹检查无法取得条目坐标。")
+    page.mouse.move(
+        trigger_box["x"] + trigger_box["width"] / 2,
+        trigger_box["y"] + trigger_box["height"] / 2,
+    )
+    page.mouse.move(
+        setting_box["x"] + setting_box["width"] / 2,
+        setting_box["y"] + setting_box["height"] / 2,
+        steps=40,
+    )
+    page.wait_for_timeout(250)
+    traversal_state = page.evaluate(
+        """() => {
+            const second = document.querySelector('.app-nav-submenu-level-2');
+            const trigger = document.querySelector('.app-nav-submenu-trigger');
+            return {
+                visibility: getComputedStyle(second).visibility,
+                opacity: Number(getComputedStyle(second).opacity),
+                open: trigger.closest('.app-nav-menu-item').classList.contains('is-open'),
+                transform: getComputedStyle(trigger).transform,
+                color: getComputedStyle(trigger).color,
+            };
+        }"""
+    )
+    if (
+        traversal_state["visibility"] != "visible"
+        or traversal_state["opacity"] < 0.99
+        or not traversal_state["open"]
+        or traversal_state["transform"] in ("none", "matrix(1, 0, 0, 1, 0, 0)")
+        or traversal_state["color"] != nested_state["color"]
+    ):
+        raise RuntimeError(f"鼠标从系统页面平移到设置时二级菜单中断：{traversal_state}")
     page.mouse.move(1, 1)
     page.keyboard.press("Escape")
     first_menu.wait_for(state="hidden", timeout=5000)

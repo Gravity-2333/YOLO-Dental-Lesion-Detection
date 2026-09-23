@@ -284,6 +284,22 @@ def capture(args: argparse.Namespace) -> None:
                 timeout=5000,
             )
             page.wait_for_timeout(350)
+            nested_box = page.get_by_role("button", name="系统页面", exact=True).bounding_box()
+            setting_box = page.locator(
+                '.app-nav-submenu-level-2 [data-app-target="设置"]'
+            ).bounding_box()
+            if not nested_box or not setting_box:
+                raise RuntimeError("无法取得 Test 二级菜单鼠标轨迹坐标。")
+            page.mouse.move(
+                nested_box["x"] + nested_box["width"] / 2,
+                nested_box["y"] + nested_box["height"] / 2,
+            )
+            page.mouse.move(
+                setting_box["x"] + setting_box["width"] / 2,
+                setting_box["y"] + setting_box["height"] / 2,
+                steps=40,
+            )
+            page.wait_for_timeout(250)
             save(page, output_dir, name("00-home-test-submenu.png", suffix))
             page.mouse.move(1, 1)
             page.keyboard.press("Escape")

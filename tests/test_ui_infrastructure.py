@@ -151,6 +151,9 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("setNavigationMenuOpen", javascript)
         self.assertIn("syncPrimaryNavigation", javascript)
         self.assertIn(".app-nav-submenu-level-2", css)
+        self.assertIn("right: 100%", css)
+        self.assertIn(".app-nav-submenu li", css)
+        self.assertIn("width: 100%", css)
         self.assertIn("transform: translateX(5px)", css)
         self.assertIn(".app-nav-menu-item:focus-within", css)
         mobile_css = css.split("@media (max-width: 640px)", 1)[1]
