@@ -225,6 +225,14 @@ body,
   transform: translateY(0);
 }
 
+.app-nav-menu-item.is-dismissed > .app-nav-submenu {
+  top: calc(100% + 12px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(8px);
+}
+
 .app-nav-submenu li {
   position: relative;
   width: 100%;

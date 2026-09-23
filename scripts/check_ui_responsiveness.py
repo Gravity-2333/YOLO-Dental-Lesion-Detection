@@ -394,6 +394,46 @@ def assert_test_navigation_menu(page) -> None:
     page.keyboard.press("Escape")
     first_menu.wait_for(state="hidden", timeout=5000)
 
+    test_trigger.hover()
+    first_menu.wait_for(state="visible", timeout=5000)
+    page.get_by_role("button", name="单张分析", exact=True).click(timeout=10000)
+    page.wait_for_function(
+        """() => document.querySelector(
+            '.app-nav-link[data-app-target="检测工作台"]'
+        )?.getAttribute('aria-current') === 'page'""",
+        timeout=10000,
+    )
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('.sub-tabs button[role="tab"]')]
+            .some(button => button.textContent.trim() === '单张分析'
+                && button.getAttribute('aria-selected') === 'true')""",
+        timeout=10000,
+    )
+    page.wait_for_function(
+        """() => {
+            const menu = document.querySelector('.app-nav-submenu-level-1');
+            return menu && getComputedStyle(menu).visibility === 'hidden';
+        }""",
+        timeout=5000,
+    )
+    route_state = page.evaluate(
+        """() => ({
+            dismissed: document.querySelector(
+                '.app-primary-nav-list > .app-nav-menu-item-has-children'
+            )?.classList.contains('is-dismissed'),
+            ready: document.readyState,
+        })"""
+    )
+    if not route_state["dismissed"] or route_state["ready"] != "complete":
+        raise RuntimeError(f"Test 单张分析导航完成后页面状态异常：{route_state}")
+    top_tab(page, "首页").click(timeout=10000)
+    page.wait_for_function(
+        """() => document.querySelector(
+            '.app-nav-link[data-app-target="首页"]'
+        )?.getAttribute('aria-current') === 'page'""",
+        timeout=10000,
+    )
+
 
 def assert_home_grid_and_actions_align(page, tolerance: int = 1) -> None:
     layout = page.evaluate(

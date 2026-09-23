@@ -155,7 +155,11 @@
     if (!button) {
       return false;
     }
-    button.click();
+    const isSelected = button.getAttribute("aria-selected") === "true"
+      || button.classList.contains("selected");
+    if (!isSelected) {
+      button.click();
+    }
     return true;
   };
 
@@ -167,6 +171,8 @@
     if (!trigger) {
       return;
     }
+    event.preventDefault();
+    event.stopPropagation();
     const pageLabel = String(trigger.dataset.appTarget || "").trim();
     const workbenchLabel = String(trigger.dataset.workbenchTarget || "").trim();
     if (!pageLabel || !activateTab(".main-tabs", pageLabel)) {
@@ -211,6 +217,9 @@
       return;
     }
     if (event.target.closest(".app-primary-nav [data-app-target]")) {
+      event.target.closest(
+        ".app-primary-nav-list > .app-nav-menu-item-has-children",
+      )?.classList.add("is-dismissed");
       closeNavigationMenus();
     }
   };
@@ -222,6 +231,11 @@
     const item = event.target.closest(".app-nav-menu-item-has-children");
     if (!item || item.contains(event.relatedTarget)) {
       return;
+    }
+    if (open) {
+      item.closest(
+        ".app-primary-nav-list > .app-nav-menu-item-has-children",
+      )?.classList.remove("is-dismissed");
     }
     setNavigationMenuOpen(item, open);
   };

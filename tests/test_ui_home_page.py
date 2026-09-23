@@ -63,6 +63,7 @@ class HomePageTests(unittest.TestCase):
         self.assertIn('event.target.closest("[data-app-target]")', javascript)
         self.assertIn('activateTab(".main-tabs", pageLabel)', javascript)
         self.assertIn('activateTab(".sub-tabs", workbenchLabel)', javascript)
+        self.assertIn('button.getAttribute("aria-selected") === "true"', javascript)
 
     def test_removed_simulated_asset_is_not_referenced_by_active_code(self) -> None:
         project_root = Path(__file__).resolve().parents[1]
