@@ -324,6 +324,7 @@ def assert_test_navigation_menu(page) -> None:
             const second = document.querySelector('.app-nav-submenu-level-2');
             const trigger = document.querySelector('.app-nav-submenu-trigger');
             const item = trigger.closest('.app-nav-menu-item');
+            const chevron = trigger.querySelector('.app-nav-chevron-side');
             return {
                 firstLeft: first.getBoundingClientRect().left,
                 firstRight: first.getBoundingClientRect().right,
@@ -332,6 +333,7 @@ def assert_test_navigation_menu(page) -> None:
                 itemRight: item.getBoundingClientRect().right,
                 transform: getComputedStyle(trigger).transform,
                 color: getComputedStyle(trigger).color,
+                chevronColor: getComputedStyle(chevron).color,
             };
         }"""
     )
@@ -346,6 +348,8 @@ def assert_test_navigation_menu(page) -> None:
         raise RuntimeError(f"Test 一级菜单条目没有横向撑满菜单：{nested_state}")
     if nested_state["transform"] in ("none", "matrix(1, 0, 0, 1, 0, 0)"):
         raise RuntimeError(f"Test 子菜单条目缺少轻微右移动画：{nested_state}")
+    if nested_state["chevronColor"] != nested_state["color"]:
+        raise RuntimeError(f"Test 子菜单箭头没有继承父条目悬停颜色：{nested_state}")
 
     trigger_box = nested_trigger.bounding_box()
     setting_item = page.locator('.app-nav-submenu-level-2 [data-app-target="设置"]')
@@ -366,12 +370,14 @@ def assert_test_navigation_menu(page) -> None:
         """() => {
             const second = document.querySelector('.app-nav-submenu-level-2');
             const trigger = document.querySelector('.app-nav-submenu-trigger');
+            const chevron = trigger.querySelector('.app-nav-chevron-side');
             return {
                 visibility: getComputedStyle(second).visibility,
                 opacity: Number(getComputedStyle(second).opacity),
                 open: trigger.closest('.app-nav-menu-item').classList.contains('is-open'),
                 transform: getComputedStyle(trigger).transform,
                 color: getComputedStyle(trigger).color,
+                chevronColor: getComputedStyle(chevron).color,
             };
         }"""
     )
@@ -381,6 +387,7 @@ def assert_test_navigation_menu(page) -> None:
         or not traversal_state["open"]
         or traversal_state["transform"] in ("none", "matrix(1, 0, 0, 1, 0, 0)")
         or traversal_state["color"] != nested_state["color"]
+        or traversal_state["chevronColor"] != traversal_state["color"]
     ):
         raise RuntimeError(f"鼠标从系统页面平移到设置时二级菜单中断：{traversal_state}")
     page.mouse.move(1, 1)
