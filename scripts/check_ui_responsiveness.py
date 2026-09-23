@@ -118,7 +118,9 @@ def ensure_accordion_open(page, locator, label: str, maximum: float, timings: li
 
 
 def top_tab(page, name: str):
-    return page.get_by_role("tab", name=name, exact=True).first
+    return page.locator(
+        f'.app-primary-nav-list > li > button[data-app-target="{name}"]'
+    ).first
 
 
 def accordion(page, name: str):
@@ -178,53 +180,164 @@ def assert_home_page_ready(page) -> None:
 def assert_primary_navigation_floating_state(page) -> None:
     initial = page.evaluate(
         """() => {
-            const mainTabs = document.querySelector('.main-tabs');
-            const nav = document.querySelector('.main-tabs > .tab-wrapper');
+            const headerShell = document.querySelector('.app-header-shell');
+            const header = document.querySelector('.app-header');
+            const brand = document.querySelector('.app-header-brand');
+            const nav = document.querySelector('.app-primary-nav');
             return {
-                floating: Boolean(mainTabs?.classList.contains('app-nav-floating')),
-                position: nav ? getComputedStyle(nav).position : '',
+                floating: Boolean(header?.classList.contains('app-header-floating')),
+                position: header ? getComputedStyle(header).position : '',
+                height: header?.getBoundingClientRect().height || 0,
+                triggerAt: headerShell
+                    ? headerShell.getBoundingClientRect().bottom + window.scrollY
+                    : 0,
+                brandRight: brand?.getBoundingClientRect().right || 0,
+                brandBottom: brand?.getBoundingClientRect().bottom || 0,
+                navLeft: nav?.getBoundingClientRect().left || 0,
+                navTop: nav?.getBoundingClientRect().top || 0,
             };
         }"""
     )
-    if initial["floating"] or initial["position"] != "relative":
+    if initial["floating"] or initial["position"] != "relative" or initial["height"] < 80:
         raise RuntimeError(f"主导航初始状态不正确：{initial}")
+    if (
+        initial["brandRight"] > initial["navLeft"] + 1
+        and initial["brandBottom"] > initial["navTop"] + 1
+    ):
+        raise RuntimeError(f"品牌区与右侧导航发生重叠：{initial}")
 
-    page.evaluate(
-        """() => {
-            const header = document.querySelector('.app-header');
-            const headerBottom = header
-                ? header.getBoundingClientRect().bottom + window.scrollY
-                : 110;
-            window.scrollTo(0, Math.ceil(headerBottom + 24));
-        }"""
-    )
+    page.evaluate("top => window.scrollTo(0, Math.max(0, top - 2))", initial["triggerAt"])
+    wait_for_ui(page)
+    if page.locator(".app-header.app-header-floating").count():
+        raise RuntimeError("主导航在自身完整离开视口前提前进入悬浮状态。")
+
+    page.evaluate("top => window.scrollTo(0, top + 2)", initial["triggerAt"])
     page.wait_for_function(
-        "() => document.querySelector('.main-tabs')?.classList.contains('app-nav-floating')",
+        "() => document.querySelector('.app-header')?.classList.contains('app-header-floating')",
         timeout=5000,
     )
+    page.wait_for_timeout(350)
     floating = page.evaluate(
         """() => {
-            const nav = document.querySelector('.main-tabs > .tab-wrapper');
+            const nav = document.querySelector('.app-header');
+            const selected = document.querySelector('.app-nav-link.is-current');
+            const testTrigger = document.querySelector('.app-nav-test-trigger');
+            const testLabel = testTrigger?.querySelector('span:first-child');
+            const testChevron = testTrigger?.querySelector('.app-nav-chevron');
             const style = nav ? getComputedStyle(nav) : null;
             const color = style?.backgroundColor || '';
             const channels = (color.match(/[\\d.]+/g) || []).map(Number);
             return {
                 top: nav?.getBoundingClientRect().top ?? -999,
+                height: nav?.getBoundingClientRect().height || 0,
                 alpha: channels.length > 3 ? channels[3] : 1,
                 backdrop: style?.backdropFilter || style?.webkitBackdropFilter || '',
+                selectedBottom: selected?.getBoundingClientRect().bottom || 0,
+                headerBottom: nav?.getBoundingClientRect().bottom || 0,
+                viewportWidth: window.innerWidth,
+                testTriggerColor: testTrigger ? getComputedStyle(testTrigger).color : '',
+                testLabelColor: testLabel ? getComputedStyle(testLabel).color : '',
+                testChevronColor: testChevron ? getComputedStyle(testChevron).color : '',
             };
         }"""
     )
-    if abs(floating["top"]) > 1 or not 0.65 <= floating["alpha"] < 1:
+    if abs(floating["top"]) > 1 or floating["height"] < 80 or not 0.6 <= floating["alpha"] <= 0.8:
         raise RuntimeError(f"主导航未正确悬浮或背景不透明：{floating}")
     if not floating["backdrop"] or floating["backdrop"] == "none":
         raise RuntimeError(f"主导航缺少半透明模糊效果：{floating}")
+    if not (
+        floating["testTriggerColor"]
+        == floating["testLabelColor"]
+        == floating["testChevronColor"]
+    ):
+        raise RuntimeError(f"Test 菜单文字或箭头未继承悬浮导航颜色：{floating}")
+    if floating["viewportWidth"] > 640 and abs(
+        floating["selectedBottom"] - floating["headerBottom"]
+    ) > 1:
+        raise RuntimeError(f"导航选中线没有贴合页头底部：{floating}")
+
+    regular_link = top_tab(page, "检测工作台")
+    before_hover = regular_link.evaluate("element => getComputedStyle(element).color")
+    regular_link.hover()
+    hover_style = regular_link.evaluate(
+        """element => ({
+            color: getComputedStyle(element).color,
+            background: getComputedStyle(element).backgroundColor,
+        })"""
+    )
+    if hover_style["color"] == before_hover or hover_style["background"] not in (
+        "rgba(0, 0, 0, 0)",
+        "transparent",
+    ):
+        raise RuntimeError(f"主导航悬停状态不可读或错误显示底色：{hover_style}")
 
     page.evaluate("window.scrollTo(0, 0)")
     page.wait_for_function(
-        "() => !document.querySelector('.main-tabs')?.classList.contains('app-nav-floating')",
+        "() => !document.querySelector('.app-header')?.classList.contains('app-header-floating')",
         timeout=5000,
     )
+    page.wait_for_timeout(350)
+
+
+def assert_test_navigation_menu(page) -> None:
+    test_trigger = page.get_by_role("button", name="Test", exact=True)
+    test_trigger.hover()
+    first_menu = page.locator(".app-nav-submenu-level-1")
+    page.wait_for_function(
+        "() => getComputedStyle(document.querySelector('.app-nav-submenu-level-1')).visibility === 'visible'",
+        timeout=5000,
+    )
+    page.wait_for_timeout(300)
+    first_state = page.evaluate(
+        """() => {
+            const header = document.querySelector('.app-header');
+            const trigger = document.querySelector('.app-nav-test-trigger');
+            const menu = document.querySelector('.app-nav-submenu-level-1');
+            const style = getComputedStyle(trigger);
+            return {
+                headerBottom: header.getBoundingClientRect().bottom,
+                menuTop: menu.getBoundingClientRect().top,
+                menuRight: menu.getBoundingClientRect().right,
+                headerRight: header.getBoundingClientRect().right,
+                triggerColor: style.color,
+                triggerBackground: style.backgroundColor,
+            };
+        }"""
+    )
+    if abs(first_state["menuTop"] - first_state["headerBottom"]) > 1:
+        raise RuntimeError(f"Test 一级菜单没有贴合导航底部：{first_state}")
+    if first_state["menuRight"] > first_state["headerRight"] + 1:
+        raise RuntimeError(f"Test 一级菜单超出页头右边界：{first_state}")
+    if first_state["triggerBackground"] not in ("rgba(0, 0, 0, 0)", "transparent"):
+        raise RuntimeError(f"Test 悬停错误显示不透明按钮底色：{first_state}")
+
+    nested_trigger = page.get_by_role("button", name="系统页面", exact=True)
+    nested_trigger.hover()
+    page.wait_for_function(
+        "() => getComputedStyle(document.querySelector('.app-nav-submenu-level-2')).visibility === 'visible'",
+        timeout=5000,
+    )
+    page.wait_for_timeout(350)
+    nested_state = page.evaluate(
+        """() => {
+            const first = document.querySelector('.app-nav-submenu-level-1');
+            const second = document.querySelector('.app-nav-submenu-level-2');
+            const trigger = document.querySelector('.app-nav-submenu-trigger');
+            return {
+                firstLeft: first.getBoundingClientRect().left,
+                secondRight: second.getBoundingClientRect().right,
+                transform: getComputedStyle(trigger).transform,
+                color: getComputedStyle(trigger).color,
+            };
+        }"""
+    )
+    if nested_state["secondRight"] > nested_state["firstLeft"] + 2:
+        raise RuntimeError(f"Test 二级菜单没有在可用方向展开：{nested_state}")
+    if nested_state["transform"] in ("none", "matrix(1, 0, 0, 1, 0, 0)"):
+        raise RuntimeError(f"Test 子菜单条目缺少轻微右移动画：{nested_state}")
+    page.mouse.move(1, 1)
+    page.keyboard.press("Escape")
+    first_menu.wait_for(state="hidden", timeout=5000)
 
 
 def assert_home_grid_and_actions_align(page, tolerance: int = 1) -> None:
@@ -473,6 +586,7 @@ def main() -> int:
         assert_no_page_overflow(page, "桌面首页")
         assert_home_page_ready(page)
         assert_primary_navigation_floating_state(page)
+        assert_test_navigation_menu(page)
         assert_home_grid_and_actions_align(page)
         timed_click(page, top_tab(page, "检测工作台"), "进入检测工作台", args.max_seconds, timings)
         assert_no_page_overflow(page, "桌面工作台")

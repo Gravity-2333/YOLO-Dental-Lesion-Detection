@@ -60,29 +60,20 @@ def wait_ready(page, base_url: str) -> None:
 
 
 def click_tab(page, tab_name: str) -> None:
-    tab = page.get_by_role("tab", name=tab_name).first
+    tab = page.locator(
+        f'.app-primary-nav-list > li > button[data-app-target="{tab_name}"]'
+    ).first
     if tab.count() == 0 or not tab.is_visible():
-        overflow = page.get_by_role("button", name="更多").first
-        if overflow.count() == 0 or not overflow.is_visible():
-            raise RuntimeError(f"无法定位页面标签或更多菜单：{tab_name}")
-        overflow.click(timeout=15000)
-        menu_button = page.get_by_role("button", name=tab_name, exact=True).first
-        if menu_button.count() == 0 or not menu_button.is_visible():
-            raise RuntimeError(f"更多菜单中没有可见页面入口：{tab_name}")
-        menu_button.click(timeout=15000)
-        page.wait_for_timeout(1500)
-        return
-    # Gradio replaces tab nodes while switching pages. Playwright can report a
-    # timeout after the click has already succeeded, so the rendered selection
-    # state below is authoritative instead of the lifetime of the old node.
+        raise RuntimeError(f"无法定位主导航入口：{tab_name}")
     try:
         tab.click(timeout=15000)
     except Exception:
         pass
     page.wait_for_function(
-        """label => [...document.querySelectorAll('button[role="tab"]')]
-            .some(element => element.textContent.trim() === label
-                && element.getAttribute('aria-selected') === 'true')""",
+        """label => [...document.querySelectorAll(
+                '.app-primary-nav-list > li > .app-nav-link[data-app-target]'
+            )].some(element => element.dataset.appTarget === label
+                && element.getAttribute('aria-current') === 'page')""",
         arg=tab_name,
         timeout=15000,
     )
@@ -280,16 +271,37 @@ def capture(args: argparse.Namespace) -> None:
                 name("00-home-desktop.png", suffix),
                 reset_scroll=True,
             )
+            page.get_by_role("button", name="Test", exact=True).hover()
+            page.wait_for_function(
+                "() => getComputedStyle(document.querySelector('.app-nav-submenu-level-1')).visibility === 'visible'",
+                timeout=5000,
+            )
+            page.wait_for_timeout(300)
+            save(page, output_dir, name("00-home-test-menu.png", suffix))
+            page.get_by_role("button", name="系统页面", exact=True).hover()
+            page.wait_for_function(
+                "() => getComputedStyle(document.querySelector('.app-nav-submenu-level-2')).visibility === 'visible'",
+                timeout=5000,
+            )
+            page.wait_for_timeout(350)
+            save(page, output_dir, name("00-home-test-submenu.png", suffix))
+            page.mouse.move(1, 1)
+            page.keyboard.press("Escape")
+            page.evaluate("document.activeElement?.blur()")
             page.evaluate(
                 """() => {
-                    const header = document.querySelector('.app-header');
-                    window.scrollTo(0, Math.ceil((header?.offsetHeight || 86) + 180));
+                    const shell = document.querySelector('.app-header-shell');
+                    const triggerAt = shell
+                        ? shell.getBoundingClientRect().bottom + window.scrollY
+                        : 120;
+                    window.scrollTo(0, Math.ceil(triggerAt + 2));
                 }"""
             )
             page.wait_for_function(
-                "() => document.querySelector('.main-tabs')?.classList.contains('app-nav-floating')",
+                "() => document.querySelector('.app-header')?.classList.contains('app-header-floating')",
                 timeout=5000,
             )
+            page.wait_for_timeout(350)
             save(page, output_dir, name("00-home-floating-nav.png", suffix))
             page.evaluate("window.scrollTo(0, 0)")
             click_tab(page, "检测工作台")
@@ -414,14 +426,18 @@ def capture(args: argparse.Namespace) -> None:
                 )
                 mobile.evaluate(
                     """() => {
-                        const header = document.querySelector('.app-header');
-                        window.scrollTo(0, Math.ceil((header?.offsetHeight || 72) + 180));
+                        const shell = document.querySelector('.app-header-shell');
+                        const triggerAt = shell
+                            ? shell.getBoundingClientRect().bottom + window.scrollY
+                            : 180;
+                        window.scrollTo(0, Math.ceil(triggerAt + 2));
                     }"""
                 )
                 mobile.wait_for_function(
-                    "() => document.querySelector('.main-tabs')?.classList.contains('app-nav-floating')",
+                    "() => document.querySelector('.app-header')?.classList.contains('app-header-floating')",
                     timeout=5000,
                 )
+                mobile.wait_for_timeout(350)
                 save(mobile, output_dir, name("00-home-floating-nav-mobile.png", suffix))
                 mobile.evaluate("window.scrollTo(0, 0)")
                 click_tab(mobile, "检测工作台")

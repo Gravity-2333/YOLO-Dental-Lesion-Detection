@@ -3343,7 +3343,7 @@ def build_app() -> gr.Blocks:
             personal_workspace.patient.id,
             time_to_live=SESSION_STATE_TTL_SECONDS,
         )
-        gr.HTML(APP_HEADER_HTML)
+        gr.HTML(APP_HEADER_HTML, container=False)
 
         with gr.Tabs(elem_classes=["main-tabs"]):
             with gr.Tab("首页"):

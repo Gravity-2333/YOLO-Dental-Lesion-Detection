@@ -75,6 +75,8 @@ class HomePageTests(unittest.TestCase):
         self.assertNotIn("示例_无明显目标.png", screenshot_source)
         self.assertIn("real-dental-panorama-test-00021.jpg", screenshot_source)
         self.assertIn('name("00-home-desktop.png", suffix)', screenshot_source)
+        self.assertIn('name("00-home-test-menu.png", suffix)', screenshot_source)
+        self.assertIn('name("00-home-test-submenu.png", suffix)', screenshot_source)
         self.assertIn('name("00-home-floating-nav.png", suffix)', screenshot_source)
         self.assertIn('name("00-home-mobile.png", suffix)', screenshot_source)
         self.assertIn('name("00-home-floating-nav-mobile.png", suffix)', screenshot_source)

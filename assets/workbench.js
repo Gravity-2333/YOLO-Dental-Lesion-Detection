@@ -143,7 +143,10 @@
     if (!root) {
       return null;
     }
-    return [...root.querySelectorAll('button[role="tab"], .overflow-dropdown > button')]
+    const selector = root.matches(".main-tabs")
+      ? ':scope > .tab-wrapper button[role="tab"], :scope > .tab-wrapper .overflow-dropdown > button'
+      : 'button[role="tab"], .overflow-dropdown > button';
+    return [...root.querySelectorAll(selector)]
       .find((button) => button.textContent.trim() === label) || null;
   };
 
@@ -172,7 +175,85 @@
     if (workbenchLabel) {
       window.requestAnimationFrame(() => activateTab(".sub-tabs", workbenchLabel));
     }
-    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
+    window.requestAnimationFrame(() => {
+      syncPrimaryNavigation();
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
+  };
+
+  const directMenuTrigger = (item) => item?.querySelector(":scope > button[aria-haspopup]");
+
+  const setNavigationMenuOpen = (item, open) => {
+    if (!(item instanceof HTMLElement)) {
+      return;
+    }
+    item.classList.toggle("is-open", open);
+    directMenuTrigger(item)?.setAttribute("aria-expanded", String(open));
+  };
+
+  const closeNavigationMenus = () => {
+    document.querySelectorAll(".app-nav-menu-item.is-open").forEach((item) => {
+      setNavigationMenuOpen(item, false);
+    });
+  };
+
+  const handleNavigationMenuClick = (event) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    const menuTrigger = event.target.closest(
+      ".app-nav-test-trigger, .app-nav-submenu-trigger",
+    );
+    if (menuTrigger) {
+      event.preventDefault();
+      const item = menuTrigger.closest(".app-nav-menu-item-has-children");
+      setNavigationMenuOpen(item, !item?.classList.contains("is-open"));
+      return;
+    }
+    if (event.target.closest(".app-primary-nav [data-app-target]")) {
+      closeNavigationMenus();
+    }
+  };
+
+  const handleNavigationMenuHover = (event, open) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    const item = event.target.closest(".app-nav-menu-item-has-children");
+    if (!item || item.contains(event.relatedTarget)) {
+      return;
+    }
+    setNavigationMenuOpen(item, open);
+  };
+
+  const handleNavigationFocus = (event, open) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    const item = event.target.closest(".app-nav-menu-item-has-children");
+    if (!item || item.contains(event.relatedTarget)) {
+      return;
+    }
+    setNavigationMenuOpen(item, open);
+  };
+
+  const syncPrimaryNavigation = () => {
+    const selected = document.querySelector(
+      '.main-tabs > .tab-wrapper button[role="tab"][aria-selected="true"], '
+      + ".main-tabs > .tab-wrapper .overflow-dropdown > button.selected",
+    );
+    const selectedLabel = String(selected?.textContent || "").trim();
+    document.querySelectorAll(
+      ".app-primary-nav-list > li > .app-nav-link[data-app-target]",
+    ).forEach((button) => {
+      const isCurrent = button.dataset.appTarget === selectedLabel;
+      button.classList.toggle("is-current", isCurrent);
+      if (isCurrent) {
+        button.setAttribute("aria-current", "page");
+      } else {
+        button.removeAttribute("aria-current");
+      }
+    });
   };
 
   const labelPathPickers = () => {
@@ -271,19 +352,20 @@
 
   const syncStickyNavigation = () => {
     const shell = document.querySelector(".gradio-container");
-    const header = shell?.querySelector(".app-header");
-    const navigation = shell?.querySelector(".main-tabs > .tab-wrapper");
-    const mainTabs = navigation?.closest(".main-tabs");
-    if (!(shell instanceof HTMLElement) || !header || !navigation || !mainTabs) {
+    const headerShell = shell?.querySelector(".app-header-shell");
+    const header = headerShell?.querySelector(".app-header");
+    if (!(shell instanceof HTMLElement) || !headerShell || !header) {
       return;
     }
     const shellRect = shell.getBoundingClientRect();
-    mainTabs.style.setProperty("--app-shell-left", `${Math.max(0, shellRect.left)}px`);
-    mainTabs.style.setProperty("--app-shell-width", `${shellRect.width}px`);
-    mainTabs.style.setProperty("--app-nav-height", `${navigation.getBoundingClientRect().height}px`);
+    const headerHeight = header.getBoundingClientRect().height;
+    headerShell.style.setProperty("--app-header-height", `${headerHeight}px`);
+    header.style.setProperty("--app-shell-left", `${Math.max(0, shellRect.left)}px`);
+    header.style.setProperty("--app-shell-width", `${shellRect.width}px`);
     const pageScrollTop = document.scrollingElement?.scrollTop || window.scrollY || 0;
-    const shouldFloat = pageScrollTop > 0 && header.getBoundingClientRect().bottom <= 0;
-    mainTabs.classList.toggle("app-nav-floating", shouldFloat);
+    const triggerAt = headerShell.getBoundingClientRect().bottom + pageScrollTop;
+    const shouldFloat = pageScrollTop >= Math.ceil(triggerAt);
+    header.classList.toggle("app-header-floating", shouldFloat);
   };
 
   const scheduleStickyNavigation = () => {
@@ -315,6 +397,7 @@
       return;
     }
     labelIconActions();
+    syncPrimaryNavigation();
     syncStickyNavigation();
     void checkRuntimeVersion();
     window.addEventListener("focus", checkRuntimeVersion);
@@ -324,17 +407,33 @@
       document.addEventListener(eventName, (event) => syncPathValueTitle(event.target), true);
     });
     document.addEventListener("click", trackOverflowSelection, true);
+    document.addEventListener("click", handleNavigationMenuClick, true);
     document.addEventListener("click", navigateFromHome, true);
     document.addEventListener("input", (event) => syncImageComparison(event.target), true);
+    document.addEventListener("pointerover", (event) => handleNavigationMenuHover(event, true));
+    document.addEventListener("pointerout", (event) => handleNavigationMenuHover(event, false));
+    document.addEventListener("focusin", (event) => handleNavigationFocus(event, true));
+    document.addEventListener("focusout", (event) => handleNavigationFocus(event, false));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeNavigationMenus();
+      }
+    });
     window.addEventListener("scroll", scheduleStickyNavigation, { passive: true });
     window.addEventListener("resize", scheduleStickyNavigation, { passive: true });
     window.setInterval(checkRuntimeVersion, 30000);
+    new MutationObserver(scheduleMenuLabeling).observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
     new MutationObserver(() => {
-      scheduleMenuLabeling();
+      syncPrimaryNavigation();
       scheduleStickyNavigation();
     }).observe(document.body, {
       childList: true,
       subtree: true,
+      attributes: true,
+      attributeFilter: ["aria-selected"],
     });
     new MutationObserver(restartUpdatedToast).observe(document.body, {
       attributes: true,

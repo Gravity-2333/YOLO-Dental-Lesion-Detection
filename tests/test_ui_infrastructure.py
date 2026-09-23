@@ -134,28 +134,31 @@ class UiAssetTests(unittest.TestCase):
         css = load_workbench_css()
 
         self.assertIn("syncStickyNavigation", javascript)
-        self.assertIn('header.getBoundingClientRect().bottom <= 0', javascript)
-        self.assertIn('mainTabs.classList.toggle("app-nav-floating", shouldFloat)', javascript)
+        self.assertIn("headerShell.getBoundingClientRect().bottom + pageScrollTop", javascript)
+        self.assertIn('header.classList.toggle("app-header-floating", shouldFloat)', javascript)
         self.assertIn('window.addEventListener("scroll", scheduleStickyNavigation', javascript)
-        self.assertIn(".main-tabs.app-nav-floating", css)
-        self.assertIn("background: rgba(23, 27, 29, 0.86) !important", css)
-        self.assertIn("backdrop-filter: blur(14px) saturate(115%)", css)
+        self.assertIn(".app-header.app-header-floating", css)
+        self.assertIn("background: rgba(27, 30, 31, 0.72)", css)
+        self.assertIn("backdrop-filter: blur(12px) saturate(115%)", css)
+        self.assertIn(".app-nav-link > span", css)
+        self.assertIn("color: inherit !important", css)
 
-    def test_mobile_overflow_navigation_exposes_the_selected_page(self) -> None:
+    def test_primary_navigation_uses_a_reusable_nested_test_menu(self) -> None:
         javascript = load_workbench_js()
         css = load_workbench_css()
 
-        self.assertIn("trackOverflowSelection", javascript)
-        self.assertIn("dataset.overflowSelectedLabel", javascript)
-        self.assertIn('".overflow-dropdown > button.selected"', javascript)
-        self.assertIn("更多页面，当前：", javascript)
-        self.assertIn('content: attr(data-nav-label)', css)
-        self.assertIn("button.overflow-item-selected", css)
+        self.assertIn("handleNavigationMenuHover", javascript)
+        self.assertIn("setNavigationMenuOpen", javascript)
+        self.assertIn("syncPrimaryNavigation", javascript)
+        self.assertIn(".app-nav-submenu-level-2", css)
+        self.assertIn("transform: translateX(5px)", css)
+        self.assertIn(".app-nav-menu-item:focus-within", css)
+        mobile_css = css.split("@media (max-width: 640px)", 1)[1]
         self.assertIn(
-            '.main-tabs [role="tablist"] {\n'
-            "    display: grid !important;\n"
-            "    grid-template-columns: repeat(3, minmax(0, 1fr));",
-            css.split("@media (max-width: 640px)", 1)[1],
+            ".app-primary-nav-list {\n"
+            "    display: grid;\n"
+            "    grid-template-columns: repeat(4, minmax(0, 1fr));",
+            mobile_css,
         )
 
     def test_mobile_status_strips_use_compact_two_column_layout(self) -> None:
@@ -1008,7 +1011,10 @@ class UiContentTests(unittest.TestCase):
 
     def test_shared_content_keeps_brand_and_safety_copy(self) -> None:
         self.assertIn("智能健康牙齿分析", APP_HEADER_HTML)
-        self.assertIn("医生主导，模型辅助", APP_HEADER_HTML)
+        self.assertIn("牙科影像辅助筛查", APP_HEADER_HTML)
+        self.assertIn('data-app-target="首页"', APP_HEADER_HTML)
+        self.assertIn('class="app-nav-link app-nav-test-trigger"', APP_HEADER_HTML)
+        self.assertIn("系统页面二级菜单", APP_HEADER_HTML)
         self.assertIn("不能替代专业牙科医生诊断", WORKBENCH_HELP_TEXT)
         self.assertIn("不上传牙科影像", AI_CHAT_INTRO_HTML)
         self.assertIn("不替代专业牙科医生诊断", AI_CHAT_INTRO_HTML)
