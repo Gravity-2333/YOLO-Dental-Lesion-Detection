@@ -377,7 +377,8 @@
     header.style.setProperty("--app-shell-left", `${Math.max(0, shellRect.left)}px`);
     header.style.setProperty("--app-shell-width", `${shellRect.width}px`);
     const pageScrollTop = document.scrollingElement?.scrollTop || window.scrollY || 0;
-    const triggerAt = headerShell.getBoundingClientRect().bottom + pageScrollTop;
+    const headerOriginTop = headerShell.getBoundingClientRect().top + pageScrollTop;
+    const triggerAt = headerOriginTop + headerHeight * 2;
     const shouldFloat = pageScrollTop >= Math.ceil(triggerAt);
     header.classList.toggle("app-header-floating", shouldFloat);
   };

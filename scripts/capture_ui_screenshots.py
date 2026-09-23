@@ -307,8 +307,11 @@ def capture(args: argparse.Namespace) -> None:
             page.evaluate(
                 """() => {
                     const shell = document.querySelector('.app-header-shell');
-                    const triggerAt = shell
-                        ? shell.getBoundingClientRect().bottom + window.scrollY
+                    const header = shell?.querySelector('.app-header');
+                    const triggerAt = shell && header
+                        ? shell.getBoundingClientRect().top
+                            + window.scrollY
+                            + header.getBoundingClientRect().height * 2
                         : 120;
                     window.scrollTo(0, Math.ceil(triggerAt + 2));
                 }"""
@@ -317,7 +320,7 @@ def capture(args: argparse.Namespace) -> None:
                 "() => document.querySelector('.app-header')?.classList.contains('app-header-floating')",
                 timeout=5000,
             )
-            page.wait_for_timeout(350)
+            page.wait_for_timeout(550)
             save(page, output_dir, name("00-home-floating-nav.png", suffix))
             page.evaluate("window.scrollTo(0, 0)")
             click_tab(page, "检测工作台")
@@ -443,8 +446,11 @@ def capture(args: argparse.Namespace) -> None:
                 mobile.evaluate(
                     """() => {
                         const shell = document.querySelector('.app-header-shell');
-                        const triggerAt = shell
-                            ? shell.getBoundingClientRect().bottom + window.scrollY
+                        const header = shell?.querySelector('.app-header');
+                        const triggerAt = shell && header
+                            ? shell.getBoundingClientRect().top
+                                + window.scrollY
+                                + header.getBoundingClientRect().height * 2
                             : 180;
                         window.scrollTo(0, Math.ceil(triggerAt + 2));
                     }"""
@@ -453,7 +459,7 @@ def capture(args: argparse.Namespace) -> None:
                     "() => document.querySelector('.app-header')?.classList.contains('app-header-floating')",
                     timeout=5000,
                 )
-                mobile.wait_for_timeout(350)
+                mobile.wait_for_timeout(550)
                 save(mobile, output_dir, name("00-home-floating-nav-mobile.png", suffix))
                 mobile.evaluate("window.scrollTo(0, 0)")
                 click_tab(mobile, "检测工作台")

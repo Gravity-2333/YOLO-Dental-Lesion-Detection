@@ -189,8 +189,10 @@ def assert_primary_navigation_floating_state(page) -> None:
                 floating: Boolean(header?.classList.contains('app-header-floating')),
                 position: header ? getComputedStyle(header).position : '',
                 height: header?.getBoundingClientRect().height || 0,
-                triggerAt: headerShell
-                    ? headerShell.getBoundingClientRect().bottom + window.scrollY
+                triggerAt: headerShell && header
+                    ? headerShell.getBoundingClientRect().top
+                        + window.scrollY
+                        + header.getBoundingClientRect().height * 2
                     : 0,
                 appLeft: appShell?.getBoundingClientRect().left || 0,
                 appRight: appShell?.getBoundingClientRect().right || 0,
@@ -221,14 +223,14 @@ def assert_primary_navigation_floating_state(page) -> None:
     page.evaluate("top => window.scrollTo(0, Math.max(0, top - 2))", initial["triggerAt"])
     wait_for_ui(page)
     if page.locator(".app-header.app-header-floating").count():
-        raise RuntimeError("主导航在自身完整离开视口前提前进入悬浮状态。")
+        raise RuntimeError("主导航在延迟触发边界前提前进入悬浮状态。")
 
     page.evaluate("top => window.scrollTo(0, top + 2)", initial["triggerAt"])
     page.wait_for_function(
         "() => document.querySelector('.app-header')?.classList.contains('app-header-floating')",
         timeout=5000,
     )
-    page.wait_for_timeout(350)
+    page.wait_for_timeout(550)
     floating = page.evaluate(
         """() => {
             const nav = document.querySelector('.app-header');
@@ -246,6 +248,8 @@ def assert_primary_navigation_floating_state(page) -> None:
                 height: nav?.getBoundingClientRect().height || 0,
                 alpha: channels.length > 3 ? channels[3] : 1,
                 backdrop: style?.backdropFilter || style?.webkitBackdropFilter || '',
+                animationName: style?.animationName || '',
+                animationDuration: style?.animationDuration || '',
                 selectedBottom: selected?.getBoundingClientRect().bottom || 0,
                 headerBottom: nav?.getBoundingClientRect().bottom || 0,
                 viewportWidth: window.innerWidth,
@@ -264,6 +268,11 @@ def assert_primary_navigation_floating_state(page) -> None:
         raise RuntimeError(f"页头切换悬浮状态时发生横向跳动：{initial} -> {floating}")
     if not floating["backdrop"] or floating["backdrop"] == "none":
         raise RuntimeError(f"主导航缺少半透明模糊效果：{floating}")
+    if (
+        floating["animationName"] != "app-header-float-in"
+        or floating["animationDuration"] != "0.5s"
+    ):
+        raise RuntimeError(f"主导航进入动画时长或名称不正确：{floating}")
     if not (
         floating["testTriggerColor"]
         == floating["testLabelColor"]
@@ -295,7 +304,7 @@ def assert_primary_navigation_floating_state(page) -> None:
         "() => !document.querySelector('.app-header')?.classList.contains('app-header-floating')",
         timeout=5000,
     )
-    page.wait_for_timeout(350)
+    page.wait_for_timeout(550)
 
 
 def assert_test_navigation_menu(page) -> None:
