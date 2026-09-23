@@ -2,12 +2,44 @@
  * Gradio scopes launch(css=...) below its internal .contain node. Rules that
  * size the outer application shell must be injected through launch(head=...).
  */
+gradio-app > .gradio-container > .main.fillable {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column {
+  display: grid !important;
+  grid-template-columns: minmax(32px, 1fr) minmax(0, 1216px) minmax(32px, 1fr);
+  column-gap: 0 !important;
+  row-gap: 16px !important;
+}
+
+gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column > * {
+  grid-column: 2;
+  min-width: 0;
+}
+
+gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column > .block:has(.app-header-shell) {
+  grid-column: 1 / -1;
+}
+
+gradio-app .block:has(.app-header-shell),
+gradio-app .html-container:has(.app-header-shell) {
+  padding: 0 !important;
+}
+
 @media (max-width: 900px) {
   gradio-app > .gradio-container {
     width: calc(100vw - 24px) !important;
     max-width: calc(100vw - 24px) !important;
     margin-right: auto !important;
     margin-left: auto !important;
+  }
+
+  gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column {
+    grid-template-columns: 12px minmax(0, 1fr) 12px;
   }
 }
 
@@ -17,8 +49,7 @@
     max-width: calc(100vw - 16px) !important;
   }
 
-  gradio-app > .gradio-container > .main.fillable {
-    padding-right: 8px !important;
-    padding-left: 8px !important;
+  gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column {
+    grid-template-columns: 8px minmax(0, 1fr) 8px;
   }
 }

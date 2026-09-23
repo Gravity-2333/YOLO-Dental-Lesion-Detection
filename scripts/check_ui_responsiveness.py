@@ -182,6 +182,7 @@ def assert_primary_navigation_floating_state(page) -> None:
         """() => {
             const headerShell = document.querySelector('.app-header-shell');
             const header = document.querySelector('.app-header');
+            const appShell = document.querySelector('.gradio-container');
             const brand = document.querySelector('.app-header-brand');
             const nav = document.querySelector('.app-primary-nav');
             return {
@@ -191,6 +192,11 @@ def assert_primary_navigation_floating_state(page) -> None:
                 triggerAt: headerShell
                     ? headerShell.getBoundingClientRect().bottom + window.scrollY
                     : 0,
+                appLeft: appShell?.getBoundingClientRect().left || 0,
+                appRight: appShell?.getBoundingClientRect().right || 0,
+                headerLeft: header?.getBoundingClientRect().left || 0,
+                headerRight: header?.getBoundingClientRect().right || 0,
+                headerTop: header?.getBoundingClientRect().top || 0,
                 brandRight: brand?.getBoundingClientRect().right || 0,
                 brandBottom: brand?.getBoundingClientRect().bottom || 0,
                 navLeft: nav?.getBoundingClientRect().left || 0,
@@ -200,6 +206,12 @@ def assert_primary_navigation_floating_state(page) -> None:
     )
     if initial["floating"] or initial["position"] != "relative" or initial["height"] < 80:
         raise RuntimeError(f"主导航初始状态不正确：{initial}")
+    if (
+        abs(initial["headerLeft"] - initial["appLeft"]) > 1
+        or abs(initial["headerRight"] - initial["appRight"]) > 1
+        or abs(initial["headerTop"]) > 1
+    ):
+        raise RuntimeError(f"常规页头没有横向撑满应用并贴顶：{initial}")
     if (
         initial["brandRight"] > initial["navLeft"] + 1
         and initial["brandBottom"] > initial["navTop"] + 1
@@ -229,6 +241,8 @@ def assert_primary_navigation_floating_state(page) -> None:
             const channels = (color.match(/[\\d.]+/g) || []).map(Number);
             return {
                 top: nav?.getBoundingClientRect().top ?? -999,
+                left: nav?.getBoundingClientRect().left ?? -999,
+                right: nav?.getBoundingClientRect().right ?? -999,
                 height: nav?.getBoundingClientRect().height || 0,
                 alpha: channels.length > 3 ? channels[3] : 1,
                 backdrop: style?.backdropFilter || style?.webkitBackdropFilter || '',
@@ -243,6 +257,11 @@ def assert_primary_navigation_floating_state(page) -> None:
     )
     if abs(floating["top"]) > 1 or floating["height"] < 80 or not 0.6 <= floating["alpha"] <= 0.8:
         raise RuntimeError(f"主导航未正确悬浮或背景不透明：{floating}")
+    if (
+        abs(floating["left"] - initial["headerLeft"]) > 1
+        or abs(floating["right"] - initial["headerRight"]) > 1
+    ):
+        raise RuntimeError(f"页头切换悬浮状态时发生横向跳动：{initial} -> {floating}")
     if not floating["backdrop"] or floating["backdrop"] == "none":
         raise RuntimeError(f"主导航缺少半透明模糊效果：{floating}")
     if not (

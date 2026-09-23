@@ -191,10 +191,12 @@ class UiAssetTests(unittest.TestCase):
         self.assertTrue(head.startswith("<style>"))
         self.assertTrue(head.endswith("</style>"))
         self.assertIn("gradio-app > .gradio-container", head)
+        self.assertIn("grid-template-columns: minmax(32px, 1fr) minmax(0, 1216px)", head)
+        self.assertIn("grid-column: 1 / -1", head)
+        self.assertIn(":has(.app-header-shell)", head)
         self.assertIn("width: calc(100vw - 16px) !important", head)
         self.assertIn("> .main.fillable", head)
-        self.assertIn("padding-right: 8px !important", head)
-        self.assertIn("padding-left: 8px !important", head)
+        self.assertIn("grid-template-columns: 8px minmax(0, 1fr) 8px", head)
 
     def test_directory_picker_buttons_have_specific_accessible_names(self) -> None:
         settings_source = inspect.getsource(build_settings_page)
