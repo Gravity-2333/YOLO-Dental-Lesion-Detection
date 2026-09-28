@@ -1137,6 +1137,144 @@ td {
   padding: 14px 16px 16px !important;
 }
 
+.context-help {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+/* Gradio wraps groups in overflow-hidden styler nodes; let local help bubbles escape. */
+.model-status-card,
+.model-status-card > .styler,
+.settings-sections,
+.settings-sections > .styler,
+.settings-card,
+.settings-card > .styler {
+  overflow: visible !important;
+}
+
+.context-help > summary {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #9fb4b0;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #305f59;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1;
+  list-style: none;
+  cursor: help;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.context-help > summary::-webkit-details-marker {
+  display: none;
+}
+
+.context-help > summary::marker {
+  content: "";
+}
+
+.context-help-warning > summary {
+  border-color: #d1a366;
+  color: #8c5a22;
+}
+
+.context-help:hover > summary,
+.context-help:focus-within > summary,
+.context-help[open] > summary {
+  border-color: var(--brand-gold);
+  background: #fbf4eb;
+  color: var(--brand-gold-dark);
+  box-shadow: 0 0 0 3px rgba(204, 158, 108, 0.16);
+}
+
+.context-help-bubble {
+  position: absolute;
+  z-index: 140;
+  top: 100%;
+  right: 0;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  padding-top: 10px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition:
+    opacity 180ms ease,
+    visibility 180ms ease,
+    transform 180ms ease;
+}
+
+.context-help:not([open]) > .context-help-bubble {
+  display: block;
+}
+
+.context-help-bubble-card {
+  position: relative;
+  padding: 15px 16px;
+  border: 1px solid #dfe7e5;
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  box-shadow: 0 16px 34px rgba(20, 25, 26, 0.16);
+  color: #334155;
+  text-align: left;
+}
+
+.context-help-bubble-card::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-top: 1px solid #dfe7e5;
+  border-left: 1px solid #dfe7e5;
+  background: #ffffff;
+  transform: rotate(45deg);
+}
+
+.context-help-bubble-card > strong {
+  display: block;
+  margin: 0 0 8px;
+  color: #172321;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.context-help-bubble-card > p {
+  margin: 0 0 8px;
+  color: #52615f;
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.context-help-bubble-card > p:last-child {
+  margin-bottom: 0;
+}
+
+.context-help:hover .context-help-bubble,
+.context-help:focus-within .context-help-bubble,
+.context-help[open] .context-help-bubble {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
 .case-card .block > button.label-wrap:hover,
 .chat-card .block > button.label-wrap:hover,
 .guide-card .block > button.label-wrap:hover {

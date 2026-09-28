@@ -250,6 +250,38 @@ def check_patient_toolbar_clearance(page, minimum_gap: int = 8) -> None:
         raise RuntimeError(f"患者选择框仍存在双层边框：{layout}")
 
 
+def show_context_help(page, scope: str, *, click: bool = False) -> None:
+    help_root = page.locator(f"{scope} .context-help:visible").first
+    trigger = help_root.locator("summary")
+    if click:
+        trigger.click(timeout=10000)
+    else:
+        trigger.hover(timeout=10000)
+    page.wait_for_timeout(400)
+    state = help_root.locator(".context-help-bubble-card").evaluate(
+        """element => {
+            const rect = element.getBoundingClientRect();
+            const clippedBy = [];
+            for (let node = element.parentElement; node; node = node.parentElement) {
+                const style = getComputedStyle(node);
+                const nodeRect = node.getBoundingClientRect();
+                const clipsX = ['hidden', 'clip'].includes(style.overflowX)
+                    && (rect.left < nodeRect.left || rect.right > nodeRect.right);
+                const clipsY = ['hidden', 'clip'].includes(style.overflowY)
+                    && (rect.top < nodeRect.top || rect.bottom > nodeRect.bottom);
+                if (clipsX || clipsY) clippedBy.push(`${node.tagName}.${String(node.className)}`);
+            }
+            return {
+                valid: rect.width >= 220 && rect.height > 0 && clippedBy.length === 0,
+                rect: {left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom},
+                clippedBy,
+            };
+        }"""
+    )
+    if not state["valid"]:
+        raise RuntimeError(f"上下文提示气泡未显示：{scope} {state}")
+
+
 def capture(args: argparse.Namespace) -> None:
     base_url = str(args.base_url).rstrip("/")
     output_dir = Path(args.output).expanduser()
@@ -332,6 +364,8 @@ def capture(args: argparse.Namespace) -> None:
                 name("01-workbench-desktop.png", suffix),
                 reset_scroll=True,
             )
+            show_context_help(page, ".workbench-model-status", click=True)
+            save(page, output_dir, name("01-workbench-help-tooltip.png", suffix))
 
             try:
                 click_tab(page, "设置")
@@ -419,6 +453,12 @@ def capture(args: argparse.Namespace) -> None:
                         reset_scroll=True,
                     )
                     if tab_name == "设置":
+                        show_context_help(detail_page, ".settings-sections", click=True)
+                        save(
+                            detail_page,
+                            output_dir,
+                            name("06-settings-help-tooltip.png", suffix),
+                        )
                         click_accordion(detail_page, "存储与隐私")
                         check_visible_path_row_alignment(detail_page, "存储目录")
                         save(
@@ -464,6 +504,12 @@ def capture(args: argparse.Namespace) -> None:
                 mobile.evaluate("window.scrollTo(0, 0)")
                 click_tab(mobile, "检测工作台")
                 check_horizontal_overflow(mobile, "移动端工作台")
+                show_context_help(mobile, ".workbench-model-status", click=True)
+                save(
+                    mobile,
+                    output_dir,
+                    name("07-workbench-help-tooltip-mobile.png", suffix),
+                )
                 save(
                     mobile,
                     output_dir,

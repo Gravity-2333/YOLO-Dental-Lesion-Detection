@@ -651,6 +651,67 @@ def assert_patient_toolbar_does_not_overlap_tabs(page, minimum_gap: int = 8) -> 
         raise RuntimeError(f"患者选择框仍存在双层边框：{layout}")
 
 
+def assert_context_help_bubble(page, scope: str, *, activate: str = "hover") -> None:
+    help_root = page.locator(f"{scope} .context-help:visible").first
+    trigger = help_root.locator("summary")
+    trigger.wait_for(state="visible")
+    if activate == "click":
+        trigger.click()
+    else:
+        trigger.hover()
+    page.wait_for_timeout(220)
+    state = help_root.evaluate(
+        """root => {
+            const trigger = root.querySelector('summary');
+            const bubble = root.querySelector('.context-help-bubble');
+            const card = bubble?.querySelector('.context-help-bubble-card');
+            if (!trigger || !bubble || !card) return null;
+            const triggerRect = trigger.getBoundingClientRect();
+            const bubbleRect = card.getBoundingClientRect();
+            const style = getComputedStyle(bubble);
+            const clippedBy = [];
+            for (let node = root.parentElement; node; node = node.parentElement) {
+                const nodeStyle = getComputedStyle(node);
+                const nodeRect = node.getBoundingClientRect();
+                const clipsX = ['hidden', 'clip'].includes(nodeStyle.overflowX)
+                    && (bubbleRect.left < nodeRect.left || bubbleRect.right > nodeRect.right);
+                const clipsY = ['hidden', 'clip'].includes(nodeStyle.overflowY)
+                    && (bubbleRect.top < nodeRect.top || bubbleRect.bottom > nodeRect.bottom);
+                if (clipsX || clipsY) clippedBy.push(`${node.tagName}.${String(node.className)}`);
+            }
+            return {
+                triggerWidth: triggerRect.width,
+                triggerHeight: triggerRect.height,
+                bubbleLeft: bubbleRect.left,
+                bubbleRight: bubbleRect.right,
+                bubbleWidth: bubbleRect.width,
+                bubbleTop: bubbleRect.top,
+                bubbleBottom: bubbleRect.bottom,
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
+                opacity: Number(style.opacity),
+                visibility: style.visibility,
+                text: card.textContent || '',
+                clippedBy,
+            };
+        }""",
+    )
+    if state is None:
+        raise RuntimeError(f"上下文提示结构缺失：{scope}")
+    if abs(state["triggerWidth"] - state["triggerHeight"]) > 1 or state["triggerWidth"] < 24:
+        raise RuntimeError(f"上下文提示图标不是稳定圆形：{state}")
+    if (
+        state["bubbleLeft"] < -1
+        or state["bubbleRight"] > state["viewportWidth"] + 1
+        or state["bubbleWidth"] < 220
+    ):
+        raise RuntimeError(f"上下文提示气泡超出视口或过窄：{state}")
+    if state["opacity"] < 0.95 or state["visibility"] != "visible" or len(state["text"].strip()) < 10:
+        raise RuntimeError(f"上下文提示气泡未正确显示：{state}")
+    if state["clippedBy"]:
+        raise RuntimeError(f"上下文提示气泡被父级容器裁剪或遮挡：{state}")
+
+
 def assert_rows_aligned(
     page,
     label: str,
@@ -717,6 +778,7 @@ def main() -> int:
         assert_workbench_tab_rows_aligned(page)
         assert_workbench_tabs_have_no_full_width_rule(page)
         assert_patient_toolbar_does_not_overlap_tabs(page)
+        assert_context_help_bubble(page, ".workbench-model-status")
         ensure_accordion_open(page, accordion(page, "真实牙片示例"), "展开真实牙片示例", args.max_seconds, timings)
         assert_example_dropdown_has_single_frame(page)
 
@@ -778,6 +840,7 @@ def main() -> int:
             )
 
         timed_click(page, top_tab(page, "设置"), "进入设置", args.max_seconds, timings)
+        assert_context_help_bubble(page, ".settings-sections")
         for name in ["模型与推理", "模型说明", "AI 接口", "存储与隐私"]:
             timed_click(page, accordion(page, name), f"展开设置/{name}", args.max_seconds, timings)
             if name == "模型与推理":
@@ -835,6 +898,7 @@ def main() -> int:
         top_tab(mobile, "检测工作台").click(timeout=10000)
         wait_for_ui(mobile)
         assert_no_page_overflow(mobile, "移动端工作台")
+        assert_context_help_bubble(mobile, ".workbench-model-status", activate="click")
         mobile.close()
         browser.close()
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .model_files import is_advanced_model_path, is_recommended_model_path, model_label_from_path
+from .ui_content import WORKBENCH_HELP_TEXT, context_help_html
 
 
 def format_model_path_for_display(path: str | Path, *, max_chars: int = 88) -> str:
@@ -120,11 +121,17 @@ def build_workbench_model_status_html(
         if device_choice is not None
         else ""
     )
+    help_html = context_help_html(
+        "识别说明",
+        WORKBENCH_HELP_TEXT,
+        kind="warning",
+    )
     return f"""
 <div class="workbench-model-status {status_class}">
   <strong>{escape(title)}</strong>
   <span class="model-status-type">类型：{escape(model_type)}</span>
   <span class="model-status-availability">状态：{escape(status)}</span>
   {device_html}
+  {help_html}
 </div>
 """

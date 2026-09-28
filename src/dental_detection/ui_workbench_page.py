@@ -13,7 +13,7 @@ from .ui_constants import (
     MODEL_MODE_COMPARE,
     MODEL_MODE_SINGLE,
 )
-from .ui_content import WORKBENCH_HELP_TEXT, section_heading
+from .ui_content import section_heading
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,10 +99,8 @@ def analysis_button_state(value: Any):
 
 
 def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
-    with gr.Group(elem_classes=["section-card", "guide-card"]):
+    with gr.Group(elem_classes=["section-card", "guide-card", "model-status-card"]):
         workbench_model_status = gr.HTML(data.model_status_html)
-        with gr.Accordion("识别说明", open=False, elem_classes=["compact-accordion"]):
-            gr.Markdown(WORKBENCH_HELP_TEXT)
 
     with gr.Row(elem_classes=["workbench-patient-bar"]):
         with gr.Column(elem_classes=["patient-control-group"]):

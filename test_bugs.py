@@ -1571,10 +1571,16 @@ try:
     css_text = load_workbench_css()
     assert ".guide-steps" not in css_text, "已移除的流程提示不应继续占用首屏空间"
     media_start = css_text.index("@media (max-width: 640px)")
-    guide_rule_start = css_text.index("  .guide-card .compact-accordion {", media_start)
-    guide_rule_end = css_text.index("  }", guide_rule_start)
-    guide_rule = css_text[guide_rule_start:guide_rule_end]
-    assert "display: none" in guide_rule, "移动端应隐藏折叠说明，只保留当前模型状态"
+    status_rule_start = css_text.index("  .result-stage-note,", media_start)
+    status_rule_end = css_text.index("  }", status_rule_start)
+    status_rule = css_text[status_rule_start:status_rule_end]
+    help_rule_start = css_text.index("  .context-help-bubble {", media_start)
+    help_rule_end = css_text.index("  }", help_rule_start)
+    help_rule = css_text[help_rule_start:help_rule_end]
+    workbench_source = (Path(__file__).resolve().parent / "src" / "dental_detection" / "ui_workbench_page.py").read_text(encoding="utf-8")
+    assert "grid-template-columns: minmax(0, 1fr) auto" in status_rule, "模型状态与提示图标应保持紧凑双列"
+    assert "calc(100vw - 64px)" in help_rule, "移动端提示气泡应保留内容区安全边距"
+    assert 'gr.Accordion("识别说明"' not in workbench_source, "识别说明不应退回展开式折叠面板"
     print("✓ 移动端顶部状态区收敛正常")
 except Exception as e:
     print(f"✗ 移动端顶部状态区样式测试失败: {e}")

@@ -522,13 +522,9 @@
     margin-bottom: 6px;
   }
 
-  .guide-card .compact-accordion {
-    display: none !important;
-  }
-
   .result-stage-note,
   .workbench-model-status {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 4px;
     padding: 9px 10px;
   }
@@ -623,16 +619,29 @@
     padding: 10px !important;
   }
 
-  .guide-card .workbench-model-status span {
+  .guide-card .workbench-model-status > .model-status-type,
+  .guide-card .workbench-model-status > .model-status-availability {
     display: none;
   }
 
-  .guide-card .workbench-model-status .model-status-device {
+  .guide-card .workbench-model-status > .model-status-device {
     display: block;
+    grid-column: 1 / -1;
   }
 
-  .guide-card .workbench-model-status strong {
+  .guide-card .workbench-model-status > strong {
     line-height: 1.4;
+  }
+
+  .guide-card .workbench-model-status > .context-help {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .context-help-bubble {
+    width: min(340px, calc(100vw - 64px));
+    max-width: calc(100vw - 64px);
   }
 
   .guide-card > .form,

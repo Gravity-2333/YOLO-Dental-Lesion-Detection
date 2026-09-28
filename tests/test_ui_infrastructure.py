@@ -45,6 +45,7 @@ from src.dental_detection.ui_content import (
     CASE_INTRO_HTML,
     HISTORY_INTRO_HTML,
     WORKBENCH_HELP_TEXT,
+    context_help_html,
     inline_status_html,
     section_heading,
     toast_html,
@@ -1007,6 +1008,33 @@ class UiContentTests(unittest.TestCase):
         html = section_heading("<标题>", "A&B")
         self.assertIn("&lt;标题&gt;", html)
         self.assertIn("A&amp;B", html)
+
+    def test_context_help_is_safe_and_accessible(self) -> None:
+        html = context_help_html("<说明>", "A&B\n\n下一段", kind="warning")
+
+        self.assertIn('class="context-help context-help-warning"', html)
+        self.assertIn('role="tooltip"', html)
+        self.assertIn('aria-describedby="context-help-', html)
+        self.assertIn("&lt;说明&gt;", html)
+        self.assertIn("A&amp;B", html)
+        self.assertNotIn("<说明>", html)
+
+    def test_explanatory_accordions_are_replaced_by_context_help(self) -> None:
+        workbench_source = inspect.getsource(build_workbench_page)
+        settings_source = inspect.getsource(build_settings_page)
+        css = load_workbench_css()
+
+        self.assertNotIn('gr.Accordion("识别说明"', workbench_source)
+        self.assertNotIn('gr.Accordion("说明"', settings_source)
+        self.assertNotIn('gr.Accordion("接口说明"', settings_source)
+        self.assertGreaterEqual(settings_source.count("help_text="), 4)
+        self.assertIn(".context-help:hover .context-help-bubble", css)
+        self.assertIn(".context-help:focus-within .context-help-bubble", css)
+        self.assertIn(".context-help[open] .context-help-bubble", css)
+        self.assertIn('"model-status-card"', workbench_source)
+        self.assertIn(".model-status-card > .styler", css)
+        self.assertIn(".settings-card > .styler", css)
+        self.assertIn("overflow: visible !important", css)
 
     def test_shared_feedback_html_escapes_content_and_keeps_display_mode(self) -> None:
         toast = toast_html("<失败>\nA&B", "warning")

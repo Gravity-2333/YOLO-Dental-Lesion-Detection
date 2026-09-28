@@ -63,6 +63,8 @@ class WorkbenchModelStatusTests(unittest.TestCase):
 
         self.assertIn("设备：CUDA GPU 1", html)
         self.assertIn('class="model-status-device"', html)
+        self.assertIn('class="context-help context-help-warning"', html)
+        self.assertIn('role="tooltip"', html)
 
     def test_status_refresh_tracks_model_and_device_inputs(self) -> None:
         source = inspect.getsource(app.build_app)
@@ -74,11 +76,11 @@ class WorkbenchModelStatusTests(unittest.TestCase):
         self.assertEqual(source.count("inputs=[primary_model_path, device_choice]"), 3)
         self.assertIn("queue=False", source.split("triggers=[primary_model_path.input", 1)[1].split(")", 1)[0])
         self.assertIn(
-            "grid-template-columns: minmax(240px, 1fr) auto auto auto;",
+            "grid-template-columns: minmax(240px, 1fr) auto auto auto auto;",
             load_workbench_css(),
         )
         self.assertIn(
-            ".guide-card .workbench-model-status .model-status-device",
+            ".guide-card .workbench-model-status > .model-status-device",
             load_workbench_css(),
         )
 
