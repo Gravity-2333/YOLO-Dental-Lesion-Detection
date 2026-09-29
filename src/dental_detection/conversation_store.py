@@ -47,14 +47,23 @@ def conversation_title(messages: Any, fallback: str = "新对话") -> str:
     return fallback
 
 
-def _normalize_messages(messages: Any) -> list[dict[str, str]]:
-    normalized: list[dict[str, str]] = []
+def _normalize_messages(messages: Any) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
     for message in messages or []:
         if isinstance(message, dict):
             role = str(message.get("role") or "assistant")
             if role not in {"system", "user", "assistant"}:
                 role = "assistant"
-            normalized.append({"role": role, "content": str(message.get("content", ""))})
+            item: dict[str, Any] = {
+                "role": role,
+                "content": str(message.get("content", "")),
+            }
+            metadata = message.get("metadata")
+            if isinstance(metadata, dict):
+                title = str(metadata.get("title") or "").strip()
+                if title.startswith("chat-time:"):
+                    item["metadata"] = {"title": title}
+            normalized.append(item)
         elif isinstance(message, (list, tuple)) and len(message) >= 2:
             user_content, assistant_content = message[0], message[1]
             if user_content is not None and user_content != "":
@@ -347,7 +356,7 @@ def load_conversation(
     file_name: str,
     storage_dir: str | None = None,
     patient_id: str | None = None,
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     selected_patient_id = str(patient_id or "").strip()
     with _CONVERSATION_FILE_LOCK:
         path, is_legacy_personal = _validated_conversation_path(

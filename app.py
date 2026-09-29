@@ -892,15 +892,21 @@ def _auto_append_history(batch_state: list[dict[str, Any]], storage_dir: str, hi
     return ""
 
 
-def _normalize_chat_history(history: Any) -> list[dict[str, str]]:
-    normalized: list[dict[str, str]] = []
+def _normalize_chat_history(history: Any) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
     for item in history or []:
         if isinstance(item, dict):
             role = str(item.get("role") or "assistant")
             content = item.get("content", "")
             if role not in {"system", "user", "assistant"}:
                 role = "assistant"
-            normalized.append({"role": role, "content": str(content)})
+            message: dict[str, Any] = {"role": role, "content": str(content)}
+            metadata = item.get("metadata")
+            if isinstance(metadata, dict):
+                title = str(metadata.get("title") or "").strip()
+                if title.startswith("chat-time:"):
+                    message["metadata"] = {"title": title}
+            normalized.append(message)
         elif isinstance(item, (list, tuple)) and len(item) >= 2:
             user_content, assistant_content = item[0], item[1]
             if user_content is not None and user_content != "":
@@ -910,6 +916,16 @@ def _normalize_chat_history(history: Any) -> list[dict[str, str]]:
         elif item is not None and item != "":
             normalized.append({"role": "assistant", "content": str(item)})
     return normalized
+
+
+def _chat_message(role: str, content: str) -> dict[str, Any]:
+    return {
+        "role": role,
+        "content": str(content),
+        "metadata": {
+            "title": f"chat-time:{datetime.now().isoformat(timespec='minutes')}"
+        },
+    }
 
 
 def _suggestion_type(ai_enabled: bool) -> str:
@@ -3018,15 +3034,15 @@ def continue_chat(
         advice_style,
     )
     history = _normalize_chat_history(history)
-    user_entry = {"role": "user", "content": user_message}
+    user_entry = _chat_message("user", user_message)
     clear_input = True
     if not settings.enabled:
         history.append(user_entry)
         history.append(
-            {
-                "role": "assistant",
-                "content": "AI 功能未开启。当前只能查看检测后的内置建议。",
-            }
+            _chat_message(
+                "assistant",
+                "AI 功能未开启。当前只能查看检测后的内置建议。",
+            )
         )
     else:
         try:
@@ -3041,16 +3057,28 @@ def continue_chat(
                 "其中不包含原始影像，不得把模型结果表述为最终诊断：\n"
                 f"{detection_context.prompt_text}"
             )
-            messages = [{"role": "system", "content": system_prompt}, *history, user_entry]
+            messages = [
+                {"role": "system", "content": system_prompt},
+                *(
+                    {"role": item["role"], "content": item["content"]}
+                    for item in history
+                ),
+                {"role": "user", "content": user_message},
+            ]
             answer = chat_completion(settings, messages, temperature=0.2, max_tokens=500)
         except Exception as exc:
             answer = friendly_error_message(exc, "AI 回复失败")
             clear_input = False
         history.append(user_entry)
         if answer.strip():
-            history.append({"role": "assistant", "content": answer})
+            history.append(_chat_message("assistant", answer))
         else:
-            history.append({"role": "assistant", "content": "AI 未返回有效内容，请重试或检查接口配置。"})
+            history.append(
+                _chat_message(
+                    "assistant",
+                    "AI 未返回有效内容，请重试或检查接口配置。",
+                )
+            )
             clear_input = False
     if settings.auto_save:
         auto_save_warning = _auto_save_conversation(
@@ -3059,7 +3087,7 @@ def continue_chat(
             patient_id,
         )
         if auto_save_warning:
-            history.append({"role": "assistant", "content": auto_save_warning})
+            history.append(_chat_message("assistant", auto_save_warning))
             clear_input = False
     return history, history, "" if clear_input else user_message, _clear_file_output(), ""
 
@@ -3124,7 +3152,7 @@ def continue_chat_in_workspace(
             warning = friendly_error_message(exc, "自动保存对话失败")
             updated_history = [
                 *updated_history,
-                {"role": "assistant", "content": warning},
+                _chat_message("assistant", warning),
             ]
             result = (
                 updated_history,
@@ -3152,6 +3180,102 @@ def regenerate_last_chat_response(
         normalized,
         current_file,
         *workspace_inputs,
+    )
+
+
+def _message_event_index(index: Any, history_length: int) -> int:
+    raw_index = index[0] if isinstance(index, tuple) else index
+    try:
+        resolved = int(raw_index)
+    except (TypeError, ValueError) as exc:
+        raise gr.Error("无法识别所选消息，请刷新页面后重试。") from exc
+    if resolved < 0 or resolved >= history_length:
+        raise gr.Error("所选消息已发生变化，请刷新页面后重试。")
+    return resolved
+
+
+def retry_chat_response(
+    retry_data: gr.RetryData,
+    history: list[dict[str, str]],
+    current_file: str,
+    *workspace_inputs,
+):
+    normalized = _normalize_chat_history(history)
+    index = _message_event_index(retry_data.index, len(normalized))
+    user_index = index
+    if normalized[user_index]["role"] == "assistant":
+        user_index -= 1
+    if user_index < 0 or normalized[user_index]["role"] != "user":
+        raise gr.Error("所选回复前没有可重试的用户提问。")
+    question = normalized[user_index]["content"]
+    return continue_chat_in_workspace(
+        question,
+        normalized[:user_index],
+        current_file,
+        *workspace_inputs,
+    )
+
+
+def edit_chat_message(
+    edit_data: gr.EditData,
+    history: list[dict[str, str]],
+    current_file: str,
+    *workspace_inputs,
+):
+    normalized = _normalize_chat_history(history)
+    index = _message_event_index(edit_data.index, len(normalized))
+    if normalized[index]["role"] != "user":
+        raise gr.Error("当前只支持编辑用户发送的内容。")
+    value = edit_data.value
+    if isinstance(value, dict):
+        value = value.get("content", "")
+    question = str(value or "").strip()
+    if not question:
+        raise gr.Error("编辑后的内容不能为空。")
+    return continue_chat_in_workspace(
+        question,
+        normalized[:index],
+        current_file,
+        *workspace_inputs,
+    )
+
+
+def branch_chat_conversation(
+    index_text: str,
+    history: list[dict[str, str]],
+    storage_dir: str,
+    patient_id: str,
+    query: str = "",
+):
+    normalized = _normalize_chat_history(history)
+    index = _message_event_index(index_text, len(normalized))
+    branch_history = normalized[: index + 1]
+    if not branch_history:
+        raise gr.Error("当前没有可创建分支的内容。")
+    title = f"{conversation_title(branch_history)} · 分支"
+    try:
+        path = save_conversation(
+            branch_history,
+            storage_dir,
+            retain_limit=_normalize_history_limit(load_settings().history_limit),
+            patient_id=patient_id,
+            title=title,
+        )
+        selector, _ = refresh_conversation_history(
+            storage_dir,
+            patient_id,
+            query=query,
+        )
+    except Exception as exc:
+        raise gr.Error(f"创建对话分支失败：{exc}") from exc
+    selector["value"] = path.name
+    return (
+        branch_history,
+        branch_history,
+        path.name,
+        title,
+        selector,
+        "已从所选回复创建并切换到新对话分支。",
     )
 
 
@@ -3605,6 +3729,8 @@ def build_app() -> gr.Blocks:
                 rename_conversation_btn = ai_chat.conversation_rename_button
                 delete_conversation_btn = ai_chat.conversation_delete_button
                 conversation_feedback = ai_chat.conversation_feedback
+                branch_index_input = ai_chat.branch_index
+                branch_conversation_btn = ai_chat.branch_button
                 export_path = ai_chat.export_path
                 export_btn = ai_chat.export_button
                 export_file = ai_chat.export_file
@@ -4530,9 +4656,57 @@ def build_app() -> gr.Blocks:
             trigger_mode="once",
             show_progress="minimal",
         )
+        retry_event = chatbot.retry(
+            fn=retry_chat_response,
+            inputs=[
+                chat_state,
+                current_conversation_file_state,
+                *settings.ai_request_inputs(),
+                patient_select,
+                batch_state,
+                batch_select,
+            ],
+            outputs=[
+                chatbot,
+                chat_state,
+                chat_input,
+                export_file,
+                export_path,
+                current_conversation_file_state,
+                conversation_title_input,
+            ],
+            concurrency_limit=1,
+            concurrency_id=AI_REQUEST_CONCURRENCY_ID,
+            trigger_mode="once",
+            show_progress="minimal",
+        )
+        edit_event = chatbot.edit(
+            fn=edit_chat_message,
+            inputs=[
+                chat_state,
+                current_conversation_file_state,
+                *settings.ai_request_inputs(),
+                patient_select,
+                batch_state,
+                batch_select,
+            ],
+            outputs=[
+                chatbot,
+                chat_state,
+                chat_input,
+                export_file,
+                export_path,
+                current_conversation_file_state,
+                conversation_title_input,
+            ],
+            concurrency_limit=1,
+            concurrency_id=AI_REQUEST_CONCURRENCY_ID,
+            trigger_mode="once",
+            show_progress="minimal",
+        )
         stop_chat_btn.click(
             fn=None,
-            cancels=[chat_event, regenerate_event],
+            cancels=[chat_event, regenerate_event, retry_event, edit_event],
             queue=False,
             show_progress="hidden",
         )
@@ -4587,6 +4761,31 @@ def build_app() -> gr.Blocks:
             queue=False,
             show_progress="hidden",
         )
+        for revision_event in (retry_event, edit_event):
+            revision_event.success(
+                fn=refresh_ai_runtime_status,
+                inputs=[
+                    chat_state,
+                    batch_state,
+                    batch_select,
+                    *settings.ai_request_inputs(),
+                ],
+                outputs=ai_runtime_status,
+                queue=False,
+                show_progress="hidden",
+            )
+            revision_event.success(
+                fn=refresh_conversation_history_after_workspace_chat,
+                inputs=[
+                    auto_save,
+                    storage_dir,
+                    patient_select,
+                    current_conversation_file_state,
+                ],
+                outputs=[conversation_select, conversation_feedback],
+                queue=False,
+                show_progress="hidden",
+            )
         regenerate_event.success(
             fn=refresh_conversation_history_after_workspace_chat,
             inputs=[
@@ -4630,7 +4829,7 @@ def build_app() -> gr.Blocks:
                 load_conversation_btn.click,
             ],
             fn=None,
-            cancels=[chat_event, regenerate_event],
+            cancels=[chat_event, regenerate_event, retry_event, edit_event],
             queue=False,
             show_progress="hidden",
         )
@@ -4648,7 +4847,7 @@ def build_app() -> gr.Blocks:
                 conversation_title_input,
                 conversation_feedback,
             ],
-            cancels=[chat_event, regenerate_event],
+            cancels=[chat_event, regenerate_event, retry_event, edit_event],
             queue=False,
             show_progress="hidden",
         )
@@ -4666,7 +4865,7 @@ def build_app() -> gr.Blocks:
                 conversation_title_input,
                 conversation_feedback,
             ],
-            cancels=[chat_event, regenerate_event],
+            cancels=[chat_event, regenerate_event, retry_event, edit_event],
             queue=False,
             show_progress="hidden",
         )
@@ -4768,11 +4967,44 @@ def build_app() -> gr.Blocks:
                 chat_state,
                 current_conversation_file_state,
             ],
-            cancels=[chat_event, regenerate_event],
+            cancels=[chat_event, regenerate_event, retry_event, edit_event],
             trigger_mode="always_last",
             show_progress="minimal",
         )
         delete_conversation_event.success(
+            fn=refresh_ai_runtime_status,
+            inputs=[
+                chat_state,
+                batch_state,
+                batch_select,
+                *settings.ai_request_inputs(),
+            ],
+            outputs=ai_runtime_status,
+            queue=False,
+            show_progress="hidden",
+        )
+        branch_conversation_event = branch_conversation_btn.click(
+            fn=branch_chat_conversation,
+            inputs=[
+                branch_index_input,
+                chat_state,
+                storage_dir,
+                patient_select,
+                conversation_search,
+            ],
+            outputs=[
+                chatbot,
+                chat_state,
+                current_conversation_file_state,
+                conversation_title_input,
+                conversation_select,
+                conversation_feedback,
+            ],
+            cancels=[chat_event, regenerate_event, retry_event, edit_event],
+            trigger_mode="always_last",
+            show_progress="minimal",
+        )
+        branch_conversation_event.success(
             fn=refresh_ai_runtime_status,
             inputs=[
                 chat_state,

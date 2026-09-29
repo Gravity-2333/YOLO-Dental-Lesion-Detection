@@ -199,7 +199,7 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("grid-template-columns: minmax(32px, 1fr) minmax(0, 1216px)", head)
         self.assertIn("grid-column: 1 / -1", head)
         self.assertIn(":has(.app-header-shell)", head)
-        self.assertIn("width: calc(100vw - 16px) !important", head)
+        self.assertIn("width: 100vw !important", head)
         self.assertIn("> .main.fillable", head)
         self.assertIn("grid-template-columns: 8px minmax(0, 1fr) 8px", head)
 
@@ -366,16 +366,16 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("white-space: nowrap !important", narrow_mobile)
         self.assertIn("width: 88px !important", narrow_mobile)
 
-    def test_mobile_chat_composer_stacks_actions_below_the_input(self) -> None:
+    def test_mobile_chat_composer_keeps_compact_icon_actions_beside_the_input(self) -> None:
         css = load_workbench_css()
         ai_mobile = css.split("/* AI chat workspace", 1)[1].split(
             "@media (max-width: 640px)", 1
         )[1]
 
         self.assertIn(".ai-composer", ai_mobile)
-        self.assertIn("grid-template-columns: 1fr !important", ai_mobile)
+        self.assertIn("grid-template-columns: minmax(0, 1fr) auto !important", ai_mobile)
         self.assertIn(".ai-composer-actions", ai_mobile)
-        self.assertIn("grid-template-columns: 1fr 1fr", ai_mobile)
+        self.assertIn("display: flex !important", ai_mobile)
 
     def test_mobile_workbench_export_buttons_stretch_with_the_path_row(self) -> None:
         css = load_workbench_css()
@@ -885,7 +885,10 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("fn=clear_ai_workspace_with_status", clear_source)
         self.assertIn("chat_state", clear_source)
         self.assertIn("ai_runtime_status", clear_source)
-        self.assertIn("cancels=[chat_event, regenerate_event]", clear_source)
+        self.assertIn(
+            "cancels=[chat_event, regenerate_event, retry_event, edit_event]",
+            clear_source,
+        )
         self.assertIn("queue=False", clear_source)
 
     def test_chat_events_refresh_recent_conversation_choices(self) -> None:
@@ -1247,6 +1250,8 @@ class UiContentTests(unittest.TestCase):
             'clickHiddenAction(".ai-conversation-delete-action")',
             javascript,
         )
+        self.assertIn("rect.right + 6", javascript)
+        self.assertIn('document.addEventListener("pointerdown"', javascript)
 
         with TemporaryDirectory() as temp_dir:
             path = app.save_conversation(
@@ -1274,12 +1279,68 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("> .main-tabs", root_shell)
         self.assertIn("grid-column: 1 / -1", root_shell)
         self.assertIn(":has(.ai-chat-workspace)", root_shell)
+        self.assertIn("width: 100vw !important", root_shell)
         self.assertIn("grid-template-columns: var(--ai-sidebar-width)", css)
         self.assertIn(".ai-sidebar-resizer", css)
         self.assertIn('role="separator"', inspect.getsource(build_ai_chat_page))
         self.assertIn("dental-ai-sidebar-width", javascript)
         self.assertIn('resizer.addEventListener("pointerdown"', javascript)
         self.assertIn('resizer.addEventListener("keydown"', javascript)
+
+    def test_ai_messages_use_custom_actions_and_real_revision_events(self) -> None:
+        source = inspect.getsource(app.build_app)
+        page_source = inspect.getsource(build_ai_chat_page)
+        javascript = load_workbench_js()
+        css = load_workbench_css()
+
+        self.assertIn('editable="user"', page_source)
+        self.assertIn("buttons=None", page_source)
+        self.assertIn("retry_event = chatbot.retry(", source)
+        self.assertIn("edit_event = chatbot.edit(", source)
+        self.assertIn('"在新对话中创建分支"', javascript)
+        self.assertIn('"复制", COPY_ICON', javascript)
+        self.assertIn('"编辑", EDIT_ICON', javascript)
+        self.assertIn('"重试", RETRY_ICON', javascript)
+        self.assertIn(".ai-chat-thread .top-panel", css)
+        self.assertIn(".ai-message-action::after", css)
+
+    def test_ai_message_retry_edit_and_branch_keep_the_expected_prefix(self) -> None:
+        history = [
+            {"role": "user", "content": "第一问"},
+            {"role": "assistant", "content": "第一答"},
+            {"role": "user", "content": "第二问"},
+            {"role": "assistant", "content": "第二答"},
+        ]
+        sentinel = ("chatbot", "state", "input", "file", "path", "name", "title")
+        with patch.object(app, "continue_chat_in_workspace", return_value=sentinel) as continue_mock:
+            retried = app.retry_chat_response(SimpleNamespace(index=3), history, "thread.json", "workspace")
+            edited = app.edit_chat_message(
+                SimpleNamespace(index=2, value={"content": "修改后的第二问"}),
+                history,
+                "thread.json",
+                "workspace",
+            )
+
+        self.assertEqual(retried, sentinel)
+        self.assertEqual(edited, sentinel)
+        self.assertEqual(continue_mock.call_args_list[0].args[:3], ("第二问", history[:2], "thread.json"))
+        self.assertEqual(
+            continue_mock.call_args_list[1].args[:3],
+            ("修改后的第二问", history[:2], "thread.json"),
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            branched = app.branch_chat_conversation(
+                "1",
+                history,
+                temp_dir,
+                "patient-1",
+            )
+            self.assertEqual(branched[0], history[:2])
+            self.assertEqual(branched[1], history[:2])
+            self.assertTrue(branched[2])
+            self.assertIn("分支", branched[3])
+            self.assertEqual(branched[4]["value"], branched[2])
 
     def test_api_key_mode_switch_preserves_visible_edits_without_plaintext_state(self) -> None:
         (
@@ -1504,7 +1565,10 @@ class UiContentTests(unittest.TestCase):
             "chat_event = gr.on(",
             1,
         )[1].split("clear_chat_btn.click(", 1)[0]
-        self.assertIn("cancels=[chat_event, regenerate_event]", chat_cancellation_event)
+        self.assertIn(
+            "cancels=[chat_event, regenerate_event, retry_event, edit_event]",
+            chat_cancellation_event,
+        )
         self.assertIn("queue=False", chat_cancellation_event)
         self.assertIn('show_progress="hidden"', chat_cancellation_event)
         for trigger in (

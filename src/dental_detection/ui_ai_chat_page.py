@@ -44,6 +44,8 @@ class AiChatComponents:
     conversation_rename_button: Any
     conversation_delete_button: Any
     conversation_feedback: Any
+    branch_index: Any
+    branch_button: Any
     export_path: Any
     export_button: Any
     export_file: Any
@@ -225,26 +227,24 @@ def build_ai_chat_page(data: AiChatPageData) -> AiChatComponents:
                     max_lines=1,
                     elem_classes=["ai-conversation-search"],
                 )
-                gr.HTML('<div class="ai-sidebar-section-label">最近对话</div>')
+                with gr.Row(elem_classes=["ai-conversation-heading-row"]):
+                    gr.HTML('<div class="ai-sidebar-section-label">最近对话</div>')
+                    conversation_refresh_button = gr.Button(
+                        "刷新对话",
+                        size="sm",
+                        elem_classes=["ai-conversation-refresh-button"],
+                    )
                 conversation_select = gr.Radio(
                     label="最近对话",
                     show_label=False,
                     choices=[],
                     elem_classes=["ai-conversation-list"],
                 )
-                with gr.Row(
-                    elem_classes=["ai-sidebar-actions", "ai-conversation-list-actions"]
-                ):
-                    conversation_load_button = gr.Button(
-                        "打开",
-                        size="sm",
-                        elem_classes=["secondary-action", "ai-conversation-open-action"],
-                    )
-                    conversation_refresh_button = gr.Button(
-                        "刷新",
-                        size="sm",
-                        elem_classes=["secondary-action"],
-                    )
+                conversation_load_button = gr.Button(
+                    "打开",
+                    size="sm",
+                    elem_classes=["secondary-action", "ai-conversation-open-action"],
+                )
                 conversation_title = gr.Textbox(
                     label="对话名称",
                     show_label=False,
@@ -269,6 +269,15 @@ def build_ai_chat_page(data: AiChatPageData) -> AiChatComponents:
                 conversation_feedback = gr.Markdown(
                     "对话记录按患者档案隔离保存在本机。",
                     elem_classes=["ai-sidebar-feedback"],
+                )
+                branch_index = gr.Textbox(
+                    value="",
+                    show_label=False,
+                    elem_classes=["ai-branch-index"],
+                )
+                branch_button = gr.Button(
+                    "创建分支",
+                    elem_classes=["ai-branch-action"],
                 )
 
             gr.HTML(
@@ -313,7 +322,8 @@ def build_ai_chat_page(data: AiChatPageData) -> AiChatComponents:
                     height=510,
                     min_height=420,
                     layout="bubble",
-                    buttons=["copy", "copy_all"],
+                    editable="user",
+                    buttons=None,
                     placeholder=(
                         "完成一次牙片检测后，可询问重点复核位置、检测结果概览，"
                         "或影像质量对判断的影响。"
@@ -370,6 +380,8 @@ def build_ai_chat_page(data: AiChatPageData) -> AiChatComponents:
         conversation_rename_button=conversation_rename_button,
         conversation_delete_button=conversation_delete_button,
         conversation_feedback=conversation_feedback,
+        branch_index=branch_index,
+        branch_button=branch_button,
         export_path=export_path,
         export_button=export_button,
         export_file=export_file,

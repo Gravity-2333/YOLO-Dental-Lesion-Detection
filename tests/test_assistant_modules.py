@@ -204,6 +204,19 @@ class AdviceAndConversationTests(unittest.TestCase):
             self.assertEqual(payload["messages"], messages)
             self.assertEqual(payload["safety_notice"], SAFETY_NOTICE)
 
+    def test_conversation_store_preserves_safe_message_timestamps(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            messages = [
+                {
+                    "role": "user",
+                    "content": "带时间的消息",
+                    "metadata": {"title": "chat-time:2026-09-29T10:30"},
+                }
+            ]
+            path = save_conversation(messages, temp_dir)
+
+            self.assertEqual(load_conversation(path.name, temp_dir), messages)
+
     def test_conversation_store_rejects_files_that_cannot_be_loaded_later(self) -> None:
         with TemporaryDirectory() as temp_dir:
             messages = [
