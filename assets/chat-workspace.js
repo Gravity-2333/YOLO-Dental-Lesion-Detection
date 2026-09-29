@@ -10,6 +10,10 @@
   const REFRESH_ICON = RETRY_ICON;
   const SEND_ICON = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 14.25V3.75M9 3.75L4.75 8M9 3.75L13.25 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const STOP_ICON = '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14"><rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor"/></svg>';
+  const SEARCH_ICON = '<svg data-no-autosize="true" aria-hidden="true" focusable="false" height="20" viewBox="0 0 20 20" width="20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M9.16125 2.37891C12.8651 2.37908 15.8673 5.38206 15.8673 9.08594C15.8672 10.7162 15.2847 12.2098 14.3175 13.3721L17.5597 16.6152C17.8194 16.8749 17.8194 17.296 17.5597 17.5557C17.3 17.8152 16.8789 17.8153 16.6193 17.5557L13.3683 14.3057C12.2176 15.2343 10.7551 15.7919 9.16125 15.792C5.45737 15.792 2.4544 12.7898 2.45422 9.08594C2.45422 5.38195 5.45727 2.37891 9.16125 2.37891ZM9.16125 3.70898C6.1918 3.70898 3.7843 6.11649 3.7843 9.08594C3.78448 12.0552 6.19191 14.4619 9.16125 14.4619C12.1304 14.4617 14.5371 12.0551 14.5372 9.08594C14.5372 6.1166 12.1306 3.70916 9.16125 3.70898Z" fill="currentColor"></path></svg>';
+  const NEW_CHAT_ICON = '<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8.16675 2.50127C8.53391 2.50127 8.83161 2.7992 8.83179 3.16631C8.83179 3.53358 8.53402 3.83135 8.16675 3.83135H5.83374C4.72836 3.83135 3.83197 4.72797 3.83179 5.8333V14.1663C3.83179 15.2718 4.72825 16.1683 5.83374 16.1683H14.1667C15.2722 16.1683 16.1687 15.2718 16.1687 14.1663V11.8333C16.1689 11.4662 16.4666 11.1683 16.8337 11.1683C17.2007 11.1684 17.4986 11.4663 17.4988 11.8333V14.1663C17.4988 16.0063 16.0068 17.4983 14.1667 17.4983H5.83374C3.99371 17.4983 2.50171 16.0063 2.50171 14.1663V5.8333C2.50189 3.99343 3.99382 2.50127 5.83374 2.50127H8.16675Z"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M13.4265 3.10381C14.3857 2.15908 15.9276 2.16466 16.8796 3.11651C17.8339 4.07106 17.8372 5.61827 16.8865 6.57647L11.7244 11.7786C11.3005 12.2058 10.7622 12.5027 10.1746 12.6321L7.78784 13.1565C7.20661 13.2842 6.6889 12.766 6.81714 12.1849L7.34253 9.80498C7.47294 9.21426 7.77197 8.67391 8.20288 8.24932L13.4265 3.10381ZM15.9392 4.05694C15.5038 3.62172 14.7988 3.61907 14.3601 4.05108L9.13647 9.19659C8.88861 9.44077 8.71644 9.75138 8.64136 10.0911L8.28979 11.6849L9.88843 11.3333C10.2265 11.2588 10.5362 11.0878 10.78 10.8421L15.9421 5.63897C16.3769 5.20075 16.3756 4.49352 15.9392 4.05694Z"></path></svg>';
+  const CONVERSATION_ICON = '<svg aria-hidden="true" focusable="false" height="20" viewBox="0 0 20 20" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M16.835 9.99963C16.8348 6.49033 13.8111 3.58167 10 3.58167C6.18893 3.58167 3.16523 6.49033 3.16504 9.99963C3.16504 11.4141 3.73237 12.3498 4.44727 13.7653C4.53356 13.9364 4.55818 14.1326 4.5166 14.3199L4.19043 15.7887L5.78027 15.3776L5.9248 15.3531C6.02169 15.3457 6.11884 15.3556 6.21191 15.3815L6.34766 15.4323L6.80664 15.6442C7.86864 16.1161 8.86618 16.4186 10 16.4186C13.8112 16.4186 16.835 13.5091 16.835 9.99963ZM18.165 9.99963C18.165 14.3142 14.4731 17.7487 10 17.7487C8.47948 17.7487 7.19622 17.2956 5.94043 16.7086L3.73633 17.2809C3.13492 17.4368 2.58124 16.9021 2.71582 16.2955L3.17871 14.2067C2.53737 12.9532 1.83496 11.7286 1.83496 9.99963C1.83515 5.6852 5.52703 2.25159 10 2.25159C14.473 2.25159 18.1649 5.6852 18.165 9.99963Z" fill="currentColor"></path></svg>';
+  const CLOSE_ICON = '<svg aria-hidden="true" focusable="false" height="20" viewBox="0 0 20 20" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M13.6964 5.36252C13.9561 5.10319 14.3782 5.10304 14.6378 5.36252C14.8974 5.62211 14.8972 6.0442 14.6378 6.30393L10.9405 10.0002L14.6368 13.6965C14.8964 13.9562 14.8965 14.3773 14.6368 14.6369C14.3772 14.8966 13.9561 14.8965 13.6964 14.6369L10.0001 10.9406L6.30381 14.6369C6.0441 14.8965 5.62302 14.8966 5.36338 14.6369C5.10384 14.3773 5.10388 13.9562 5.36338 13.6965L9.05869 10.0002L5.3624 6.30393C5.10314 6.0442 5.10285 5.62208 5.3624 5.36252C5.62195 5.10297 6.04407 5.10326 6.30381 5.36252L10.0001 9.05881L13.6964 5.36252Z" fill="currentColor"></path></svg>';
   const nativeTextareaValueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
   const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
 
@@ -32,6 +36,107 @@
     const component = document.querySelector(selector);
     const button = component?.matches("button") ? component : component?.querySelector("button");
     button?.click();
+  }
+
+  let searchDialog = null;
+  let searchResultSignature = "";
+  let searchQuery = "";
+  let searchSourceItems = [];
+
+  function conversationItems() {
+    return [...document.querySelectorAll(`${LIST_SELECTOR} label`)].map((label) => ({
+      label,
+      title: currentTitle(label),
+      value: label.querySelector('input[type="radio"]')?.value || currentTitle(label),
+    })).filter((item) => item.title);
+  }
+
+  function renderSearchResults() {
+    if (!searchDialog?.isConnected) return;
+    if (!searchSourceItems.length || searchSourceItems.some((item) => !item.label.isConnected)) {
+      searchSourceItems = conversationItems();
+    }
+    const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+    const items = normalizedQuery
+      ? searchSourceItems.filter((item) => item.title.toLocaleLowerCase().includes(normalizedQuery))
+      : searchSourceItems;
+    const signature = `${normalizedQuery}\u0002${items.map((item) => `${item.value}\u0000${item.title}`).join("\u0001")}`;
+    if (signature === searchResultSignature) return;
+    searchResultSignature = signature;
+    const results = searchDialog.querySelector(".ai-search-results");
+    if (!results) return;
+    if (!items.length) {
+      results.innerHTML = '<p class="ai-search-empty">没有匹配的对话</p>';
+      return;
+    }
+    const fragment = document.createDocumentFragment();
+    items.forEach((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "ai-search-result";
+      button.setAttribute("role", "option");
+      button.innerHTML = `<span class="ai-search-result-icon">${CONVERSATION_ICON}</span><span></span>`;
+      button.lastElementChild.textContent = item.title;
+      button.addEventListener("click", () => {
+        const radio = item.label.querySelector('input[type="radio"]');
+        if (radio && !radio.checked) radio.click();
+        closeSearchDialog();
+      });
+      fragment.append(button);
+    });
+    results.replaceChildren(fragment);
+  }
+
+  function closeSearchDialog() {
+    if (!searchDialog) return;
+    searchDialog.remove();
+    searchDialog = null;
+    searchResultSignature = "";
+    searchQuery = "";
+    searchSourceItems = [];
+    document.body.classList.remove("ai-search-dialog-open");
+  }
+
+  function openSearchDialog() {
+    if (searchDialog?.isConnected) {
+      searchDialog.querySelector("input")?.focus();
+      return;
+    }
+    closeMenu();
+    const overlay = document.createElement("div");
+    overlay.className = "ai-search-overlay";
+    overlay.innerHTML = `
+      <section class="ai-search-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-search-dialog-title">
+        <h2 id="ai-search-dialog-title" class="ai-visually-hidden">搜索对话</h2>
+        <header class="ai-search-dialog-header">
+          <label class="ai-visually-hidden" for="ai-search-dialog-input">搜索对话</label>
+          <input id="ai-search-dialog-input" type="search" placeholder="搜索…" autocomplete="off" spellcheck="false" />
+          <button type="button" class="ai-search-close" aria-label="关闭搜索" data-tooltip="关闭搜索">${CLOSE_ICON}</button>
+        </header>
+        <div class="ai-search-dialog-body">
+          <div class="ai-search-dialog-label">最近对话</div>
+          <div class="ai-search-results" role="listbox"></div>
+        </div>
+      </section>`;
+    document.body.append(overlay);
+    searchDialog = overlay;
+    searchResultSignature = "";
+    searchQuery = "";
+    searchSourceItems = conversationItems();
+    document.body.classList.add("ai-search-dialog-open");
+    const input = overlay.querySelector("input");
+    const close = overlay.querySelector(".ai-search-close");
+    input.addEventListener("input", () => {
+      searchResultSignature = "";
+      searchQuery = input.value;
+      renderSearchResults();
+    });
+    close.addEventListener("click", () => closeSearchDialog());
+    overlay.addEventListener("pointerdown", (event) => {
+      if (event.target === overlay) closeSearchDialog();
+    });
+    renderSearchResults();
+    requestAnimationFrame(() => input.focus());
   }
 
   function currentTitle(label) {
@@ -242,6 +347,18 @@
       button.setAttribute("title", label);
       button.innerHTML = icon;
     });
+    root.querySelectorAll(".ai-search-open").forEach((button) => {
+      if (button.dataset.aiIconReady === "true") return;
+      button.dataset.aiIconReady = "true";
+      button.innerHTML = SEARCH_ICON;
+      button.addEventListener("click", openSearchDialog);
+    });
+    root.querySelectorAll(".ai-new-chat-proxy").forEach((button) => {
+      if (button.dataset.aiIconReady === "true") return;
+      button.dataset.aiIconReady = "true";
+      button.innerHTML = NEW_CHAT_ICON;
+      button.addEventListener("click", () => clickHiddenAction(".ai-new-chat-button"));
+    });
   }
 
   function initializeComposerKeyboard(root = document) {
@@ -349,6 +466,7 @@
     decorateStaticButtons(root);
     initializeComposerKeyboard(root);
     initializeSidebarResizer(root);
+    renderSearchResults();
   }
 
   document.addEventListener("pointerdown", (event) => {
@@ -357,6 +475,17 @@
   }, true);
   window.addEventListener("scroll", closeMenu, { passive: true });
   window.addEventListener("resize", closeMenu);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && searchDialog) {
+      event.preventDefault();
+      closeSearchDialog();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      openSearchDialog();
+    }
+  });
   const observer = new MutationObserver(() => initializeWorkspace());
   observer.observe(document.documentElement, { childList: true, subtree: true });
   initializeWorkspace();

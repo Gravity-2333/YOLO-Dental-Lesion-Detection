@@ -248,7 +248,12 @@ def build_ai_chat_page(data: AiChatPageData) -> AiChatComponents:
             with gr.Column(scale=3, min_width=252, elem_classes=["ai-chat-sidebar"]):
                 gr.HTML(
                     '<div class="ai-sidebar-heading"><div><span>本地工作区</span>'
-                    '<h2>AI 对话</h2></div><span class="ai-private-badge">本机记录</span></div>'
+                    '<h2>AI 对话</h2></div><div class="ai-sidebar-heading-actions">'
+                    '<button type="button" class="ai-search-open" aria-label="搜索对话" '
+                    'data-tooltip="搜索对话  Ctrl+K"></button>'
+                    '<button type="button" class="ai-new-chat-proxy" aria-label="新建对话" '
+                    'data-tooltip="新建对话"></button>'
+                    '<span class="ai-private-badge">本机记录</span></div></div>'
                 )
                 clear_button = gr.Button(
                     "＋  新建对话",

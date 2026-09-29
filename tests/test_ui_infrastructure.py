@@ -1304,6 +1304,23 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('resizer.addEventListener("pointerdown"', javascript)
         self.assertIn('resizer.addEventListener("keydown"', javascript)
 
+    def test_ai_conversation_search_uses_an_accessible_modal_and_native_data_flow(self) -> None:
+        page_source = inspect.getsource(build_ai_chat_page)
+        javascript = load_workbench_js()
+        css = load_workbench_css()
+
+        self.assertIn('class="ai-search-open"', page_source)
+        self.assertIn('class="ai-new-chat-proxy"', page_source)
+        self.assertIn('role="dialog" aria-modal="true"', javascript)
+        self.assertIn('class="ai-search-results" role="listbox"', javascript)
+        self.assertIn("CONVERSATION_ICON", javascript)
+        self.assertIn("searchSourceItems.filter", javascript)
+        self.assertIn("toLocaleLowerCase().includes", javascript)
+        self.assertIn('clickHiddenAction(".ai-new-chat-button")', javascript)
+        self.assertIn('event.key.toLowerCase() === "k"', javascript)
+        self.assertIn(".ai-search-overlay", css)
+        self.assertIn("place-items: center", css)
+
     def test_active_ai_workspace_meets_header_without_page_spacing(self) -> None:
         root_shell = load_root_shell_head()
 
