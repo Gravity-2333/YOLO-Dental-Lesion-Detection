@@ -1303,6 +1303,16 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('resizer.addEventListener("pointerdown"', javascript)
         self.assertIn('resizer.addEventListener("keydown"', javascript)
 
+    def test_active_ai_workspace_meets_header_without_page_spacing(self) -> None:
+        root_shell = load_root_shell_head()
+
+        active_ai_selector = (
+            '.tabitem:not([style*="display: none"]) .ai-chat-workspace'
+        )
+        self.assertIn(active_ai_selector, root_shell)
+        self.assertIn("row-gap: 0 !important", root_shell)
+        self.assertIn("padding-top: 0 !important", root_shell)
+
     def test_ai_messages_use_custom_actions_and_real_revision_events(self) -> None:
         source = inspect.getsource(app.build_app)
         page_source = inspect.getsource(build_ai_chat_page)

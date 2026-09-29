@@ -49,6 +49,20 @@ gradio-app .main-tabs > .tabitem:has(.ai-chat-workspace) > .column {
   max-width: none !important;
 }
 
+/* The AI workspace is a full-height application surface, so it meets the
+ * header directly instead of inheriting the page-section spacing. */
+gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column:has(
+    > .main-tabs > .tabitem:not([style*="display: none"]) .ai-chat-workspace
+  ) {
+  row-gap: 0 !important;
+}
+
+gradio-app
+  .main-tabs
+  > .tabitem:has(.ai-chat-workspace):not([style*="display: none"]) {
+  padding-top: 0 !important;
+}
+
 gradio-app .block:has(.app-header-shell),
 gradio-app .html-container:has(.app-header-shell) {
   padding: 0 !important;
