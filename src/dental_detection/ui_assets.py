@@ -17,11 +17,15 @@ CSS_BUNDLE_FILES = (
     STYLE_ROOT / "15-home.css",
     STYLE_ROOT / "20-layout.css",
     STYLE_ROOT / "30-components.css",
+    STYLE_ROOT / "35-ai-chat.css",
     STYLE_ROOT / "40-responsive.css",
     STYLE_ROOT / "45-home-responsive.css",
     STYLE_ROOT / "50-utilities.css",
 )
-JS_BUNDLE_FILES = (ASSET_ROOT / "workbench.js",)
+JS_BUNDLE_FILES = (
+    ASSET_ROOT / "workbench.js",
+    ASSET_ROOT / "chat-workspace.js",
+)
 
 
 def load_text_bundle(paths: tuple[Path, ...]) -> str:

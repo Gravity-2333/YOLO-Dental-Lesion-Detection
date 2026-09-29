@@ -18,9 +18,13 @@ from src.dental_detection.ai_client import _friendly_ai_error, normalize_base_ur
 from src.dental_detection.ai_defaults import DEFAULT_AI_MODEL, SAFETY_NOTICE
 from src.dental_detection.conversation_store import (
     MAX_CONVERSATION_FILE_BYTES,
+    delete_conversation,
     list_conversations,
     load_conversation,
+    load_conversation_title,
+    rename_conversation,
     save_conversation,
+    upsert_conversation,
 )
 from src.dental_detection.error_messages import concise_error_message, friendly_error_message
 from src.dental_detection.personal_workspace import PERSONAL_PATIENT_ID
@@ -293,7 +297,7 @@ class AdviceAndConversationTests(unittest.TestCase):
             selector_update, feedback = refresh_conversation_history(temp_dir, "patient-1")
             loaded = load_conversation_history_item(path.name, temp_dir, "patient-1")
 
-            self.assertEqual(selector_update["value"], path.name)
+            self.assertIsNone(selector_update["value"])
             self.assertEqual(
                 [entry.file_name for entry in list_conversations(temp_dir, patient_id="patient-1")],
                 [path.name],
@@ -326,6 +330,46 @@ class AdviceAndConversationTests(unittest.TestCase):
                 {"1/3", "2/3", "3/3"},
             )
             self.assertEqual({value for _, value in choices}, {path.name for path in paths})
+
+    def test_conversation_thread_updates_in_place_and_keeps_title(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = upsert_conversation(
+                [{"role": "user", "content": "第一次询问"}],
+                temp_dir,
+                retain_limit=5,
+                patient_id="patient-1",
+            )
+            updated = upsert_conversation(
+                [
+                    {"role": "user", "content": "第一次询问"},
+                    {"role": "assistant", "content": "第一次回答"},
+                ],
+                temp_dir,
+                file_name=path.name,
+                patient_id="patient-1",
+            )
+
+            self.assertEqual(updated, path)
+            self.assertEqual(len(list_conversations(temp_dir, patient_id="patient-1")), 1)
+            self.assertEqual(load_conversation_title(path.name, temp_dir, "patient-1"), "第一次询问")
+
+    def test_conversation_can_be_renamed_and_deleted_with_patient_isolation(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = save_conversation(
+                [{"role": "user", "content": "原始名称"}],
+                temp_dir,
+                patient_id="patient-1",
+            )
+
+            self.assertEqual(
+                rename_conversation(path.name, "复查讨论", temp_dir, "patient-1"),
+                "复查讨论",
+            )
+            self.assertEqual(load_conversation_title(path.name, temp_dir, "patient-1"), "复查讨论")
+            with self.assertRaisesRegex(ValueError, "不属于当前患者"):
+                delete_conversation(path.name, temp_dir, "patient-2")
+            delete_conversation(path.name, temp_dir, "patient-1")
+            self.assertFalse(path.exists())
 
     def test_legacy_untagged_conversations_belong_only_to_personal_profile(self) -> None:
         with TemporaryDirectory() as temp_dir:

@@ -15,6 +15,7 @@ import unittest
 import app
 from PIL import Image
 from src.dental_detection import patient_profile_ui
+from src.dental_detection.conversation_store import list_conversations
 from src.dental_detection.example_assets import (
     EXAMPLE_DIR,
     example_choices,
@@ -365,17 +366,16 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("white-space: nowrap !important", narrow_mobile)
         self.assertIn("width: 88px !important", narrow_mobile)
 
-    def test_mobile_chat_export_button_stretches_with_the_path_row(self) -> None:
+    def test_mobile_chat_composer_stacks_actions_below_the_input(self) -> None:
         css = load_workbench_css()
-        mobile = css.split("@media (max-width: 640px)", 1)[1]
-        rule = mobile.split(
-            ".chat-card .row.path-row > button.secondary-action",
-            1,
-        )[1].split("}", 1)[0]
+        ai_mobile = css.split("/* AI chat workspace", 1)[1].split(
+            "@media (max-width: 640px)", 1
+        )[1]
 
-        self.assertIn("width: 100% !important", rule)
-        self.assertIn("min-width: 100% !important", rule)
-        self.assertIn("max-width: none !important", rule)
+        self.assertIn(".ai-composer", ai_mobile)
+        self.assertIn("grid-template-columns: 1fr !important", ai_mobile)
+        self.assertIn(".ai-composer-actions", ai_mobile)
+        self.assertIn("grid-template-columns: 1fr 1fr", ai_mobile)
 
     def test_mobile_workbench_export_buttons_stretch_with_the_path_row(self) -> None:
         css = load_workbench_css()
@@ -859,7 +859,7 @@ class UiContentTests(unittest.TestCase):
                 "interactive"
             ]
         )
-        self.assertIn('"导出对话",\n                interactive=False', inspect.getsource(build_ai_chat_page))
+        self.assertIn('"导出",\n                            interactive=False', inspect.getsource(build_ai_chat_page))
 
         source = inspect.getsource(app.build_app)
         event_source = source.split("chatbot.change(", 1)[1].split("gr.on(", 1)[0]
@@ -882,16 +882,16 @@ class UiContentTests(unittest.TestCase):
         clear_source = source.split("chatbot.clear(", 1)[1].split(
             "refresh_conversation_btn.click(", 1
         )[0]
-        self.assertIn("fn=clear_current_chat_with_status", clear_source)
+        self.assertIn("fn=clear_ai_workspace_with_status", clear_source)
         self.assertIn("chat_state", clear_source)
         self.assertIn("ai_runtime_status", clear_source)
-        self.assertIn("cancels=chat_event", clear_source)
+        self.assertIn("cancels=[chat_event, regenerate_event]", clear_source)
         self.assertIn("queue=False", clear_source)
 
     def test_chat_events_refresh_recent_conversation_choices(self) -> None:
         source = inspect.getsource(app.build_app)
-        self.assertIn("fn=refresh_conversation_history_after_chat", source)
-        self.assertIn("inputs=[auto_save, storage_dir, patient_select]", source)
+        self.assertIn("fn=refresh_conversation_history_after_workspace_chat", source)
+        self.assertIn("current_conversation_file_state", source)
         self.assertIn("chat_export_event.success(", source)
 
         with patch.object(
@@ -1184,6 +1184,103 @@ class UiContentTests(unittest.TestCase):
         self.assertNotIn("patient-private", system_message)
         self.assertNotIn("secret.pt", system_message)
 
+    def test_workspace_chat_reuses_the_same_auto_saved_thread(self) -> None:
+        with TemporaryDirectory() as temp_dir, patch.object(
+            app,
+            "chat_completion",
+            side_effect=["第一次回答", "第二次回答"],
+        ):
+            first = app.continue_chat_in_workspace(
+                "第一次提问",
+                [],
+                "",
+                True,
+                "http://127.0.0.1:8000/v1",
+                "local-model",
+                "直接 Key 值",
+                "",
+                "test-key",
+                "",
+                False,
+                False,
+                True,
+                temp_dir,
+                "",
+                "简洁版",
+                "patient-1",
+                [],
+                None,
+            )
+            second = app.continue_chat_in_workspace(
+                "第二次提问",
+                first[1],
+                first[5],
+                True,
+                "http://127.0.0.1:8000/v1",
+                "local-model",
+                "直接 Key 值",
+                "",
+                "test-key",
+                "",
+                False,
+                False,
+                True,
+                temp_dir,
+                "",
+                "简洁版",
+                "patient-1",
+                [],
+                None,
+            )
+
+            self.assertEqual(first[5], second[5])
+            self.assertEqual(
+                len(list_conversations(temp_dir, patient_id="patient-1")),
+                1,
+            )
+
+    def test_workspace_conversation_menu_confirms_before_backend_delete(self) -> None:
+        javascript = load_workbench_js()
+        self.assertIn('remove.dataset.confirmed !== "true"', javascript)
+        self.assertIn('remove.textContent = "再次点击确认删除"', javascript)
+        self.assertIn(
+            'clickHiddenAction(".ai-conversation-delete-action")',
+            javascript,
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            path = app.save_conversation(
+                [{"role": "user", "content": "待删除对话"}],
+                temp_dir,
+                patient_id="patient-1",
+            )
+            result = app.delete_ai_workspace_conversation(
+                path.name,
+                path.name,
+                temp_dir,
+                "patient-1",
+                "",
+            )
+            self.assertFalse(path.exists())
+            self.assertEqual(result[2], "已删除所选本地对话。")
+            self.assertEqual(result[3:], ([], [], ""))
+
+    def test_ai_workspace_is_full_width_and_has_a_persistent_resizer(self) -> None:
+        css = load_workbench_css()
+        root_shell = load_root_shell_head()
+        javascript = load_workbench_js()
+
+        self.assertIn("width: 100% !important", css)
+        self.assertIn("> .main-tabs", root_shell)
+        self.assertIn("grid-column: 1 / -1", root_shell)
+        self.assertIn(":has(.ai-chat-workspace)", root_shell)
+        self.assertIn("grid-template-columns: var(--ai-sidebar-width)", css)
+        self.assertIn(".ai-sidebar-resizer", css)
+        self.assertIn('role="separator"', inspect.getsource(build_ai_chat_page))
+        self.assertIn("dental-ai-sidebar-width", javascript)
+        self.assertIn('resizer.addEventListener("pointerdown"', javascript)
+        self.assertIn('resizer.addEventListener("keydown"', javascript)
+
     def test_api_key_mode_switch_preserves_visible_edits_without_plaintext_state(self) -> None:
         (
             env_update,
@@ -1239,7 +1336,7 @@ class UiContentTests(unittest.TestCase):
         source = inspect.getsource(app.build_app)
         self.assertIn("conversation_loaded_state", source)
         self.assertIn("ai_tab.select(", source)
-        self.assertIn("load_saved_ai_conversation", source)
+        self.assertIn("load_ai_workspace_conversation", source)
 
     def test_record_tables_are_lightweight_and_lazy_until_expanded(self) -> None:
         source = inspect.getsource(app.build_app)
@@ -1407,7 +1504,7 @@ class UiContentTests(unittest.TestCase):
             "chat_event = gr.on(",
             1,
         )[1].split("clear_chat_btn.click(", 1)[0]
-        self.assertIn("cancels=chat_event", chat_cancellation_event)
+        self.assertIn("cancels=[chat_event, regenerate_event]", chat_cancellation_event)
         self.assertIn("queue=False", chat_cancellation_event)
         self.assertIn('show_progress="hidden"', chat_cancellation_event)
         for trigger in (

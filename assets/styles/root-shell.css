@@ -9,6 +9,13 @@ gradio-app > .gradio-container > .main.fillable {
   padding: 0 !important;
 }
 
+gradio-app > .gradio-container {
+  width: calc(100vw - 48px) !important;
+  max-width: calc(100vw - 48px) !important;
+  margin-right: auto !important;
+  margin-left: auto !important;
+}
+
 gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column {
   display: grid !important;
   grid-template-columns: minmax(32px, 1fr) minmax(0, 1216px) minmax(32px, 1fr);
@@ -23,6 +30,24 @@ gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column > *
 
 gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column > .block:has(.app-header-shell) {
   grid-column: 1 / -1;
+}
+
+gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column > .main-tabs {
+  grid-column: 1 / -1;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+gradio-app .main-tabs > .tabitem > .column {
+  width: min(1216px, calc(100% - 64px)) !important;
+  max-width: 1216px !important;
+  margin-right: auto !important;
+  margin-left: auto !important;
+}
+
+gradio-app .main-tabs > .tabitem:has(.ai-chat-workspace) > .column {
+  width: 100% !important;
+  max-width: none !important;
 }
 
 gradio-app .block:has(.app-header-shell),
@@ -40,6 +65,11 @@ gradio-app .html-container:has(.app-header-shell) {
 
   gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column {
     grid-template-columns: 12px minmax(0, 1fr) 12px;
+  }
+
+  gradio-app .main-tabs > .tabitem > .column {
+    width: 100% !important;
+    max-width: none !important;
   }
 }
 

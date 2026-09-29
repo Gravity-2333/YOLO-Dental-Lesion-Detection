@@ -30,6 +30,21 @@ class ConversationEntry:
     file_name: str
     modified_at: datetime
     auto_saved: bool
+    title: str
+
+
+def conversation_title(messages: Any, fallback: str = "新对话") -> str:
+    """Build a short, stable title without sending conversation text elsewhere."""
+    normalized = _normalize_messages(messages)
+    for preferred_role in ("user", "assistant"):
+        for message in normalized:
+            if message["role"] != preferred_role:
+                continue
+            text = re.sub(r"\s+", " ", message["content"]).strip()
+            text = re.sub(r"^[#>*_`\-\s]+", "", text).strip()
+            if text:
+                return text[:36] + ("..." if len(text) > 36 else "")
+    return fallback
 
 
 def _normalize_messages(messages: Any) -> list[dict[str, str]]:
@@ -78,6 +93,7 @@ def save_conversation(
     *,
     retain_limit: int | None = None,
     patient_id: str | None = None,
+    title: str | None = None,
 ) -> Path:
     with _CONVERSATION_FILE_LOCK:
         ensure_app_dirs(storage_dir)
@@ -96,7 +112,9 @@ def save_conversation(
                 counter += 1
         payload = {
             "created_at": now.isoformat(timespec="seconds"),
+            "updated_at": now.isoformat(timespec="seconds"),
             "patient_id": str(patient_id or "").strip(),
+            "title": _normalize_title(title, messages),
             "safety_notice": SAFETY_NOTICE,
             "messages": _normalize_messages(messages),
         }
@@ -116,6 +134,156 @@ def save_conversation(
         return path
 
 
+def _normalize_title(title: Any, messages: Any = None) -> str:
+    text = re.sub(r"\s+", " ", str(title or "")).strip()
+    if not text:
+        return conversation_title(messages)
+    return text[:80]
+
+
+def _validated_conversation_path(
+    file_name: str,
+    storage_dir: str | None,
+    patient_id: str | None,
+) -> tuple[Path, bool]:
+    name = str(file_name or "").strip()
+    if Path(name).name != name or not _CONVERSATION_NAME.fullmatch(name):
+        raise ValueError("对话记录选择无效，请刷新列表后重试。")
+    selected_patient_id = str(patient_id or "").strip()
+    expected_tag = _patient_tag(selected_patient_id)
+    marker = re.search(r"_p([0-9a-f]{16})_", name)
+    item_tag = marker.group(1) if marker else ""
+    is_legacy_personal = not item_tag and selected_patient_id == PERSONAL_PATIENT_ID
+    if item_tag != expected_tag and not is_legacy_personal:
+        raise ValueError("该对话记录不属于当前患者档案。")
+    ensure_app_dirs(storage_dir)
+    return conversation_dir(storage_dir) / name, is_legacy_personal
+
+
+def _read_conversation_payload(path: Path) -> dict[str, Any]:
+    try:
+        if not path.is_file():
+            raise FileNotFoundError(path.name)
+        if path.stat().st_size > MAX_CONVERSATION_FILE_BYTES:
+            raise ValueError("对话记录文件过大，无法在页面中加载。")
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError("对话记录已不存在，请刷新列表。") from exc
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("对话记录文件损坏或无法读取。") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("对话记录格式无效。")
+    return payload
+
+
+def upsert_conversation(
+    messages: list[dict[str, str]],
+    storage_dir: str | None = None,
+    *,
+    file_name: str | None = None,
+    retain_limit: int | None = None,
+    patient_id: str | None = None,
+    title: str | None = None,
+) -> Path:
+    """Create a thread once, then atomically update that same local thread."""
+    if not str(file_name or "").strip():
+        return save_conversation(
+            messages,
+            storage_dir,
+            retain_limit=retain_limit,
+            patient_id=patient_id,
+            title=title,
+        )
+    with _CONVERSATION_FILE_LOCK:
+        path, is_legacy_personal = _validated_conversation_path(
+            str(file_name), storage_dir, patient_id
+        )
+        payload = _read_conversation_payload(path)
+        selected_patient_id = str(patient_id or "").strip()
+        stored_patient_id = str(payload.get("patient_id") or "").strip()
+        if not stored_patient_id and is_legacy_personal:
+            stored_patient_id = PERSONAL_PATIENT_ID
+        if stored_patient_id != selected_patient_id:
+            raise ValueError("该对话记录不属于当前患者档案。")
+        normalized_messages = _normalize_messages(messages)
+        payload.update(
+            {
+                "updated_at": datetime.now().isoformat(timespec="seconds"),
+                "title": _normalize_title(title or payload.get("title"), normalized_messages),
+                "safety_notice": SAFETY_NOTICE,
+                "messages": normalized_messages,
+            }
+        )
+        serialized = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        if len(serialized) > MAX_CONVERSATION_FILE_BYTES:
+            raise ValueError("对话内容过大，无法保存。请新建对话后再继续。")
+        tmp_path = path.with_name(f".{path.name}.tmp")
+        tmp_path.write_bytes(serialized)
+        tmp_path.replace(path)
+        return path
+
+
+def rename_conversation(
+    file_name: str,
+    title: str,
+    storage_dir: str | None = None,
+    patient_id: str | None = None,
+) -> str:
+    with _CONVERSATION_FILE_LOCK:
+        path, is_legacy_personal = _validated_conversation_path(file_name, storage_dir, patient_id)
+        payload = _read_conversation_payload(path)
+        selected_patient_id = str(patient_id or "").strip()
+        stored_patient_id = str(payload.get("patient_id") or "").strip()
+        if not stored_patient_id and is_legacy_personal:
+            stored_patient_id = PERSONAL_PATIENT_ID
+        if stored_patient_id != selected_patient_id:
+            raise ValueError("该对话记录不属于当前患者档案。")
+        new_title = _normalize_title(title, payload.get("messages"))
+        payload["title"] = new_title
+        payload["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        serialized = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        if len(serialized) > MAX_CONVERSATION_FILE_BYTES:
+            raise ValueError("对话内容过大，无法重命名。")
+        tmp_path = path.with_name(f".{path.name}.tmp")
+        tmp_path.write_bytes(serialized)
+        tmp_path.replace(path)
+        return new_title
+
+
+def delete_conversation(
+    file_name: str,
+    storage_dir: str | None = None,
+    patient_id: str | None = None,
+) -> None:
+    with _CONVERSATION_FILE_LOCK:
+        path, is_legacy_personal = _validated_conversation_path(file_name, storage_dir, patient_id)
+        payload = _read_conversation_payload(path)
+        selected_patient_id = str(patient_id or "").strip()
+        stored_patient_id = str(payload.get("patient_id") or "").strip()
+        if not stored_patient_id and is_legacy_personal:
+            stored_patient_id = PERSONAL_PATIENT_ID
+        if stored_patient_id != selected_patient_id:
+            raise ValueError("该对话记录不属于当前患者档案。")
+        path.unlink()
+
+
+def load_conversation_title(
+    file_name: str,
+    storage_dir: str | None = None,
+    patient_id: str | None = None,
+) -> str:
+    with _CONVERSATION_FILE_LOCK:
+        path, is_legacy_personal = _validated_conversation_path(file_name, storage_dir, patient_id)
+        payload = _read_conversation_payload(path)
+        selected_patient_id = str(patient_id or "").strip()
+        stored_patient_id = str(payload.get("patient_id") or "").strip()
+        if not stored_patient_id and is_legacy_personal:
+            stored_patient_id = PERSONAL_PATIENT_ID
+        if stored_patient_id != selected_patient_id:
+            raise ValueError("该对话记录不属于当前患者档案。")
+        return _normalize_title(payload.get("title"), payload.get("messages"))
+
+
 def list_conversations(
     storage_dir: str | None = None,
     *,
@@ -132,7 +300,7 @@ def list_conversations(
     with _CONVERSATION_FILE_LOCK:
         ensure_app_dirs(storage_dir)
         target_dir = conversation_dir(storage_dir)
-        recent: list[tuple[tuple[str, int, str], str]] = []
+        recent: list[tuple[tuple[int, tuple[str, int, str]], str]] = []
         try:
             with os.scandir(target_dir) as iterator:
                 for item in iterator:
@@ -142,7 +310,14 @@ def list_conversations(
                     item_tag = marker.group(1) if marker else ""
                     if item_tag != expected_tag and not (accepts_legacy_personal and not item_tag):
                         continue
-                    candidate = (_conversation_order_key(item.name), item.name)
+                    try:
+                        modified_ns = item.stat(follow_symlinks=False).st_mtime_ns
+                    except OSError:
+                        continue
+                    candidate = (
+                        (modified_ns, _conversation_order_key(item.name)),
+                        item.name,
+                    )
                     if len(recent) < max_items:
                         heapq.heappush(recent, candidate)
                     elif candidate > recent[0]:
@@ -162,6 +337,7 @@ def list_conversations(
                     file_name=file_name,
                     modified_at=modified_at,
                     auto_saved=file_name.startswith("dental_chat_auto_"),
+                    title=_conversation_file_title(target_dir / file_name),
                 )
             )
     return entries
@@ -172,31 +348,12 @@ def load_conversation(
     storage_dir: str | None = None,
     patient_id: str | None = None,
 ) -> list[dict[str, str]]:
-    name = str(file_name or "").strip()
-    if Path(name).name != name or not _CONVERSATION_NAME.fullmatch(name):
-        raise ValueError("对话记录选择无效，请刷新列表后重试。")
     selected_patient_id = str(patient_id or "").strip()
-    expected_tag = _patient_tag(selected_patient_id)
-    marker = re.search(r"_p([0-9a-f]{16})_", name)
-    item_tag = marker.group(1) if marker else ""
-    is_legacy_personal = not item_tag and selected_patient_id == PERSONAL_PATIENT_ID
-    if item_tag != expected_tag and not is_legacy_personal:
-        raise ValueError("该对话记录不属于当前患者档案。")
     with _CONVERSATION_FILE_LOCK:
-        ensure_app_dirs(storage_dir)
-        path = conversation_dir(storage_dir) / name
-        try:
-            if not path.is_file():
-                raise FileNotFoundError(name)
-            if path.stat().st_size > MAX_CONVERSATION_FILE_BYTES:
-                raise ValueError("对话记录文件过大，无法在页面中加载。")
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except FileNotFoundError as exc:
-            raise ValueError("对话记录已不存在，请刷新列表。") from exc
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ValueError("对话记录文件损坏或无法读取。") from exc
-    if not isinstance(payload, dict):
-        raise ValueError("对话记录格式无效。")
+        path, is_legacy_personal = _validated_conversation_path(
+            file_name, storage_dir, patient_id
+        )
+        payload = _read_conversation_payload(path)
     stored_patient_id = str(payload.get("patient_id") or "").strip()
     if not stored_patient_id and is_legacy_personal:
         stored_patient_id = PERSONAL_PATIENT_ID
@@ -206,3 +363,11 @@ def load_conversation(
     if not messages:
         raise ValueError("对话记录中没有可加载的消息。")
     return messages
+
+
+def _conversation_file_title(path: Path) -> str:
+    try:
+        payload = _read_conversation_payload(path)
+    except ValueError:
+        return "无法读取的对话"
+    return _normalize_title(payload.get("title"), payload.get("messages"))

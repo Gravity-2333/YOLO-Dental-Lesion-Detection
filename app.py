@@ -25,7 +25,13 @@ from src.dental_detection.ai_defaults import (
     DEFAULT_AI_PROMPT,
     SAFETY_NOTICE,
 )
-from src.dental_detection.conversation_store import save_conversation
+from src.dental_detection.conversation_store import (
+    conversation_title,
+    list_conversations,
+    load_conversation_title,
+    save_conversation,
+    upsert_conversation,
+)
 from src.dental_detection.settings_store import (
     APP_HOME,
     AiSettings,
@@ -171,8 +177,11 @@ from src.dental_detection.ui_ai_chat_page import (
     build_ai_chat_page,
     build_ai_runtime_status,
     chat_export_button_state,
+    delete_conversation_history_item,
     load_conversation_history_item,
+    rename_conversation_history_item,
     refresh_conversation_history,
+    search_conversation_history,
 )
 from src.dental_detection.ui_cases_page import CasesPageData, build_cases_page
 from src.dental_detection.ui_history_page import HistoryPageData, build_history_page
@@ -3055,6 +3064,101 @@ def continue_chat(
     return history, history, "" if clear_input else user_message, _clear_file_output(), ""
 
 
+def continue_chat_in_workspace(
+    message: str,
+    history: list[dict[str, str]],
+    current_file: str,
+    ai_enabled: bool,
+    base_url: str,
+    ai_model: str,
+    key_mode: str,
+    env_api_key: str,
+    direct_api_key_hidden: str,
+    direct_api_key_visible: str,
+    direct_key_visible: bool,
+    save_key: bool,
+    auto_save: bool,
+    storage_dir: str,
+    custom_prompt: str,
+    advice_style: str,
+    patient_id: str | None = None,
+    batch_state: list[dict[str, Any]] | None = None,
+    selected_name: str | None = None,
+):
+    result = continue_chat(
+        message,
+        history,
+        ai_enabled,
+        base_url,
+        ai_model,
+        key_mode,
+        env_api_key,
+        direct_api_key_hidden,
+        direct_api_key_visible,
+        direct_key_visible,
+        save_key,
+        False,
+        storage_dir,
+        custom_prompt,
+        advice_style,
+        patient_id,
+        batch_state,
+        selected_name,
+    )
+    updated_history = result[1]
+    active_file = str(current_file or "").strip()
+    active_title = conversation_title(updated_history)
+    if auto_save and updated_history:
+        try:
+            retain_limit = _normalize_history_limit(load_settings().history_limit)
+            path = upsert_conversation(
+                updated_history,
+                storage_dir,
+                file_name=active_file or None,
+                retain_limit=retain_limit,
+                patient_id=patient_id,
+                title=active_title,
+            )
+            active_file = path.name
+        except Exception as exc:
+            warning = friendly_error_message(exc, "自动保存对话失败")
+            updated_history = [
+                *updated_history,
+                {"role": "assistant", "content": warning},
+            ]
+            result = (
+                updated_history,
+                updated_history,
+                result[2],
+                result[3],
+                result[4],
+            )
+    return (*result, active_file, active_title)
+
+
+def regenerate_last_chat_response(
+    history: list[dict[str, str]],
+    current_file: str,
+    *workspace_inputs,
+):
+    normalized = _normalize_chat_history(history)
+    if normalized and normalized[-1]["role"] == "assistant":
+        normalized.pop()
+    if not normalized or normalized[-1]["role"] != "user":
+        raise gr.Error("当前没有可重新生成的用户提问。")
+    question = normalized.pop()["content"]
+    return continue_chat_in_workspace(
+        question,
+        normalized,
+        current_file,
+        *workspace_inputs,
+    )
+
+
+def fill_chat_suggestion(prompt: str) -> str:
+    return str(prompt or "").strip()
+
+
 def clear_current_chat():
     return [], [], "", _clear_file_output(), ""
 
@@ -3064,6 +3168,15 @@ def clear_current_chat_with_status(batch_state, selected_name, *ai_inputs):
     return (
         *clear_current_chat(),
         build_ai_runtime_status([], settings, batch_state, selected_name),
+    )
+
+
+def clear_ai_workspace_with_status(batch_state, selected_name, *ai_inputs):
+    return (
+        *clear_current_chat_with_status(batch_state, selected_name, *ai_inputs),
+        "",
+        "",
+        "已新建空白对话。",
     )
 
 
@@ -3103,6 +3216,54 @@ def load_saved_ai_conversation(
         *values,
         build_ai_runtime_status(values[1], settings, batch_state, selected_name),
     )
+
+
+def load_ai_workspace_conversation(
+    file_name: str,
+    storage_dir: str,
+    patient_id: str,
+    batch_state,
+    selected_name,
+    *ai_inputs,
+):
+    values = load_saved_ai_conversation(
+        file_name,
+        storage_dir,
+        patient_id,
+        batch_state,
+        selected_name,
+        *ai_inputs,
+    )
+    return (
+        *values,
+        file_name,
+        load_conversation_title(file_name, storage_dir, patient_id),
+    )
+
+
+def delete_ai_workspace_conversation(
+    selected_file: str,
+    current_file: str,
+    storage_dir: str,
+    patient_id: str,
+    query: str,
+):
+    selector, title, feedback = delete_conversation_history_item(
+        selected_file,
+        storage_dir,
+        patient_id,
+        query,
+    )
+    if str(selected_file or "") != str(current_file or ""):
+        return (
+            selector,
+            title,
+            feedback,
+            gr.update(),
+            gr.update(),
+            gr.update(),
+        )
+    return selector, title, feedback, [], [], ""
 
 
 def refresh_ai_runtime_status(
@@ -3151,6 +3312,51 @@ def refresh_conversation_history_after_chat(
     )
 
 
+def refresh_conversation_history_after_workspace_chat(
+    auto_save: bool,
+    storage_dir: str,
+    patient_id: str,
+    current_file: str,
+):
+    selector, feedback = refresh_conversation_history_after_chat(
+        auto_save,
+        storage_dir,
+        patient_id,
+    )
+    if auto_save and str(current_file or "").strip():
+        selector["value"] = current_file
+    return selector, feedback
+
+
+def refresh_conversation_history_with_selection(
+    storage_dir: str,
+    patient_id: str,
+    current_file: str,
+    feedback: str = "已更新最近对话列表。",
+):
+    selector, message = refresh_conversation_history(
+        storage_dir,
+        patient_id,
+        feedback=feedback,
+    )
+    if str(current_file or "").strip():
+        selector["value"] = current_file
+    return selector, message
+
+
+def active_detection_conversation(
+    auto_save: bool,
+    storage_dir: str,
+    patient_id: str,
+    history: list[dict[str, str]],
+):
+    title = conversation_title(history) if history else ""
+    if not auto_save or not history:
+        return "", title
+    entries = list_conversations(storage_dir, limit=1, patient_id=patient_id)
+    return (entries[0].file_name if entries else ""), title
+
+
 def export_chat(
     history: list[dict[str, str]],
     storage_dir: str,
@@ -3168,6 +3374,20 @@ def export_chat(
         raise _friendly_gr_error(exc, "对话导出失败") from exc
     _remember_allowed_file_root(path.parent)
     return _file_component_output(path), str(path)
+
+
+def export_chat_workspace(
+    history: list[dict[str, str]],
+    storage_dir: str,
+    patient_id: str | None = None,
+):
+    file_output, path_text = export_chat(history, storage_dir, patient_id)
+    return (
+        file_output,
+        path_text,
+        Path(path_text).name,
+        conversation_title(history),
+    )
 
 
 def toggle_ai_settings(enabled: bool):
@@ -3331,6 +3551,9 @@ def build_app() -> gr.Blocks:
     ) as demo:
         batch_state = gr.State([], time_to_live=SESSION_STATE_TTL_SECONDS)
         chat_state = gr.State([], time_to_live=SESSION_STATE_TTL_SECONDS)
+        current_conversation_file_state = gr.State(
+            "", time_to_live=SESSION_STATE_TTL_SECONDS
+        )
         case_loaded_state = gr.State(False, time_to_live=SESSION_STATE_TTL_SECONDS)
         history_loaded_state = gr.State(False, time_to_live=SESSION_STATE_TTL_SECONDS)
         report_file_target_state = gr.State("", time_to_live=SESSION_STATE_TTL_SECONDS)
@@ -3371,9 +3594,16 @@ def build_app() -> gr.Blocks:
                 chatbot = ai_chat.chatbot
                 chat_input = ai_chat.input
                 chat_btn = ai_chat.send_button
+                stop_chat_btn = ai_chat.stop_button
+                regenerate_chat_btn = ai_chat.regenerate_button
+                chat_suggestion_buttons = ai_chat.suggestion_buttons
+                conversation_search = ai_chat.conversation_search
                 conversation_select = ai_chat.conversation_select
                 load_conversation_btn = ai_chat.conversation_load_button
                 refresh_conversation_btn = ai_chat.conversation_refresh_button
+                conversation_title_input = ai_chat.conversation_title
+                rename_conversation_btn = ai_chat.conversation_rename_button
+                delete_conversation_btn = ai_chat.conversation_delete_button
                 conversation_feedback = ai_chat.conversation_feedback
                 export_path = ai_chat.export_path
                 export_btn = ai_chat.export_button
@@ -3886,6 +4116,14 @@ def build_app() -> gr.Blocks:
             concurrency_id=INFERENCE_CONCURRENCY_ID,
             show_progress="minimal",
         )
+        for detection_event in (single_detection_event, batch_detection_event):
+            detection_event.success(
+                fn=active_detection_conversation,
+                inputs=[auto_save, storage_dir, patient_select, chat_state],
+                outputs=[current_conversation_file_state, conversation_title_input],
+                queue=False,
+                show_progress="hidden",
+            )
         inference_events = [single_detection_event, batch_detection_event]
         gr.on(
             triggers=[
@@ -4244,21 +4482,75 @@ def build_app() -> gr.Blocks:
         )
         chat_event = gr.on(
             triggers=[chat_btn.click, chat_input.submit],
-            fn=continue_chat,
+            fn=continue_chat_in_workspace,
             inputs=[
                 chat_input,
                 chat_state,
+                current_conversation_file_state,
                 *settings.ai_request_inputs(),
                 patient_select,
                 batch_state,
                 batch_select,
             ],
-            outputs=[chatbot, chat_state, chat_input, export_file, export_path],
+            outputs=[
+                chatbot,
+                chat_state,
+                chat_input,
+                export_file,
+                export_path,
+                current_conversation_file_state,
+                conversation_title_input,
+            ],
             concurrency_limit=1,
             concurrency_id=AI_REQUEST_CONCURRENCY_ID,
             trigger_mode="once",
             show_progress="minimal",
         )
+        regenerate_event = regenerate_chat_btn.click(
+            fn=regenerate_last_chat_response,
+            inputs=[
+                chat_state,
+                current_conversation_file_state,
+                *settings.ai_request_inputs(),
+                patient_select,
+                batch_state,
+                batch_select,
+            ],
+            outputs=[
+                chatbot,
+                chat_state,
+                chat_input,
+                export_file,
+                export_path,
+                current_conversation_file_state,
+                conversation_title_input,
+            ],
+            concurrency_limit=1,
+            concurrency_id=AI_REQUEST_CONCURRENCY_ID,
+            trigger_mode="once",
+            show_progress="minimal",
+        )
+        stop_chat_btn.click(
+            fn=None,
+            cancels=[chat_event, regenerate_event],
+            queue=False,
+            show_progress="hidden",
+        )
+        for suggestion_button, suggestion_text in zip(
+            chat_suggestion_buttons,
+            (
+                "请按优先级说明需要重点复核的位置",
+                "用医生视角总结当前检测结果",
+                "有哪些影像质量问题会影响判断",
+            ),
+        ):
+            suggestion_button.click(
+                fn=fill_chat_suggestion,
+                inputs=gr.State(suggestion_text),
+                outputs=chat_input,
+                queue=False,
+                show_progress="hidden",
+            )
         chat_event.success(
             fn=refresh_ai_runtime_status,
             inputs=[
@@ -4272,8 +4564,37 @@ def build_app() -> gr.Blocks:
             show_progress="hidden",
         )
         chat_event.success(
-            fn=refresh_conversation_history_after_chat,
-            inputs=[auto_save, storage_dir, patient_select],
+            fn=refresh_conversation_history_after_workspace_chat,
+            inputs=[
+                auto_save,
+                storage_dir,
+                patient_select,
+                current_conversation_file_state,
+            ],
+            outputs=[conversation_select, conversation_feedback],
+            queue=False,
+            show_progress="hidden",
+        )
+        regenerate_event.success(
+            fn=refresh_ai_runtime_status,
+            inputs=[
+                chat_state,
+                batch_state,
+                batch_select,
+                *settings.ai_request_inputs(),
+            ],
+            outputs=ai_runtime_status,
+            queue=False,
+            show_progress="hidden",
+        )
+        regenerate_event.success(
+            fn=refresh_conversation_history_after_workspace_chat,
+            inputs=[
+                auto_save,
+                storage_dir,
+                patient_select,
+                current_conversation_file_state,
+            ],
             outputs=[conversation_select, conversation_feedback],
             queue=False,
             show_progress="hidden",
@@ -4309,12 +4630,12 @@ def build_app() -> gr.Blocks:
                 load_conversation_btn.click,
             ],
             fn=None,
-            cancels=chat_event,
+            cancels=[chat_event, regenerate_event],
             queue=False,
             show_progress="hidden",
         )
         clear_chat_btn.click(
-            fn=clear_current_chat_with_status,
+            fn=clear_ai_workspace_with_status,
             inputs=[batch_state, batch_select, *settings.ai_request_inputs()],
             outputs=[
                 chatbot,
@@ -4323,13 +4644,16 @@ def build_app() -> gr.Blocks:
                 export_file,
                 export_path,
                 ai_runtime_status,
+                current_conversation_file_state,
+                conversation_title_input,
+                conversation_feedback,
             ],
-            cancels=chat_event,
+            cancels=[chat_event, regenerate_event],
             queue=False,
             show_progress="hidden",
         )
         chatbot.clear(
-            fn=clear_current_chat_with_status,
+            fn=clear_ai_workspace_with_status,
             inputs=[batch_state, batch_select, *settings.ai_request_inputs()],
             outputs=[
                 chatbot,
@@ -4338,8 +4662,11 @@ def build_app() -> gr.Blocks:
                 export_file,
                 export_path,
                 ai_runtime_status,
+                current_conversation_file_state,
+                conversation_title_input,
+                conversation_feedback,
             ],
-            cancels=chat_event,
+            cancels=[chat_event, regenerate_event],
             queue=False,
             show_progress="hidden",
         )
@@ -4350,8 +4677,17 @@ def build_app() -> gr.Blocks:
             trigger_mode="always_last",
             show_progress="minimal",
         )
+        gr.on(
+            triggers=[conversation_search.input, conversation_search.submit],
+            fn=search_conversation_history,
+            inputs=[conversation_search, storage_dir, patient_select],
+            outputs=[conversation_select, conversation_feedback],
+            trigger_mode="always_last",
+            queue=False,
+            show_progress="hidden",
+        )
         load_conversation_btn.click(
-            fn=load_saved_ai_conversation,
+            fn=load_ai_workspace_conversation,
             inputs=[
                 conversation_select,
                 storage_dir,
@@ -4368,9 +4704,100 @@ def build_app() -> gr.Blocks:
                 export_path,
                 conversation_feedback,
                 ai_runtime_status,
+                current_conversation_file_state,
+                conversation_title_input,
             ],
             trigger_mode="always_last",
             show_progress="minimal",
+        )
+        conversation_select.input(
+            fn=load_ai_workspace_conversation,
+            inputs=[
+                conversation_select,
+                storage_dir,
+                patient_select,
+                batch_state,
+                batch_select,
+                *settings.ai_request_inputs(),
+            ],
+            outputs=[
+                chatbot,
+                chat_state,
+                chat_input,
+                export_file,
+                export_path,
+                conversation_feedback,
+                ai_runtime_status,
+                current_conversation_file_state,
+                conversation_title_input,
+            ],
+            trigger_mode="always_last",
+            show_progress="minimal",
+        )
+        rename_conversation_btn.click(
+            fn=rename_conversation_history_item,
+            inputs=[
+                conversation_select,
+                conversation_title_input,
+                storage_dir,
+                patient_select,
+                conversation_search,
+            ],
+            outputs=[
+                conversation_select,
+                conversation_title_input,
+                conversation_feedback,
+            ],
+            trigger_mode="always_last",
+            show_progress="minimal",
+        )
+        delete_conversation_event = delete_conversation_btn.click(
+            fn=delete_ai_workspace_conversation,
+            inputs=[
+                conversation_select,
+                current_conversation_file_state,
+                storage_dir,
+                patient_select,
+                conversation_search,
+            ],
+            outputs=[
+                conversation_select,
+                conversation_title_input,
+                conversation_feedback,
+                chatbot,
+                chat_state,
+                current_conversation_file_state,
+            ],
+            cancels=[chat_event, regenerate_event],
+            trigger_mode="always_last",
+            show_progress="minimal",
+        )
+        delete_conversation_event.success(
+            fn=refresh_ai_runtime_status,
+            inputs=[
+                chat_state,
+                batch_state,
+                batch_select,
+                *settings.ai_request_inputs(),
+            ],
+            outputs=ai_runtime_status,
+            queue=False,
+            show_progress="hidden",
+        )
+        gr.on(
+            triggers=[
+                image.input,
+                batch_files.upload,
+                batch_select.input,
+                patient_select.input,
+                case_patient_select.input,
+                history_patient_select.input,
+                clear_session_btn.click,
+            ],
+            fn=lambda: ("", ""),
+            outputs=[current_conversation_file_state, conversation_title_input],
+            queue=False,
+            show_progress="hidden",
         )
         gr.on(
             triggers=[refresh_model_btn.click, show_advanced_models.input],
@@ -4453,16 +4880,25 @@ def build_app() -> gr.Blocks:
             show_progress="hidden",
         )
         chat_export_event = export_btn.click(
-            fn=export_chat,
+            fn=export_chat_workspace,
             inputs=[chat_state, storage_dir, patient_select],
-            outputs=[export_file, export_path],
+            outputs=[
+                export_file,
+                export_path,
+                current_conversation_file_state,
+                conversation_title_input,
+            ],
             concurrency_limit=1,
             concurrency_id=EXPORT_CONCURRENCY_ID,
             show_progress="minimal",
         )
         chat_export_event.success(
-            fn=refresh_conversation_history,
-            inputs=[storage_dir, patient_select],
+            fn=refresh_conversation_history_with_selection,
+            inputs=[
+                storage_dir,
+                patient_select,
+                current_conversation_file_state,
+            ],
             outputs=[conversation_select, conversation_feedback],
             trigger_mode="always_last",
             show_progress="minimal",
