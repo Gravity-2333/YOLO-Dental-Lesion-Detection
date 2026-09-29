@@ -209,14 +209,17 @@ button.ai-new-chat-button:hover {
 .ai-conversation-refresh-button,
 .ai-conversation-refresh-button button,
 button.ai-conversation-refresh-button {
-  width: 32px !important;
-  min-width: 32px !important;
-  height: 32px !important;
-  min-height: 32px !important;
+  flex: 0 0 28px !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
   padding: 0 !important;
-  border: 0 !important;
-  border-radius: 50% !important;
-  background: transparent !important;
+  border: 1px solid #d7dfdc !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
   color: #63706d !important;
   box-shadow: none !important;
 }
