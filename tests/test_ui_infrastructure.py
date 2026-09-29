@@ -133,6 +133,20 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn('toast.style.animation = "none"', javascript)
         self.assertIn("void toast.offsetWidth", javascript)
 
+    def test_ai_composer_keyboard_matches_visible_shortcut_hint(self) -> None:
+        javascript = load_workbench_js()
+        source = inspect.getsource(build_ai_chat_page)
+
+        self.assertIn("Enter 发送 · Shift + Enter 换行", source)
+        self.assertIn("initializeComposerKeyboard", javascript)
+        self.assertIn('event.key !== "Enter" || event.isComposing || event.keyCode === 229', javascript)
+        self.assertIn("if (event.shiftKey)", javascript)
+        self.assertIn("event.stopImmediatePropagation()", javascript)
+        self.assertIn('textarea.setRangeText("\\n", start, end, "end")', javascript)
+        self.assertIn('inputType: "insertLineBreak"', javascript)
+        self.assertIn('document.querySelector(".ai-send-button")', javascript)
+        self.assertIn("button.click()", javascript)
+
     def test_primary_navigation_switches_to_a_translucent_floating_state(self) -> None:
         javascript = load_workbench_js()
         css = load_workbench_css()

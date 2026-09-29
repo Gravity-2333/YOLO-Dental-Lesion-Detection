@@ -244,6 +244,34 @@
     });
   }
 
+  function initializeComposerKeyboard(root = document) {
+    root.querySelectorAll(".ai-composer-input textarea").forEach((textarea) => {
+      if (textarea.dataset.aiKeyboardReady === "true") return;
+      textarea.dataset.aiKeyboardReady = "true";
+      textarea.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" || event.isComposing || event.keyCode === 229) return;
+        if (event.shiftKey) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          textarea.setRangeText("\n", start, end, "end");
+          textarea.dispatchEvent(new InputEvent("input", {
+            bubbles: true,
+            inputType: "insertLineBreak",
+          }));
+          return;
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!textarea.value.trim()) return;
+        const component = document.querySelector(".ai-send-button");
+        const button = component?.matches("button") ? component : component?.querySelector("button");
+        if (button && !button.disabled) button.click();
+      }, true);
+    });
+  }
+
   function sidebarBounds(layout) {
     const minimum = 240;
     const maximum = Math.max(minimum, Math.min(480, layout.clientWidth - 520));
@@ -319,6 +347,7 @@
     decorateConversationItems(root);
     decorateChatMessages(root);
     decorateStaticButtons(root);
+    initializeComposerKeyboard(root);
     initializeSidebarResizer(root);
   }
 
