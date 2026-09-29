@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from html import escape
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -19,6 +20,40 @@ from .conversation_store import (
 )
 from .gradio_files import clear_file_output
 from .settings_store import AiSettings
+
+
+_CHAT_TIME_PREFIX = "chat-time:"
+_CHAT_TIME_MARKER = re.compile(
+    r'\s*<span class="ai-message-time-marker(?: ai-chat-time-\d{8}T\d{4})?"'
+    r'(?: [^>]*)?></span>\s*',
+    re.IGNORECASE,
+)
+_CHAT_TIME_VALUE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$")
+
+
+def strip_chat_time_marker(content: Any) -> str:
+    return _CHAT_TIME_MARKER.sub("", str(content or "")).strip()
+
+
+def chat_messages_for_display(messages: Any) -> list[dict[str, str]]:
+    displayed: list[dict[str, str]] = []
+    for message in messages or []:
+        if not isinstance(message, dict):
+            continue
+        role = str(message.get("role") or "assistant")
+        content = strip_chat_time_marker(message.get("content", ""))
+        metadata = message.get("metadata")
+        title = str(metadata.get("title") or "") if isinstance(metadata, dict) else ""
+        if title.startswith(_CHAT_TIME_PREFIX):
+            match = _CHAT_TIME_VALUE.fullmatch(title.removeprefix(_CHAT_TIME_PREFIX))
+            if match:
+                year, month, day, hour, minute = match.groups()
+                content += (
+                    '\n\n<span class="ai-message-time-marker '
+                    f'ai-chat-time-{year}{month}{day}T{hour}{minute}"></span>'
+                )
+        displayed.append({"role": role, "content": content})
+    return displayed
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,7 +184,7 @@ def load_conversation_history_item(
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         raise gr.Error(str(exc)) from exc
     return (
-        messages,
+        chat_messages_for_display(messages),
         messages,
         "",
         clear_file_output(),

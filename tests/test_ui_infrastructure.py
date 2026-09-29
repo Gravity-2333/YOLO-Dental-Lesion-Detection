@@ -54,7 +54,9 @@ from src.dental_detection.ui_content import (
 from src.dental_detection.ui_ai_chat_page import (
     build_ai_chat_page,
     build_ai_runtime_status,
+    chat_messages_for_display,
     chat_export_button_state,
+    strip_chat_time_marker,
 )
 from src.dental_detection.ui_cases_page import CasesComponents, build_cases_page
 from src.dental_detection.ui_history_page import HistoryComponents, build_history_page
@@ -1303,6 +1305,24 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('"重试", RETRY_ICON', javascript)
         self.assertIn(".ai-chat-thread .top-panel", css)
         self.assertIn(".ai-message-action::after", css)
+        self.assertIn("place-items: center !important", css)
+
+    def test_ai_message_time_uses_a_hidden_marker_without_native_thought_group(self) -> None:
+        messages = [
+            {
+                "role": "user",
+                "content": "你好",
+                "metadata": {"title": "chat-time:2026-09-29T16:19"},
+            }
+        ]
+
+        displayed = chat_messages_for_display(messages)
+
+        self.assertNotIn("metadata", displayed[0])
+        self.assertIn('class="ai-message-time-marker ai-chat-time-', displayed[0]["content"])
+        self.assertIn("ai-chat-time-20260929T1619", displayed[0]["content"])
+        self.assertEqual(strip_chat_time_marker(displayed[0]["content"]), "你好")
+        self.assertIn("metadata", messages[0])
 
     def test_ai_message_retry_edit_and_branch_keep_the_expected_prefix(self) -> None:
         history = [

@@ -176,12 +176,14 @@ from src.dental_detection.ui_ai_chat_page import (
     AiChatPageData,
     build_ai_chat_page,
     build_ai_runtime_status,
+    chat_messages_for_display,
     chat_export_button_state,
     delete_conversation_history_item,
     load_conversation_history_item,
     rename_conversation_history_item,
     refresh_conversation_history,
     search_conversation_history,
+    strip_chat_time_marker,
 )
 from src.dental_detection.ui_cases_page import CasesPageData, build_cases_page
 from src.dental_detection.ui_history_page import HistoryPageData, build_history_page
@@ -3017,7 +3019,7 @@ def continue_chat(
 ):
     user_message = (message or "").strip()
     if not user_message:
-        return history, history, "", _clear_file_output(), ""
+        return chat_messages_for_display(history), history, "", _clear_file_output(), ""
     settings = _ai_settings(
         ai_enabled,
         base_url,
@@ -3089,7 +3091,13 @@ def continue_chat(
         if auto_save_warning:
             history.append(_chat_message("assistant", auto_save_warning))
             clear_input = False
-    return history, history, "" if clear_input else user_message, _clear_file_output(), ""
+    return (
+        chat_messages_for_display(history),
+        history,
+        "" if clear_input else user_message,
+        _clear_file_output(),
+        "",
+    )
 
 
 def continue_chat_in_workspace(
@@ -3229,7 +3237,7 @@ def edit_chat_message(
     value = edit_data.value
     if isinstance(value, dict):
         value = value.get("content", "")
-    question = str(value or "").strip()
+    question = strip_chat_time_marker(value)
     if not question:
         raise gr.Error("编辑后的内容不能为空。")
     return continue_chat_in_workspace(
@@ -3270,7 +3278,7 @@ def branch_chat_conversation(
         raise gr.Error(f"创建对话分支失败：{exc}") from exc
     selector["value"] = path.name
     return (
-        branch_history,
+        chat_messages_for_display(branch_history),
         branch_history,
         path.name,
         title,

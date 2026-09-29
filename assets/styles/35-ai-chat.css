@@ -704,6 +704,10 @@ button.ai-suggestion-chip:hover {
   margin-bottom: 0 !important;
 }
 
+.ai-message-time-marker {
+  display: none !important;
+}
+
 .ai-message-time {
   width: 100%;
   margin: 0 0 8px;
@@ -897,7 +901,22 @@ button.ai-stop-button {
 }
 
 .ai-chat-workspace:has(.ai-chat-thread [data-testid="status-tracker"]:not(.hide)) .ai-stop-button {
-  display: block !important;
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 38px !important;
+  width: 38px !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  border-radius: 50% !important;
+}
+
+button.ai-stop-button svg,
+.ai-stop-button button svg {
+  display: block;
+  margin: auto;
 }
 
 .ai-send-button button:hover,

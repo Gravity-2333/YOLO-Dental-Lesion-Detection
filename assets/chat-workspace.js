@@ -157,14 +157,12 @@
   }
 
   function formatMessageTime(row) {
-    const match = row.textContent?.match(/chat-time:(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/u);
-    if (match) {
-      row.querySelectorAll("*").forEach((element) => {
-        if (element.children.length === 0 && element.textContent?.includes("chat-time:")) {
-          element.classList.add("ai-native-time-metadata");
-        }
-      });
-      const value = new Date(match[1]);
+    const marker = row.querySelector(".ai-message-time-marker");
+    const encoded = [...(marker?.classList || [])].find((name) => /^ai-chat-time-\d{8}T\d{4}$/u.test(name));
+    const match = encoded?.match(/^ai-chat-time-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})$/u);
+    const timestamp = match ? `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}` : "";
+    if (timestamp) {
+      const value = new Date(timestamp);
       if (!Number.isNaN(value.getTime())) {
         const now = new Date();
         const day = new Date(value.getFullYear(), value.getMonth(), value.getDate());
