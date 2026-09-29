@@ -42,6 +42,50 @@
   let searchResultSignature = "";
   let searchQuery = "";
   let searchSourceItems = [];
+  let floatingTooltip = null;
+  let tooltipAnchor = null;
+
+  function hideFloatingTooltip() {
+    tooltipAnchor?.removeAttribute("aria-describedby");
+    floatingTooltip?.remove();
+    tooltipAnchor = null;
+    floatingTooltip = null;
+  }
+
+  function showFloatingTooltip(anchor) {
+    const text = anchor.dataset.tooltip?.trim();
+    if (!text) return;
+    hideFloatingTooltip();
+    const tooltip = document.createElement("div");
+    tooltip.id = `ai-tooltip-${Date.now()}`;
+    tooltip.className = "ai-floating-tooltip";
+    tooltip.setAttribute("role", "tooltip");
+    tooltip.textContent = text;
+    document.body.append(tooltip);
+    const anchorRect = anchor.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const roomAbove = anchorRect.top - tooltipRect.height - 9;
+    const top = roomAbove >= 8 ? roomAbove : anchorRect.bottom + 9;
+    const idealLeft = anchorRect.left + (anchorRect.width - tooltipRect.width) / 2;
+    const left = Math.min(innerWidth - tooltipRect.width - 8, Math.max(8, idealLeft));
+    tooltip.style.left = `${Math.round(left)}px`;
+    tooltip.style.top = `${Math.round(top)}px`;
+    anchor.setAttribute("aria-describedby", tooltip.id);
+    tooltipAnchor = anchor;
+    floatingTooltip = tooltip;
+    requestAnimationFrame(() => tooltip.classList.add("is-visible"));
+  }
+
+  function initializeFloatingTooltips(root = document) {
+    root.querySelectorAll(".ai-search-open, .ai-new-chat-proxy, .ai-search-close").forEach((button) => {
+      if (button.dataset.aiTooltipReady === "true") return;
+      button.dataset.aiTooltipReady = "true";
+      button.addEventListener("pointerenter", () => showFloatingTooltip(button));
+      button.addEventListener("pointerleave", hideFloatingTooltip);
+      button.addEventListener("focus", () => showFloatingTooltip(button));
+      button.addEventListener("blur", hideFloatingTooltip);
+    });
+  }
 
   function conversationItems() {
     return [...document.querySelectorAll(`${LIST_SELECTOR} label`)].map((label) => ({
@@ -89,6 +133,7 @@
 
   function closeSearchDialog() {
     if (!searchDialog) return;
+    hideFloatingTooltip();
     searchDialog.remove();
     searchDialog = null;
     searchResultSignature = "";
@@ -136,6 +181,7 @@
       if (event.target === overlay) closeSearchDialog();
     });
     renderSearchResults();
+    initializeFloatingTooltips(overlay);
     requestAnimationFrame(() => input.focus());
   }
 
@@ -399,6 +445,7 @@
     const { minimum, maximum } = sidebarBounds(layout);
     const width = Math.round(Math.min(maximum, Math.max(minimum, requestedWidth)));
     layout.style.setProperty("--ai-sidebar-width", `${width}px`);
+    layout.classList.toggle("ai-sidebar-compact", width < 340);
     resizer.setAttribute("aria-valuemin", String(minimum));
     resizer.setAttribute("aria-valuemax", String(maximum));
     resizer.setAttribute("aria-valuenow", String(width));
@@ -466,6 +513,7 @@
     decorateStaticButtons(root);
     initializeComposerKeyboard(root);
     initializeSidebarResizer(root);
+    initializeFloatingTooltips(root);
     renderSearchResults();
   }
 
@@ -473,8 +521,14 @@
     const path = event.composedPath();
     if (!path.some((node) => node instanceof Element && (node.classList.contains(MENU_CLASS) || node.classList.contains(TRIGGER_CLASS)))) closeMenu();
   }, true);
-  window.addEventListener("scroll", closeMenu, { passive: true });
-  window.addEventListener("resize", closeMenu);
+  window.addEventListener("scroll", () => {
+    closeMenu();
+    hideFloatingTooltip();
+  }, { passive: true });
+  window.addEventListener("resize", () => {
+    closeMenu();
+    hideFloatingTooltip();
+  });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && searchDialog) {
       event.preventDefault();

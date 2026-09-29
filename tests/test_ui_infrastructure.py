@@ -1301,6 +1301,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn(".ai-sidebar-resizer", css)
         self.assertIn('role="separator"', inspect.getsource(build_ai_chat_page))
         self.assertIn("dental-ai-sidebar-width", javascript)
+        self.assertIn('classList.toggle("ai-sidebar-compact"', javascript)
         self.assertIn('resizer.addEventListener("pointerdown"', javascript)
         self.assertIn('resizer.addEventListener("keydown"', javascript)
 
@@ -1318,7 +1319,11 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("toLocaleLowerCase().includes", javascript)
         self.assertIn('clickHiddenAction(".ai-new-chat-button")', javascript)
         self.assertIn('event.key.toLowerCase() === "k"', javascript)
+        self.assertIn("showFloatingTooltip", javascript)
+        self.assertIn('document.body.append(tooltip)', javascript)
         self.assertIn(".ai-search-overlay", css)
+        self.assertIn(".ai-floating-tooltip", css)
+        self.assertNotIn(".ai-search-open::after", css)
         self.assertIn("place-items: center", css)
 
     def test_active_ai_workspace_meets_header_without_page_spacing(self) -> None:
