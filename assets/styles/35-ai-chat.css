@@ -867,6 +867,20 @@ button.ai-send-button {
   color: #ffffff !important;
 }
 
+.ai-composer-actions button.ai-send-button,
+.ai-composer-actions button.ai-send-button:hover,
+.ai-composer-actions button.ai-send-button:focus-visible,
+.ai-composer-actions button.ai-send-button:active {
+  flex: 0 0 38px !important;
+  width: 38px !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  border-radius: 50% !important;
+}
+
 .ai-stop-button button,
 button.ai-stop-button {
   border: 1px solid #d9dfdc !important;
