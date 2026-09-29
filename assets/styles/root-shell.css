@@ -10,8 +10,8 @@ gradio-app > .gradio-container > .main.fillable {
 }
 
 gradio-app > .gradio-container {
-  width: 100vw !important;
-  max-width: 100vw !important;
+  width: 100% !important;
+  max-width: 100% !important;
   margin: 0 !important;
 }
 
@@ -70,8 +70,8 @@ gradio-app .html-container:has(.app-header-shell) {
 
 @media (max-width: 900px) {
   gradio-app > .gradio-container {
-    width: 100vw !important;
-    max-width: 100vw !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column {
@@ -86,8 +86,8 @@ gradio-app .html-container:has(.app-header-shell) {
 
 @media (max-width: 640px) {
   gradio-app > .gradio-container {
-    width: 100vw !important;
-    max-width: 100vw !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column {
