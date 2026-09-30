@@ -11,7 +11,7 @@ from time import sleep
 import unittest
 from unittest.mock import patch
 
-from src.dental_detection import assistant, conversation_store, settings_store
+from src.dental_detection import assistant, chat_automation, conversation_store, settings_store
 from src.dental_detection.advice import default_advice, detection_prompt
 from src.dental_detection.ai_detection_context import build_detection_text_context
 from src.dental_detection.ai_client import _friendly_ai_error, normalize_base_url, validate_ai_request
@@ -85,6 +85,18 @@ class AssistantCompatibilityTests(unittest.TestCase):
 
         self.assertEqual(max_active, 1)
 
+    def test_settings_loader_clamps_task_model_parameters(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "settings.json"
+            config_path.write_text(
+                json.dumps({"task_temperature": 9, "task_max_tokens": 1}),
+                encoding="utf-8",
+            )
+            with patch.object(settings_store, "CONFIG_PATH", config_path):
+                loaded = settings_store.load_settings()
+        self.assertEqual(loaded.task_temperature, 2.0)
+        self.assertEqual(loaded.task_max_tokens, 32)
+
 
 class AiClientTests(unittest.TestCase):
     def test_base_url_normalization_preserves_path_prefix(self) -> None:
@@ -135,6 +147,55 @@ class AiClientTests(unittest.TestCase):
         self.assertIn("AI 模型或接口配置不可用", message)
         self.assertIn("建议处理：", message)
         self.assertNotIn("可能原因：", message)
+
+
+class ChatAutomationTests(unittest.TestCase):
+    def test_task_prompt_uses_limited_text_context(self) -> None:
+        messages = [
+            {"role": "user", "content": f"问题 {index}"}
+            for index in range(8)
+        ]
+        prompt = chat_automation.render_task_prompt(
+            "当前：{{prompt}}\n内容：{{MESSAGES}}",
+            messages,
+        )
+        self.assertIn("当前：问题 7", prompt)
+        self.assertNotIn("问题 0", prompt)
+        self.assertIn("问题 2", prompt)
+
+    def test_ai_title_uses_task_model_and_cleans_prefix(self) -> None:
+        settings = AiSettings(
+            model="chat-model",
+            task_model="task-model",
+            title_generation_mode="AI 自动生成",
+        )
+        with patch.object(
+            chat_automation,
+            "chat_completion",
+            return_value="标题：\"根尖区复核建议\"",
+        ) as completion:
+            title = chat_automation.generate_conversation_title(
+                settings,
+                [{"role": "user", "content": "请看根尖区"}],
+            )
+        self.assertEqual(title, "根尖区复核建议")
+        self.assertEqual(completion.call_args.args[0].model, "task-model")
+
+    def test_followup_generation_parses_json_and_fills_missing_items(self) -> None:
+        settings = AiSettings(followup_generation_enabled=True)
+        with patch.object(
+            chat_automation,
+            "chat_completion",
+            return_value='["应优先复核哪个区域？", "是否需要补充拍片？"]',
+        ):
+            questions = chat_automation.generate_followup_questions(settings, [])
+        self.assertEqual(len(questions), 3)
+        self.assertEqual(questions[0], "应优先复核哪个区域？")
+        self.assertEqual(questions[1], "是否需要补充拍片？")
+
+    def test_disabled_followup_generation_keeps_default_questions(self) -> None:
+        questions = chat_automation.generate_followup_questions(AiSettings(), [])
+        self.assertEqual(questions, chat_automation.DEFAULT_FOLLOWUP_QUESTIONS)
 
 
 class AdviceAndConversationTests(unittest.TestCase):

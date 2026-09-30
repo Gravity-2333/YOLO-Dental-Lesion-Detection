@@ -1803,6 +1803,60 @@ class UiContentTests(unittest.TestCase):
         source = inspect.getsource(app.save_ui_settings)
         self.assertIn("save_settings(settings, migrate_data=False)", source)
 
+    def test_settings_save_persists_chat_automation_options(self) -> None:
+        previous = app.AiSettings(storage_dir="same-root")
+        with (
+            patch.object(app, "load_settings", return_value=previous),
+            patch.object(app, "save_settings", return_value=Path("settings.json")) as save_mock,
+        ):
+            app.save_ui_settings(
+                False, "", "", "环境变量", "", "", "", False, False, True,
+                "same-root", "", "简洁版", False, False, "单模型", "", "", "",
+                True, 100,
+                "AI 自动生成", "标题 {{prompt}}", True, "问题 {{MESSAGES}}",
+                "task-model", 0.4, 240,
+            )
+        saved = save_mock.call_args.args[0]
+        self.assertEqual(saved.title_generation_mode, "AI 自动生成")
+        self.assertEqual(saved.title_generation_prompt, "标题 {{prompt}}")
+        self.assertTrue(saved.followup_generation_enabled)
+        self.assertEqual(saved.followup_generation_prompt, "问题 {{MESSAGES}}")
+        self.assertEqual(saved.task_model, "task-model")
+        self.assertEqual(saved.task_temperature, 0.4)
+        self.assertEqual(saved.task_max_tokens, 240)
+
+    def test_chat_automation_updates_title_suggestions_and_saved_thread(self) -> None:
+        settings = app.AiSettings(
+            enabled=True,
+            title_generation_mode="AI 自动生成",
+            followup_generation_enabled=True,
+        )
+        history = [
+            {"role": "user", "content": "请复核根尖区域"},
+            {"role": "assistant", "content": "建议结合临床检查复核。"},
+        ]
+        with (
+            patch.object(app, "load_settings", return_value=settings),
+            patch.object(app, "generate_conversation_title", return_value="根尖区域复核"),
+            patch.object(
+                app,
+                "generate_followup_questions",
+                return_value=("问题一", "问题二", "问题三"),
+            ),
+            patch.object(app, "upsert_conversation") as upsert_mock,
+            patch.object(
+                app,
+                "refresh_conversation_history_with_selection",
+                return_value=({"value": "chat.json"}, "已更新"),
+            ),
+        ):
+            result = app.run_chat_automation(
+                history, "chat.json", "本地标题", True, "data-root", "patient-1"
+            )
+        upsert_mock.assert_called_once()
+        self.assertEqual(result[2], "根尖区域复核")
+        self.assertEqual([item["value"] for item in result[3:]], ["问题一", "问题二", "问题三"])
+
     def test_settings_save_passes_non_migrating_contract_to_store(self) -> None:
         workspace = SimpleNamespace(
             patient=SimpleNamespace(id="patient-1", display_name="测试患者", external_reference=""),

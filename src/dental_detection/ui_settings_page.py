@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
 import gradio as gr
 
-from .ai_defaults import DEFAULT_AI_PROMPT
+from .ai_defaults import (
+    DEFAULT_AI_PROMPT,
+    DEFAULT_FOLLOWUP_GENERATION_PROMPT,
+    DEFAULT_TITLE_GENERATION_PROMPT,
+)
 from .model_files import ADVANCED_MODEL_HINT
 from .model_info import legend_html
 from .settings_store import AiSettings
@@ -53,6 +58,8 @@ class SettingsPageData:
 
 @dataclass(frozen=True, slots=True)
 class SettingsComponents:
+    settings_nav: Any
+    settings_panes: tuple[Any, ...]
     enable_compare: Any
     show_summary: Any
     model_cards_view: Any
@@ -86,6 +93,13 @@ class SettingsComponents:
     custom_prompt: Any
     test_btn: Any
     test_result: Any
+    title_generation_mode: Any
+    title_generation_prompt: Any
+    followup_generation_enabled: Any
+    followup_generation_prompt: Any
+    task_model: Any
+    task_temperature: Any
+    task_max_tokens: Any
     auto_save: Any
     save_history: Any
     history_limit: Any
@@ -137,231 +151,288 @@ class SettingsComponents:
         return [getattr(self, key) for key in AI_REQUEST_KEYS]
 
 
+@contextmanager
+def advanced_settings():
+    with gr.Accordion("高级", open=False, elem_classes=["settings-advanced"]):
+        with gr.Column(elem_classes=["settings-advanced-content"]):
+            yield
+
+
 def build_settings_page(data: SettingsPageData) -> SettingsComponents:
     saved = data.saved
-    with gr.Group(elem_classes=["settings-sections"]):
-        with gr.Accordion("工作台", open=True, elem_classes=["settings-section"]):
-            with gr.Group(elem_classes=["settings-card"]):
-                gr.HTML(
-                    section_heading(
-                        "显示选项",
-                        "控制主工作台中展示的分析能力。",
-                        help_title="显示选项说明",
-                        help_text=DISPLAY_OPTIONS_HELP,
+    with gr.Row(elem_classes=["settings-nav-shell"]):
+        settings_nav = gr.Radio(
+            choices=["工作台", "模型", "AI", "自动化", "存储"],
+            value="工作台",
+            label="设置栏目",
+            show_label=False,
+            elem_classes=["settings-nav-control"],
+            scale=0,
+            min_width=210,
+        )
+        with gr.Group(visible=True, elem_classes=["settings-pane-host"]) as workbench_settings_pane:
+            with gr.Column(elem_classes=["settings-pane"]):
+                with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
+                    gr.HTML(
+                        section_heading(
+                            "显示选项",
+                            "控制主工作台中展示的分析能力。",
+                            help_title="显示选项说明",
+                            help_text=DISPLAY_OPTIONS_HELP,
+                        )
                     )
-                )
-                enable_compare = gr.Checkbox(value=saved.enable_compare, label="允许对比模型模式")
-                show_summary = gr.Checkbox(value=saved.show_summary, label="显示参数分析摘要")
+                    enable_compare = gr.Checkbox(value=saved.enable_compare, label="允许对比模型模式")
+                    show_summary = gr.Checkbox(value=saved.show_summary, label="显示参数分析摘要")
 
-        with gr.Accordion("模型与推理", open=False, elem_classes=["settings-section"]):
-            with gr.Group(elem_classes=["settings-card"]):
-                gr.HTML(
-                    section_heading(
-                        "模型选择",
-                        "选择用于检测的模型。普通使用建议保持默认优化模型。",
-                        help_title="模型选择说明",
-                        help_text=MODEL_SELECTION_HELP,
+        with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as model_settings_pane:
+            with gr.Column(elem_classes=["settings-pane"]):
+                with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
+                    gr.HTML(
+                        section_heading(
+                            "模型选择",
+                            "选择用于检测的模型。普通使用建议保持默认优化模型。",
+                            help_title="模型选择说明",
+                            help_text=MODEL_SELECTION_HELP,
+                        )
                     )
-                )
-                model_cards_view = gr.HTML(data.model_cards_html)
-                model_card_select = gr.Radio(
-                    choices=data.model_card_choices,
-                    value=(
-                        data.primary_model_path
-                        if any(data.primary_model_path == value for _, value in data.model_card_choices)
-                        else None
-                    ),
-                    label="模型卡片",
-                    elem_classes=["segmented-control"],
-                )
-                apply_model_card_btn = gr.Button(
-                    "使用模型卡片", elem_classes=["secondary-action", "compact-button"]
-                )
-                settings_model_mode = gr.Radio(
-                    choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
-                    value=saved.model_mode if saved.enable_compare else MODEL_MODE_SINGLE,
-                    label="模型模式",
-                    elem_classes=["segmented-control"],
-                )
-                with gr.Accordion("高级模型路径设置", open=False):
-                    show_advanced_models = gr.Checkbox(
-                        value=False,
-                        label="显示高级模型 / 实验权重",
-                        info=ADVANCED_MODEL_HINT,
-                    )
-                    with gr.Row(elem_classes=["path-row", "path-picker-row"]):
-                        model_dir = gr.Textbox(
-                            value=data.model_dir,
-                            label="模型目录",
-                            lines=1,
-                            max_lines=1,
-                            scale=8,
-                        )
-                        open_model_dir_btn = gr.Button(
-                            "...",
-                            size="sm",
-                            scale=1,
-                            elem_id="model-dir-picker",
-                            elem_classes=["icon-action"],
-                        )
-                        refresh_model_btn = gr.Button(
-                            "刷新", scale=2, elem_classes=["secondary-action"]
-                        )
-                    with gr.Row(elem_classes=["model-row"]):
-                        model_file_select = gr.Dropdown(
-                            choices=data.model_choices,
-                            value=data.selected_model_choice,
-                            label="目录内模型",
-                            scale=8,
-                        )
-                        apply_model_btn = gr.Button(
-                            "使用选中模型", elem_classes=["secondary-action"], scale=2
-                        )
-                    with gr.Row(elem_classes=["compact-row"]):
-                        model_apply_target = gr.Radio(
-                            choices=["主模型", "对比模型"],
-                            value="主模型",
-                            label="填入位置",
-                            elem_classes=["segmented-control"],
-                        )
-                    primary_model_path = gr.Textbox(
-                        value=data.primary_model_path,
-                        label="主模型路径",
-                        lines=1,
-                        max_lines=1,
-                    )
-                    compare_model_path = gr.Textbox(
-                        value=data.compare_model_path,
-                        label="对比模型路径",
-                        lines=1,
-                        max_lines=1,
-                        visible=saved.enable_compare and saved.model_mode == MODEL_MODE_COMPARE,
-                    )
-                with gr.Row(elem_classes=["compact-row"]):
-                    test_model_btn = gr.Button(
-                        "测试模型", elem_classes=["secondary-action", "compact-button"]
-                    )
-                model_feedback = gr.Textbox(label="模型反馈", interactive=False, lines=2)
-
-        with gr.Accordion("模型说明", open=False, elem_classes=["settings-section"]):
-            with gr.Group(elem_classes=["settings-card"]):
-                gr.HTML(section_heading("模型说明", "识别类别、输入要求、适用边界与安全声明。"))
-                model_info_markdown = gr.Markdown(data.model_info_markdown)
-                gr.HTML(legend_html())
-
-        with gr.Accordion("AI 接口", open=False, elem_classes=["settings-section"]):
-            with gr.Group(elem_classes=["settings-card"]):
-                gr.HTML(
-                    section_heading(
-                        "AI 建议",
-                        "配置检测后的辅助建议与追问能力。",
-                        help_title="接口说明",
-                        help_text=AI_INTERFACE_HELP,
-                    )
-                )
-                ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
-                advice_style = gr.Dropdown(
-                    choices=["简洁版", "医生版", "患者版"],
-                    value=saved.advice_style,
-                    label="AI 建议风格",
-                    elem_classes=["compact-control", "short-select"],
-                )
-                with gr.Group(visible=saved.enabled, elem_classes=["panel-card"]) as ai_group:
-                    with gr.Row(elem_classes=["compact-row"]):
-                        ai_model = gr.Textbox(value=saved.model, label="模型")
-                        base_url = gr.Textbox(
-                            value=saved.base_url,
-                            label="Base URL",
-                            info="仅支持 OpenAI 兼容 Chat Completions 接口。无路径时自动追加 /v1。",
-                        )
-                    key_mode = gr.Radio(
-                        choices=["环境变量", "直接 Key 值"],
-                        value=saved.key_mode,
-                        label="API Key 类型",
+                    model_cards_view = gr.HTML(data.model_cards_html)
+                    model_card_select = gr.Radio(
+                        choices=data.model_card_choices,
+                        value=(
+                            data.primary_model_path
+                            if any(data.primary_model_path == value for _, value in data.model_card_choices)
+                            else None
+                        ),
+                        label="模型卡片",
                         elem_classes=["segmented-control"],
                     )
-                    env_api_key = gr.Textbox(
-                        value=data.env_api_key,
-                        label="环境变量名",
-                        placeholder="例如：DEEPSEEK_API_KEY",
-                        info="填写环境变量名称。",
-                        visible=saved.key_mode == "环境变量",
+                    apply_model_card_btn = gr.Button(
+                        "使用模型卡片", elem_classes=["secondary-action", "compact-button"]
                     )
-                    direct_api_key_hidden = gr.Textbox(
-                        value=data.direct_api_key,
-                        label="直接 API Key",
-                        type="password",
-                        placeholder="请输入真实 API Key",
-                        info="默认不保存真实 Key。",
-                        visible=saved.key_mode == "直接 Key 值",
+                    settings_model_mode = gr.Radio(
+                        choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
+                        value=saved.model_mode if saved.enable_compare else MODEL_MODE_SINGLE,
+                        label="模型模式",
+                        elem_classes=["segmented-control"],
                     )
-                    direct_api_key_visible = gr.Textbox(
-                        value=data.direct_api_key,
-                        label="直接 API Key",
-                        type="text",
-                        placeholder="请输入真实 API Key",
-                        info="当前为明文显示。",
-                        visible=False,
-                    )
-                    direct_key_visible = gr.State(False)
-                    with gr.Row(elem_classes=["compact-row"]):
-                        show_direct_key_btn = gr.Button(
-                            "显示 Key",
-                            visible=saved.key_mode == "直接 Key 值",
-                            size="sm",
-                            elem_classes=["secondary-action", "compact-button"],
+                    with advanced_settings():
+                        show_advanced_models = gr.Checkbox(
+                            value=False,
+                            label="显示高级模型 / 实验权重",
+                            info=ADVANCED_MODEL_HINT,
                         )
-                        save_key = gr.Checkbox(value=saved.save_api_key, label="保存 API Key 到本地配置")
-                    custom_prompt = gr.Textbox(
-                        value=saved.custom_prompt or DEFAULT_AI_PROMPT,
-                        label="AI 建议 Prompt",
-                        lines=7,
-                        max_lines=12,
-                    )
-                    with gr.Row(elem_classes=["compact-row"]):
-                        test_btn = gr.Button(
-                            "测试接口", elem_classes=["secondary-action", "compact-button"]
+                        with gr.Row(elem_classes=["path-row", "path-picker-row"]):
+                            model_dir = gr.Textbox(
+                                value=data.model_dir,
+                                label="模型目录",
+                                lines=1,
+                                max_lines=1,
+                                scale=8,
+                            )
+                            open_model_dir_btn = gr.Button(
+                                "...", size="sm", scale=1, elem_id="model-dir-picker",
+                                elem_classes=["icon-action"],
+                            )
+                            refresh_model_btn = gr.Button(
+                                "刷新", scale=2, elem_classes=["secondary-action"]
+                            )
+                        with gr.Row(elem_classes=["model-row"]):
+                            model_file_select = gr.Dropdown(
+                                choices=data.model_choices,
+                                value=data.selected_model_choice,
+                                label="目录内模型",
+                                scale=8,
+                            )
+                            apply_model_btn = gr.Button(
+                                "使用选中模型", elem_classes=["secondary-action"], scale=2
+                            )
+                        model_apply_target = gr.Radio(
+                            choices=["主模型", "对比模型"], value="主模型", label="填入位置",
+                            elem_classes=["segmented-control"],
                         )
-                    test_result = gr.Textbox(label="测试反馈", interactive=False, lines=2)
+                        primary_model_path = gr.Textbox(
+                            value=data.primary_model_path, label="主模型路径", lines=1, max_lines=1
+                        )
+                        compare_model_path = gr.Textbox(
+                            value=data.compare_model_path,
+                            label="对比模型路径",
+                            lines=1,
+                            max_lines=1,
+                            visible=saved.enable_compare and saved.model_mode == MODEL_MODE_COMPARE,
+                        )
+                    with gr.Row(elem_classes=["compact-row"]):
+                        test_model_btn = gr.Button(
+                            "测试模型", elem_classes=["secondary-action", "compact-button"]
+                        )
+                    model_feedback = gr.Textbox(label="模型反馈", interactive=False, lines=2)
+                with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
+                    gr.HTML(section_heading("模型说明", "识别类别、输入要求、适用边界与安全声明。"))
+                    model_info_markdown = gr.Markdown(data.model_info_markdown)
+                    gr.HTML(legend_html())
 
-        with gr.Accordion("存储与隐私", open=False, elem_classes=["settings-section"]):
-            with gr.Group(elem_classes=["settings-card"]):
-                gr.HTML(
-                    section_heading(
-                        "存储与隐私",
-                        "管理本地记录和数据目录。",
-                        help_title="存储说明",
-                        help_text=STORAGE_HELP,
+        with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as ai_settings_pane:
+            with gr.Column(elem_classes=["settings-pane"]):
+                with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
+                    gr.HTML(
+                        section_heading(
+                            "AI 建议",
+                            "配置检测后的辅助建议与追问能力。",
+                            help_title="接口说明",
+                            help_text=AI_INTERFACE_HELP,
+                        )
                     )
-                )
-                auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
-                save_history = gr.Checkbox(value=saved.save_history, label="自动保存检测历史")
-                history_limit = gr.Number(
-                    value=saved.history_limit,
-                    label="自动记录最多保留数量",
-                    info="同时用于检测历史和自动保存的对话记录。",
-                    precision=0,
-                    minimum=1,
-                    maximum=1000,
-                )
-                with gr.Row(elem_classes=["path-row", "path-picker-row"]):
-                    storage_dir = gr.Textbox(
-                        value=saved.storage_dir,
-                        label="存储目录",
-                        lines=1,
-                        max_lines=1,
-                        scale=8,
+                    ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
+                    with gr.Group(visible=saved.enabled, elem_classes=["settings-ai-content"]) as ai_group:
+                        advice_style = gr.Dropdown(
+                            choices=["简洁版", "医生版", "患者版"],
+                            value=saved.advice_style,
+                            label="AI 建议风格",
+                            elem_classes=["compact-control", "short-select"],
+                        )
+                        custom_prompt = gr.Textbox(
+                            value=saved.custom_prompt or DEFAULT_AI_PROMPT,
+                            label="AI 建议 Prompt",
+                            lines=7,
+                            max_lines=12,
+                        )
+                        with advanced_settings():
+                            with gr.Row(elem_classes=["settings-inline-fields"]):
+                                ai_model = gr.Textbox(value=saved.model, label="对话模型")
+                                base_url = gr.Textbox(
+                                    value=saved.base_url,
+                                    label="Base URL",
+                                    info="仅支持 OpenAI 兼容 Chat Completions 接口。无路径时自动追加 /v1。",
+                                )
+                            key_mode = gr.Radio(
+                                choices=["环境变量", "直接 Key 值"],
+                                value=saved.key_mode,
+                                label="API Key 类型",
+                                elem_classes=["segmented-control"],
+                            )
+                            env_api_key = gr.Textbox(
+                                value=data.env_api_key,
+                                label="环境变量名",
+                                placeholder="例如：DEEPSEEK_API_KEY",
+                                info="填写环境变量名称。",
+                                visible=saved.key_mode == "环境变量",
+                            )
+                            direct_api_key_hidden = gr.Textbox(
+                                value=data.direct_api_key,
+                                label="直接 API Key",
+                                type="password",
+                                placeholder="请输入真实 API Key",
+                                info="默认不保存真实 Key。",
+                                visible=saved.key_mode == "直接 Key 值",
+                            )
+                            direct_api_key_visible = gr.Textbox(
+                                value=data.direct_api_key,
+                                label="直接 API Key",
+                                type="text",
+                                placeholder="请输入真实 API Key",
+                                info="当前为明文显示。",
+                                visible=False,
+                            )
+                            direct_key_visible = gr.State(False)
+                            with gr.Row(elem_classes=["compact-row"]):
+                                show_direct_key_btn = gr.Button(
+                                    "显示 Key", visible=saved.key_mode == "直接 Key 值", size="sm",
+                                    elem_classes=["secondary-action", "compact-button"],
+                                )
+                                save_key = gr.Checkbox(value=saved.save_api_key, label="保存 API Key 到本地配置")
+                            with gr.Row(elem_classes=["compact-row"]):
+                                test_btn = gr.Button(
+                                    "测试接口", elem_classes=["secondary-action", "compact-button"]
+                                )
+                            test_result = gr.Textbox(label="测试反馈", interactive=False, lines=2)
+
+        with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as automation_settings_pane:
+            with gr.Column(elem_classes=["settings-pane"]):
+                with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
+                    gr.HTML(
+                        section_heading(
+                            "对话自动化",
+                            "控制新对话标题与下一步追问建议。任务只读取当前对话文字，不读取牙片。",
+                        )
                     )
-                    open_storage_btn = gr.Button(
-                        "...",
-                        size="sm",
-                        scale=1,
-                        elem_id="storage-dir-picker",
-                        elem_classes=["icon-action"],
+                    title_generation_mode = gr.Radio(
+                        choices=["本地规则", "AI 自动生成"],
+                        value=saved.title_generation_mode,
+                        label="对话标题",
+                        elem_classes=["segmented-control"],
                     )
-                    default_storage_btn = gr.Button(
-                        "恢复默认", scale=2, elem_classes=["secondary-action"]
+                    followup_generation_enabled = gr.Checkbox(
+                        value=saved.followup_generation_enabled,
+                        label="每次回复后生成后续问题建议",
                     )
+                    with advanced_settings():
+                        with gr.Group(elem_classes=["settings-option-group", "settings-inner-group"]):
+                            title_generation_prompt = gr.Textbox(
+                                value=saved.title_generation_prompt or DEFAULT_TITLE_GENERATION_PROMPT,
+                                label="标题生成 Prompt",
+                                lines=5,
+                                max_lines=10,
+                            )
+                        with gr.Group(elem_classes=["settings-option-group", "settings-inner-group"]):
+                            followup_generation_prompt = gr.Textbox(
+                                value=saved.followup_generation_prompt or DEFAULT_FOLLOWUP_GENERATION_PROMPT,
+                                label="后续问题生成 Prompt",
+                                lines=6,
+                                max_lines=12,
+                            )
+                        with gr.Group(elem_classes=["settings-option-group", "settings-inner-group"]):
+                            task_model = gr.Textbox(
+                                value=saved.task_model,
+                                label="任务模型",
+                                placeholder="留空时使用当前对话模型",
+                            )
+                            with gr.Row(elem_classes=["settings-inline-fields"]):
+                                task_temperature = gr.Number(
+                                    value=saved.task_temperature,
+                                    label="温度",
+                                    minimum=0,
+                                    maximum=2,
+                                    step=0.1,
+                                )
+                                task_max_tokens = gr.Number(
+                                    value=saved.task_max_tokens,
+                                    label="最大输出 Token",
+                                    minimum=32,
+                                    maximum=800,
+                                    precision=0,
+                                )
+
+        with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as storage_settings_pane:
+            with gr.Column(elem_classes=["settings-pane"]):
+                with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
+                    gr.HTML(
+                        section_heading(
+                            "存储与隐私",
+                            "管理本地记录和数据目录。",
+                            help_title="存储说明",
+                            help_text=STORAGE_HELP,
+                        )
+                    )
+                    auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
+                    save_history = gr.Checkbox(value=saved.save_history, label="自动保存检测历史")
+                    history_limit = gr.Number(
+                        value=saved.history_limit,
+                        label="自动记录最多保留数量",
+                        info="同时用于检测历史和自动保存的对话记录。",
+                        precision=0,
+                        minimum=1,
+                        maximum=1000,
+                    )
+                    with gr.Row(elem_classes=["path-row", "path-picker-row"]):
+                        storage_dir = gr.Textbox(
+                            value=saved.storage_dir, label="存储目录", lines=1, max_lines=1, scale=8
+                        )
+                        open_storage_btn = gr.Button(
+                            "...", size="sm", scale=1, elem_id="storage-dir-picker",
+                            elem_classes=["icon-action"],
+                        )
+                        default_storage_btn = gr.Button(
+                            "恢复默认", scale=2, elem_classes=["secondary-action"]
+                        )
 
     with gr.Row(elem_classes=["settings-actions"]):
         settings_feedback = gr.HTML(elem_classes=["settings-feedback"])
@@ -370,6 +441,14 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
         )
 
     return SettingsComponents(
+        settings_nav=settings_nav,
+        settings_panes=(
+            workbench_settings_pane,
+            model_settings_pane,
+            ai_settings_pane,
+            automation_settings_pane,
+            storage_settings_pane,
+        ),
         enable_compare=enable_compare,
         show_summary=show_summary,
         model_cards_view=model_cards_view,
@@ -403,6 +482,13 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
         custom_prompt=custom_prompt,
         test_btn=test_btn,
         test_result=test_result,
+        title_generation_mode=title_generation_mode,
+        title_generation_prompt=title_generation_prompt,
+        followup_generation_enabled=followup_generation_enabled,
+        followup_generation_prompt=followup_generation_prompt,
+        task_model=task_model,
+        task_temperature=task_temperature,
+        task_max_tokens=task_max_tokens,
         auto_save=auto_save,
         save_history=save_history,
         history_limit=history_limit,

@@ -993,61 +993,206 @@ td {
   box-shadow: none !important;
 }
 
-.settings-card {
-  width: min(1120px, 100%) !important;
-  max-width: 1120px !important;
-  margin: 14px auto 0 !important;
-  padding: 20px !important;
-  background: #fff !important;
-  border: 1px solid var(--card-border) !important;
-  border-radius: var(--radius) var(--radius) 0 0 !important;
+.settings-nav-shell {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: start !important;
+  gap: 32px !important;
+  width: min(1320px, 100%) !important;
+  max-width: 1320px !important;
+  margin: 18px auto 0 !important;
+  padding: 0 24px !important;
+  background: transparent !important;
+  border: 0 !important;
 }
 
-.settings-sections {
-  width: min(1120px, 100%) !important;
-  max-width: 1120px !important;
-  margin: 14px auto 0 !important;
+.settings-nav-control {
+  flex: 0 0 210px !important;
+  width: 210px !important;
+  min-width: 210px !important;
+  max-width: 210px !important;
+  margin: 0 !important;
+  padding: 4px 20px 4px 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-right: 1px solid var(--soft-border) !important;
+}
+
+.settings-nav-shell > .form {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-nav-control .wrap {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 4px !important;
+  width: 100% !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.settings-nav-control label {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  min-height: 44px !important;
+  padding: 0 14px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  color: #596663 !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  transition: color 160ms ease, background-color 160ms ease !important;
+}
+
+.settings-nav-control label:hover,
+.settings-nav-control label:focus-within {
+  color: #172522 !important;
+  background: #f3f5f4 !important;
+}
+
+.settings-nav-control label:has(input:checked) {
+  color: var(--brand-ink) !important;
+  background: #edf6f4 !important;
+  font-weight: 700 !important;
+}
+
+.settings-nav-control input {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+}
+
+.settings-pane-host {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  max-width: 980px !important;
+  min-width: 0 !important;
   padding: 0 !important;
   background: transparent !important;
   border: 0 !important;
 }
 
-.settings-section {
-  margin-bottom: 8px !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  background: #fff !important;
-  border: 1px solid var(--card-border) !important;
-  border-radius: var(--radius) !important;
+.settings-pane {
+  gap: 18px !important;
+  width: 100% !important;
+  max-width: 980px !important;
+  margin: 0 !important;
 }
 
-.settings-section > button.label-wrap {
-  min-height: 46px !important;
-  justify-content: space-between !important;
-  padding: 10px 14px !important;
-  background: #f8faf9 !important;
-  color: #263532 !important;
-  font-weight: 700 !important;
-}
-
-.settings-section .settings-card {
+.settings-card {
   width: 100% !important;
   max-width: none !important;
   margin: 0 !important;
-  padding: 18px !important;
+  padding: 22px !important;
+  background: #fff !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: 8px !important;
+}
+
+.settings-option-group {
+  overflow: visible !important;
+}
+
+.settings-inner-group {
+  padding: 16px !important;
+  border: 1px solid var(--soft-border) !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+}
+
+.settings-advanced {
+  margin: 14px 0 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
   border: 0 !important;
-  border-top: 1px solid var(--soft-border) !important;
   border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-card .settings-advanced {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-advanced > button.label-wrap {
+  width: max-content !important;
+  min-height: 34px !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  padding: 4px 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #87918f !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+  transition: color 160ms ease !important;
+}
+
+.settings-advanced > button.label-wrap:hover,
+.settings-advanced > button.label-wrap:focus-visible {
+  background: transparent !important;
+  color: #172522 !important;
+  outline: none !important;
+}
+
+.settings-advanced > button.label-wrap .icon {
+  width: 8px !important;
+  height: 8px !important;
+  margin-left: 2px !important;
+  overflow: hidden !important;
+  border-right: 1.5px solid currentColor !important;
+  border-bottom: 1.5px solid currentColor !important;
+  font-size: 0 !important;
+  transform: rotate(-45deg) !important;
+  transition: transform 160ms ease !important;
+}
+
+.settings-advanced > button.label-wrap.open .icon {
+  transform: rotate(45deg) translate(-1px, -1px) !important;
+}
+
+.settings-advanced > div:not(.wrap) {
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-advanced .settings-advanced-content {
+  animation: settings-advanced-enter 200ms ease both;
+}
+
+.settings-advanced-content {
+  gap: 14px !important;
+  padding: 12px 0 0 !important;
+}
+
+.settings-inline-fields {
+  gap: 14px !important;
+}
+
+@keyframes settings-advanced-enter {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .settings-actions {
-  width: min(1120px, 100%) !important;
-  max-width: 1120px !important;
+  width: min(1080px, calc(100% - 258px)) !important;
+  max-width: 980px !important;
   align-items: center !important;
   justify-content: flex-end !important;
   flex-wrap: nowrap !important;
   gap: 12px !important;
-  margin: 8px auto 0 !important;
+  margin: 10px max(24px, calc((100% - 1320px) / 2 + 24px)) 0 auto !important;
   padding: 10px 0 0 !important;
   background: transparent !important;
   border: 0 !important;

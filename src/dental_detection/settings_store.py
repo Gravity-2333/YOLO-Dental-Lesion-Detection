@@ -8,7 +8,14 @@ import shutil
 from threading import RLock
 from typing import Any
 
-from .ai_defaults import DEFAULT_AI_BASE_URL, DEFAULT_AI_KEY_ENV, DEFAULT_AI_MODEL, DEFAULT_AI_PROMPT
+from .ai_defaults import (
+    DEFAULT_AI_BASE_URL,
+    DEFAULT_AI_KEY_ENV,
+    DEFAULT_AI_MODEL,
+    DEFAULT_AI_PROMPT,
+    DEFAULT_FOLLOWUP_GENERATION_PROMPT,
+    DEFAULT_TITLE_GENERATION_PROMPT,
+)
 from .config import PROJECT_ROOT
 
 APP_DIR_NAME = "YOLO-Dental-Lesion-Detection"
@@ -56,6 +63,13 @@ class AiSettings:
     storage_dir: str = str(APP_HOME)
     custom_prompt: str = DEFAULT_AI_PROMPT
     advice_style: str = "简洁版"
+    title_generation_mode: str = "本地规则"
+    title_generation_prompt: str = DEFAULT_TITLE_GENERATION_PROMPT
+    followup_generation_enabled: bool = False
+    followup_generation_prompt: str = DEFAULT_FOLLOWUP_GENERATION_PROMPT
+    task_model: str = ""
+    task_temperature: float = 0.2
+    task_max_tokens: int = 180
     model_mode: str = "单模型"
     enable_compare: bool = True
     show_summary: bool = False
@@ -154,14 +168,19 @@ def _load_settings_unlocked() -> AiSettings:
     # 类型校验：防止损坏的 settings.json 在模块导入阶段导致 Path(123) 等 TypeError
     _STRING_FIELDS = {
         "base_url", "model", "key_mode", "api_key",
-        "custom_prompt", "advice_style", "model_mode",
+        "custom_prompt", "advice_style", "model_mode", "title_generation_mode",
+        "title_generation_prompt", "followup_generation_prompt", "task_model",
     }
     _PATH_FIELDS = {
         "storage_dir", "model_dir",
         "primary_model_path", "compare_model_path",
     }
-    _BOOL_FIELDS = {"enabled", "save_api_key", "auto_save", "enable_compare", "show_summary", "save_history"}
-    _INT_FIELDS = {"history_limit"}
+    _BOOL_FIELDS = {
+        "enabled", "save_api_key", "auto_save", "enable_compare", "show_summary",
+        "save_history", "followup_generation_enabled",
+    }
+    _INT_FIELDS = {"history_limit", "task_max_tokens"}
+    _FLOAT_FIELDS = {"task_temperature"}
 
     filtered: dict[str, Any] = {}
     for key, value in data.items():
@@ -186,7 +205,13 @@ def _load_settings_unlocked() -> AiSettings:
             # 其他类型丢弃
         elif key in _INT_FIELDS:
             try:
-                filtered[key] = max(1, min(1000, int(value)))
+                lower, upper = (1, 1000) if key == "history_limit" else (32, 800)
+                filtered[key] = max(lower, min(upper, int(value)))
+            except (TypeError, ValueError):
+                pass
+        elif key in _FLOAT_FIELDS:
+            try:
+                filtered[key] = max(0.0, min(2.0, float(value)))
             except (TypeError, ValueError):
                 pass
         else:
@@ -197,6 +222,8 @@ def _load_settings_unlocked() -> AiSettings:
         filtered.pop("model_mode", None)
     if filtered.get("advice_style") not in {"简洁版", "医生版", "患者版"}:
         filtered.pop("advice_style", None)
+    if filtered.get("title_generation_mode") not in {"本地规则", "AI 自动生成"}:
+        filtered.pop("title_generation_mode", None)
     return AiSettings(**{**defaults, **filtered})
 
 

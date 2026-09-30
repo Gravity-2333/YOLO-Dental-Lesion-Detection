@@ -1,4 +1,51 @@
 @media (max-width: 900px) {
+  .settings-nav-shell {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 14px !important;
+  }
+
+  .settings-nav-control {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin-bottom: 14px !important;
+    padding: 0 !important;
+    overflow-x: auto !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--soft-border) !important;
+  }
+
+  .settings-nav-control .wrap {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 4px !important;
+    width: max-content !important;
+    min-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .settings-nav-control label {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: max-content !important;
+  }
+
+  .settings-pane-host,
+  .settings-pane {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .settings-actions {
+    width: calc(100% - 28px) !important;
+    max-width: none !important;
+    margin-right: 14px !important;
+    margin-left: 14px !important;
+  }
+
   .app-header-inner {
     padding-right: 12px;
     padding-left: 12px;

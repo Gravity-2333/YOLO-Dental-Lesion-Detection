@@ -18,6 +18,11 @@ import torch
 from src.dental_detection.advice import default_advice, detection_prompt
 from src.dental_detection.ai_detection_context import build_detection_text_context
 from src.dental_detection.ai_client import chat_completion, normalize_base_url, test_chat_completion
+from src.dental_detection.chat_automation import (
+    DEFAULT_FOLLOWUP_QUESTIONS,
+    generate_conversation_title,
+    generate_followup_questions,
+)
 from src.dental_detection.ai_defaults import (
     DEFAULT_AI_BASE_URL,
     DEFAULT_AI_KEY_ENV,
@@ -810,6 +815,13 @@ def _save_runtime_settings(
     settings.show_summary = saved.show_summary
     settings.save_history = saved.save_history
     settings.history_limit = saved.history_limit
+    settings.title_generation_mode = saved.title_generation_mode
+    settings.title_generation_prompt = saved.title_generation_prompt
+    settings.followup_generation_enabled = saved.followup_generation_enabled
+    settings.followup_generation_prompt = saved.followup_generation_prompt
+    settings.task_model = saved.task_model
+    settings.task_temperature = saved.task_temperature
+    settings.task_max_tokens = saved.task_max_tokens
     settings.model_mode = (model_mode or saved.model_mode) if settings.enable_compare else MODEL_MODE_SINGLE
     settings.model_dir = _model_dir_or_default(model_dir or saved.model_dir)
     settings.primary_model_path = _model_path_or_default(
@@ -860,6 +872,14 @@ def _normalize_history_limit(value: Any) -> int:
         return max(1, min(1000, int(value or 100)))
     except (OverflowError, TypeError, ValueError):
         return 100
+
+
+def switch_settings_section(section: str):
+    selected = str(section or "工作台")
+    sections = ("工作台", "模型", "AI", "自动化", "存储")
+    if selected not in sections:
+        selected = "工作台"
+    return tuple(gr.update(visible=name == selected) for name in sections)
 
 
 def _conversation_from_advice(advice: str) -> list[dict[str, str]]:
@@ -2878,6 +2898,13 @@ def save_ui_settings(
     compare_model_path: str,
     save_history: bool,
     history_limit: int | float,
+    title_generation_mode: str = "本地规则",
+    title_generation_prompt: str = "",
+    followup_generation_enabled: bool = False,
+    followup_generation_prompt: str = "",
+    task_model: str = "",
+    task_temperature: int | float = 0.2,
+    task_max_tokens: int | float = 180,
 ):
     previous_settings = load_settings()
     settings = _ai_settings(
@@ -2914,6 +2941,29 @@ def save_ui_settings(
         _validate_compare_model_selection(settings.model_mode, settings.primary_model_path, settings.compare_model_path)
     settings.save_history = bool(save_history)
     settings.history_limit = _normalize_history_limit(history_limit)
+    settings.title_generation_mode = (
+        title_generation_mode
+        if title_generation_mode in {"本地规则", "AI 自动生成"}
+        else "本地规则"
+    )
+    settings.title_generation_prompt = (
+        str(title_generation_prompt or "").strip()
+        or previous_settings.title_generation_prompt
+    )
+    settings.followup_generation_enabled = bool(followup_generation_enabled)
+    settings.followup_generation_prompt = (
+        str(followup_generation_prompt or "").strip()
+        or previous_settings.followup_generation_prompt
+    )
+    settings.task_model = str(task_model or "").strip()
+    try:
+        settings.task_temperature = max(0.0, min(2.0, float(task_temperature)))
+    except (TypeError, ValueError):
+        settings.task_temperature = 0.2
+    try:
+        settings.task_max_tokens = max(32, min(800, int(task_max_tokens)))
+    except (TypeError, ValueError):
+        settings.task_max_tokens = 180
     try:
         storage_changed = storage_root(previous_settings.storage_dir).resolve() != storage_root(
             settings.storage_dir
@@ -3460,6 +3510,59 @@ def refresh_conversation_history_after_workspace_chat(
     return selector, feedback
 
 
+def run_chat_automation(
+    history: list[dict[str, str]],
+    current_file: str,
+    current_title: str,
+    auto_save: bool,
+    storage_dir: str,
+    patient_id: str,
+):
+    settings = load_settings()
+    normalized = _normalize_chat_history(history)
+    title = str(current_title or conversation_title(normalized)).strip()
+    questions = DEFAULT_FOLLOWUP_QUESTIONS
+    notes: list[str] = []
+    user_count = sum(item.get("role") == "user" for item in normalized)
+
+    if settings.enabled and settings.title_generation_mode == "AI 自动生成" and user_count == 1:
+        try:
+            title = generate_conversation_title(settings, normalized)
+            if auto_save and str(current_file or "").strip():
+                upsert_conversation(
+                    normalized,
+                    storage_dir,
+                    file_name=current_file,
+                    patient_id=patient_id,
+                    title=title,
+                )
+        except Exception:
+            notes.append("标题生成失败，已保留本地标题。")
+
+    if settings.enabled and settings.followup_generation_enabled and normalized:
+        try:
+            questions = generate_followup_questions(settings, normalized)
+        except Exception:
+            notes.append("后续问题生成失败，已保留默认建议。")
+
+    if auto_save and str(current_file or "").strip():
+        selector, feedback = refresh_conversation_history_with_selection(
+            storage_dir,
+            patient_id,
+            current_file,
+            feedback=" ".join(notes) if notes else "已更新最近对话列表。",
+        )
+    else:
+        selector = gr.update()
+        feedback = " ".join(notes) if notes else gr.update()
+    return (
+        selector,
+        feedback,
+        title,
+        *(gr.update(value=question) for question in questions),
+    )
+
+
 def refresh_conversation_history_with_selection(
     storage_dir: str,
     patient_id: str,
@@ -3875,6 +3978,8 @@ def build_app() -> gr.Blocks:
         export_report_btn = workbench.export_report_btn
         report_file = workbench.report_file
 
+        settings_nav = settings.settings_nav
+        settings_panes = settings.settings_panes
         enable_compare = settings.enable_compare
         show_summary = settings.show_summary
         model_cards_view = settings.model_cards_view
@@ -3908,6 +4013,13 @@ def build_app() -> gr.Blocks:
         custom_prompt = settings.custom_prompt
         test_btn = settings.test_btn
         test_result = settings.test_result
+        title_generation_mode = settings.title_generation_mode
+        title_generation_prompt = settings.title_generation_prompt
+        followup_generation_enabled = settings.followup_generation_enabled
+        followup_generation_prompt = settings.followup_generation_prompt
+        task_model = settings.task_model
+        task_temperature = settings.task_temperature
+        task_max_tokens = settings.task_max_tokens
         auto_save = settings.auto_save
         save_history = settings.save_history
         history_limit = settings.history_limit
@@ -3916,6 +4028,13 @@ def build_app() -> gr.Blocks:
         default_storage_btn = settings.default_storage_btn
         save_settings_btn = settings.save_settings_btn
         settings_feedback = settings.settings_feedback
+        settings_nav.input(
+            fn=switch_settings_section,
+            inputs=settings_nav,
+            outputs=list(settings_panes),
+            queue=False,
+            show_progress="hidden",
+        )
         common_inputs = common_input_components(workbench.common_input_map(settings))
         common_outputs = common_output_components(
             {
@@ -4544,6 +4663,13 @@ def build_app() -> gr.Blocks:
                 compare_model_path,
                 save_history,
                 history_limit,
+                title_generation_mode,
+                title_generation_prompt,
+                followup_generation_enabled,
+                followup_generation_prompt,
+                task_model,
+                task_temperature,
+                task_max_tokens,
             ],
             outputs=[
                 settings_feedback,
@@ -4718,17 +4844,10 @@ def build_app() -> gr.Blocks:
             queue=False,
             show_progress="hidden",
         )
-        for suggestion_button, suggestion_text in zip(
-            chat_suggestion_buttons,
-            (
-                "请按优先级说明需要重点复核的位置",
-                "用医生视角总结当前检测结果",
-                "有哪些影像质量问题会影响判断",
-            ),
-        ):
+        for suggestion_button in chat_suggestion_buttons:
             suggestion_button.click(
                 fn=fill_chat_suggestion,
-                inputs=gr.State(suggestion_text),
+                inputs=suggestion_button,
                 outputs=chat_input,
                 queue=False,
                 show_progress="hidden",
@@ -4746,15 +4865,23 @@ def build_app() -> gr.Blocks:
             show_progress="hidden",
         )
         chat_event.success(
-            fn=refresh_conversation_history_after_workspace_chat,
+            fn=run_chat_automation,
             inputs=[
+                chat_state,
+                current_conversation_file_state,
+                conversation_title_input,
                 auto_save,
                 storage_dir,
                 patient_select,
-                current_conversation_file_state,
             ],
-            outputs=[conversation_select, conversation_feedback],
-            queue=False,
+            outputs=[
+                conversation_select,
+                conversation_feedback,
+                conversation_title_input,
+                *chat_suggestion_buttons,
+            ],
+            concurrency_limit=1,
+            concurrency_id=AI_REQUEST_CONCURRENCY_ID,
             show_progress="hidden",
         )
         regenerate_event.success(
@@ -4783,27 +4910,43 @@ def build_app() -> gr.Blocks:
                 show_progress="hidden",
             )
             revision_event.success(
-                fn=refresh_conversation_history_after_workspace_chat,
+                fn=run_chat_automation,
                 inputs=[
+                    chat_state,
+                    current_conversation_file_state,
+                    conversation_title_input,
                     auto_save,
                     storage_dir,
                     patient_select,
-                    current_conversation_file_state,
                 ],
-                outputs=[conversation_select, conversation_feedback],
-                queue=False,
+                outputs=[
+                    conversation_select,
+                    conversation_feedback,
+                    conversation_title_input,
+                    *chat_suggestion_buttons,
+                ],
+                concurrency_limit=1,
+                concurrency_id=AI_REQUEST_CONCURRENCY_ID,
                 show_progress="hidden",
             )
         regenerate_event.success(
-            fn=refresh_conversation_history_after_workspace_chat,
+            fn=run_chat_automation,
             inputs=[
+                chat_state,
+                current_conversation_file_state,
+                conversation_title_input,
                 auto_save,
                 storage_dir,
                 patient_select,
-                current_conversation_file_state,
             ],
-            outputs=[conversation_select, conversation_feedback],
-            queue=False,
+            outputs=[
+                conversation_select,
+                conversation_feedback,
+                conversation_title_input,
+                *chat_suggestion_buttons,
+            ],
+            concurrency_limit=1,
+            concurrency_id=AI_REQUEST_CONCURRENCY_ID,
             show_progress="hidden",
         )
         chatbot.change(
