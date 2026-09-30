@@ -411,8 +411,9 @@ class UiAssetTests(unittest.TestCase):
 
         self.assertIn("justify-content: flex-end !important", rule)
         self.assertIn("flex-wrap: nowrap !important", rule)
-        self.assertIn("padding: 10px 0 0 !important", rule)
-        self.assertIn("background: transparent !important", rule)
+        self.assertIn("width: 100% !important", rule)
+        self.assertIn("padding: 14px clamp(32px, 4vw, 72px) 18px", rule)
+        self.assertIn("background: #fff !important", rule)
         self.assertIn("border: 0 !important", rule)
         self.assertIn("border-top: 1px solid var(--soft-border) !important", rule)
         self.assertNotIn("border: 1px solid var(--card-border)", rule)
@@ -435,6 +436,20 @@ class UiAssetTests(unittest.TestCase):
             action_source.index("settings_feedback = gr.HTML"),
             action_source.index("save_settings_btn = gr.Button"),
         )
+
+    def test_settings_workspace_is_full_width_without_horizontal_nav_scroll(self) -> None:
+        css = load_workbench_css()
+        root_css = ROOT_SHELL_STYLE_PATH.read_text(encoding="utf-8")
+        shell_rule = css.split(".settings-nav-shell {", 1)[1].split("}", 1)[0]
+        nav_rule = css.split(".settings-nav-control {", 1)[1].split("}", 1)[0]
+
+        self.assertIn("gap: 0 !important", shell_rule)
+        self.assertIn("padding: 0 !important", shell_rule)
+        self.assertIn("overflow: hidden !important", nav_rule)
+        self.assertIn("scrollbar-width: none !important", nav_rule)
+        self.assertIn(":has(.settings-nav-shell) > .column", root_css)
+        self.assertIn("width: 100% !important", root_css)
+        self.assertIn("max-width: none !important", root_css)
 
     def test_css_bundle_drops_retired_frontend_scaffolding(self) -> None:
         css = load_workbench_css()

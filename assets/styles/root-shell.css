@@ -44,7 +44,8 @@ gradio-app .main-tabs > .tabitem > .column {
   margin-left: auto !important;
 }
 
-gradio-app .main-tabs > .tabitem:has(.ai-chat-workspace) > .column {
+gradio-app .main-tabs > .tabitem:has(.ai-chat-workspace) > .column,
+gradio-app .main-tabs > .tabitem:has(.settings-nav-shell) > .column {
   width: 100% !important;
   max-width: none !important;
 }
@@ -53,13 +54,19 @@ gradio-app .main-tabs > .tabitem:has(.ai-chat-workspace) > .column {
  * header directly instead of inheriting the page-section spacing. */
 gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column:has(
     > .main-tabs > .tabitem:not([style*="display: none"]) .ai-chat-workspace
+  ),
+gradio-app > .gradio-container > .main.fillable > .wrap > .contain > .column:has(
+    > .main-tabs > .tabitem:not([style*="display: none"]) .settings-nav-shell
   ) {
   row-gap: 0 !important;
 }
 
 gradio-app
   .main-tabs
-  > .tabitem:has(.ai-chat-workspace):not([style*="display: none"]) {
+  > .tabitem:has(.ai-chat-workspace):not([style*="display: none"]),
+gradio-app
+  .main-tabs
+  > .tabitem:has(.settings-nav-shell):not([style*="display: none"]) {
   padding-top: 0 !important;
 }
 

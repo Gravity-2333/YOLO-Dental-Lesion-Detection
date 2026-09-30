@@ -197,7 +197,6 @@ button[aria-disabled="true"] {
 
 /* 工具行按输入框本体底部对齐，按钮保留 10px 补偿以避开 Gradio 标签外壳 */
 .section-card > .section-card,
-.settings-card > .settings-card,
 .chat-card > .chat-card,
 .case-card > .case-card {
   padding: 0 !important;

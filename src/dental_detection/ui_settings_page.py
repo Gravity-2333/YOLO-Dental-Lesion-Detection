@@ -160,6 +160,13 @@ def advanced_settings():
             yield
 
 
+def settings_page_heading(title: str, description: str) -> None:
+    gr.HTML(
+        f'<div class="settings-page-heading"><h2>{title}</h2><p>{description}</p></div>',
+        elem_classes=["settings-page-heading-host"],
+    )
+
+
 def build_settings_page(data: SettingsPageData) -> SettingsComponents:
     saved = data.saved
     with gr.Row(elem_classes=["settings-nav-shell"], equal_height=False):
@@ -174,7 +181,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
         )
         with gr.Group(visible=True, elem_classes=["settings-pane-host"]) as workbench_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
-                gr.HTML('<div class="settings-page-heading"><h2>工作台</h2><p>调整检测工作区默认展示的能力。</p></div>')
+                settings_page_heading("工作台", "调整检测工作区默认展示的能力。")
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
                     gr.HTML(
                         section_heading(
@@ -189,7 +196,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
 
         with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as model_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
-                gr.HTML('<div class="settings-page-heading"><h2>模型与推理</h2><p>选择临床辅助筛查使用的权重和运行模式。</p></div>')
+                settings_page_heading("模型与推理", "选择临床辅助筛查使用的权重和运行模式。")
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
                     gr.HTML(
                         section_heading(
@@ -208,16 +215,18 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                             else None
                         ),
                         label="模型卡片",
-                        elem_classes=["segmented-control"],
+                        elem_classes=["settings-card-picker"],
                     )
-                    apply_model_card_btn = gr.Button(
-                        "使用模型卡片", elem_classes=["secondary-action", "compact-button"]
-                    )
+                    with gr.Row(elem_classes=["settings-command-row"]):
+                        apply_model_card_btn = gr.Button(
+                            "使用模型卡片",
+                            elem_classes=["secondary-action", "settings-command-button"],
+                        )
                     settings_model_mode = gr.Radio(
                         choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
                         value=saved.model_mode if saved.enable_compare else MODEL_MODE_SINGLE,
                         label="模型模式",
-                        elem_classes=["segmented-control"],
+                        elem_classes=["segmented-control", "settings-mode-control"],
                     )
                     with advanced_settings():
                         show_advanced_models = gr.Checkbox(
@@ -264,11 +273,20 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                             max_lines=1,
                             visible=saved.enable_compare and saved.model_mode == MODEL_MODE_COMPARE,
                         )
-                    with gr.Row(elem_classes=["compact-row"]):
+                    with gr.Row(elem_classes=["settings-test-row"], equal_height=True):
                         test_model_btn = gr.Button(
-                            "测试模型", elem_classes=["secondary-action", "compact-button"]
+                            "测试模型",
+                            elem_classes=["secondary-action", "settings-command-button"],
+                            scale=0,
                         )
-                    model_feedback = gr.Textbox(label="模型反馈", interactive=False, lines=2)
+                        model_feedback = gr.Textbox(
+                            label="模型反馈",
+                            interactive=False,
+                            lines=1,
+                            max_lines=2,
+                            scale=1,
+                            elem_classes=["settings-feedback-field"],
+                        )
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
                     gr.HTML(section_heading("模型说明", "识别类别、输入要求、适用边界与安全声明。"))
                     model_info_markdown = gr.Markdown(data.model_info_markdown)
@@ -276,7 +294,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
 
         with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as ai_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
-                gr.HTML('<div class="settings-page-heading"><h2>AI 接口</h2><p>配置建议生成、问答模型和接口凭据。</p></div>')
+                settings_page_heading("AI 接口", "配置建议生成、问答模型和接口凭据。")
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
                     gr.HTML(
                         section_heading(
@@ -339,21 +357,33 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                 visible=False,
                             )
                             direct_key_visible = gr.State(False)
-                            with gr.Row(elem_classes=["compact-row"]):
+                            with gr.Row(elem_classes=["settings-key-row"], equal_height=True):
+                                save_key = gr.Checkbox(
+                                    value=saved.save_api_key,
+                                    label="保存 API Key 到本地配置",
+                                    scale=1,
+                                )
                                 show_direct_key_btn = gr.Button(
                                     "显示 Key", visible=saved.key_mode == "直接 Key 值", size="sm",
-                                    elem_classes=["secondary-action", "compact-button"],
+                                    elem_classes=["secondary-action", "settings-command-button"],
+                                    scale=0,
                                 )
-                                save_key = gr.Checkbox(value=saved.save_api_key, label="保存 API Key 到本地配置")
-                            with gr.Row(elem_classes=["compact-row"]):
+                            with gr.Row(elem_classes=["settings-command-row"]):
                                 test_btn = gr.Button(
-                                    "测试接口", elem_classes=["secondary-action", "compact-button"]
+                                    "测试接口",
+                                    elem_classes=["secondary-action", "settings-command-button"],
                                 )
-                            test_result = gr.Textbox(label="测试反馈", interactive=False, lines=2)
+                            test_result = gr.Textbox(
+                                label="测试反馈",
+                                interactive=False,
+                                lines=1,
+                                max_lines=2,
+                                elem_classes=["settings-feedback-field"],
+                            )
 
         with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as automation_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
-                gr.HTML('<div class="settings-page-heading"><h2>对话自动化</h2><p>控制标题、后续问题及其交互方式。</p></div>')
+                settings_page_heading("对话自动化", "控制标题、后续问题及其交互方式。")
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
                     gr.HTML(
                         section_heading(
@@ -424,7 +454,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
 
         with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as storage_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
-                gr.HTML('<div class="settings-page-heading"><h2>存储与隐私</h2><p>管理本地记录、保留数量和数据目录。</p></div>')
+                settings_page_heading("存储与隐私", "管理本地记录、保留数量和数据目录。")
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
                     gr.HTML(
                         section_heading(

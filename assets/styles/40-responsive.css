@@ -3,7 +3,7 @@
     display: block !important;
     width: 100% !important;
     min-height: 0 !important;
-    padding: 0 14px !important;
+    padding: 0 !important;
   }
 
   .settings-nav-control {
@@ -11,27 +11,36 @@
     width: 100% !important;
     min-width: 0 !important;
     max-width: none !important;
-    margin-bottom: 14px !important;
-    padding: 0 !important;
-    overflow-x: auto !important;
+    margin: 0 !important;
+    padding: 10px 14px !important;
+    overflow: hidden !important;
     border-right: 0 !important;
     border-bottom: 1px solid var(--soft-border) !important;
   }
 
+  .settings-nav-shell > .form {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
   .settings-nav-control .wrap {
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
     align-items: center !important;
     gap: 4px !important;
-    width: max-content !important;
-    min-width: 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
     padding: 0 !important;
+    overflow: hidden !important;
   }
 
   .settings-nav-control label {
-    flex: 0 0 auto !important;
-    width: auto !important;
-    min-width: max-content !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+    padding: 0 8px !important;
   }
 
   .settings-pane-host,
@@ -40,11 +49,23 @@
     max-width: none !important;
   }
 
+  .settings-pane-host {
+    padding: 26px 18px 44px !important;
+  }
+
+  .settings-pane-host > .settings-pane-host {
+    padding: 0 !important;
+  }
+
   .settings-actions {
-    width: calc(100% - 28px) !important;
+    width: 100% !important;
     max-width: none !important;
-    margin-right: 14px !important;
-    margin-left: 14px !important;
+    margin: 0 !important;
+    padding: 12px 18px 16px !important;
+  }
+
+  .settings-card-picker .wrap {
+    grid-template-columns: 1fr !important;
   }
 
   .app-header-inner {
@@ -404,6 +425,37 @@
 }
 
 @media (max-width: 640px) {
+  .settings-nav-control .wrap {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .settings-nav-control label {
+    min-height: 40px !important;
+  }
+
+  .settings-pane-host {
+    padding: 22px 12px 36px !important;
+  }
+
+  .settings-pane-host > .settings-pane-host {
+    padding: 0 !important;
+  }
+
+  .settings-card > .settings-card {
+    padding: 20px 16px !important;
+  }
+
+  .settings-test-row,
+  .settings-key-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .settings-pane .settings-command-button {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
   .patient-control-group {
     flex: 1 1 auto !important;
     width: 100% !important;
