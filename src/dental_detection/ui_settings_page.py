@@ -97,6 +97,8 @@ class SettingsComponents:
     title_generation_prompt: Any
     followup_generation_enabled: Any
     followup_generation_prompt: Any
+    keep_followup_prompts: Any
+    followup_click_action: Any
     task_model: Any
     task_temperature: Any
     task_max_tokens: Any
@@ -160,7 +162,7 @@ def advanced_settings():
 
 def build_settings_page(data: SettingsPageData) -> SettingsComponents:
     saved = data.saved
-    with gr.Row(elem_classes=["settings-nav-shell"]):
+    with gr.Row(elem_classes=["settings-nav-shell"], equal_height=False):
         settings_nav = gr.Radio(
             choices=["工作台", "模型", "AI", "自动化", "存储"],
             value="工作台",
@@ -172,6 +174,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
         )
         with gr.Group(visible=True, elem_classes=["settings-pane-host"]) as workbench_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
+                gr.HTML('<div class="settings-page-heading"><h2>工作台</h2><p>调整检测工作区默认展示的能力。</p></div>')
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
                     gr.HTML(
                         section_heading(
@@ -186,6 +189,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
 
         with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as model_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
+                gr.HTML('<div class="settings-page-heading"><h2>模型与推理</h2><p>选择临床辅助筛查使用的权重和运行模式。</p></div>')
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
                     gr.HTML(
                         section_heading(
@@ -272,6 +276,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
 
         with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as ai_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
+                gr.HTML('<div class="settings-page-heading"><h2>AI 接口</h2><p>配置建议生成、问答模型和接口凭据。</p></div>')
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
                     gr.HTML(
                         section_heading(
@@ -289,13 +294,14 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                             label="AI 建议风格",
                             elem_classes=["compact-control", "short-select"],
                         )
-                        custom_prompt = gr.Textbox(
-                            value=saved.custom_prompt or DEFAULT_AI_PROMPT,
-                            label="AI 建议 Prompt",
-                            lines=7,
-                            max_lines=12,
-                        )
                         with advanced_settings():
+                            with gr.Group(elem_classes=["settings-inner-group"]):
+                                custom_prompt = gr.Textbox(
+                                    value=saved.custom_prompt or DEFAULT_AI_PROMPT,
+                                    label="AI 建议 Prompt",
+                                    lines=7,
+                                    max_lines=12,
+                                )
                             with gr.Row(elem_classes=["settings-inline-fields"]):
                                 ai_model = gr.Textbox(value=saved.model, label="对话模型")
                                 base_url = gr.Textbox(
@@ -347,6 +353,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
 
         with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as automation_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
+                gr.HTML('<div class="settings-page-heading"><h2>对话自动化</h2><p>控制标题、后续问题及其交互方式。</p></div>')
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
                     gr.HTML(
                         section_heading(
@@ -363,6 +370,20 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                     followup_generation_enabled = gr.Checkbox(
                         value=saved.followup_generation_enabled,
                         label="每次回复后生成后续问题建议",
+                    )
+                    keep_followup_prompts = gr.Checkbox(
+                        value=saved.keep_followup_prompts,
+                        label="保留历史回复下的后续问题",
+                    )
+                    followup_click_action = gr.Radio(
+                        choices=["填入输入框", "直接发送"],
+                        value=saved.followup_click_action,
+                        label="点击后续问题",
+                        elem_classes=[
+                            "segmented-control",
+                            "settings-inline-choice",
+                            "settings-followup-click-action",
+                        ],
                     )
                     with advanced_settings():
                         with gr.Group(elem_classes=["settings-option-group", "settings-inner-group"]):
@@ -403,6 +424,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
 
         with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as storage_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
+                gr.HTML('<div class="settings-page-heading"><h2>存储与隐私</h2><p>管理本地记录、保留数量和数据目录。</p></div>')
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
                     gr.HTML(
                         section_heading(
@@ -486,6 +508,8 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
         title_generation_prompt=title_generation_prompt,
         followup_generation_enabled=followup_generation_enabled,
         followup_generation_prompt=followup_generation_prompt,
+        keep_followup_prompts=keep_followup_prompts,
+        followup_click_action=followup_click_action,
         task_model=task_model,
         task_temperature=task_temperature,
         task_max_tokens=task_max_tokens,

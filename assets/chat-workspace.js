@@ -378,6 +378,32 @@
     });
   }
 
+  function applyFollowupPrompt(prompt) {
+    const value = prompt?.trim() || "";
+    if (!value || !setNativeField(".ai-composer-input textarea", value)) return;
+    const selectedAction = document.querySelector(
+      '.settings-followup-click-action input[type="radio"]:checked'
+    )?.value;
+    if (selectedAction === "直接发送") {
+      requestAnimationFrame(() => clickHiddenAction(".ai-send-button"));
+    } else {
+      document.querySelector(".ai-composer-input textarea")?.focus();
+    }
+  }
+
+  function initializeMessageFollowups(root = document) {
+    root.querySelectorAll(".ai-message-followup").forEach((button) => {
+      if (button.dataset.aiFollowupReady === "true") return;
+      button.dataset.aiFollowupReady = "true";
+      button.addEventListener("click", () => applyFollowupPrompt(button.dataset.followup));
+    });
+    root.querySelectorAll(".ai-suggestion-chip button").forEach((button) => {
+      if (button.dataset.aiFollowupReady === "true") return;
+      button.dataset.aiFollowupReady = "true";
+      button.addEventListener("click", () => applyFollowupPrompt(button.textContent));
+    });
+  }
+
   function decorateStaticButtons(root = document) {
     const specs = [
       [".ai-conversation-refresh-button", "刷新最近对话", REFRESH_ICON],
@@ -510,6 +536,7 @@
   function initializeWorkspace(root = document) {
     decorateConversationItems(root);
     decorateChatMessages(root);
+    initializeMessageFollowups(root);
     decorateStaticButtons(root);
     initializeComposerKeyboard(root);
     initializeSidebarResizer(root);

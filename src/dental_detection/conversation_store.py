@@ -61,8 +61,20 @@ def _normalize_messages(messages: Any) -> list[dict[str, Any]]:
             metadata = message.get("metadata")
             if isinstance(metadata, dict):
                 title = str(metadata.get("title") or "").strip()
+                clean_metadata: dict[str, Any] = {}
                 if title.startswith("chat-time:"):
-                    item["metadata"] = {"title": title}
+                    clean_metadata["title"] = title
+                followups = metadata.get("followups")
+                if isinstance(followups, list):
+                    clean_followups = [
+                        re.sub(r"\s+", " ", str(value)).strip()[:160]
+                        for value in followups[:5]
+                        if str(value).strip()
+                    ]
+                    if clean_followups:
+                        clean_metadata["followups"] = clean_followups
+                if clean_metadata:
+                    item["metadata"] = clean_metadata
             normalized.append(item)
         elif isinstance(message, (list, tuple)) and len(message) >= 2:
             user_content, assistant_content = message[0], message[1]

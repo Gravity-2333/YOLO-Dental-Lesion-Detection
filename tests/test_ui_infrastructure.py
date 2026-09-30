@@ -1814,7 +1814,7 @@ class UiContentTests(unittest.TestCase):
                 "same-root", "", "简洁版", False, False, "单模型", "", "", "",
                 True, 100,
                 "AI 自动生成", "标题 {{prompt}}", True, "问题 {{MESSAGES}}",
-                "task-model", 0.4, 240,
+                "task-model", 0.4, 240, True, "直接发送",
             )
         saved = save_mock.call_args.args[0]
         self.assertEqual(saved.title_generation_mode, "AI 自动生成")
@@ -1824,6 +1824,8 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(saved.task_model, "task-model")
         self.assertEqual(saved.task_temperature, 0.4)
         self.assertEqual(saved.task_max_tokens, 240)
+        self.assertTrue(saved.keep_followup_prompts)
+        self.assertEqual(saved.followup_click_action, "直接发送")
 
     def test_chat_automation_updates_title_suggestions_and_saved_thread(self) -> None:
         settings = app.AiSettings(
@@ -1855,7 +1857,9 @@ class UiContentTests(unittest.TestCase):
             )
         upsert_mock.assert_called_once()
         self.assertEqual(result[2], "根尖区域复核")
-        self.assertEqual([item["value"] for item in result[3:]], ["问题一", "问题二", "问题三"])
+        self.assertEqual([item["value"] for item in result[3:6]], ["问题一", "问题二", "问题三"])
+        self.assertEqual(result[-1][-1]["metadata"]["followups"], ["问题一", "问题二", "问题三"])
+        self.assertIn("ai-message-followups", result[-2][-1]["content"])
 
     def test_settings_save_passes_non_migrating_contract_to_store(self) -> None:
         workspace = SimpleNamespace(

@@ -278,6 +278,30 @@ class AdviceAndConversationTests(unittest.TestCase):
 
             self.assertEqual(load_conversation(path.name, temp_dir), messages)
 
+    def test_conversation_store_preserves_sanitized_followup_prompts(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            messages = [
+                {
+                    "role": "assistant",
+                    "content": "复核建议",
+                    "metadata": {
+                        "title": "chat-time:2026-09-29T10:30",
+                        "followups": ["  问题一  ", "问题二", "问题三"],
+                        "ignored": "不应持久化",
+                    },
+                }
+            ]
+            path = save_conversation(messages, temp_dir)
+
+            loaded = load_conversation(path.name, temp_dir)
+            self.assertEqual(
+                loaded[0]["metadata"],
+                {
+                    "title": "chat-time:2026-09-29T10:30",
+                    "followups": ["问题一", "问题二", "问题三"],
+                },
+            )
+
     def test_conversation_store_rejects_files_that_cannot_be_loaded_later(self) -> None:
         with TemporaryDirectory() as temp_dir:
             messages = [

@@ -926,8 +926,20 @@ def _normalize_chat_history(history: Any) -> list[dict[str, Any]]:
             metadata = item.get("metadata")
             if isinstance(metadata, dict):
                 title = str(metadata.get("title") or "").strip()
+                clean_metadata: dict[str, Any] = {}
                 if title.startswith("chat-time:"):
-                    message["metadata"] = {"title": title}
+                    clean_metadata["title"] = title
+                followups = metadata.get("followups")
+                if isinstance(followups, list):
+                    clean_followups = [
+                        re.sub(r"\s+", " ", str(value)).strip()[:160]
+                        for value in followups[:5]
+                        if str(value).strip()
+                    ]
+                    if clean_followups:
+                        clean_metadata["followups"] = clean_followups
+                if clean_metadata:
+                    message["metadata"] = clean_metadata
             normalized.append(message)
         elif isinstance(item, (list, tuple)) and len(item) >= 2:
             user_content, assistant_content = item[0], item[1]
@@ -2905,6 +2917,8 @@ def save_ui_settings(
     task_model: str = "",
     task_temperature: int | float = 0.2,
     task_max_tokens: int | float = 180,
+    keep_followup_prompts: bool = False,
+    followup_click_action: str = "填入输入框",
 ):
     previous_settings = load_settings()
     settings = _ai_settings(
@@ -2954,6 +2968,12 @@ def save_ui_settings(
     settings.followup_generation_prompt = (
         str(followup_generation_prompt or "").strip()
         or previous_settings.followup_generation_prompt
+    )
+    settings.keep_followup_prompts = bool(keep_followup_prompts)
+    settings.followup_click_action = (
+        followup_click_action
+        if followup_click_action in {"填入输入框", "直接发送"}
+        else "填入输入框"
     )
     settings.task_model = str(task_model or "").strip()
     try:
@@ -3337,8 +3357,44 @@ def branch_chat_conversation(
     )
 
 
-def fill_chat_suggestion(prompt: str) -> str:
-    return str(prompt or "").strip()
+def _stored_followup_questions(history: Any) -> list[str]:
+    normalized = _normalize_chat_history(history)
+    for message in reversed(normalized):
+        if message.get("role") != "assistant":
+            continue
+        metadata = message.get("metadata")
+        values = metadata.get("followups") if isinstance(metadata, dict) else None
+        if isinstance(values, list):
+            questions = [str(value).strip() for value in values[:3] if str(value).strip()]
+            if questions:
+                return questions
+    return list(DEFAULT_FOLLOWUP_QUESTIONS)
+
+
+def _attach_followup_questions(
+    history: Any,
+    questions: list[str],
+    *,
+    keep_existing: bool,
+) -> list[dict[str, Any]]:
+    normalized = _normalize_chat_history(history)
+    if not keep_existing:
+        for message in normalized:
+            metadata = message.get("metadata")
+            if isinstance(metadata, dict):
+                metadata.pop("followups", None)
+    for message in reversed(normalized):
+        if message.get("role") != "assistant":
+            continue
+        metadata = dict(message.get("metadata") or {})
+        metadata["followups"] = [
+            str(question).strip()[:160]
+            for question in questions[:3]
+            if str(question).strip()
+        ]
+        message["metadata"] = metadata
+        break
+    return normalized
 
 
 def clear_current_chat():
@@ -3358,6 +3414,7 @@ def clear_ai_workspace_with_status(batch_state, selected_name, *ai_inputs):
         *clear_current_chat_with_status(batch_state, selected_name, *ai_inputs),
         "",
         "",
+        *(gr.update(value=question) for question in DEFAULT_FOLLOWUP_QUESTIONS),
         "已新建空白对话。",
     )
 
@@ -3416,10 +3473,12 @@ def load_ai_workspace_conversation(
         selected_name,
         *ai_inputs,
     )
+    questions = _stored_followup_questions(values[1])
     return (
         *values,
         file_name,
         load_conversation_title(file_name, storage_dir, patient_id),
+        *(gr.update(value=question) for question in questions),
     )
 
 
@@ -3528,24 +3587,31 @@ def run_chat_automation(
     if settings.enabled and settings.title_generation_mode == "AI 自动生成" and user_count == 1:
         try:
             title = generate_conversation_title(settings, normalized)
-            if auto_save and str(current_file or "").strip():
-                upsert_conversation(
-                    normalized,
-                    storage_dir,
-                    file_name=current_file,
-                    patient_id=patient_id,
-                    title=title,
-                )
         except Exception:
             notes.append("标题生成失败，已保留本地标题。")
 
     if settings.enabled and settings.followup_generation_enabled and normalized:
         try:
             questions = generate_followup_questions(settings, normalized)
+            normalized = _attach_followup_questions(
+                normalized,
+                questions,
+                keep_existing=settings.keep_followup_prompts,
+            )
         except Exception:
             notes.append("后续问题生成失败，已保留默认建议。")
 
     if auto_save and str(current_file or "").strip():
+        try:
+            upsert_conversation(
+                normalized,
+                storage_dir,
+                file_name=current_file,
+                patient_id=patient_id,
+                title=title,
+            )
+        except Exception:
+            notes.append("自动化结果保存失败，当前回答不受影响。")
         selector, feedback = refresh_conversation_history_with_selection(
             storage_dir,
             patient_id,
@@ -3560,6 +3626,8 @@ def run_chat_automation(
         feedback,
         title,
         *(gr.update(value=question) for question in questions),
+        chat_messages_for_display(normalized),
+        normalized,
     )
 
 
@@ -4017,6 +4085,8 @@ def build_app() -> gr.Blocks:
         title_generation_prompt = settings.title_generation_prompt
         followup_generation_enabled = settings.followup_generation_enabled
         followup_generation_prompt = settings.followup_generation_prompt
+        keep_followup_prompts = settings.keep_followup_prompts
+        followup_click_action = settings.followup_click_action
         task_model = settings.task_model
         task_temperature = settings.task_temperature
         task_max_tokens = settings.task_max_tokens
@@ -4670,6 +4740,8 @@ def build_app() -> gr.Blocks:
                 task_model,
                 task_temperature,
                 task_max_tokens,
+                keep_followup_prompts,
+                followup_click_action,
             ],
             outputs=[
                 settings_feedback,
@@ -4844,14 +4916,6 @@ def build_app() -> gr.Blocks:
             queue=False,
             show_progress="hidden",
         )
-        for suggestion_button in chat_suggestion_buttons:
-            suggestion_button.click(
-                fn=fill_chat_suggestion,
-                inputs=suggestion_button,
-                outputs=chat_input,
-                queue=False,
-                show_progress="hidden",
-            )
         chat_event.success(
             fn=refresh_ai_runtime_status,
             inputs=[
@@ -4879,6 +4943,8 @@ def build_app() -> gr.Blocks:
                 conversation_feedback,
                 conversation_title_input,
                 *chat_suggestion_buttons,
+                chatbot,
+                chat_state,
             ],
             concurrency_limit=1,
             concurrency_id=AI_REQUEST_CONCURRENCY_ID,
@@ -4924,6 +4990,8 @@ def build_app() -> gr.Blocks:
                     conversation_feedback,
                     conversation_title_input,
                     *chat_suggestion_buttons,
+                    chatbot,
+                    chat_state,
                 ],
                 concurrency_limit=1,
                 concurrency_id=AI_REQUEST_CONCURRENCY_ID,
@@ -4944,6 +5012,8 @@ def build_app() -> gr.Blocks:
                 conversation_feedback,
                 conversation_title_input,
                 *chat_suggestion_buttons,
+                chatbot,
+                chat_state,
             ],
             concurrency_limit=1,
             concurrency_id=AI_REQUEST_CONCURRENCY_ID,
@@ -4996,6 +5066,7 @@ def build_app() -> gr.Blocks:
                 ai_runtime_status,
                 current_conversation_file_state,
                 conversation_title_input,
+                *chat_suggestion_buttons,
                 conversation_feedback,
             ],
             cancels=[chat_event, regenerate_event, retry_event, edit_event],
@@ -5014,6 +5085,7 @@ def build_app() -> gr.Blocks:
                 ai_runtime_status,
                 current_conversation_file_state,
                 conversation_title_input,
+                *chat_suggestion_buttons,
                 conversation_feedback,
             ],
             cancels=[chat_event, regenerate_event, retry_event, edit_event],
@@ -5056,6 +5128,7 @@ def build_app() -> gr.Blocks:
                 ai_runtime_status,
                 current_conversation_file_state,
                 conversation_title_input,
+                *chat_suggestion_buttons,
             ],
             trigger_mode="always_last",
             show_progress="minimal",
@@ -5080,6 +5153,7 @@ def build_app() -> gr.Blocks:
                 ai_runtime_status,
                 current_conversation_file_state,
                 conversation_title_input,
+                *chat_suggestion_buttons,
             ],
             trigger_mode="always_last",
             show_progress="minimal",

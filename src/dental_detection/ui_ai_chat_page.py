@@ -52,6 +52,17 @@ def chat_messages_for_display(messages: Any) -> list[dict[str, str]]:
                     '\n\n<span class="ai-message-time-marker '
                     f'ai-chat-time-{year}{month}{day}T{hour}{minute}"></span>'
                 )
+        followups = metadata.get("followups") if isinstance(metadata, dict) else None
+        if role == "assistant" and isinstance(followups, list) and followups:
+            buttons = "".join(
+                '<button type="button" class="ai-message-followup" '
+                f'data-followup="{escape(str(question), quote=True)}">'
+                f'{escape(str(question))}</button>'
+                for question in followups[:3]
+                if str(question).strip()
+            )
+            if buttons:
+                content += f'\n\n<div class="ai-message-followups">{buttons}</div>'
         displayed.append({"role": role, "content": content})
     return displayed
 

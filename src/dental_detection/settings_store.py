@@ -67,6 +67,8 @@ class AiSettings:
     title_generation_prompt: str = DEFAULT_TITLE_GENERATION_PROMPT
     followup_generation_enabled: bool = False
     followup_generation_prompt: str = DEFAULT_FOLLOWUP_GENERATION_PROMPT
+    keep_followup_prompts: bool = False
+    followup_click_action: str = "填入输入框"
     task_model: str = ""
     task_temperature: float = 0.2
     task_max_tokens: int = 180
@@ -170,6 +172,7 @@ def _load_settings_unlocked() -> AiSettings:
         "base_url", "model", "key_mode", "api_key",
         "custom_prompt", "advice_style", "model_mode", "title_generation_mode",
         "title_generation_prompt", "followup_generation_prompt", "task_model",
+        "followup_click_action",
     }
     _PATH_FIELDS = {
         "storage_dir", "model_dir",
@@ -177,7 +180,7 @@ def _load_settings_unlocked() -> AiSettings:
     }
     _BOOL_FIELDS = {
         "enabled", "save_api_key", "auto_save", "enable_compare", "show_summary",
-        "save_history", "followup_generation_enabled",
+        "save_history", "followup_generation_enabled", "keep_followup_prompts",
     }
     _INT_FIELDS = {"history_limit", "task_max_tokens"}
     _FLOAT_FIELDS = {"task_temperature"}
@@ -224,6 +227,8 @@ def _load_settings_unlocked() -> AiSettings:
         filtered.pop("advice_style", None)
     if filtered.get("title_generation_mode") not in {"本地规则", "AI 自动生成"}:
         filtered.pop("title_generation_mode", None)
+    if filtered.get("followup_click_action") not in {"填入输入框", "直接发送"}:
+        filtered.pop("followup_click_action", None)
     return AiSettings(**{**defaults, **filtered})
 
 
