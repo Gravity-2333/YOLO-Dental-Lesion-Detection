@@ -451,6 +451,41 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("width: 100% !important", root_css)
         self.assertIn("max-width: none !important", root_css)
 
+    def test_settings_workspace_neutralizes_native_gradio_surfaces(self) -> None:
+        css = load_workbench_css()
+        source = inspect.getsource(build_settings_page)
+
+        self.assertGreaterEqual(source.count("settings-control-surface"), 30)
+        for required_class in (
+            "settings-toggle-row",
+            "settings-row-control",
+            "settings-select-control",
+            "settings-number-control",
+            "settings-text-control",
+            "settings-prompt-control",
+            "settings-path-row",
+        ):
+            with self.subTest(required_class=required_class):
+                self.assertIn(required_class, source)
+
+        self.assertIn(".settings-pane-host > .styler", css)
+        self.assertIn(".settings-card > .settings-card > .styler", css)
+        self.assertIn("background: #fff !important", css)
+        self.assertIn(".settings-row-control > .container", css)
+        self.assertIn(".settings-number-control.settings-row-control", css)
+        self.assertNotIn('gr.Button(\n                                "..."', source)
+
+    def test_settings_sections_use_flat_page_rhythm(self) -> None:
+        css = load_workbench_css()
+        section_rule = css.split(".settings-pane > .settings-card {", 1)[1].split("}", 1)[0]
+        nested_rule = css.split(".settings-card > .settings-card {", 2)[2].split("}", 1)[0]
+
+        self.assertIn("border-bottom: 1px solid var(--soft-border)", section_rule)
+        self.assertIn("padding: 26px 0", section_rule)
+        self.assertIn("background: transparent", nested_rule)
+        self.assertIn("border: 0", nested_rule)
+        self.assertIn("padding: 0", nested_rule)
+
     def test_css_bundle_drops_retired_frontend_scaffolding(self) -> None:
         css = load_workbench_css()
         for retired_selector in (

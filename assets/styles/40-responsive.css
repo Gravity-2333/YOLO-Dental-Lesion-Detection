@@ -772,6 +772,58 @@
   }
 }
 
+@media (max-width: 760px) {
+  .settings-page-heading-host {
+    padding-bottom: 18px !important;
+  }
+
+  .settings-page-heading h2 {
+    font-size: 1.4rem;
+  }
+
+  .settings-pane > .settings-card {
+    padding: 22px 0 !important;
+  }
+
+  .settings-row-control > .container,
+  .settings-number-control.settings-row-control > label.container {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto !important;
+    gap: 8px !important;
+  }
+
+  .settings-row-control > .container > [data-testid="block-info"],
+  .settings-row-control > .container > .wrap,
+  .settings-number-control.settings-row-control > label.container > [data-testid="block-info"],
+  .settings-number-control.settings-row-control > label.container > .info-text,
+  .settings-number-control.settings-row-control > label.container > input {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+  }
+
+  .settings-number-control.settings-row-control > label.container > input {
+    width: 100% !important;
+  }
+
+  .settings-inline-fields,
+  .settings-path-row,
+  .settings-model-file-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .settings-pane .settings-path-row > .settings-inline-button,
+  .settings-pane .row.settings-path-row > button.settings-inline-button,
+  .settings-pane .settings-model-file-row > .settings-inline-button,
+  .settings-pane .row.settings-model-file-row > button.settings-inline-button {
+    flex: 0 0 auto !important;
+    justify-self: stretch !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+
 @media (max-width: 360px) {
   .path-picker-row {
     grid-template-columns: minmax(0, 1fr) 44px 88px !important;

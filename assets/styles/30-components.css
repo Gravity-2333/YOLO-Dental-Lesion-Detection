@@ -2067,3 +2067,286 @@ footer,
   font-size: 0.78rem;
   line-height: 1.45;
 }
+
+/* Settings workspace: neutralize Gradio wrappers and expose a flat, page-level layout. */
+.settings-pane-host > .styler,
+.settings-pane-host > .settings-pane-host > .styler,
+.settings-card > .settings-card > .styler {
+  background: #fff !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-pane {
+  gap: 0 !important;
+}
+
+.settings-page-heading-host {
+  padding: 0 0 22px !important;
+  border-bottom: 1px solid var(--soft-border) !important;
+}
+
+.settings-page-heading h2 {
+  font-size: 1.6rem;
+  font-weight: 680;
+}
+
+.settings-page-heading p {
+  margin-top: 6px;
+}
+
+.settings-pane > .settings-card {
+  padding: 26px 0 !important;
+  border-bottom: 1px solid var(--soft-border) !important;
+}
+
+.settings-pane > .settings-card:last-child {
+  border-bottom: 0 !important;
+}
+
+.settings-card > .settings-card {
+  gap: 16px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-card .section-heading {
+  margin-bottom: 2px;
+}
+
+.settings-control-surface,
+.settings-control-surface > .form,
+.settings-control-surface > .container,
+.settings-control-surface > .wrap {
+  max-width: none !important;
+  box-shadow: none !important;
+}
+
+.settings-toggle-row.block,
+.settings-card .block.settings-toggle-row {
+  min-height: 54px !important;
+  padding: 10px 0 !important;
+  border: 0 !important;
+  border-top: 1px solid var(--soft-border) !important;
+  background: transparent !important;
+}
+
+.settings-row-control {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 12px 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-top: 1px solid var(--soft-border) !important;
+  background: transparent !important;
+}
+
+.settings-row-control > .container {
+  display: grid !important;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 38%) !important;
+  align-items: center !important;
+  gap: 10px 28px !important;
+  width: 100% !important;
+}
+
+.settings-row-control > .container > [data-testid="block-info"] {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  margin: 0 !important;
+  color: #33413e !important;
+  font-size: 0.91rem !important;
+  font-weight: 650 !important;
+}
+
+.settings-row-control > .container > .wrap {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  border: 1px solid #d8e0de !important;
+  border-radius: 8px !important;
+  background: #f8faf9 !important;
+  box-shadow: none !important;
+}
+
+.settings-row-control > .container > .wrap:focus-within {
+  border-color: #589c93 !important;
+  box-shadow: 0 0 0 3px rgba(22, 119, 110, 0.1) !important;
+}
+
+.settings-select-control input[role="listbox"] {
+  min-height: 42px !important;
+  height: 42px !important;
+  padding: 0 42px 0 12px !important;
+  background: transparent !important;
+}
+
+.settings-number-control.settings-row-control {
+  display: block !important;
+}
+
+.settings-number-control.settings-row-control > label.container {
+  display: grid !important;
+  grid-template-columns: minmax(180px, 1fr) 144px !important;
+  grid-template-rows: auto auto !important;
+  align-items: center !important;
+  gap: 3px 28px !important;
+  width: 100% !important;
+}
+
+.settings-number-control.settings-row-control > label.container > [data-testid="block-info"] {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  margin: 0 !important;
+  color: #33413e !important;
+  font-size: 0.91rem !important;
+  font-weight: 650 !important;
+}
+
+.settings-number-control.settings-row-control > label.container > .info-text {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  margin: 0 !important;
+  color: #7a8582 !important;
+  font-size: 0.79rem !important;
+  line-height: 1.45 !important;
+}
+
+.settings-number-control.settings-row-control > label.container > input {
+  grid-column: 2 !important;
+  grid-row: 1 / span 2 !important;
+}
+
+.settings-number-control input,
+.settings-text-control input,
+.settings-text-control textarea,
+.settings-prompt-control textarea,
+.settings-select-control .wrap {
+  border-color: #d8e0de !important;
+  border-radius: 8px !important;
+  background: #f8faf9 !important;
+  box-shadow: none !important;
+}
+
+.settings-number-control input,
+.settings-text-control input {
+  min-height: 42px !important;
+  height: 42px !important;
+}
+
+.settings-text-control label.container,
+.settings-prompt-control label.container {
+  gap: 7px !important;
+}
+
+.settings-text-control .input-container,
+.settings-prompt-control .input-container {
+  border: 1px solid #d8e0de !important;
+  border-radius: 8px !important;
+  background: #f8faf9 !important;
+  box-shadow: none !important;
+}
+
+.settings-text-control .input-container:focus-within,
+.settings-prompt-control .input-container:focus-within,
+.settings-number-control input:focus {
+  border-color: #589c93 !important;
+  box-shadow: 0 0 0 3px rgba(22, 119, 110, 0.1) !important;
+}
+
+.settings-prompt-control textarea {
+  min-height: 128px !important;
+  padding: 12px 14px !important;
+  line-height: 1.62 !important;
+  white-space: pre-wrap !important;
+  resize: vertical !important;
+}
+
+.settings-inner-group {
+  gap: 14px !important;
+  padding: 18px 20px !important;
+  border: 1px solid #dfe5e3 !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+}
+
+.settings-inline-fields {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-items: start !important;
+  gap: 16px !important;
+}
+
+.settings-path-row,
+.settings-model-file-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto auto !important;
+  align-items: end !important;
+  gap: 10px !important;
+  width: 100% !important;
+  margin: 0 !important;
+  overflow: visible !important;
+}
+
+.settings-model-file-row {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+}
+
+.settings-path-row > .settings-path-field,
+.settings-model-file-row > .settings-select-control {
+  min-width: 0 !important;
+}
+
+.settings-pane .settings-inline-button {
+  flex: 0 0 auto !important;
+  align-self: end !important;
+  width: auto !important;
+  min-width: 84px !important;
+  max-width: 150px !important;
+  min-height: 42px !important;
+  height: 42px !important;
+  margin: 0 !important;
+  padding: 0 16px !important;
+  border: 1px solid #d8e0de !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #2d3a37 !important;
+  box-shadow: none !important;
+}
+
+.settings-pane .settings-inline-button:hover,
+.settings-pane .settings-inline-button:focus-visible {
+  border-color: #8fb2ac !important;
+  background: #f3f8f7 !important;
+  color: #126a61 !important;
+}
+
+.settings-advanced > button.label-wrap {
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 7px 0 !important;
+  font-size: 0.9rem !important;
+}
+
+.settings-advanced-content {
+  gap: 16px !important;
+  padding-top: 10px !important;
+}
+
+.settings-test-row,
+.settings-key-row,
+.settings-command-row {
+  border-top-color: var(--soft-border) !important;
+}
+
+.settings-feedback-field,
+.settings-feedback-field > label,
+.settings-feedback-field .input-container {
+  background: transparent !important;
+  box-shadow: none !important;
+}

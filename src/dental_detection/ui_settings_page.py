@@ -191,8 +191,16 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                             help_text=DISPLAY_OPTIONS_HELP,
                         )
                     )
-                    enable_compare = gr.Checkbox(value=saved.enable_compare, label="允许对比模型模式")
-                    show_summary = gr.Checkbox(value=saved.show_summary, label="显示参数分析摘要")
+                    enable_compare = gr.Checkbox(
+                        value=saved.enable_compare,
+                        label="允许对比模型模式",
+                        elem_classes=["settings-control-surface", "settings-toggle-row"],
+                    )
+                    show_summary = gr.Checkbox(
+                        value=saved.show_summary,
+                        label="显示参数分析摘要",
+                        elem_classes=["settings-control-surface", "settings-toggle-row"],
+                    )
 
         with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as model_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
@@ -215,7 +223,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                             else None
                         ),
                         label="模型卡片",
-                        elem_classes=["settings-card-picker"],
+                        elem_classes=["settings-control-surface", "settings-card-picker"],
                     )
                     with gr.Row(elem_classes=["settings-command-row"]):
                         apply_model_card_btn = gr.Button(
@@ -226,45 +234,87 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                         choices=[MODEL_MODE_SINGLE, MODEL_MODE_COMPARE],
                         value=saved.model_mode if saved.enable_compare else MODEL_MODE_SINGLE,
                         label="模型模式",
-                        elem_classes=["segmented-control", "settings-mode-control"],
+                        elem_classes=[
+                            "settings-control-surface",
+                            "segmented-control",
+                            "settings-mode-control",
+                        ],
                     )
                     with advanced_settings():
                         show_advanced_models = gr.Checkbox(
                             value=False,
                             label="显示高级模型 / 实验权重",
                             info=ADVANCED_MODEL_HINT,
+                            elem_classes=["settings-control-surface", "settings-toggle-row"],
                         )
-                        with gr.Row(elem_classes=["path-row", "path-picker-row"]):
+                        with gr.Row(
+                            elem_classes=["path-row", "path-picker-row", "settings-path-row"]
+                        ):
                             model_dir = gr.Textbox(
                                 value=data.model_dir,
                                 label="模型目录",
                                 lines=1,
                                 max_lines=1,
                                 scale=8,
+                                elem_classes=[
+                                    "settings-control-surface",
+                                    "settings-text-control",
+                                    "settings-path-field",
+                                ],
                             )
                             open_model_dir_btn = gr.Button(
-                                "...", size="sm", scale=1, elem_id="model-dir-picker",
-                                elem_classes=["icon-action"],
+                                "浏览",
+                                size="sm",
+                                scale=1,
+                                elem_id="model-dir-picker",
+                                elem_classes=[
+                                    "secondary-action",
+                                    "settings-control-surface",
+                                    "settings-inline-button",
+                                ],
                             )
                             refresh_model_btn = gr.Button(
-                                "刷新", scale=2, elem_classes=["secondary-action"]
+                                "刷新",
+                                scale=2,
+                                elem_classes=[
+                                    "secondary-action",
+                                    "settings-control-surface",
+                                    "settings-inline-button",
+                                ],
                             )
-                        with gr.Row(elem_classes=["model-row"]):
+                        with gr.Row(elem_classes=["model-row", "settings-model-file-row"]):
                             model_file_select = gr.Dropdown(
                                 choices=data.model_choices,
                                 value=data.selected_model_choice,
                                 label="目录内模型",
                                 scale=8,
+                                elem_classes=[
+                                    "settings-control-surface",
+                                    "settings-select-control",
+                                ],
                             )
                             apply_model_btn = gr.Button(
-                                "使用选中模型", elem_classes=["secondary-action"], scale=2
+                                "使用选中模型",
+                                elem_classes=[
+                                    "secondary-action",
+                                    "settings-control-surface",
+                                    "settings-inline-button",
+                                ],
+                                scale=2,
                             )
                         model_apply_target = gr.Radio(
                             choices=["主模型", "对比模型"], value="主模型", label="填入位置",
-                            elem_classes=["segmented-control"],
+                            elem_classes=["settings-control-surface", "segmented-control"],
                         )
                         primary_model_path = gr.Textbox(
-                            value=data.primary_model_path, label="主模型路径", lines=1, max_lines=1
+                            value=data.primary_model_path,
+                            label="主模型路径",
+                            lines=1,
+                            max_lines=1,
+                            elem_classes=[
+                                "settings-control-surface",
+                                "settings-text-control",
+                            ],
                         )
                         compare_model_path = gr.Textbox(
                             value=data.compare_model_path,
@@ -272,6 +322,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                             lines=1,
                             max_lines=1,
                             visible=saved.enable_compare and saved.model_mode == MODEL_MODE_COMPARE,
+                            elem_classes=[
+                                "settings-control-surface",
+                                "settings-text-control",
+                            ],
                         )
                     with gr.Row(elem_classes=["settings-test-row"], equal_height=True):
                         test_model_btn = gr.Button(
@@ -304,13 +358,21 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                             help_text=AI_INTERFACE_HELP,
                         )
                     )
-                    ai_enabled = gr.Checkbox(value=saved.enabled, label="启用 AI 建议与问答")
+                    ai_enabled = gr.Checkbox(
+                        value=saved.enabled,
+                        label="启用 AI 建议与问答",
+                        elem_classes=["settings-control-surface", "settings-toggle-row"],
+                    )
                     with gr.Group(visible=saved.enabled, elem_classes=["settings-ai-content"]) as ai_group:
                         advice_style = gr.Dropdown(
                             choices=["简洁版", "医生版", "患者版"],
                             value=saved.advice_style,
                             label="AI 建议风格",
-                            elem_classes=["compact-control", "short-select"],
+                            elem_classes=[
+                                "settings-control-surface",
+                                "settings-row-control",
+                                "settings-select-control",
+                            ],
                         )
                         with advanced_settings():
                             with gr.Group(elem_classes=["settings-inner-group"]):
@@ -319,19 +381,34 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                     label="AI 建议 Prompt",
                                     lines=7,
                                     max_lines=12,
+                                    elem_classes=[
+                                        "settings-control-surface",
+                                        "settings-prompt-control",
+                                    ],
                                 )
                             with gr.Row(elem_classes=["settings-inline-fields"]):
-                                ai_model = gr.Textbox(value=saved.model, label="对话模型")
+                                ai_model = gr.Textbox(
+                                    value=saved.model,
+                                    label="对话模型",
+                                    elem_classes=[
+                                        "settings-control-surface",
+                                        "settings-text-control",
+                                    ],
+                                )
                                 base_url = gr.Textbox(
                                     value=saved.base_url,
                                     label="Base URL",
                                     info="仅支持 OpenAI 兼容 Chat Completions 接口。无路径时自动追加 /v1。",
+                                    elem_classes=[
+                                        "settings-control-surface",
+                                        "settings-text-control",
+                                    ],
                                 )
                             key_mode = gr.Radio(
                                 choices=["环境变量", "直接 Key 值"],
                                 value=saved.key_mode,
                                 label="API Key 类型",
-                                elem_classes=["segmented-control"],
+                                elem_classes=["settings-control-surface", "segmented-control"],
                             )
                             env_api_key = gr.Textbox(
                                 value=data.env_api_key,
@@ -339,6 +416,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                 placeholder="例如：DEEPSEEK_API_KEY",
                                 info="填写环境变量名称。",
                                 visible=saved.key_mode == "环境变量",
+                                elem_classes=[
+                                    "settings-control-surface",
+                                    "settings-text-control",
+                                ],
                             )
                             direct_api_key_hidden = gr.Textbox(
                                 value=data.direct_api_key,
@@ -347,6 +428,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                 placeholder="请输入真实 API Key",
                                 info="默认不保存真实 Key。",
                                 visible=saved.key_mode == "直接 Key 值",
+                                elem_classes=[
+                                    "settings-control-surface",
+                                    "settings-text-control",
+                                ],
                             )
                             direct_api_key_visible = gr.Textbox(
                                 value=data.direct_api_key,
@@ -355,6 +440,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                 placeholder="请输入真实 API Key",
                                 info="当前为明文显示。",
                                 visible=False,
+                                elem_classes=[
+                                    "settings-control-surface",
+                                    "settings-text-control",
+                                ],
                             )
                             direct_key_visible = gr.State(False)
                             with gr.Row(elem_classes=["settings-key-row"], equal_height=True):
@@ -362,6 +451,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                     value=saved.save_api_key,
                                     label="保存 API Key 到本地配置",
                                     scale=1,
+                                    elem_classes=[
+                                        "settings-control-surface",
+                                        "settings-toggle-row",
+                                    ],
                                 )
                                 show_direct_key_btn = gr.Button(
                                     "显示 Key", visible=saved.key_mode == "直接 Key 值", size="sm",
@@ -395,15 +488,17 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                         choices=["本地规则", "AI 自动生成"],
                         value=saved.title_generation_mode,
                         label="对话标题",
-                        elem_classes=["segmented-control"],
+                        elem_classes=["settings-control-surface", "segmented-control"],
                     )
                     followup_generation_enabled = gr.Checkbox(
                         value=saved.followup_generation_enabled,
                         label="每次回复后生成后续问题建议",
+                        elem_classes=["settings-control-surface", "settings-toggle-row"],
                     )
                     keep_followup_prompts = gr.Checkbox(
                         value=saved.keep_followup_prompts,
                         label="保留历史回复下的后续问题",
+                        elem_classes=["settings-control-surface", "settings-toggle-row"],
                     )
                     followup_click_action = gr.Radio(
                         choices=["填入输入框", "直接发送"],
@@ -413,6 +508,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                             "segmented-control",
                             "settings-inline-choice",
                             "settings-followup-click-action",
+                            "settings-control-surface",
                         ],
                     )
                     with advanced_settings():
@@ -422,6 +518,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                 label="标题生成 Prompt",
                                 lines=5,
                                 max_lines=10,
+                                elem_classes=[
+                                    "settings-control-surface",
+                                    "settings-prompt-control",
+                                ],
                             )
                         with gr.Group(elem_classes=["settings-option-group", "settings-inner-group"]):
                             followup_generation_prompt = gr.Textbox(
@@ -429,12 +529,20 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                 label="后续问题生成 Prompt",
                                 lines=6,
                                 max_lines=12,
+                                elem_classes=[
+                                    "settings-control-surface",
+                                    "settings-prompt-control",
+                                ],
                             )
                         with gr.Group(elem_classes=["settings-option-group", "settings-inner-group"]):
                             task_model = gr.Textbox(
                                 value=saved.task_model,
                                 label="任务模型",
                                 placeholder="留空时使用当前对话模型",
+                                elem_classes=[
+                                    "settings-control-surface",
+                                    "settings-text-control",
+                                ],
                             )
                             with gr.Row(elem_classes=["settings-inline-fields"]):
                                 task_temperature = gr.Number(
@@ -443,6 +551,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                     minimum=0,
                                     maximum=2,
                                     step=0.1,
+                                    elem_classes=[
+                                        "settings-control-surface",
+                                        "settings-number-control",
+                                    ],
                                 )
                                 task_max_tokens = gr.Number(
                                     value=saved.task_max_tokens,
@@ -450,6 +562,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                     minimum=32,
                                     maximum=800,
                                     precision=0,
+                                    elem_classes=[
+                                        "settings-control-surface",
+                                        "settings-number-control",
+                                    ],
                                 )
 
         with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as storage_settings_pane:
@@ -464,8 +580,16 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                             help_text=STORAGE_HELP,
                         )
                     )
-                    auto_save = gr.Checkbox(value=saved.auto_save, label="自动保存对话记录")
-                    save_history = gr.Checkbox(value=saved.save_history, label="自动保存检测历史")
+                    auto_save = gr.Checkbox(
+                        value=saved.auto_save,
+                        label="自动保存对话记录",
+                        elem_classes=["settings-control-surface", "settings-toggle-row"],
+                    )
+                    save_history = gr.Checkbox(
+                        value=saved.save_history,
+                        label="自动保存检测历史",
+                        elem_classes=["settings-control-surface", "settings-toggle-row"],
+                    )
                     history_limit = gr.Number(
                         value=saved.history_limit,
                         label="自动记录最多保留数量",
@@ -473,17 +597,46 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                         precision=0,
                         minimum=1,
                         maximum=1000,
+                        elem_classes=[
+                            "settings-control-surface",
+                            "settings-row-control",
+                            "settings-number-control",
+                        ],
                     )
-                    with gr.Row(elem_classes=["path-row", "path-picker-row"]):
+                    with gr.Row(
+                        elem_classes=["path-row", "path-picker-row", "settings-path-row"]
+                    ):
                         storage_dir = gr.Textbox(
-                            value=saved.storage_dir, label="存储目录", lines=1, max_lines=1, scale=8
+                            value=saved.storage_dir,
+                            label="存储目录",
+                            lines=1,
+                            max_lines=1,
+                            scale=8,
+                            elem_classes=[
+                                "settings-control-surface",
+                                "settings-text-control",
+                                "settings-path-field",
+                            ],
                         )
                         open_storage_btn = gr.Button(
-                            "...", size="sm", scale=1, elem_id="storage-dir-picker",
-                            elem_classes=["icon-action"],
+                            "浏览",
+                            size="sm",
+                            scale=1,
+                            elem_id="storage-dir-picker",
+                            elem_classes=[
+                                "secondary-action",
+                                "settings-control-surface",
+                                "settings-inline-button",
+                            ],
                         )
                         default_storage_btn = gr.Button(
-                            "恢复默认", scale=2, elem_classes=["secondary-action"]
+                            "恢复默认",
+                            scale=2,
+                            elem_classes=[
+                                "secondary-action",
+                                "settings-control-surface",
+                                "settings-inline-button",
+                            ],
                         )
 
     with gr.Row(elem_classes=["settings-actions"]):
