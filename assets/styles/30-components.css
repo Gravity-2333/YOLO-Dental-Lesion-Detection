@@ -1416,8 +1416,10 @@ td {
 }
 
 .settings-advanced > button.label-wrap {
+  display: inline-flex !important;
   width: max-content !important;
   min-height: 40px !important;
+  align-items: center !important;
   justify-content: flex-start !important;
   gap: 8px !important;
   padding: 8px 0 !important;
@@ -1425,6 +1427,7 @@ td {
   background: transparent !important;
   color: #87918f !important;
   font-weight: 500 !important;
+  line-height: 1.4 !important;
   box-shadow: none !important;
   transition: color 160ms ease !important;
 }
@@ -1437,19 +1440,22 @@ td {
 }
 
 .settings-advanced > button.label-wrap .icon {
+  flex: 0 0 8px !important;
+  align-self: center !important;
   width: 8px !important;
   height: 8px !important;
-  margin: 0 0 0 2px !important;
+  margin: 0 0 0 4px !important;
   overflow: hidden !important;
   border-right: 1.5px solid currentColor !important;
   border-bottom: 1.5px solid currentColor !important;
   font-size: 0 !important;
+  transform-origin: 50% 50% !important;
   transform: rotate(-45deg) !important;
   transition: transform 160ms ease !important;
 }
 
 .settings-advanced > button.label-wrap.open .icon {
-  transform: rotate(45deg) translate(-1px, -1px) !important;
+  transform: rotate(45deg) !important;
 }
 
 .settings-advanced > div:not(.wrap) {

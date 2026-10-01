@@ -486,6 +486,21 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("border: 0", nested_rule)
         self.assertIn("padding: 0", nested_rule)
 
+    def test_settings_advanced_trigger_centers_text_and_chevron(self) -> None:
+        css = load_workbench_css()
+        trigger_rule = css.split(".settings-advanced > button.label-wrap {", 1)[1].split(
+            "}", 1
+        )[0]
+        open_icon_rule = css.split(
+            ".settings-advanced > button.label-wrap.open .icon {", 1
+        )[1].split("}", 1)[0]
+
+        self.assertIn("display: inline-flex", trigger_rule)
+        self.assertIn("align-items: center", trigger_rule)
+        self.assertIn("line-height: 1.4", trigger_rule)
+        self.assertIn("transform: rotate(45deg)", open_icon_rule)
+        self.assertNotIn("translate", open_icon_rule)
+
     def test_css_bundle_drops_retired_frontend_scaffolding(self) -> None:
         css = load_workbench_css()
         for retired_selector in (
