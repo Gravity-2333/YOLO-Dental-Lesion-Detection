@@ -20,6 +20,7 @@ from .ui_content import (
     DISPLAY_OPTIONS_HELP,
     MODEL_SELECTION_HELP,
     STORAGE_HELP,
+    field_label_with_help_html,
     section_heading,
 )
 
@@ -395,15 +396,24 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                         "settings-text-control",
                                     ],
                                 )
-                                base_url = gr.Textbox(
-                                    value=saved.base_url,
-                                    label="Base URL",
-                                    info="仅支持 OpenAI 兼容 Chat Completions 接口。无路径时自动追加 /v1。",
-                                    elem_classes=[
-                                        "settings-control-surface",
-                                        "settings-text-control",
-                                    ],
-                                )
+                                with gr.Column(elem_classes=["settings-field-with-help"]):
+                                    gr.HTML(
+                                        field_label_with_help_html(
+                                            "Base URL",
+                                            "Base URL 说明",
+                                            "仅支持 OpenAI 兼容 Chat Completions 接口。无路径时自动追加 /v1。",
+                                        ),
+                                        elem_classes=["settings-field-help-host"],
+                                    )
+                                    base_url = gr.Textbox(
+                                        value=saved.base_url,
+                                        label="Base URL",
+                                        show_label=False,
+                                        elem_classes=[
+                                            "settings-control-surface",
+                                            "settings-text-control",
+                                        ],
+                                    )
                             key_mode = gr.Radio(
                                 choices=["环境变量", "直接 Key 值"],
                                 value=saved.key_mode,

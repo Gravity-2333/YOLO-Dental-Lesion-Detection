@@ -59,6 +59,19 @@ def context_help_html(
     )
 
 
+def field_label_with_help_html(
+    label: str,
+    help_title: str,
+    help_text: str,
+) -> str:
+    return (
+        '<div class="settings-field-label">'
+        f'<span class="settings-field-label-text">{escape(label)}</span>'
+        f'{context_help_html(help_title, help_text)}'
+        "</div>"
+    )
+
+
 def section_heading(
     title: str,
     description: str,

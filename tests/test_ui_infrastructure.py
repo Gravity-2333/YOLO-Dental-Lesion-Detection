@@ -47,6 +47,7 @@ from src.dental_detection.ui_content import (
     HISTORY_INTRO_HTML,
     WORKBENCH_HELP_TEXT,
     context_help_html,
+    field_label_with_help_html,
     inline_status_html,
     section_heading,
     toast_html,
@@ -1117,6 +1118,22 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("&lt;说明&gt;", html)
         self.assertIn("A&amp;B", html)
         self.assertNotIn("<说明>", html)
+
+    def test_field_label_help_uses_context_tooltip_instead_of_permanent_info(self) -> None:
+        html = field_label_with_help_html(
+            "<Base URL>",
+            "接口说明",
+            "仅支持 A&B。",
+        )
+        settings_source = inspect.getsource(build_settings_page)
+
+        self.assertIn('class="settings-field-label"', html)
+        self.assertIn("&lt;Base URL&gt;", html)
+        self.assertIn('aria-label="接口说明"', html)
+        self.assertIn("仅支持 A&amp;B。", html)
+        self.assertIn('"Base URL 说明"', settings_source)
+        self.assertIn('elem_classes=["settings-field-with-help"]', settings_source)
+        self.assertNotIn('label="Base URL",\n                                    info=', settings_source)
 
     def test_explanatory_accordions_are_replaced_by_context_help(self) -> None:
         workbench_source = inspect.getsource(build_workbench_page)
