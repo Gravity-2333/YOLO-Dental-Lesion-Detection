@@ -48,13 +48,14 @@ def context_help_html(
         if part.strip()
     )
     return (
-        f'<details class="context-help context-help-{safe_kind}">'
-        f'<summary aria-label="{escape(title)}" aria-describedby="{tooltip_id}">'
-        f'<span aria-hidden="true">{symbol}</span></summary>'
+        f'<div class="context-help context-help-{safe_kind}">'
+        f'<span class="context-help-trigger" tabindex="0" '
+        f'aria-label="{escape(title)}" aria-describedby="{tooltip_id}">'
+        f'<span aria-hidden="true">{symbol}</span></span>'
         f'<div class="context-help-bubble" id="{tooltip_id}" role="tooltip">'
         '<div class="context-help-bubble-card">'
         f'<strong>{escape(title)}</strong>{paragraphs}'
-        "</div></div></details>"
+        "</div></div></div>"
     )
 
 

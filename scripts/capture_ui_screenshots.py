@@ -250,11 +250,11 @@ def check_patient_toolbar_clearance(page, minimum_gap: int = 8) -> None:
         raise RuntimeError(f"患者选择框仍存在双层边框：{layout}")
 
 
-def show_context_help(page, scope: str, *, click: bool = False) -> None:
+def show_context_help(page, scope: str, *, focus: bool = False) -> None:
     help_root = page.locator(f"{scope} .context-help:visible").first
-    trigger = help_root.locator("summary")
-    if click:
-        trigger.click(timeout=10000)
+    trigger = help_root.locator(".context-help-trigger")
+    if focus:
+        trigger.focus(timeout=10000)
     else:
         trigger.hover(timeout=10000)
     page.wait_for_timeout(400)
@@ -364,7 +364,7 @@ def capture(args: argparse.Namespace) -> None:
                 name("01-workbench-desktop.png", suffix),
                 reset_scroll=True,
             )
-            show_context_help(page, ".workbench-model-status", click=True)
+            show_context_help(page, ".workbench-model-status")
             save(page, output_dir, name("01-workbench-help-tooltip.png", suffix))
 
             try:
@@ -453,7 +453,7 @@ def capture(args: argparse.Namespace) -> None:
                         reset_scroll=True,
                     )
                     if tab_name == "设置":
-                        show_context_help(detail_page, ".settings-sections", click=True)
+                        show_context_help(detail_page, ".settings-sections")
                         save(
                             detail_page,
                             output_dir,
@@ -504,7 +504,7 @@ def capture(args: argparse.Namespace) -> None:
                 mobile.evaluate("window.scrollTo(0, 0)")
                 click_tab(mobile, "检测工作台")
                 check_horizontal_overflow(mobile, "移动端工作台")
-                show_context_help(mobile, ".workbench-model-status", click=True)
+                show_context_help(mobile, ".workbench-model-status", focus=True)
                 save(
                     mobile,
                     output_dir,

@@ -1604,7 +1604,7 @@ td {
   overflow: visible !important;
 }
 
-.context-help > summary {
+.context-help > .context-help-trigger {
   display: inline-grid;
   width: 26px;
   height: 26px;
@@ -1626,26 +1626,18 @@ td {
     box-shadow 160ms ease;
 }
 
-.context-help > summary::-webkit-details-marker {
-  display: none;
-}
-
-.context-help > summary::marker {
-  content: "";
-}
-
-.context-help-warning > summary {
+.context-help-warning > .context-help-trigger {
   border-color: #d1a366;
   color: #8c5a22;
 }
 
-.context-help:hover > summary,
-.context-help:focus-within > summary,
-.context-help[open] > summary {
+.context-help:hover > .context-help-trigger,
+.context-help > .context-help-trigger:focus-visible {
   border-color: var(--brand-gold);
   background: #fbf4eb;
   color: var(--brand-gold-dark);
   box-shadow: 0 0 0 3px rgba(204, 158, 108, 0.16);
+  outline: none;
 }
 
 .context-help-bubble {
@@ -1664,10 +1656,6 @@ td {
     opacity 180ms ease,
     visibility 180ms ease,
     transform 180ms ease;
-}
-
-.context-help:not([open]) > .context-help-bubble {
-  display: block;
 }
 
 .context-help-bubble-card {
@@ -1715,8 +1703,7 @@ td {
 }
 
 .context-help:hover .context-help-bubble,
-.context-help:focus-within .context-help-bubble,
-.context-help[open] .context-help-bubble {
+.context-help > .context-help-trigger:focus-visible + .context-help-bubble {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;

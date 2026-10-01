@@ -653,16 +653,16 @@ def assert_patient_toolbar_does_not_overlap_tabs(page, minimum_gap: int = 8) -> 
 
 def assert_context_help_bubble(page, scope: str, *, activate: str = "hover") -> None:
     help_root = page.locator(f"{scope} .context-help:visible").first
-    trigger = help_root.locator("summary")
+    trigger = help_root.locator(".context-help-trigger")
     trigger.wait_for(state="visible")
-    if activate == "click":
-        trigger.click()
+    if activate == "focus":
+        trigger.focus()
     else:
         trigger.hover()
     page.wait_for_timeout(220)
     state = help_root.evaluate(
         """root => {
-            const trigger = root.querySelector('summary');
+            const trigger = root.querySelector('.context-help-trigger');
             const bubble = root.querySelector('.context-help-bubble');
             const card = bubble?.querySelector('.context-help-bubble-card');
             if (!trigger || !bubble || !card) return null;
@@ -898,7 +898,7 @@ def main() -> int:
         top_tab(mobile, "检测工作台").click(timeout=10000)
         wait_for_ui(mobile)
         assert_no_page_overflow(mobile, "移动端工作台")
-        assert_context_help_bubble(mobile, ".workbench-model-status", activate="click")
+        assert_context_help_bubble(mobile, ".workbench-model-status", activate="focus")
         mobile.close()
         browser.close()
 

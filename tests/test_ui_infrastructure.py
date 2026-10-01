@@ -1110,6 +1110,10 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('class="context-help context-help-warning"', html)
         self.assertIn('role="tooltip"', html)
         self.assertIn('aria-describedby="context-help-', html)
+        self.assertIn('class="context-help-trigger"', html)
+        self.assertIn('tabindex="0"', html)
+        self.assertNotIn("<details", html)
+        self.assertNotIn("<summary", html)
         self.assertIn("&lt;说明&gt;", html)
         self.assertIn("A&amp;B", html)
         self.assertNotIn("<说明>", html)
@@ -1124,8 +1128,11 @@ class UiContentTests(unittest.TestCase):
         self.assertNotIn('gr.Accordion("接口说明"', settings_source)
         self.assertGreaterEqual(settings_source.count("help_text="), 4)
         self.assertIn(".context-help:hover .context-help-bubble", css)
-        self.assertIn(".context-help:focus-within .context-help-bubble", css)
-        self.assertIn(".context-help[open] .context-help-bubble", css)
+        self.assertIn(
+            ".context-help > .context-help-trigger:focus-visible + .context-help-bubble",
+            css,
+        )
+        self.assertNotIn(".context-help[open]", css)
         self.assertIn('"model-status-card"', workbench_source)
         self.assertIn(".model-status-card > .styler", css)
         self.assertIn(".settings-card > .styler", css)
