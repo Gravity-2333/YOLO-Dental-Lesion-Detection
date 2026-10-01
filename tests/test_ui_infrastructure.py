@@ -491,6 +491,12 @@ class UiAssetTests(unittest.TestCase):
         trigger_rule = css.split(".settings-advanced > button.label-wrap {", 1)[1].split(
             "}", 1
         )[0]
+        final_trigger_rule = css.rsplit(".settings-advanced > button.label-wrap {", 1)[1].split(
+            "}", 1
+        )[0]
+        icon_rule = css.split(".settings-advanced > button.label-wrap .icon {", 1)[1].split(
+            "}", 1
+        )[0]
         open_icon_rule = css.split(
             ".settings-advanced > button.label-wrap.open .icon {", 1
         )[1].split("}", 1)[0]
@@ -498,6 +504,11 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("display: inline-flex", trigger_rule)
         self.assertIn("align-items: center", trigger_rule)
         self.assertIn("line-height: 1.4", trigger_rule)
+        self.assertIn("padding: 8px 8px", trigger_rule)
+        self.assertIn("overflow: visible", trigger_rule)
+        self.assertIn("padding: 7px 8px", final_trigger_rule)
+        self.assertIn("overflow: visible", final_trigger_rule)
+        self.assertIn("overflow: visible", icon_rule)
         self.assertIn("transform: rotate(45deg)", open_icon_rule)
         self.assertNotIn("translate", open_icon_rule)
 
@@ -1418,6 +1429,22 @@ class UiContentTests(unittest.TestCase):
         self.assertIn(".ai-chat-thread .top-panel", css)
         self.assertIn(".ai-message-action::after", css)
         self.assertIn("place-items: center !important", css)
+
+    def test_ai_message_navigator_tracks_turns_and_previews_content(self) -> None:
+        javascript = load_workbench_js()
+        css = load_workbench_css()
+
+        self.assertIn("function chatTurns(log)", javascript)
+        self.assertIn("function initializeMessageNavigator", javascript)
+        self.assertIn('aria-label", "对话消息导航"', javascript)
+        self.assertIn("synchronizeMessageNavigator(log)", javascript)
+        self.assertIn('behavior: "smooth"', javascript)
+        self.assertIn("ai-message-nav-preview-user", javascript)
+        self.assertIn("ai-message-nav-preview-assistant", javascript)
+        self.assertIn(".ai-message-navigator", css)
+        self.assertIn("mask-image: linear-gradient", css)
+        self.assertIn(".ai-message-nav-marker.is-current", css)
+        self.assertIn("-webkit-line-clamp: 3", css)
 
     def test_ai_message_time_uses_a_hidden_marker_without_native_thought_group(self) -> None:
         messages = [

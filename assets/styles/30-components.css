@@ -1422,7 +1422,8 @@ td {
   align-items: center !important;
   justify-content: flex-start !important;
   gap: 8px !important;
-  padding: 8px 0 !important;
+  padding: 8px 8px !important;
+  overflow: visible !important;
   border: 0 !important;
   background: transparent !important;
   color: #87918f !important;
@@ -1445,7 +1446,7 @@ td {
   width: 8px !important;
   height: 8px !important;
   margin: 0 0 0 4px !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   border-right: 1.5px solid currentColor !important;
   border-bottom: 1.5px solid currentColor !important;
   font-size: 0 !important;
@@ -2335,7 +2336,8 @@ footer,
 .settings-advanced > button.label-wrap {
   min-height: 34px !important;
   margin: 0 !important;
-  padding: 7px 0 !important;
+  padding: 7px 8px !important;
+  overflow: visible !important;
   font-size: 0.9rem !important;
 }
 

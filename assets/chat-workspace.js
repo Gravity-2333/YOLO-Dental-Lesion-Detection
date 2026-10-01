@@ -44,6 +44,7 @@
   let searchSourceItems = [];
   let floatingTooltip = null;
   let tooltipAnchor = null;
+  let messageNavigatorPreview = null;
 
   function hideFloatingTooltip() {
     tooltipAnchor?.removeAttribute("aria-describedby");
@@ -378,6 +379,163 @@
     });
   }
 
+  function chatMessageText(row) {
+    return (row?.querySelector(".message-content")?.innerText || "")
+      .replace(/\s+/gu, " ")
+      .trim();
+  }
+
+  function chatTurns(log) {
+    const turns = [];
+    let activeTurn = null;
+    log.querySelectorAll(".message-row").forEach((row) => {
+      if (row.classList.contains("user-row")) {
+        activeTurn = {
+          target: row,
+          user: chatMessageText(row),
+          assistant: "",
+        };
+        turns.push(activeTurn);
+        return;
+      }
+      if (!row.classList.contains("bot-row")) return;
+      if (activeTurn && !activeTurn.assistant) {
+        activeTurn.assistant = chatMessageText(row);
+        return;
+      }
+      activeTurn = {
+        target: row,
+        user: "检测结果",
+        assistant: chatMessageText(row),
+      };
+      turns.push(activeTurn);
+    });
+    return turns;
+  }
+
+  function hideMessageNavigatorPreview() {
+    messageNavigatorPreview?.classList.remove("is-visible");
+  }
+
+  function showMessageNavigatorPreview(marker, turn) {
+    if (!messageNavigatorPreview?.isConnected) {
+      messageNavigatorPreview = document.createElement("aside");
+      messageNavigatorPreview.className = "ai-message-nav-preview";
+      messageNavigatorPreview.setAttribute("role", "tooltip");
+      messageNavigatorPreview.innerHTML = `
+        <div class="ai-message-nav-preview-user"><span>USER</span><p></p></div>
+        <div class="ai-message-nav-preview-assistant"><span>AI</span><p></p></div>`;
+      document.body.append(messageNavigatorPreview);
+    }
+    messageNavigatorPreview.querySelector(".ai-message-nav-preview-user p").textContent = turn.user || "检测结果";
+    messageNavigatorPreview.querySelector(".ai-message-nav-preview-assistant p").textContent = turn.assistant || "等待助手回复";
+    const markerRect = marker.getBoundingClientRect();
+    const previewRect = messageNavigatorPreview.getBoundingClientRect();
+    const left = Math.max(
+      12,
+      Math.min(innerWidth - previewRect.width - 12, markerRect.right + 14),
+    );
+    const top = Math.min(
+      innerHeight - previewRect.height - 12,
+      Math.max(12, markerRect.top + markerRect.height / 2 - previewRect.height / 2),
+    );
+    messageNavigatorPreview.style.left = `${Math.round(left)}px`;
+    messageNavigatorPreview.style.top = `${Math.round(top)}px`;
+    requestAnimationFrame(() => messageNavigatorPreview?.classList.add("is-visible"));
+  }
+
+  function activeMessageTurn(log, turns) {
+    if (!turns.length) return -1;
+    const logRect = log.getBoundingClientRect();
+    const readingLine = logRect.top + Math.min(150, logRect.height * 0.38);
+    let activeIndex = 0;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    turns.forEach((turn, index) => {
+      const distance = Math.abs(turn.target.getBoundingClientRect().top - readingLine);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        activeIndex = index;
+      }
+    });
+    return activeIndex;
+  }
+
+  function synchronizeMessageNavigator(log) {
+    const navigator = log.closest(".ai-chat-thread")?.querySelector(".ai-message-navigator");
+    if (!navigator) return;
+    const turns = chatTurns(log);
+    const activeIndex = activeMessageTurn(log, turns);
+    navigator.querySelectorAll(".ai-message-nav-marker").forEach((marker, index) => {
+      const selected = index === activeIndex;
+      marker.classList.toggle("is-current", selected);
+      marker.setAttribute("aria-current", selected ? "true" : "false");
+    });
+  }
+
+  function initializeMessageNavigator(root = document) {
+    root.querySelectorAll(".ai-chat-thread").forEach((thread) => {
+      const log = thread.querySelector('[role="log"]');
+      if (!log) return;
+      const turns = chatTurns(log);
+      const signature = turns
+        .map((turn) => `${turn.user.slice(0, 80)}\u0000${turn.assistant.slice(0, 120)}`)
+        .join("\u0001");
+      let navigator = thread.querySelector(".ai-message-navigator");
+      if (!turns.length) {
+        navigator?.remove();
+        hideMessageNavigatorPreview();
+        return;
+      }
+      if (!navigator) {
+        navigator = document.createElement("nav");
+        navigator.className = "ai-message-navigator";
+        navigator.setAttribute("aria-label", "对话消息导航");
+        navigator.innerHTML = '<div class="ai-message-nav-list"></div>';
+        thread.append(navigator);
+      }
+      if (navigator.dataset.signature !== signature) {
+        navigator.dataset.signature = signature;
+        const list = navigator.querySelector(".ai-message-nav-list");
+        list.style.setProperty("--ai-message-nav-count", String(turns.length));
+        const fragment = document.createDocumentFragment();
+        turns.forEach((turn, index) => {
+          const marker = document.createElement("button");
+          marker.type = "button";
+          marker.className = "ai-message-nav-marker";
+          marker.setAttribute("aria-label", `跳转到第 ${index + 1} 轮对话`);
+          marker.addEventListener("pointerenter", () => showMessageNavigatorPreview(marker, turn));
+          marker.addEventListener("pointerleave", hideMessageNavigatorPreview);
+          marker.addEventListener("focus", () => showMessageNavigatorPreview(marker, turn));
+          marker.addEventListener("blur", hideMessageNavigatorPreview);
+          marker.addEventListener("click", () => {
+            hideMessageNavigatorPreview();
+            const logRect = log.getBoundingClientRect();
+            const targetRect = turn.target.getBoundingClientRect();
+            log.scrollTo({
+              top: Math.max(0, log.scrollTop + targetRect.top - logRect.top - 24),
+              behavior: "smooth",
+            });
+          });
+          fragment.append(marker);
+        });
+        list.replaceChildren(fragment);
+      }
+      if (log.dataset.aiMessageNavigatorReady !== "true") {
+        log.dataset.aiMessageNavigatorReady = "true";
+        let frame = 0;
+        log.addEventListener("scroll", () => {
+          if (frame) cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(() => {
+            frame = 0;
+            hideMessageNavigatorPreview();
+            synchronizeMessageNavigator(log);
+          });
+        }, { passive: true });
+      }
+      synchronizeMessageNavigator(log);
+    });
+  }
+
   function applyFollowupPrompt(prompt) {
     const value = prompt?.trim() || "";
     if (!value || !setNativeField(".ai-composer-input textarea", value)) return;
@@ -536,6 +694,7 @@
   function initializeWorkspace(root = document) {
     decorateConversationItems(root);
     decorateChatMessages(root);
+    initializeMessageNavigator(root);
     initializeMessageFollowups(root);
     decorateStaticButtons(root);
     initializeComposerKeyboard(root);
@@ -551,10 +710,12 @@
   window.addEventListener("scroll", () => {
     closeMenu();
     hideFloatingTooltip();
+    hideMessageNavigatorPreview();
   }, { passive: true });
   window.addEventListener("resize", () => {
     closeMenu();
     hideFloatingTooltip();
+    hideMessageNavigatorPreview();
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && searchDialog) {
