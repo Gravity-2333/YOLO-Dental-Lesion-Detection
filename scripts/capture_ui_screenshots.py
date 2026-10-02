@@ -85,9 +85,17 @@ def click_accordion(page, label: str) -> None:
     page.wait_for_timeout(800)
 
 
+def click_settings_section(page, label: str) -> None:
+    section = page.get_by_role("radio", name=label, exact=True)
+    if section.count() == 0:
+        raise RuntimeError(f"无法定位设置栏目：{label}")
+    section.first.click(timeout=15000)
+    page.wait_for_timeout(800)
+
+
 def configure_isolated_detection_session(page, storage_dir: Path) -> bool:
     click_tab(page, "设置")
-    click_accordion(page, "AI 接口")
+    click_settings_section(page, "AI")
     ai_enabled = page.get_by_label("启用 AI 建议与问答")
     if ai_enabled.count() != 1:
         raise RuntimeError("截图会话无法唯一定位 AI 开关，已停止以避免外部请求。")
@@ -95,7 +103,7 @@ def configure_isolated_detection_session(page, storage_dir: Path) -> bool:
     if ai_was_enabled:
         ai_enabled.uncheck(timeout=10000)
 
-    click_accordion(page, "存储与隐私")
+    click_settings_section(page, "存储")
     storage_input = page.get_by_label("存储目录")
     if storage_input.count() != 1:
         raise RuntimeError("截图会话无法唯一定位存储目录，已停止以避免写入真实数据。")
@@ -110,9 +118,8 @@ def configure_isolated_detection_session(page, storage_dir: Path) -> bool:
 def open_ai_page_for_capture(page, restore_enabled: bool) -> None:
     if restore_enabled:
         click_tab(page, "设置")
+        click_settings_section(page, "AI")
         ai_enabled = page.get_by_label("启用 AI 建议与问答")
-        if not ai_enabled.is_visible():
-            click_accordion(page, "AI 接口")
         if not ai_enabled.is_checked():
             ai_enabled.check(timeout=10000)
     click_tab(page, "AI 问答")
@@ -303,39 +310,6 @@ def capture(args: argparse.Namespace) -> None:
                 name("00-home-desktop.png", suffix),
                 reset_scroll=True,
             )
-            page.get_by_role("button", name="Test", exact=True).hover()
-            page.wait_for_function(
-                "() => getComputedStyle(document.querySelector('.app-nav-submenu-level-1')).visibility === 'visible'",
-                timeout=5000,
-            )
-            page.wait_for_timeout(300)
-            save(page, output_dir, name("00-home-test-menu.png", suffix))
-            page.get_by_role("button", name="系统页面", exact=True).hover()
-            page.wait_for_function(
-                "() => getComputedStyle(document.querySelector('.app-nav-submenu-level-2')).visibility === 'visible'",
-                timeout=5000,
-            )
-            page.wait_for_timeout(350)
-            nested_box = page.get_by_role("button", name="系统页面", exact=True).bounding_box()
-            setting_box = page.locator(
-                '.app-nav-submenu-level-2 [data-app-target="设置"]'
-            ).bounding_box()
-            if not nested_box or not setting_box:
-                raise RuntimeError("无法取得 Test 二级菜单鼠标轨迹坐标。")
-            page.mouse.move(
-                nested_box["x"] + nested_box["width"] / 2,
-                nested_box["y"] + nested_box["height"] / 2,
-            )
-            page.mouse.move(
-                setting_box["x"] + setting_box["width"] / 2,
-                setting_box["y"] + setting_box["height"] / 2,
-                steps=40,
-            )
-            page.wait_for_timeout(250)
-            save(page, output_dir, name("00-home-test-submenu.png", suffix))
-            page.mouse.move(1, 1)
-            page.keyboard.press("Escape")
-            page.evaluate("document.activeElement?.blur()")
             page.evaluate(
                 """() => {
                     const shell = document.querySelector('.app-header-shell');
@@ -369,9 +343,9 @@ def capture(args: argparse.Namespace) -> None:
 
             try:
                 click_tab(page, "设置")
-                click_accordion(page, "模型与推理")
+                click_settings_section(page, "模型")
                 try:
-                    page.get_by_text("高级模型路径设置", exact=True).click(timeout=5000)
+                    click_accordion(page, "高级")
                     page.wait_for_timeout(800)
                 except Exception as exc:
                     print(f"advanced accordion click skipped/failed: {exc}")
@@ -453,13 +427,13 @@ def capture(args: argparse.Namespace) -> None:
                         reset_scroll=True,
                     )
                     if tab_name == "设置":
-                        show_context_help(detail_page, ".settings-sections")
+                        show_context_help(detail_page, ".settings-pane-host")
                         save(
                             detail_page,
                             output_dir,
                             name("06-settings-help-tooltip.png", suffix),
                         )
-                        click_accordion(detail_page, "存储与隐私")
+                        click_settings_section(detail_page, "存储")
                         check_visible_path_row_alignment(detail_page, "存储目录")
                         save(
                             detail_page,

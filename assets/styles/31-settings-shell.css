@@ -1,0 +1,544 @@
+.settings-nav-shell {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
+  gap: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: calc(100vh - 96px) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #fff !important;
+  border: 0 !important;
+}
+
+.settings-nav-control {
+  flex: 0 0 272px !important;
+  width: 272px !important;
+  min-width: 272px !important;
+  max-width: 272px !important;
+  margin: 0 !important;
+  padding: 32px 20px !important;
+  overflow: hidden !important;
+  background: #fafbfa !important;
+  border: 0 !important;
+  border-right: 1px solid var(--soft-border) !important;
+  scrollbar-width: none !important;
+}
+
+.settings-nav-shell > .form {
+  flex: 0 0 272px !important;
+  width: 272px !important;
+  min-width: 272px !important;
+  max-width: 272px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-nav-control::-webkit-scrollbar,
+.settings-nav-control .form::-webkit-scrollbar,
+.settings-nav-control .wrap::-webkit-scrollbar {
+  display: none !important;
+}
+
+.settings-nav-control .form,
+.settings-nav-control .wrap {
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+}
+
+.settings-nav-control .wrap {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 4px !important;
+  width: 100% !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.settings-nav-control label {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  min-height: 46px !important;
+  padding: 0 16px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  color: #596663 !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  transition: color 160ms ease, background-color 160ms ease !important;
+}
+
+.settings-nav-control label:hover,
+.settings-nav-control label:focus-within {
+  color: #172522 !important;
+  background: #f3f5f4 !important;
+}
+
+.settings-nav-control label:has(input:checked) {
+  color: var(--brand-ink) !important;
+  background: #edf6f4 !important;
+  font-weight: 700 !important;
+}
+
+.settings-nav-control input {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+}
+
+.settings-pane-host {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  padding: 34px clamp(32px, 4vw, 72px) 64px !important;
+  background: #fff !important;
+  border: 0 !important;
+}
+
+.settings-nav-shell > .settings-pane-host {
+  flex: 1 1 0 !important;
+  width: auto !important;
+}
+
+.settings-pane-host > .settings-pane-host {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+/* Gradio keeps an empty outer Group in the flex row when its pane is hidden. */
+.settings-nav-shell > .settings-pane-host:has(.settings-pane.hide) {
+  display: none !important;
+}
+
+.settings-pane {
+  gap: 24px !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+.settings-page-heading-host,
+.settings-page-heading-host > .html-container,
+.settings-page-heading-host .prose {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-page-heading {
+  width: 100%;
+  padding: 0 0 4px;
+}
+
+.settings-page-heading h2 {
+  margin: 0;
+  color: #16211f;
+  font-size: 26px;
+  line-height: 1.3;
+  font-weight: 650;
+}
+
+.settings-page-heading p {
+  margin: 7px 0 0;
+  color: #74807d;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.settings-card {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.settings-card > .settings-card {
+  gap: 18px !important;
+  padding: 24px 26px !important;
+  background: #fff !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: 10px !important;
+}
+
+.settings-option-group {
+  overflow: visible !important;
+}
+
+.settings-inner-group {
+  padding: 18px 20px !important;
+  border: 1px solid var(--soft-border) !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+}
+
+.settings-card-picker,
+.settings-card-picker > .form {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.settings-card-picker .wrap {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  width: 100% !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.settings-card-picker > label,
+.settings-card-picker [data-testid="block-label"] {
+  margin-bottom: 8px !important;
+}
+
+.settings-card-picker .wrap label {
+  position: relative !important;
+  display: flex !important;
+  min-width: 0 !important;
+  min-height: 48px !important;
+  align-items: center !important;
+  padding: 12px 14px !important;
+  overflow: hidden !important;
+  border: 1px solid #dce3e1 !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #44514e !important;
+  cursor: pointer !important;
+  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease !important;
+}
+
+.settings-card-picker .wrap label:hover {
+  border-color: #9abbb5 !important;
+  background: #f7faf9 !important;
+}
+
+.settings-card-picker .wrap label:has(input:checked) {
+  border-color: #3b9389 !important;
+  background: #eff8f6 !important;
+  color: #145f57 !important;
+}
+
+.settings-card-picker input[type="radio"] {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+}
+
+.settings-pane .segmented-control {
+  display: flex !important;
+  min-height: 58px !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  padding: 10px 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-top: 1px solid var(--soft-border) !important;
+  background: transparent !important;
+}
+
+.settings-pane .segmented-control .wrap {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  padding: 3px !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: #f1f3f2 !important;
+}
+
+.settings-pane .segmented-control .wrap label {
+  position: relative !important;
+  min-height: 32px !important;
+  padding: 6px 13px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: #66716f !important;
+  cursor: pointer !important;
+}
+
+.settings-pane .segmented-control .wrap label:has(input:checked) {
+  background: #fff !important;
+  color: #172522 !important;
+  box-shadow: 0 1px 3px rgba(24, 39, 36, 0.12) !important;
+}
+
+.settings-pane .segmented-control input[type="radio"] {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+}
+
+.settings-card .block:has(> label.checkbox-container) {
+  width: 100% !important;
+  min-height: 50px !important;
+  margin: 0 !important;
+  padding: 8px 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-top: 1px solid var(--soft-border) !important;
+  background: transparent !important;
+}
+
+.settings-card label.checkbox-container {
+  display: flex !important;
+  width: 100% !important;
+  min-height: 34px !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-direction: row-reverse !important;
+  gap: 20px !important;
+  color: #33413e !important;
+  cursor: pointer !important;
+}
+
+.settings-card label.checkbox-container input[type="checkbox"] {
+  position: relative !important;
+  flex: 0 0 36px !important;
+  width: 36px !important;
+  height: 20px !important;
+  margin: 0 !important;
+  appearance: none !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: #d9dedd !important;
+  cursor: pointer !important;
+  transition: background-color 150ms ease !important;
+}
+
+.settings-card label.checkbox-container input[type="checkbox"]::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(22, 33, 31, 0.22);
+  content: "";
+  transition: transform 150ms ease;
+}
+
+.settings-card label.checkbox-container input[type="checkbox"]:checked {
+  background: #16776e !important;
+}
+
+.settings-card label.checkbox-container input[type="checkbox"]:checked::after {
+  transform: translateX(16px);
+}
+
+.settings-command-row,
+.settings-test-row,
+.settings-key-row {
+  width: 100% !important;
+  align-items: flex-end !important;
+  gap: 12px !important;
+  margin: 0 !important;
+  padding: 12px 0 0 !important;
+  border: 0 !important;
+  border-top: 1px solid var(--soft-border) !important;
+  background: transparent !important;
+}
+
+.settings-command-row {
+  justify-content: flex-end !important;
+}
+
+.settings-pane .settings-command-button {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 124px !important;
+  max-width: 190px !important;
+  min-height: 40px !important;
+  padding: 9px 18px !important;
+  border: 1px solid #d8dfdd !important;
+  border-radius: 7px !important;
+  background: #fff !important;
+  color: #263330 !important;
+  box-shadow: none !important;
+}
+
+.settings-pane .settings-command-button:hover,
+.settings-pane .settings-command-button:focus-visible {
+  border-color: #8fb2ac !important;
+  background: #f3f8f7 !important;
+  color: #126a61 !important;
+}
+
+.settings-test-row .settings-feedback-field {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+.settings-feedback-field textarea {
+  min-height: 40px !important;
+  height: 40px !important;
+}
+
+.settings-advanced {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-card .settings-advanced {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-advanced > button.label-wrap {
+  display: inline-flex !important;
+  width: max-content !important;
+  min-height: 40px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  padding: 8px 8px !important;
+  overflow: visible !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #87918f !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  box-shadow: none !important;
+  transition: color 160ms ease !important;
+}
+
+.settings-advanced > button.label-wrap:hover,
+.settings-advanced > button.label-wrap:focus-visible {
+  background: transparent !important;
+  color: #172522 !important;
+  outline: none !important;
+}
+
+.settings-advanced > button.label-wrap .icon {
+  flex: 0 0 8px !important;
+  align-self: center !important;
+  width: 8px !important;
+  height: 8px !important;
+  margin: 0 0 0 4px !important;
+  overflow: visible !important;
+  border-right: 1.5px solid currentColor !important;
+  border-bottom: 1.5px solid currentColor !important;
+  font-size: 0 !important;
+  transform-origin: 50% 50% !important;
+  transform: rotate(-45deg) !important;
+  transition: transform 160ms ease !important;
+}
+
+.settings-advanced > button.label-wrap.open .icon {
+  transform: rotate(45deg) !important;
+}
+
+.settings-advanced > div:not(.wrap) {
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-advanced .settings-advanced-content {
+  animation: settings-advanced-enter 200ms ease both;
+}
+
+.settings-advanced-content {
+  gap: 14px !important;
+  padding: 12px 0 0 !important;
+}
+
+.settings-inline-fields {
+  gap: 14px !important;
+}
+
+@keyframes settings-advanced-enter {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.settings-actions {
+  width: 100% !important;
+  max-width: none !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: nowrap !important;
+  gap: 12px !important;
+  margin: 0 !important;
+  padding: 14px clamp(32px, 4vw, 72px) 18px calc(272px + clamp(32px, 4vw, 72px)) !important;
+  background: #fff !important;
+  border: 0 !important;
+  border-top: 1px solid var(--soft-border) !important;
+  border-radius: 0 !important;
+}
+
+.settings-inline-choice {
+  max-width: none !important;
+}
+
+.settings-feedback {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.settings-feedback .html-container,
+.settings-feedback .prose {
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.app-inline-status {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  padding: 8px 12px;
+  border-left: 3px solid #0f766e;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: #eef8f6;
+  color: #0f5f59;
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.chat-card,

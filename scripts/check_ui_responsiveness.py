@@ -235,9 +235,6 @@ def assert_primary_navigation_floating_state(page) -> None:
         """() => {
             const nav = document.querySelector('.app-header');
             const selected = document.querySelector('.app-nav-link.is-current');
-            const testTrigger = document.querySelector('.app-nav-test-trigger');
-            const testLabel = testTrigger?.querySelector('span:first-child');
-            const testChevron = testTrigger?.querySelector('.app-nav-chevron');
             const style = nav ? getComputedStyle(nav) : null;
             const color = style?.backgroundColor || '';
             const channels = (color.match(/[\\d.]+/g) || []).map(Number);
@@ -253,9 +250,6 @@ def assert_primary_navigation_floating_state(page) -> None:
                 selectedBottom: selected?.getBoundingClientRect().bottom || 0,
                 headerBottom: nav?.getBoundingClientRect().bottom || 0,
                 viewportWidth: window.innerWidth,
-                testTriggerColor: testTrigger ? getComputedStyle(testTrigger).color : '',
-                testLabelColor: testLabel ? getComputedStyle(testLabel).color : '',
-                testChevronColor: testChevron ? getComputedStyle(testChevron).color : '',
             };
         }"""
     )
@@ -273,12 +267,6 @@ def assert_primary_navigation_floating_state(page) -> None:
         or floating["animationDuration"] != "0.5s"
     ):
         raise RuntimeError(f"主导航进入动画时长或名称不正确：{floating}")
-    if not (
-        floating["testTriggerColor"]
-        == floating["testLabelColor"]
-        == floating["testChevronColor"]
-    ):
-        raise RuntimeError(f"Test 菜单文字或箭头未继承悬浮导航颜色：{floating}")
     if floating["viewportWidth"] > 640 and abs(
         floating["selectedBottom"] - floating["headerBottom"]
     ) > 1:
@@ -305,162 +293,6 @@ def assert_primary_navigation_floating_state(page) -> None:
         timeout=5000,
     )
     page.wait_for_timeout(550)
-
-
-def assert_test_navigation_menu(page) -> None:
-    test_trigger = page.get_by_role("button", name="Test", exact=True)
-    test_trigger.hover()
-    first_menu = page.locator(".app-nav-submenu-level-1")
-    page.wait_for_function(
-        "() => getComputedStyle(document.querySelector('.app-nav-submenu-level-1')).visibility === 'visible'",
-        timeout=5000,
-    )
-    page.wait_for_timeout(300)
-    first_state = page.evaluate(
-        """() => {
-            const header = document.querySelector('.app-header');
-            const trigger = document.querySelector('.app-nav-test-trigger');
-            const menu = document.querySelector('.app-nav-submenu-level-1');
-            const style = getComputedStyle(trigger);
-            return {
-                headerBottom: header.getBoundingClientRect().bottom,
-                menuTop: menu.getBoundingClientRect().top,
-                menuRight: menu.getBoundingClientRect().right,
-                headerRight: header.getBoundingClientRect().right,
-                triggerColor: style.color,
-                triggerBackground: style.backgroundColor,
-            };
-        }"""
-    )
-    if abs(first_state["menuTop"] - first_state["headerBottom"]) > 1:
-        raise RuntimeError(f"Test 一级菜单没有贴合导航底部：{first_state}")
-    if first_state["menuRight"] > first_state["headerRight"] + 1:
-        raise RuntimeError(f"Test 一级菜单超出页头右边界：{first_state}")
-    if first_state["triggerBackground"] not in ("rgba(0, 0, 0, 0)", "transparent"):
-        raise RuntimeError(f"Test 悬停错误显示不透明按钮底色：{first_state}")
-
-    nested_trigger = page.get_by_role("button", name="系统页面", exact=True)
-    nested_trigger.hover()
-    page.wait_for_function(
-        "() => getComputedStyle(document.querySelector('.app-nav-submenu-level-2')).visibility === 'visible'",
-        timeout=5000,
-    )
-    page.wait_for_timeout(350)
-    nested_state = page.evaluate(
-        """() => {
-            const first = document.querySelector('.app-nav-submenu-level-1');
-            const second = document.querySelector('.app-nav-submenu-level-2');
-            const trigger = document.querySelector('.app-nav-submenu-trigger');
-            const item = trigger.closest('.app-nav-menu-item');
-            const chevron = trigger.querySelector('.app-nav-chevron-side');
-            return {
-                firstLeft: first.getBoundingClientRect().left,
-                firstRight: first.getBoundingClientRect().right,
-                secondRight: second.getBoundingClientRect().right,
-                itemLeft: item.getBoundingClientRect().left,
-                itemRight: item.getBoundingClientRect().right,
-                transform: getComputedStyle(trigger).transform,
-                color: getComputedStyle(trigger).color,
-                chevronColor: getComputedStyle(chevron).color,
-            };
-        }"""
-    )
-    if nested_state["secondRight"] > nested_state["firstLeft"] + 2:
-        raise RuntimeError(f"Test 二级菜单没有在可用方向展开：{nested_state}")
-    if abs(nested_state["secondRight"] - nested_state["itemLeft"]) > 1:
-        raise RuntimeError(f"Test 二级菜单与父条目之间存在鼠标断层：{nested_state}")
-    if (
-        abs(nested_state["itemLeft"] - nested_state["firstLeft"]) > 2
-        or abs(nested_state["itemRight"] - nested_state["firstRight"]) > 2
-    ):
-        raise RuntimeError(f"Test 一级菜单条目没有横向撑满菜单：{nested_state}")
-    if nested_state["transform"] in ("none", "matrix(1, 0, 0, 1, 0, 0)"):
-        raise RuntimeError(f"Test 子菜单条目缺少轻微右移动画：{nested_state}")
-    if nested_state["chevronColor"] != nested_state["color"]:
-        raise RuntimeError(f"Test 子菜单箭头没有继承父条目悬停颜色：{nested_state}")
-
-    trigger_box = nested_trigger.bounding_box()
-    setting_item = page.locator('.app-nav-submenu-level-2 [data-app-target="设置"]')
-    setting_box = setting_item.bounding_box()
-    if not trigger_box or not setting_box:
-        raise RuntimeError("Test 二级菜单鼠标轨迹检查无法取得条目坐标。")
-    page.mouse.move(
-        trigger_box["x"] + trigger_box["width"] / 2,
-        trigger_box["y"] + trigger_box["height"] / 2,
-    )
-    page.mouse.move(
-        setting_box["x"] + setting_box["width"] / 2,
-        setting_box["y"] + setting_box["height"] / 2,
-        steps=40,
-    )
-    page.wait_for_timeout(250)
-    traversal_state = page.evaluate(
-        """() => {
-            const second = document.querySelector('.app-nav-submenu-level-2');
-            const trigger = document.querySelector('.app-nav-submenu-trigger');
-            const chevron = trigger.querySelector('.app-nav-chevron-side');
-            return {
-                visibility: getComputedStyle(second).visibility,
-                opacity: Number(getComputedStyle(second).opacity),
-                open: trigger.closest('.app-nav-menu-item').classList.contains('is-open'),
-                transform: getComputedStyle(trigger).transform,
-                color: getComputedStyle(trigger).color,
-                chevronColor: getComputedStyle(chevron).color,
-            };
-        }"""
-    )
-    if (
-        traversal_state["visibility"] != "visible"
-        or traversal_state["opacity"] < 0.99
-        or not traversal_state["open"]
-        or traversal_state["transform"] in ("none", "matrix(1, 0, 0, 1, 0, 0)")
-        or traversal_state["color"] != nested_state["color"]
-        or traversal_state["chevronColor"] != traversal_state["color"]
-    ):
-        raise RuntimeError(f"鼠标从系统页面平移到设置时二级菜单中断：{traversal_state}")
-    page.mouse.move(1, 1)
-    page.keyboard.press("Escape")
-    first_menu.wait_for(state="hidden", timeout=5000)
-
-    test_trigger.hover()
-    first_menu.wait_for(state="visible", timeout=5000)
-    page.get_by_role("button", name="单张分析", exact=True).click(timeout=10000)
-    page.wait_for_function(
-        """() => document.querySelector(
-            '.app-nav-link[data-app-target="检测工作台"]'
-        )?.getAttribute('aria-current') === 'page'""",
-        timeout=10000,
-    )
-    page.wait_for_function(
-        """() => [...document.querySelectorAll('.sub-tabs button[role="tab"]')]
-            .some(button => button.textContent.trim() === '单张分析'
-                && button.getAttribute('aria-selected') === 'true')""",
-        timeout=10000,
-    )
-    page.wait_for_function(
-        """() => {
-            const menu = document.querySelector('.app-nav-submenu-level-1');
-            return menu && getComputedStyle(menu).visibility === 'hidden';
-        }""",
-        timeout=5000,
-    )
-    route_state = page.evaluate(
-        """() => ({
-            dismissed: document.querySelector(
-                '.app-primary-nav-list > .app-nav-menu-item-has-children'
-            )?.classList.contains('is-dismissed'),
-            ready: document.readyState,
-        })"""
-    )
-    if not route_state["dismissed"] or route_state["ready"] != "complete":
-        raise RuntimeError(f"Test 单张分析导航完成后页面状态异常：{route_state}")
-    top_tab(page, "首页").click(timeout=10000)
-    page.wait_for_function(
-        """() => document.querySelector(
-            '.app-nav-link[data-app-target="首页"]'
-        )?.getAttribute('aria-current') === 'page'""",
-        timeout=10000,
-    )
 
 
 def assert_home_grid_and_actions_align(page, tolerance: int = 1) -> None:
@@ -770,7 +602,6 @@ def main() -> int:
         assert_no_page_overflow(page, "桌面首页")
         assert_home_page_ready(page)
         assert_primary_navigation_floating_state(page)
-        assert_test_navigation_menu(page)
         assert_home_grid_and_actions_align(page)
         timed_click(page, top_tab(page, "检测工作台"), "进入检测工作台", args.max_seconds, timings)
         assert_no_page_overflow(page, "桌面工作台")
@@ -810,50 +641,35 @@ def main() -> int:
                     assert_history_output_contract(page)
 
         timed_click(page, top_tab(page, "AI 问答"), "进入 AI 问答", args.max_seconds, timings)
-        runtime_status = page.locator(".ai-runtime-strip").first
+        runtime_status = page.locator(".ai-chat-runtime").first
         runtime_status.wait_for(state="visible")
         runtime_text = runtime_status.inner_text()
-        if not all(label in runtime_text for label in ("检测上下文", "AI 配置", "接口与模型")):
+        if not all(label in runtime_text for label in ("上下文", "会话", "模型", "接口")):
             raise RuntimeError(f"AI 运行状态信息不完整：{runtime_text}")
-        timed_click(
-            page,
-            accordion(page, "最近对话"),
-            "展开最近对话",
-            args.max_seconds,
-            timings,
-        )
-        conversation_select = page.get_by_label("本地对话记录", exact=True)
-        if conversation_select.input_value():
-            timed_click(
-                page,
-                page.get_by_role("button", name="加载对话", exact=True),
-                "加载本地对话",
-                args.max_seconds,
-                timings,
-            )
-            timed_wait_for_value(
-                page,
-                page.get_by_label("对话记录反馈", exact=True),
-                "本地对话加载完成",
-                args.max_seconds,
-                timings,
-            )
+        page.locator(".ai-conversation-list").first.wait_for(state="visible")
+        page.locator(".ai-sidebar-feedback").first.wait_for(state="visible")
 
         timed_click(page, top_tab(page, "设置"), "进入设置", args.max_seconds, timings)
-        assert_context_help_bubble(page, ".settings-sections")
-        for name in ["模型与推理", "模型说明", "AI 接口", "存储与隐私"]:
-            timed_click(page, accordion(page, name), f"展开设置/{name}", args.max_seconds, timings)
-            if name == "模型与推理":
+        assert_context_help_bubble(page, ".settings-pane-host")
+        for name in ["工作台", "模型", "AI", "自动化", "存储"]:
+            timed_click(
+                page,
+                visible_radio(page, name),
+                f"切换设置/{name}",
+                args.max_seconds,
+                timings,
+            )
+            if name == "模型":
                 timed_click(
                     page,
-                    accordion(page, "高级模型路径设置"),
+                    accordion(page, "高级"),
                     "展开高级模型路径",
                     args.max_seconds,
                     timings,
                 )
                 assert_path_rows_aligned(page, "模型路径")
                 assert_rows_aligned(page, "模型选择", ".model-row", tolerance=10)
-            if name == "存储与隐私":
+            if name == "存储":
                 assert_path_rows_aligned(page, "存储路径")
 
         timed_click(page, top_tab(page, "病例记录"), "进入病例记录", args.max_seconds, timings)
@@ -873,15 +689,24 @@ def main() -> int:
         assert_no_page_overflow(page, "重组件展开后的桌面页面")
 
         timed_click(page, top_tab(page, "设置"), "进入设置/模式回归", args.max_seconds, timings)
-        model_accordion = accordion(page, "模型与推理")
-        ensure_accordion_open(page, model_accordion, "展开设置/模式回归", args.max_seconds, timings)
-        if not has_visible_radio(page, MODEL_MODE_COMPARE):
-            # Gradio may restore the accordion's stale aria state after a tab switch;
-            # one guarded retry keeps this check focused on the visible control.
-            timed_click(page, model_accordion, "重试展开设置/模式回归", args.max_seconds, timings)
+        timed_click(
+            page,
+            visible_radio(page, "工作台"),
+            "切换设置/工作台",
+            args.max_seconds,
+            timings,
+        )
+        page.get_by_label("允许对比模型模式", exact=True).wait_for(state="visible")
         compare_toggle = first_visible(page.get_by_label("允许对比模型模式", exact=True), "允许对比模型模式")
         if compare_toggle.is_checked() is False:
             timed_click(page, compare_toggle, "启用对比模型模式", args.max_seconds, timings)
+        timed_click(
+            page,
+            visible_radio(page, "模型"),
+            "切换设置/模型模式",
+            args.max_seconds,
+            timings,
+        )
         compare_radio = visible_radio(page, MODEL_MODE_COMPARE)
         if compare_radio.is_checked() is False:
             timed_click(page, compare_radio, "切换双模型对比", args.max_seconds, timings)

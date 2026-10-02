@@ -187,70 +187,6 @@
     });
   };
 
-  const directMenuTrigger = (item) => item?.querySelector(":scope > button[aria-haspopup]");
-
-  const setNavigationMenuOpen = (item, open) => {
-    if (!(item instanceof HTMLElement)) {
-      return;
-    }
-    item.classList.toggle("is-open", open);
-    directMenuTrigger(item)?.setAttribute("aria-expanded", String(open));
-  };
-
-  const closeNavigationMenus = () => {
-    document.querySelectorAll(".app-nav-menu-item.is-open").forEach((item) => {
-      setNavigationMenuOpen(item, false);
-    });
-  };
-
-  const handleNavigationMenuClick = (event) => {
-    if (!(event.target instanceof Element)) {
-      return;
-    }
-    const menuTrigger = event.target.closest(
-      ".app-nav-test-trigger, .app-nav-submenu-trigger",
-    );
-    if (menuTrigger) {
-      event.preventDefault();
-      const item = menuTrigger.closest(".app-nav-menu-item-has-children");
-      setNavigationMenuOpen(item, !item?.classList.contains("is-open"));
-      return;
-    }
-    if (event.target.closest(".app-primary-nav [data-app-target]")) {
-      event.target.closest(
-        ".app-primary-nav-list > .app-nav-menu-item-has-children",
-      )?.classList.add("is-dismissed");
-      closeNavigationMenus();
-    }
-  };
-
-  const handleNavigationMenuHover = (event, open) => {
-    if (!(event.target instanceof Element)) {
-      return;
-    }
-    const item = event.target.closest(".app-nav-menu-item-has-children");
-    if (!item || item.contains(event.relatedTarget)) {
-      return;
-    }
-    if (open) {
-      item.closest(
-        ".app-primary-nav-list > .app-nav-menu-item-has-children",
-      )?.classList.remove("is-dismissed");
-    }
-    setNavigationMenuOpen(item, open);
-  };
-
-  const handleNavigationFocus = (event, open) => {
-    if (!(event.target instanceof Element)) {
-      return;
-    }
-    const item = event.target.closest(".app-nav-menu-item-has-children");
-    if (!item || item.contains(event.relatedTarget)) {
-      return;
-    }
-    setNavigationMenuOpen(item, open);
-  };
-
   const syncPrimaryNavigation = () => {
     const selected = document.querySelector(
       '.main-tabs > .tab-wrapper button[role="tab"][aria-selected="true"], '
@@ -422,18 +358,8 @@
       document.addEventListener(eventName, (event) => syncPathValueTitle(event.target), true);
     });
     document.addEventListener("click", trackOverflowSelection, true);
-    document.addEventListener("click", handleNavigationMenuClick, true);
     document.addEventListener("click", navigateFromHome, true);
     document.addEventListener("input", (event) => syncImageComparison(event.target), true);
-    document.addEventListener("pointerover", (event) => handleNavigationMenuHover(event, true));
-    document.addEventListener("pointerout", (event) => handleNavigationMenuHover(event, false));
-    document.addEventListener("focusin", (event) => handleNavigationFocus(event, true));
-    document.addEventListener("focusout", (event) => handleNavigationFocus(event, false));
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        closeNavigationMenus();
-      }
-    });
     window.addEventListener("scroll", scheduleStickyNavigation, { passive: true });
     window.addEventListener("resize", scheduleStickyNavigation, { passive: true });
     window.setInterval(checkRuntimeVersion, 30000);

@@ -35,7 +35,7 @@ class HomePageTests(unittest.TestCase):
         self.assertNotIn("示例_无明显目标.png", html)
 
     def test_home_page_is_a_dedicated_module_and_the_default_tab(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
 
         self.assertIn('with gr.Tab("首页"):', source)
         self.assertIn("build_home_page()", source)
@@ -47,6 +47,17 @@ class HomePageTests(unittest.TestCase):
 
         self.assertIn("15-home.css", bundle_names)
         self.assertIn("45-home-responsive.css", bundle_names)
+        self.assertNotIn("30-components.css", bundle_names)
+        component_modules = [
+            "30-controls-results.css",
+            "31-settings-shell.css",
+            "32-records-compat.css",
+            "33-settings-components.css",
+        ]
+        self.assertEqual(
+            bundle_names[4:8],
+            component_modules,
+        )
         self.assertLess(bundle_names.index("10-foundation.css"), bundle_names.index("15-home.css"))
         self.assertLess(bundle_names.index("15-home.css"), bundle_names.index("20-layout.css"))
         self.assertLess(bundle_names.index("40-responsive.css"), bundle_names.index("45-home-responsive.css"))
@@ -55,6 +66,8 @@ class HomePageTests(unittest.TestCase):
         self.assertIn(".home-capability-grid", css)
         self.assertIn(".home-workflow", css)
         self.assertIn("@media (max-width: 640px)", css)
+        self.assertIn('button[aria-label="将图像文件拖放到此处以上传"]', css)
+        self.assertIn(".clinical-viewer .result-card .image-container", css)
 
     def test_home_actions_use_the_shared_navigation_script(self) -> None:
         javascript = load_workbench_js()
@@ -76,8 +89,7 @@ class HomePageTests(unittest.TestCase):
         self.assertNotIn("示例_无明显目标.png", screenshot_source)
         self.assertIn("real-dental-panorama-test-00021.jpg", screenshot_source)
         self.assertIn('name("00-home-desktop.png", suffix)', screenshot_source)
-        self.assertIn('name("00-home-test-menu.png", suffix)', screenshot_source)
-        self.assertIn('name("00-home-test-submenu.png", suffix)', screenshot_source)
+        self.assertNotIn('name("00-home-test-menu.png", suffix)', screenshot_source)
         self.assertIn('name("00-home-floating-nav.png", suffix)', screenshot_source)
         self.assertIn('name("00-home-mobile.png", suffix)', screenshot_source)
         self.assertIn('name("00-home-floating-nav-mobile.png", suffix)', screenshot_source)

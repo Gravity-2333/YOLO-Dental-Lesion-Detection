@@ -67,7 +67,7 @@ class WorkbenchModelStatusTests(unittest.TestCase):
         self.assertIn('role="tooltip"', html)
 
     def test_status_refresh_tracks_model_and_device_inputs(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
 
         self.assertIn(
             "triggers=[primary_model_path.input, device_choice.input]",

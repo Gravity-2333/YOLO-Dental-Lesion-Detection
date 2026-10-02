@@ -116,24 +116,6 @@ APP_HEADER_HTML = """
           <li><button type="button" class="app-nav-link" data-app-target="病例记录">病例记录</button></li>
           <li><button type="button" class="app-nav-link" data-app-target="检测历史">检测历史</button></li>
           <li><button type="button" class="app-nav-link" data-app-target="设置">设置</button></li>
-          <li class="app-nav-menu-item app-nav-menu-item-has-children">
-            <button type="button" class="app-nav-link app-nav-test-trigger" aria-haspopup="true" aria-expanded="false">
-              <span>Test</span><span class="app-nav-chevron" aria-hidden="true"></span>
-            </button>
-            <ul class="app-nav-submenu app-nav-submenu-level-1" aria-label="Test 测试菜单">
-              <li><button type="button" data-app-target="检测工作台" data-workbench-target="单张分析">单张分析</button></li>
-              <li><button type="button" data-app-target="检测工作台" data-workbench-target="批量分析">批量分析</button></li>
-              <li class="app-nav-menu-item app-nav-menu-item-has-children">
-                <button type="button" class="app-nav-submenu-trigger" aria-haspopup="true" aria-expanded="false">
-                  <span>系统页面</span><span class="app-nav-chevron app-nav-chevron-side" aria-hidden="true"></span>
-                </button>
-                <ul class="app-nav-submenu app-nav-submenu-level-2" aria-label="系统页面二级菜单">
-                  <li><button type="button" data-app-target="设置">设置</button></li>
-                  <li><button type="button" data-app-target="检测历史">检测历史</button></li>
-                </ul>
-              </li>
-            </ul>
-          </li>
         </ul>
       </nav>
     </div>

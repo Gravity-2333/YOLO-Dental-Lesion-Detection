@@ -162,26 +162,14 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("backdrop-filter: blur(12px) saturate(115%)", css)
         self.assertIn("animation: app-header-float-in 500ms", css)
         self.assertIn("@keyframes app-header-float-in", css)
-        self.assertIn(".app-nav-link > span", css)
-        self.assertIn("color: inherit !important", css)
-
-    def test_primary_navigation_uses_a_reusable_nested_test_menu(self) -> None:
+    def test_primary_navigation_has_no_duplicate_test_menu(self) -> None:
         javascript = load_workbench_js()
         css = load_workbench_css()
 
-        self.assertIn("handleNavigationMenuHover", javascript)
-        self.assertIn("setNavigationMenuOpen", javascript)
         self.assertIn("syncPrimaryNavigation", javascript)
-        self.assertIn('classList.add("is-dismissed")', javascript)
-        self.assertIn('classList.remove("is-dismissed")', javascript)
-        self.assertIn(".app-nav-menu-item.is-dismissed", css)
-        self.assertIn(".app-nav-submenu-level-2", css)
-        self.assertIn("right: 100%", css)
-        self.assertIn(".app-nav-submenu li", css)
-        self.assertIn("width: 100%", css)
-        self.assertIn(".app-nav-submenu button > .app-nav-chevron", css)
-        self.assertIn("transform: translateX(5px)", css)
-        self.assertIn(".app-nav-menu-item:focus-within", css)
+        self.assertNotIn("handleNavigationMenuHover", javascript)
+        self.assertNotIn("app-nav-test-trigger", APP_HEADER_HTML)
+        self.assertNotIn("app-nav-submenu", css)
         mobile_css = css.split("@media (max-width: 640px)", 1)[1]
         self.assertIn(
             ".app-primary-nav-list {\n"
@@ -216,7 +204,7 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("grid-template-columns: minmax(32px, 1fr) minmax(0, 1216px)", head)
         self.assertIn("grid-column: 1 / -1", head)
         self.assertIn(":has(.app-header-shell)", head)
-        self.assertIn("width: 100vw !important", head)
+        self.assertIn("width: 100% !important", head)
         self.assertIn("> .main.fillable", head)
         self.assertIn("grid-template-columns: 8px minmax(0, 1fr) 8px", head)
 
@@ -397,7 +385,7 @@ class UiAssetTests(unittest.TestCase):
     def test_mobile_workbench_export_buttons_stretch_with_the_path_row(self) -> None:
         css = load_workbench_css()
         mobile = css.split("@media (max-width: 640px)", 1)[1]
-        rule = mobile.split(
+        rule = mobile.rsplit(
             ".export-toolbar .row.path-row > button.secondary-action",
             1,
         )[1].split("}", 1)[0]
@@ -769,7 +757,7 @@ class UiContractTests(unittest.TestCase):
         self.assertFalse(values[-1])
         self.assertTrue(app.clear_patient_workspace_views(True)[-1])
 
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         self.assertEqual(source.count("fn=clear_patient_workspace_views"), 1)
         self.assertEqual(source.count("chain_patient_workspace_refresh("), 7)
 
@@ -821,7 +809,7 @@ class UiContentTests(unittest.TestCase):
             '"导出病例报告",\n                interactive=False,',
             page_source,
         )
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         event_source = source.split("case_select.change(", 1)[1].split(
             "refresh_history_btn.click(", 1
         )[0]
@@ -848,7 +836,7 @@ class UiContentTests(unittest.TestCase):
             '"清空历史",\n                interactive=False,',
             page_source,
         )
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         event_source = source.split("history_select.change(", 1)[1].split(
             "delete_history_btn.click(", 1
         )[0]
@@ -872,7 +860,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('"开始分析",\n                            variant="primary",\n                            interactive=False,', page_source)
         self.assertIn('"批量分析",\n                            variant="primary",\n                            interactive=False,', page_source)
 
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         single_state_source = source.split("image.change(", 1)[1].split(
             "batch_files.change(", 1
         )[0]
@@ -904,7 +892,7 @@ class UiContentTests(unittest.TestCase):
         self.assertTrue(all(update["value"] == "patient-2" for update in current_updates))
         self.assertTrue(all(update["value"] == "personal-self" for update in fallback_updates))
 
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         self.assertNotIn("demo.load(\n            fn=refresh_patient_selection_choices", source)
         self.assertNotIn("workbench_tab.select(\n            fn=refresh_patient_selection_choices", source)
         self.assertEqual(source.count("fn=refresh_patient_selection_choices"), 2)
@@ -954,7 +942,7 @@ class UiContentTests(unittest.TestCase):
         )
         self.assertIn('"导出",\n                            interactive=False', inspect.getsource(build_ai_chat_page))
 
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         event_source = source.split("chatbot.change(", 1)[1].split("gr.on(", 1)[0]
         self.assertIn("fn=chat_export_button_state", event_source)
         self.assertIn("inputs=chatbot", event_source)
@@ -985,8 +973,8 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("queue=False", clear_source)
 
     def test_chat_events_refresh_recent_conversation_choices(self) -> None:
-        source = inspect.getsource(app.build_app)
-        self.assertIn("fn=refresh_conversation_history_after_workspace_chat", source)
+        source = app.ui_event_binding_source()
+        self.assertIn("fn=run_chat_automation", source)
         self.assertIn("current_conversation_file_state", source)
         self.assertIn("chat_export_event.success(", source)
 
@@ -1149,6 +1137,10 @@ class UiContentTests(unittest.TestCase):
             ".context-help > .context-help-trigger:focus-visible + .context-help-bubble",
             css,
         )
+        self.assertIn(
+            ".context-help > .context-help-trigger:focus + .context-help-bubble",
+            css,
+        )
         self.assertNotIn(".context-help[open]", css)
         self.assertIn('"model-status-card"', workbench_source)
         self.assertIn(".model-status-card > .styler", css)
@@ -1172,8 +1164,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("智能健康牙齿分析", APP_HEADER_HTML)
         self.assertIn("牙科影像辅助筛查", APP_HEADER_HTML)
         self.assertIn('data-app-target="首页"', APP_HEADER_HTML)
-        self.assertIn('class="app-nav-link app-nav-test-trigger"', APP_HEADER_HTML)
-        self.assertIn("系统页面二级菜单", APP_HEADER_HTML)
+        self.assertNotIn("Test", APP_HEADER_HTML)
         self.assertIn("不能替代专业牙科医生诊断", WORKBENCH_HELP_TEXT)
         self.assertIn("不上传牙科影像", AI_CHAT_INTRO_HTML)
         self.assertIn("不替代专业牙科医生诊断", AI_CHAT_INTRO_HTML)
@@ -1206,7 +1197,7 @@ class UiContentTests(unittest.TestCase):
         )
 
     def test_record_pages_use_named_component_collections(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         self.assertIn("cases = build_cases_page(", source)
         self.assertIn("history = build_history_page(", source)
         self.assertNotIn('with gr.Group(elem_classes=["section-card", "case-card"])', source)
@@ -1437,7 +1428,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("padding-top: 0 !important", root_shell)
 
     def test_ai_messages_use_custom_actions_and_real_revision_events(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         page_source = inspect.getsource(build_ai_chat_page)
         javascript = load_workbench_js()
         css = load_workbench_css()
@@ -1577,13 +1568,13 @@ class UiContentTests(unittest.TestCase):
         self.assertFalse(hidden[-1])
 
     def test_ai_tab_lazy_loads_local_conversation_history(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         self.assertIn("conversation_loaded_state", source)
         self.assertIn("ai_tab.select(", source)
         self.assertIn("load_ai_workspace_conversation", source)
 
     def test_record_tables_are_lightweight_and_lazy_until_expanded(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         self.assertIn('"结构化病例列表"', inspect.getsource(build_cases_page))
         self.assertIn('"结构化历史列表"', inspect.getsource(build_history_page))
         self.assertIn("initial_case_rows: list[dict[str, Any]] = []", source)
@@ -1628,7 +1619,7 @@ class UiContentTests(unittest.TestCase):
         self.assertNotIn("gr.Dataframe", report_source)
 
     def test_record_read_events_keep_only_the_latest_pending_request(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         event_ranges = (
             ("ai_tab.select(", "case_tab.select("),
             ("case_tab.select(", "history_tab.select("),
@@ -1652,7 +1643,7 @@ class UiContentTests(unittest.TestCase):
                 self.assertIn('show_progress="minimal"', event_source)
 
     def test_model_directory_scans_share_one_latest_request_queue(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         model_scan_event = source.split(
             "gr.on(\n            triggers=[refresh_model_btn.click",
             1,
@@ -1673,7 +1664,13 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("concurrency_id=MODEL_SCAN_CONCURRENCY_ID", apply_card_primary)
         self.assertIn('trigger_mode="always_last"', apply_card_primary)
         self.assertIn('show_progress="minimal"', apply_card_primary)
-        self.assertIn("inputs=[model_card_select, model_apply_target, model_dir, show_advanced_models]", apply_card_primary)
+        for input_name in (
+            "model_card_select",
+            "model_apply_target",
+            "model_dir",
+            "show_advanced_models",
+        ):
+            self.assertIn(input_name, apply_card_primary)
         self.assertIn("compare_model_path", apply_card_primary)
         apply_selected_event = source.split("apply_selected_model_event = apply_model_btn.click(", 1)[1].split(
             "apply_model_card_event =",
@@ -1697,7 +1694,7 @@ class UiContentTests(unittest.TestCase):
         self.assertNotIn("<script>", html)
 
     def test_user_inputs_do_not_retrigger_callbacks_from_function_updates(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         self.assertIn("model_mode.input(\n            fn=sync_model_mode", source)
         self.assertIn("settings_model_mode.input(\n            fn=sync_model_mode", source)
         self.assertIn("batch_select.input(", source)
@@ -1708,14 +1705,14 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(source.count('concurrency_id=EXPORT_CONCURRENCY_ID'), 7)
         self.assertGreaterEqual(source.count('trigger_mode="always_last"'), 3)
         self.assertIn("triggers=[chat_btn.click, chat_input.submit]", source)
-        self.assertIn("cancels=chat_event", source)
+        self.assertIn("cancels=[chat_event", source)
         self.assertIn("queue=False", source)
         self.assertNotIn("model_mode.change(fn=sync_model_mode", source)
         self.assertNotIn("settings_model_mode.change(fn=sync_model_mode", source)
         self.assertNotIn("chat_btn.click(\n            fn=continue_chat", source)
 
     def test_result_invalidations_cancel_running_inference(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         cancellation_event = source.split(
             "inference_events = [single_detection_event, batch_detection_event]",
             1,
@@ -1743,7 +1740,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("batch_detection_event = batch_btn.click(", source)
 
     def test_patient_and_ai_changes_cancel_running_chat(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         chat_cancellation_event = source.split(
             "chat_event = gr.on(",
             1,
@@ -1771,7 +1768,7 @@ class UiContentTests(unittest.TestCase):
                 self.assertIn(trigger, chat_cancellation_event)
 
     def test_manual_diagnostics_keep_only_latest_pending_request(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         event_ranges = (
             ("test_btn.click(", "save_settings_btn.click("),
             ("test_model_btn.click(", "default_storage_btn.click("),
@@ -1783,7 +1780,7 @@ class UiContentTests(unittest.TestCase):
                 self.assertIn('show_progress="minimal"', event_source)
 
     def test_lightweight_ui_controls_do_not_block_the_page(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         event_ranges = (
             ("ai_enabled.input(", "key_mode.input("),
             ("key_mode.input(", "show_direct_key_btn.click("),
@@ -1801,7 +1798,7 @@ class UiContentTests(unittest.TestCase):
                 self.assertIn('show_progress="hidden"', event_source)
 
     def test_stale_detection_resets_share_one_latest_request_queue(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         helper_source = source.split("def chain_detection_result_reset", 1)[1].split(
             "# User-only listeners",
             1,
@@ -1815,7 +1812,7 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(source.count("chain_detection_result_reset("), 6)
 
     def test_followup_events_avoid_full_page_progress(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         save_followups = source.split("save_settings_btn.click(", 1)[1].split(
             "chat_event =",
             1,
@@ -1862,7 +1859,7 @@ class UiContentTests(unittest.TestCase):
                 self.assertIn('show_progress="minimal"', followup)
 
     def test_result_view_redraws_share_one_latest_request_queue(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         event_ranges = (
             ("batch_select.input(", "visible_class_filter.input("),
             ("visible_class_filter.input(", "ai_enabled.input("),
@@ -1877,9 +1874,9 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(source.count("concurrency_id=RESULT_VIEW_CONCURRENCY_ID"), 2)
 
     def test_patient_view_refreshes_share_one_latest_request_queue(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         helper_source = source.split("def chain_patient_workspace_refresh", 1)[1].split(
-            "# Lazy-load record stores",
+            "def chain_detection_result_reset",
             1,
         )[0]
         self.assertEqual(helper_source.count(".success("), 3)
@@ -1901,7 +1898,7 @@ class UiContentTests(unittest.TestCase):
         self.assertGreaterEqual(source.count('show_progress="hidden"'), 6)
 
     def test_demo_example_load_keeps_only_latest_pending_request(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         event_source = source.split("load_example_btn.click(", 1)[1].split(
             "run_btn.click(",
             1,
@@ -2027,7 +2024,7 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(result[5:8], ("", "", ""))
         self.assertEqual(result[-3:], (False, False, True))
 
-        save_event_source = inspect.getsource(app.build_app).split(
+        save_event_source = app.ui_event_binding_source().split(
             "save_settings_btn.click(", 1
         )[1].split("concurrency_limit=1", 1)[0]
         self.assertIn("patient_feedback", save_event_source)
@@ -2240,7 +2237,7 @@ class UiContentTests(unittest.TestCase):
         self.assertEqual(kwargs["state_session_capacity"], app.STATE_SESSION_CAPACITY)
         self.assertEqual(kwargs["max_file_size"], app.MAX_UPLOAD_FILE_SIZE)
         self.assertEqual(kwargs["head"], "<style>root</style>")
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         self.assertGreaterEqual(source.count("time_to_live=SESSION_STATE_TTL_SECONDS"), 7)
 
     def test_remote_requests_do_not_open_server_native_picker(self) -> None:
@@ -2252,7 +2249,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("远程访问", feedback)
 
     def test_native_path_pickers_do_not_show_a_blocking_page_overlay(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         for marker in ("open_model_dir_btn.click(", "open_storage_btn.click("):
             event_source = source.split(marker, 1)[1].split(")", 1)[0]
             self.assertIn("queue=False", event_source)
@@ -2284,7 +2281,7 @@ class UiContentTests(unittest.TestCase):
         dialog_lock.release.assert_called_once_with()
 
     def test_record_mutations_share_one_serial_write_queue(self) -> None:
-        source = inspect.getsource(app.build_app)
+        source = app.ui_event_binding_source()
         self.assertGreaterEqual(
             source.count("concurrency_id=RECORD_WRITE_CONCURRENCY_ID"),
             10,
