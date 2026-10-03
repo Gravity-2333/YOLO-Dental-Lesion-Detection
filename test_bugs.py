@@ -342,8 +342,8 @@ try:
         "zip_report_path": r"C:\tmp\report.zip",
     }
     outputs = select_batch_item("001 - keep-path.png", [item], False)
-    word_report_path_index = 21
-    zip_report_path_index = 24
+    word_report_path_index = 18
+    zip_report_path_index = 21
     assert outputs[word_report_path_index] == r"C:\tmp\report.docx", "切换图片后应保留 Word 报告路径"
     assert outputs[zip_report_path_index] == r"C:\tmp\report.zip", "切换图片后应保留 ZIP 报告路径"
     print("✓ 切换图片保留报告路径正常")
@@ -700,7 +700,7 @@ try:
 
     with TemporaryDirectory() as temp_dir:
         _, _, detail, feedback = delete_selected_history_record("", temp_dir)
-        assert "请选择一条检测历史" in detail, "未选择时历史详情应保持正常空状态"
+        assert "选择一次检查" in detail, "未选择时历史详情应保持正常空状态"
         assert "请选择要删除的历史记录" in feedback, "未选择删除应把提示放在反馈区域"
     print("✓ 历史删除空选择提示正常")
 except Exception as e:
@@ -1636,9 +1636,8 @@ try:
         }
     ]
     outputs = app.update_detection_visibility(["龋齿"], "当前单图", batch_state)
-    crop_items = outputs[2]
-    table = outputs[5]
-    assert len(crop_items) == 1, "类别开关应只影响结果图和局部图显示"
+    table = outputs[2]
+    assert len(batch_state[0]["result"]["_visible_detections"]) == 1, "类别开关应只影响结果图显示"
     assert set(table["class"].tolist()) == {"Caries", "Impacted"}, "检测表应保留完整检测结果"
     assert len(batch_state[0]["result"]["detections"]) == 2, "类别开关不应删除原始检测框"
     print("✓ 类别显示开关完整结果保留正常")
@@ -2453,16 +2452,16 @@ try:
             f"主流程应返回 {len(COMMON_OUTPUT_KEYS)} 个输出，实际 {len(outputs)}"
         )
         assert getattr(common_output(outputs, "word_export_button"), "get", lambda *_: None)("value") == (
-            "导出 Word 报告"
+            "生成 Word 报告"
         ), "Word 导出按钮应匹配命名输出契约"
         assert getattr(common_output(outputs, "zip_export_button"), "get", lambda *_: None)("value") == (
-            "导出 ZIP 数据包"
+            "生成 ZIP 数据包"
         ), "ZIP 导出按钮应匹配命名输出契约"
         assert getattr(common_output(outputs, "word_report_file"), "get", lambda *_: None)("value") != (
-            "导出 Word 报告"
+            "生成 Word 报告"
         ), "word_report_file 文件组件不能收到按钮文字"
         assert getattr(common_output(outputs, "zip_report_file"), "get", lambda *_: None)("value") != (
-            "导出 ZIP 数据包"
+            "生成 ZIP 数据包"
         ), "zip_report_file 文件组件不能收到按钮文字"
 
     image = Image.new("RGB", (80, 60), "white")

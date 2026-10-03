@@ -75,6 +75,7 @@ class AiSettings:
     model_mode: str = "单模型"
     enable_compare: bool = True
     show_summary: bool = False
+    magnifier_enabled: bool = True
     save_history: bool = True
     history_limit: int = 100
     model_dir: str = str(PROJECT_ROOT / "models")
@@ -180,7 +181,7 @@ def _load_settings_unlocked() -> AiSettings:
     }
     _BOOL_FIELDS = {
         "enabled", "save_api_key", "auto_save", "enable_compare", "show_summary",
-        "save_history", "followup_generation_enabled", "keep_followup_prompts",
+        "magnifier_enabled", "save_history", "followup_generation_enabled", "keep_followup_prompts",
     }
     _INT_FIELDS = {"history_limit", "task_max_tokens"}
     _FLOAT_FIELDS = {"task_temperature"}

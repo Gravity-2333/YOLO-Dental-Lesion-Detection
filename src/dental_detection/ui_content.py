@@ -133,7 +133,8 @@ WORKBENCH_HELP_TEXT = (
 
 DISPLAY_OPTIONS_HELP = (
     "对比模型会在单张分析时运行两组模型。\n\n"
-    "参数摘要用于查看推理配置和检测数量。"
+    "参数摘要用于查看推理配置和检测数量。\n\n"
+    "悬停放大镜用于就地查看检测图局部细节，默认开启。"
 )
 
 MODEL_SELECTION_HELP = (

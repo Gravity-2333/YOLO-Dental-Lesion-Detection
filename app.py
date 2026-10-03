@@ -6,6 +6,7 @@ from datetime import datetime
 import ipaddress
 import json
 import math
+import os
 from pathlib import Path
 import sqlite3
 import sys
@@ -211,7 +212,7 @@ from src.dental_detection.ui_workbench_page import (
     analysis_button_state,
     build_workbench_page,
 )
-from src.dental_detection.visualization import crop_detection_regions, draw_detections_with_filter, save_png_image, save_result_image
+from src.dental_detection.visualization import draw_detections_with_filter, save_png_image, save_result_image
 from src.dental_detection.workspace_store import WorkspaceError
 from ultralytics import YOLO
 
@@ -295,29 +296,13 @@ def assess_image_quality(image) -> str:
         return f"图像质量提示：质量评估失败，请确认图像格式是否正常。\n错误信息：{exc}"
 
 
-def _result_visual_outputs(result: dict[str, Any] | None) -> tuple[Any, list[tuple[Any, str]], str]:
-    if not isinstance(result, dict):
-        return None, [], "暂无疑似区域局部图"
-    annotated = result.get("annotated")
-    original = result.get("original")
-    detections = _clean_detection_records(result.get("_visible_detections", model_result_detections(result)))
-    regions = crop_detection_regions(original, detections)
-    gallery = [(item["image"], item["caption"]) for item in regions]
-    status = f"已生成 {len(gallery)} 个疑似区域局部图" if gallery else "暂无疑似区域局部图"
-    return annotated, gallery, status
-
-
 def _prepare_batch_item_view(item: dict[str, Any]) -> dict[str, Any]:
-    """Build the expensive, display-only payload once after batch inference."""
+    """Build the display-only payload once after batch inference."""
     result = item["result"]
-    highres_image, crop_items, crop_text = _result_visual_outputs(result)
     comparison_section, comparison_view = _comparison_view_updates(_item_results(item))
     return {
         "comparison_section": comparison_section,
         "comparison_view": comparison_view,
-        "highres_image": highres_image,
-        "crop_items": crop_items,
-        "crop_text": crop_text,
         "visible_class_filter": _visible_class_update(result),
     }
 
@@ -712,6 +697,61 @@ def _is_local_browser_request(request: gr.Request | None) -> bool:
         return False
 
 
+def open_report_location(
+    report_path_value: str,
+    storage_dir: str,
+    request: gr.Request | None = None,
+) -> None:
+    """Open the local folder containing a generated report."""
+    if not _is_local_browser_request(request):
+        raise gr.Error("远程访问无法打开服务器文件夹，请使用下载按钮获取报告。")
+
+    path_text = str(report_path_value or "").strip()
+    if not path_text:
+        raise gr.Error("请先导出报告，再打开所在位置。")
+
+    try:
+        report_root = report_dir(storage_dir).expanduser().resolve()
+        report_path = Path(path_text).expanduser().resolve()
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        raise gr.Error("报告路径无效，请重新导出后再试。") from exc
+
+    if not report_path.is_file() or report_root not in report_path.parents:
+        raise gr.Error("报告文件不存在或已移动，请重新导出。")
+
+    opener = getattr(os, "startfile", None)
+    if opener is None:
+        raise gr.Error("当前系统不支持直接打开文件夹，请使用下载按钮。")
+    try:
+        opener(str(report_path.parent))
+    except OSError as exc:
+        raise gr.Error(f"无法打开报告所在文件夹：{exc}") from exc
+    gr.Info("已打开报告所在文件夹。")
+
+
+def report_export_feedback(report_path_value: str, storage_dir: str):
+    """Build the unobtrusive, refreshable export result shown below the menu."""
+    path_text = str(report_path_value or "").strip()
+    if not path_text:
+        return "", gr.update(visible=False)
+
+    path = Path(path_text)
+    try:
+        relative_path = path.resolve().relative_to(Path(storage_dir).expanduser().resolve())
+        display_path = relative_path.as_posix()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        display_path = path.name or path_text
+    safe_path = _html_escape(display_path)
+    safe_full_path = _html_escape(path_text)
+    return (
+        '<div class="report-export-status-line">'
+        '<span class="report-export-status-mark" aria-hidden="true"></span>'
+        f'<span>已经导出 <strong title="{safe_full_path}">{safe_path}</strong></span>'
+        "</div>",
+        gr.update(visible=True),
+    )
+
+
 def choose_model_dir(
     model_dir: str,
     current_value: str | None = None,
@@ -825,6 +865,7 @@ def _save_runtime_settings(
         settings.storage_dir = saved.storage_dir
     settings.enable_compare = saved.enable_compare
     settings.show_summary = saved.show_summary
+    settings.magnifier_enabled = saved.magnifier_enabled
     settings.save_history = saved.save_history
     settings.history_limit = saved.history_limit
     settings.title_generation_mode = saved.title_generation_mode
@@ -1764,6 +1805,26 @@ def export_word_report(batch_state: list[dict[str, Any]], selected_name: str, st
     return _file_component_output(path), str(path), batch_state
 
 
+def export_word_report_with_feedback(
+    batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str
+):
+    file_update, path_text, updated_state = export_word_report(
+        batch_state, selected_name, storage_dir
+    )
+    status_update, open_update = report_export_feedback(path_text, storage_dir)
+    return file_update, path_text, updated_state, status_update, open_update
+
+
+def export_zip_report_with_feedback(
+    batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str
+):
+    file_update, path_text, updated_state = export_single_report(
+        batch_state, selected_name, storage_dir
+    )
+    status_update, open_update = report_export_feedback(path_text, storage_dir)
+    return file_update, path_text, updated_state, status_update, open_update
+
+
 def download_result_image(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
     item = _current_item(batch_state, selected_name)
     result = item.get("result") or item
@@ -2209,9 +2270,6 @@ def clear_outputs(*, clear_chat: bool = False):
             "result": None,
             "comparison_section": gr.update(visible=False),
             "comparison_view": empty_comparison_html(),
-            "highres_result": None,
-            "crop_gallery": [],
-            "crop_status": "暂无疑似区域局部图",
             "result_image_file": _clear_file_output(),
             "result_image_path": "",
             "download_result_button": gr.update(value="下载检测结果图", interactive=False),
@@ -2235,11 +2293,15 @@ def clear_outputs(*, clear_chat: bool = False):
             "chat_export_path": "",
             "word_report_file": _clear_file_output(),
             "word_report_path": "",
-            "word_export_button": gr.update(value="导出 Word 报告", interactive=False),
+            "word_export_button": gr.update(value="生成 Word 报告", interactive=False),
             "zip_report_file": _clear_file_output(),
             "zip_report_path": "",
-            "zip_export_button": gr.update(value="导出 ZIP 数据包", interactive=False),
+            "zip_export_button": gr.update(value="生成 ZIP 数据包", interactive=False),
             "save_case_button": gr.update(value="完成检测后可保存", interactive=False),
+            "report_export_menu_button": gr.update(value="导出报告", interactive=False),
+            "report_export_status": "",
+            "word_open_button": gr.update(visible=False),
+            "zip_open_button": gr.update(visible=False),
         }
     )
 
@@ -2496,7 +2558,6 @@ def run_single_detection(
             advice = f"{advice}\n\n{history_warning}"
             chat_history = _conversation_from_advice(advice)
             batch_state[0]["advice"] = advice
-    highres_image, crop_items, crop_text = _result_visual_outputs(primary)
     comparison_section_update, comparison_view_update = _comparison_view_updates(all_results)
     return common_output_values(
         {
@@ -2505,9 +2566,6 @@ def run_single_detection(
             "result": primary["annotated"],
             "comparison_section": comparison_section_update,
             "comparison_view": comparison_view_update,
-            "highres_result": highres_image,
-            "crop_gallery": crop_items,
-            "crop_status": crop_text,
             "result_image_file": _clear_file_output(),
             "result_image_path": "",
             "download_result_button": gr.update(value="下载检测结果图", interactive=True),
@@ -2531,11 +2589,15 @@ def run_single_detection(
             "chat_export_path": "",
             "word_report_file": _clear_file_output(),
             "word_report_path": "",
-            "word_export_button": gr.update(value="导出 Word 报告", interactive=True),
+            "word_export_button": gr.update(value="生成 Word 报告", interactive=True),
             "zip_report_file": _clear_file_output(),
             "zip_report_path": "",
-            "zip_export_button": gr.update(value="导出 ZIP 数据包", interactive=True),
+            "zip_export_button": gr.update(value="生成 ZIP 数据包", interactive=True),
             "save_case_button": gr.update(value="保存病例", interactive=True),
+            "report_export_menu_button": gr.update(value="导出报告", interactive=True),
+            "report_export_status": "",
+            "word_open_button": gr.update(visible=False),
+            "zip_open_button": gr.update(visible=False),
         }
     )
 
@@ -2721,9 +2783,6 @@ def run_batch_detection(
             "result": first["result"]["annotated"],
             "comparison_section": first_view["comparison_section"],
             "comparison_view": first_view["comparison_view"],
-            "highres_result": first_view["highres_image"],
-            "crop_gallery": first_view["crop_items"],
-            "crop_status": first_view["crop_text"],
             "result_image_file": _clear_file_output(),
             "result_image_path": "",
             "download_result_button": gr.update(value="下载检测结果图", interactive=True),
@@ -2747,11 +2806,15 @@ def run_batch_detection(
             "chat_export_path": "",
             "word_report_file": _clear_file_output(),
             "word_report_path": "",
-            "word_export_button": gr.update(value="导出 Word 报告", interactive=True),
+            "word_export_button": gr.update(value="生成 Word 报告", interactive=True),
             "zip_report_file": _clear_file_output(),
             "zip_report_path": "",
-            "zip_export_button": gr.update(value="导出 ZIP 数据包", interactive=True),
+            "zip_export_button": gr.update(value="生成 ZIP 数据包", interactive=True),
             "save_case_button": gr.update(value="保存病例", interactive=True),
+            "report_export_menu_button": gr.update(value="导出报告", interactive=True),
+            "report_export_status": "",
+            "word_open_button": gr.update(visible=False),
+            "zip_open_button": gr.update(visible=False),
         }
     )
 
@@ -2764,9 +2827,6 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
             None,
             gr.update(visible=False),
             empty_comparison_html(),
-            None,
-            [],
-            "暂无疑似区域局部图",
             _clear_file_output(),
             "",
             gr.update(value="下载检测结果图", interactive=False),
@@ -2781,11 +2841,15 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
             "",
             _clear_file_output(),
             "",
-            gr.update(value="导出 Word 报告", interactive=False),
+            gr.update(value="生成 Word 报告", interactive=False),
             _clear_file_output(),
             "",
-            gr.update(value="导出 ZIP 数据包", interactive=False),
+            gr.update(value="生成 ZIP 数据包", interactive=False),
             gr.update(value="完成检测后可保存", interactive=False),
+            gr.update(value="导出报告", interactive=False),
+            "",
+            gr.update(visible=False),
+            gr.update(visible=False),
         )
     item = next((row for row in batch_state if _matches_item_name(row, name)), None)
     if item is None:
@@ -2804,9 +2868,6 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
         result["annotated"],
         view["comparison_section"],
         view["comparison_view"],
-        view["highres_image"],
-        view["crop_items"],
-        view["crop_text"],
         _clear_file_output(),
         "",
         gr.update(value="下载检测结果图", interactive=True),
@@ -2821,17 +2882,21 @@ def select_batch_item(name: str, batch_state: list[dict[str, Any]], show_summary
         "",
         _file_component_output(word_path),
         word_path,
-        gr.update(value="导出 Word 报告", interactive=True),
+        gr.update(value="生成 Word 报告", interactive=True),
         _file_component_output(zip_path),
         zip_path,
-        gr.update(value="导出 ZIP 数据包", interactive=True),
+        gr.update(value="生成 ZIP 数据包", interactive=True),
         gr.update(value="保存病例", interactive=True),
+        gr.update(value="导出报告", interactive=True),
+        "",
+        gr.update(visible=bool(word_path)),
+        gr.update(visible=bool(zip_path)),
     )
 
 
 def update_detection_visibility(visible_classes: list[str], selected_name: str, batch_state: list[dict[str, Any]]):
     if not batch_state:
-        return None, None, [], "暂无疑似区域局部图", [], _empty_table(), _clear_file_output(), ""
+        return None, [], _empty_table(), _clear_file_output(), ""
     item = _current_item(batch_state, selected_name)
     result = item.get("result") or item
     base_image = _first_present(result.get("model_input"), result.get("original"))
@@ -2848,15 +2913,11 @@ def update_detection_visibility(visible_classes: list[str], selected_name: str, 
             if (str(row.get("中文名称") or "").strip() in visible_set or str(row.get("class") or "").strip() in visible_set)
         ]
     result["annotated"] = draw_detections_with_filter(base_image, detections, visible_classes)
-    highres_image, crop_items, crop_text = _result_visual_outputs(result)
-    # 类别开关只改变可视化结果和局部图，检测表仍保留完整检测结果，
+    # 类别开关只改变可视化结果，检测表仍保留完整检测结果，
     # 避免用户误以为被隐藏的检测框已经从结果中删除。
     table = _table_from_records(detections) if detections else _empty_table()
     return (
         result["annotated"],
-        highres_image,
-        crop_items,
-        crop_text,
         batch_state,
         table,
         _clear_file_output(),
@@ -2933,6 +2994,7 @@ def save_ui_settings(
     task_max_tokens: int | float = 180,
     keep_followup_prompts: bool = False,
     followup_click_action: str = "填入输入框",
+    magnifier_enabled: bool = True,
 ):
     previous_settings = load_settings()
     settings = _ai_settings(
@@ -2953,6 +3015,7 @@ def save_ui_settings(
     settings.enable_compare = bool(enable_compare)
     settings.advice_style = advice_style if advice_style in {"简洁版", "医生版", "患者版"} else "简洁版"
     settings.show_summary = bool(show_summary)
+    settings.magnifier_enabled = bool(magnifier_enabled)
     settings.model_mode = (model_mode or MODEL_MODE_SINGLE) if settings.enable_compare else MODEL_MODE_SINGLE
     settings.model_dir = _model_dir_or_default(model_dir)
     settings.primary_model_path = _model_path_or_default(primary_model_path, str(DEFAULT_MODEL_PATH))
@@ -3902,6 +3965,7 @@ def build_app() -> gr.Blocks:
                         device_choices=device_choices,
                         default_device_choice=default_device_choice,
                         initial_detection_table=_empty_table(),
+                        magnifier_enabled=saved.magnifier_enabled,
                     )
                 )
             with gr.Tab("AI 问答") as ai_tab:
@@ -4042,9 +4106,6 @@ def build_app() -> gr.Blocks:
         result_output = workbench.result_output
         comparison_section = workbench.comparison_section
         comparison_view = workbench.comparison_view
-        highres_result_output = workbench.highres_result_output
-        crop_status = workbench.crop_status
-        crop_gallery = workbench.crop_gallery
         result_image_path = workbench.result_image_path
         download_result_btn = workbench.download_result_btn
         result_image_file = workbench.result_image_file
@@ -4053,17 +4114,22 @@ def build_app() -> gr.Blocks:
         advice_box = workbench.advice_box
         quality_box = workbench.quality_box
         summary = workbench.summary
+        report_export_menu_btn = workbench.report_export_menu_btn
+        report_export_status = workbench.report_export_status
         word_report_path = workbench.word_report_path
         export_word_btn = workbench.export_word_btn
+        open_word_report_dir_btn = workbench.open_word_report_dir_btn
         word_report_file = workbench.word_report_file
         report_path = workbench.report_path
         export_report_btn = workbench.export_report_btn
+        open_report_dir_btn = workbench.open_report_dir_btn
         report_file = workbench.report_file
 
         settings_nav = settings.settings_nav
         settings_panes = settings.settings_panes
         enable_compare = settings.enable_compare
         show_summary = settings.show_summary
+        magnifier_enabled = settings.magnifier_enabled
         model_cards_view = settings.model_cards_view
         model_card_select = settings.model_card_select
         apply_model_card_btn = settings.apply_model_card_btn
@@ -4127,9 +4193,6 @@ def build_app() -> gr.Blocks:
                 "result": result_output,
                 "comparison_section": comparison_section,
                 "comparison_view": comparison_view,
-                "highres_result": highres_result_output,
-                "crop_gallery": crop_gallery,
-                "crop_status": crop_status,
                 "result_image_file": result_image_file,
                 "result_image_path": result_image_path,
                 "download_result_button": download_result_btn,
@@ -4158,6 +4221,10 @@ def build_app() -> gr.Blocks:
                 "zip_report_path": report_path,
                 "zip_export_button": export_report_btn,
                 "save_case_button": save_case_btn,
+                "report_export_menu_button": report_export_menu_btn,
+                "report_export_status": report_export_status,
+                "word_open_button": open_word_report_dir_btn,
+                "zip_open_button": open_report_dir_btn,
             }
         )
         case_list_outputs = [

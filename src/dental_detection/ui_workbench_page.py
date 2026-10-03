@@ -26,6 +26,7 @@ class WorkbenchPageData:
     device_choices: list[str | tuple[str, str]]
     default_device_choice: str
     initial_detection_table: Any
+    magnifier_enabled: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,9 +60,6 @@ class WorkbenchComponents:
     result_output: Any
     comparison_section: Any
     comparison_view: Any
-    highres_result_output: Any
-    crop_status: Any
-    crop_gallery: Any
     result_image_path: Any
     download_result_btn: Any
     result_image_file: Any
@@ -70,11 +68,15 @@ class WorkbenchComponents:
     advice_box: Any
     quality_box: Any
     summary: Any
+    report_export_menu_btn: Any
+    report_export_status: Any
     word_report_path: Any
     export_word_btn: Any
+    open_word_report_dir_btn: Any
     word_report_file: Any
     report_path: Any
     export_report_btn: Any
+    open_report_dir_btn: Any
     report_file: Any
 
     def common_input_map(self, settings: Any) -> dict[str, Any]:
@@ -253,14 +255,27 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                 with gr.Tabs(elem_classes=["result-view-tabs"]):
                     with gr.Tab("检测结果"):
                         gr.HTML('<div class="image-title">AI 检测结果</div>')
-                        result_output = gr.Image(
-                            type="pil",
-                            label="检测结果",
-                            show_label=False,
-                            height=470,
-                            placeholder="完成检测后显示",
-                            elem_classes=["result-card", "primary-result-card"],
-                        )
+                        with gr.Group(elem_classes=["result-image-stage"]):
+                            gr.HTML(
+                                (
+                                    '<span class="magnifier-runtime-setting" '
+                                    f'data-enabled="{str(data.magnifier_enabled).lower()}" hidden></span>'
+                                ),
+                                container=False,
+                            )
+                            result_output = gr.Image(
+                                type="pil",
+                                label="检测结果",
+                                show_label=False,
+                                height=470,
+                                placeholder="完成检测后显示",
+                                elem_classes=["result-card", "primary-result-card"],
+                            )
+                            gr.HTML(
+                                legend_html(compact=True),
+                                container=False,
+                                elem_classes=["result-legend-overlay-host"],
+                            )
                     with gr.Tab("滑动对比"):
                         with gr.Group(visible=False, elem_classes=["comparison-results-section"]) as comparison_section:
                             comparison_view = gr.HTML(
@@ -289,23 +304,7 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                             elem_classes=["result-card"],
                         )
 
-            with gr.Accordion("查看高清结果与疑似区域", open=False):
-                highres_result_output = gr.Image(
-                    type="pil",
-                    label="高清结果图",
-                    height=420,
-                    interactive=False,
-                    elem_classes=["result-card", "highres-result-card"],
-                )
-                crop_status = gr.Markdown("暂无疑似区域局部图")
-                crop_gallery = gr.Gallery(
-                    label="疑似区域局部图",
-                    columns=3,
-                    rows=1,
-                    height=220,
-                    allow_preview=True,
-                    object_fit="contain",
-                )
+            with gr.Group(elem_classes=["result-download-bar"]):
                 with gr.Row(elem_classes=["path-row"]):
                     result_image_path = gr.Textbox(
                         label="检测结果图路径",
@@ -323,6 +322,62 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                     )
                     result_image_file = gr.File(label="检测结果图 PNG", visible=False)
 
+            with gr.Group(elem_classes=["report-export-dock"]):
+                report_export_menu_btn = gr.Button(
+                    "导出报告",
+                    interactive=False,
+                    elem_classes=["report-export-menu-trigger"],
+                )
+                with gr.Group(elem_classes=["report-export-popover"]):
+                    gr.HTML(
+                        '<div class="report-export-popover-heading">'
+                        '<strong>导出当前结果</strong>'
+                        '<span>选择文件格式</span>'
+                        '</div>',
+                        container=False,
+                    )
+                    word_report_path = gr.State("")
+                    report_path = gr.State("")
+                    with gr.Group(elem_classes=["report-export-choice"]):
+                        export_word_btn = gr.Button(
+                            "生成 Word 报告",
+                            interactive=False,
+                            elem_classes=["report-export-option", "report-export-option-word"],
+                        )
+                        with gr.Row(elem_classes=["report-export-choice-actions"]):
+                            open_word_report_dir_btn = gr.Button(
+                                "打开位置",
+                                visible=False,
+                                elem_classes=["report-export-subaction", "open-location-action"],
+                            )
+                            word_report_file = gr.DownloadButton(
+                                "下载 Word",
+                                visible=False,
+                                elem_classes=["report-export-subaction", "download-action"],
+                            )
+                    with gr.Group(elem_classes=["report-export-choice"]):
+                        export_report_btn = gr.Button(
+                            "生成 ZIP 数据包",
+                            interactive=False,
+                            elem_classes=["report-export-option", "report-export-option-zip"],
+                        )
+                        with gr.Row(elem_classes=["report-export-choice-actions"]):
+                            open_report_dir_btn = gr.Button(
+                                "打开位置",
+                                visible=False,
+                                elem_classes=["report-export-subaction", "open-location-action"],
+                            )
+                            report_file = gr.DownloadButton(
+                                "下载 ZIP",
+                                visible=False,
+                                elem_classes=["report-export-subaction", "download-action"],
+                            )
+                report_export_status = gr.HTML(
+                    "",
+                    container=False,
+                    elem_classes=["report-export-status"],
+                )
+
             with gr.Row(elem_classes=["insight-grid"]):
                 advice_box = gr.Textbox(
                     label="牙齿辅助建议",
@@ -339,7 +394,6 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                 )
 
             with gr.Group(elem_classes=["section-card", "result-table-card"]):
-                gr.HTML(legend_html())
                 with gr.Accordion(
                     "查看检测明细",
                     open=False,
@@ -360,40 +414,6 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                         interactive=False,
                     )
             summary = gr.JSON(label="参数摘要", visible=False)
-
-            with gr.Group(elem_classes=["section-card", "export-toolbar"]):
-                with gr.Row(elem_classes=["path-row"]):
-                    word_report_path = gr.Textbox(
-                        label="Word 报告路径",
-                        interactive=False,
-                        lines=1,
-                        max_lines=1,
-                        scale=8,
-                        elem_classes=["path-output"],
-                    )
-                    export_word_btn = gr.Button(
-                        "导出 Word 报告",
-                        interactive=False,
-                        elem_classes=["secondary-action"],
-                        scale=2,
-                    )
-                    word_report_file = gr.File(label="Word 报告", visible=False)
-                with gr.Row(elem_classes=["path-row"]):
-                    report_path = gr.Textbox(
-                        label="ZIP 数据包路径",
-                        interactive=False,
-                        lines=1,
-                        max_lines=1,
-                        scale=8,
-                        elem_classes=["path-output"],
-                    )
-                    export_report_btn = gr.Button(
-                        "导出 ZIP 数据包",
-                        interactive=False,
-                        elem_classes=["secondary-action"],
-                        scale=2,
-                    )
-                    report_file = gr.File(label="单图报告 ZIP", visible=False)
 
     return WorkbenchComponents(
         workbench_model_status=workbench_model_status,
@@ -425,9 +445,6 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
         result_output=result_output,
         comparison_section=comparison_section,
         comparison_view=comparison_view,
-        highres_result_output=highres_result_output,
-        crop_status=crop_status,
-        crop_gallery=crop_gallery,
         result_image_path=result_image_path,
         download_result_btn=download_result_btn,
         result_image_file=result_image_file,
@@ -436,10 +453,14 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
         advice_box=advice_box,
         quality_box=quality_box,
         summary=summary,
+        report_export_menu_btn=report_export_menu_btn,
+        report_export_status=report_export_status,
         word_report_path=word_report_path,
         export_word_btn=export_word_btn,
+        open_word_report_dir_btn=open_word_report_dir_btn,
         word_report_file=word_report_file,
         report_path=report_path,
         export_report_btn=export_report_btn,
+        open_report_dir_btn=open_report_dir_btn,
         report_file=report_file,
     )

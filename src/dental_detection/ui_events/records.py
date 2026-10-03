@@ -45,19 +45,24 @@ def bind_export_and_record_events(c: SimpleNamespace, h: ModuleType) -> None:
         concurrency_id=h.EXPORT_CONCURRENCY_ID,
         show_progress="minimal",
     )
-    c.export_word_btn.click(
-        fn=h.export_word_report,
+    word_export_event = c.export_word_btn.click(
+        fn=h.export_word_report_with_feedback,
         inputs=[c.batch_state, c.batch_select, c.storage_dir],
-        outputs=[c.word_report_file, c.word_report_path, c.batch_state],
+        outputs=[
+            c.word_report_file,
+            c.word_report_path,
+            c.batch_state,
+            c.report_export_status,
+            c.open_word_report_dir_btn,
+        ],
         concurrency_limit=1,
         concurrency_id=h.EXPORT_CONCURRENCY_ID,
         show_progress="minimal",
-    ).success(
-        fn=h.refresh_report_center,
-        inputs=[c.storage_dir, c.history_patient_select],
-        outputs=c.report_list_outputs,
-        trigger_mode="always_last",
-        show_progress="minimal",
+    )
+    c.open_word_report_dir_btn.click(
+        fn=h.open_report_location,
+        inputs=[c.word_report_path, c.storage_dir],
+        show_progress="hidden",
     )
     c.download_result_btn.click(
         fn=h.download_result_image,
@@ -67,19 +72,24 @@ def bind_export_and_record_events(c: SimpleNamespace, h: ModuleType) -> None:
         concurrency_id=h.EXPORT_CONCURRENCY_ID,
         show_progress="minimal",
     )
-    c.export_report_btn.click(
-        fn=h.export_single_report,
+    zip_export_event = c.export_report_btn.click(
+        fn=h.export_zip_report_with_feedback,
         inputs=[c.batch_state, c.batch_select, c.storage_dir],
-        outputs=[c.report_file, c.report_path, c.batch_state],
+        outputs=[
+            c.report_file,
+            c.report_path,
+            c.batch_state,
+            c.report_export_status,
+            c.open_report_dir_btn,
+        ],
         concurrency_limit=1,
         concurrency_id=h.EXPORT_CONCURRENCY_ID,
         show_progress="minimal",
-    ).success(
-        fn=h.refresh_report_center,
-        inputs=[c.storage_dir, c.history_patient_select],
-        outputs=c.report_list_outputs,
-        trigger_mode="always_last",
-        show_progress="minimal",
+    )
+    c.open_report_dir_btn.click(
+        fn=h.open_report_location,
+        inputs=[c.report_path, c.storage_dir],
+        show_progress="hidden",
     )
     c.save_case_btn.click(
         fn=h.save_case_record,

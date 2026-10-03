@@ -91,8 +91,6 @@ def bind_workspace_events(c: SimpleNamespace, h: ModuleType) -> None:
     conversation_loaded_state = c.conversation_loaded_state
     conversation_select = c.conversation_select
     conversation_title_input = c.conversation_title_input
-    crop_gallery = c.crop_gallery
-    crop_status = c.crop_status
     current_conversation_file_state = c.current_conversation_file_state
     custom_prompt = c.custom_prompt
     det_table = c.det_table
@@ -114,7 +112,6 @@ def bind_workspace_events(c: SimpleNamespace, h: ModuleType) -> None:
     followup_click_action = c.followup_click_action
     followup_generation_enabled = c.followup_generation_enabled
     followup_generation_prompt = c.followup_generation_prompt
-    highres_result_output = c.highres_result_output
     history_detail = c.history_detail
     history_feedback = c.history_feedback
     history_limit = c.history_limit
@@ -133,6 +130,7 @@ def bind_workspace_events(c: SimpleNamespace, h: ModuleType) -> None:
     model_input_output = c.model_input_output
     model_mode = c.model_mode
     model_mode_feedback = c.model_mode_feedback
+    magnifier_enabled = c.magnifier_enabled
     new_patient_name = c.new_patient_name
     new_patient_reference = c.new_patient_reference
     original_output = c.original_output
@@ -148,6 +146,8 @@ def bind_workspace_events(c: SimpleNamespace, h: ModuleType) -> None:
     report_list_outputs = c.report_list_outputs
     report_metadata_outputs = c.report_metadata_outputs
     report_path = c.report_path
+    report_export_menu_btn = c.report_export_menu_btn
+    report_export_status = c.report_export_status
     restore_patient_btn = c.restore_patient_btn
     result_image_file = c.result_image_file
     result_image_path = c.result_image_path
@@ -522,9 +522,6 @@ def bind_workspace_events(c: SimpleNamespace, h: ModuleType) -> None:
             result_output,
             comparison_section,
             comparison_view,
-            highres_result_output,
-            crop_gallery,
-            crop_status,
             result_image_file,
             result_image_path,
             download_result_btn,
@@ -544,6 +541,10 @@ def bind_workspace_events(c: SimpleNamespace, h: ModuleType) -> None:
             report_path,
             export_report_btn,
             save_case_btn,
+            report_export_menu_btn,
+            report_export_status,
+            c.open_word_report_dir_btn,
+            c.open_report_dir_btn,
         ],
         concurrency_limit=1,
         concurrency_id=RESULT_VIEW_CONCURRENCY_ID,
@@ -555,9 +556,6 @@ def bind_workspace_events(c: SimpleNamespace, h: ModuleType) -> None:
         inputs=[visible_class_filter, batch_select, batch_state],
         outputs=[
             result_output,
-            highres_result_output,
-            crop_gallery,
-            crop_status,
             batch_state,
             det_table,
             result_image_file,
@@ -679,6 +677,7 @@ def bind_workspace_events(c: SimpleNamespace, h: ModuleType) -> None:
             task_max_tokens,
             keep_followup_prompts,
             followup_click_action,
+            magnifier_enabled,
         ],
         outputs=[
             settings_feedback,

@@ -12,9 +12,6 @@ COMMON_OUTPUT_KEYS = (
     "result",
     "comparison_section",
     "comparison_view",
-    "highres_result",
-    "crop_gallery",
-    "crop_status",
     "result_image_file",
     "result_image_path",
     "download_result_button",
@@ -43,6 +40,10 @@ COMMON_OUTPUT_KEYS = (
     "zip_report_path",
     "zip_export_button",
     "save_case_button",
+    "report_export_menu_button",
+    "report_export_status",
+    "word_open_button",
+    "zip_open_button",
 )
 
 COMMON_INPUT_KEYS = (

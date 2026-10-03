@@ -19,6 +19,7 @@
   let runtimeCheckInFlight = false;
   let runtimeReloading = false;
   let lastRuntimeCheckAt = 0;
+  let magnifierPreferenceInitialized = false;
 
   const readRuntimeAppId = async (response) => {
     if (!response.body || !response.body.getReader) {
@@ -389,6 +390,176 @@
     });
   };
 
+  const magnifierEnabled = () => {
+    const runtimeValue = document.documentElement.dataset.resultMagnifierEnabled;
+    if (runtimeValue === "true" || runtimeValue === "false") {
+      return runtimeValue === "true";
+    }
+    const input = document.querySelector(
+      '#magnifier-enabled-setting input[type="checkbox"]',
+    );
+    return !(input instanceof HTMLInputElement) || input.checked;
+  };
+
+  const initializeMagnifierPreference = () => {
+    if (magnifierPreferenceInitialized) {
+      return;
+    }
+    const marker = document.querySelector(".magnifier-runtime-setting[data-enabled]");
+    if (!(marker instanceof HTMLElement)) {
+      return;
+    }
+    document.documentElement.dataset.resultMagnifierEnabled =
+      marker.dataset.enabled === "false" ? "false" : "true";
+    magnifierPreferenceInitialized = true;
+  };
+
+  const hideResultMagnifiers = () => {
+    document.querySelectorAll(".result-magnifier.is-visible").forEach((lens) => {
+      lens.classList.remove("is-visible");
+    });
+  };
+
+  const ensureResultMagnifier = (stage) => {
+    let lens = stage.querySelector(":scope > .result-magnifier");
+    if (lens instanceof HTMLElement) {
+      return lens;
+    }
+    lens = document.createElement("div");
+    lens.className = "result-magnifier";
+    lens.setAttribute("aria-hidden", "true");
+    const canvas = document.createElement("canvas");
+    lens.appendChild(canvas);
+    stage.appendChild(lens);
+    return lens;
+  };
+
+  const imageContentBounds = (image) => {
+    const rect = image.getBoundingClientRect();
+    if (!image.naturalWidth || !image.naturalHeight || !rect.width || !rect.height) {
+      return null;
+    }
+    const scale = Math.min(
+      rect.width / image.naturalWidth,
+      rect.height / image.naturalHeight,
+    );
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    return {
+      left: rect.left + (rect.width - width) / 2,
+      top: rect.top + (rect.height - height) / 2,
+      width,
+      height,
+      scale,
+    };
+  };
+
+  const moveResultMagnifier = (event) => {
+    if (!(event.target instanceof Element) || event.pointerType === "touch") {
+      return;
+    }
+    const card = event.target.closest(".primary-result-card");
+    const stage = card?.closest(".result-image-stage");
+    const image = card?.querySelector("img");
+    if (
+      !magnifierEnabled()
+      || !(stage instanceof HTMLElement)
+      || !(image instanceof HTMLImageElement)
+      || !image.complete
+    ) {
+      hideResultMagnifiers();
+      return;
+    }
+
+    const bounds = imageContentBounds(image);
+    if (!bounds) {
+      return;
+    }
+    const x = event.clientX - bounds.left;
+    const y = event.clientY - bounds.top;
+    if (x < 0 || y < 0 || x > bounds.width || y > bounds.height) {
+      hideResultMagnifiers();
+      return;
+    }
+
+    const lens = ensureResultMagnifier(stage);
+    const canvas = lens.querySelector("canvas");
+    if (!(canvas instanceof HTMLCanvasElement)) {
+      return;
+    }
+    lens.classList.add("is-visible");
+
+    const stageRect = stage.getBoundingClientRect();
+    const lensWidth = lens.offsetWidth;
+    const lensHeight = lens.offsetHeight;
+    const gap = 18;
+    let left = event.clientX - stageRect.left + gap;
+    let top = event.clientY - stageRect.top - lensHeight - gap;
+    if (left + lensWidth > stageRect.width - 8) {
+      left = event.clientX - stageRect.left - lensWidth - gap;
+    }
+    if (top < 8) {
+      top = event.clientY - stageRect.top + gap;
+    }
+    left = Math.max(8, Math.min(left, stageRect.width - lensWidth - 8));
+    top = Math.max(8, Math.min(top, stageRect.height - lensHeight - 8));
+    lens.style.left = `${left}px`;
+    lens.style.top = `${top}px`;
+
+    const deviceScale = Math.min(2, window.devicePixelRatio || 1);
+    const canvasWidth = Math.max(1, lens.clientWidth);
+    const canvasHeight = Math.max(1, lens.clientHeight);
+    canvas.width = Math.round(canvasWidth * deviceScale);
+    canvas.height = Math.round(canvasHeight * deviceScale);
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return;
+    }
+    context.setTransform(deviceScale, 0, 0, deviceScale, 0, 0);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+
+    const zoom = 2.5;
+    const sourceWidth = Math.min(image.naturalWidth, canvasWidth / zoom / bounds.scale);
+    const sourceHeight = Math.min(image.naturalHeight, canvasHeight / zoom / bounds.scale);
+    const sourceX = Math.max(
+      0,
+      Math.min(
+        image.naturalWidth - sourceWidth,
+        (x / bounds.width) * image.naturalWidth - sourceWidth / 2,
+      ),
+    );
+    const sourceY = Math.max(
+      0,
+      Math.min(
+        image.naturalHeight - sourceHeight,
+        (y / bounds.height) * image.naturalHeight - sourceHeight / 2,
+      ),
+    );
+    context.clearRect(0, 0, canvasWidth, canvasHeight);
+    context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      canvasWidth,
+      canvasHeight,
+    );
+  };
+
+  const leaveResultImage = (event) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    const card = event.target.closest(".primary-result-card");
+    if (card && !card.contains(event.relatedTarget)) {
+      hideResultMagnifiers();
+    }
+  };
+
   const handleDetectionTableClick = (event) => {
     if (!(event.target instanceof Element)) {
       return;
@@ -419,12 +590,82 @@
     grid.querySelector(".record-detection-table-wrap")?.scrollTo({ top: 0, behavior: "auto" });
   };
 
+  const reportExportTriggerButton = (dock) => {
+    const candidate = dock?.querySelector(".report-export-menu-trigger");
+    if (candidate instanceof HTMLButtonElement) {
+      return candidate;
+    }
+    return candidate?.querySelector("button") || null;
+  };
+
+  const closeReportExportMenus = (except = null) => {
+    document.querySelectorAll(".report-export-dock.is-open").forEach((dock) => {
+      if (dock === except) {
+        return;
+      }
+      dock.classList.remove("is-open");
+      reportExportTriggerButton(dock)?.setAttribute("aria-expanded", "false");
+    });
+  };
+
+  const positionReportExportMenu = (dock) => {
+    const button = reportExportTriggerButton(dock);
+    const popover = dock?.querySelector(
+      ":scope > .styler > .report-export-popover",
+    );
+    if (!(button instanceof HTMLElement) || !(popover instanceof HTMLElement)) {
+      return;
+    }
+    const triggerRect = button.getBoundingClientRect();
+    const popoverRect = popover.getBoundingClientRect();
+    const gap = 12;
+    let left = triggerRect.right + gap;
+    if (left + popoverRect.width > window.innerWidth - gap) {
+      left = triggerRect.left - popoverRect.width - gap;
+    }
+    const top = Math.max(
+      gap,
+      Math.min(
+        triggerRect.bottom - popoverRect.height,
+        window.innerHeight - popoverRect.height - gap,
+      ),
+    );
+    popover.style.setProperty("--report-export-popover-left", `${Math.max(gap, left)}px`);
+    popover.style.setProperty("--report-export-popover-top", `${top}px`);
+  };
+
+  const handleReportExportMenuClick = (event) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    const trigger = event.target.closest(".report-export-menu-trigger");
+    if (trigger) {
+      const button = trigger instanceof HTMLButtonElement ? trigger : trigger.querySelector("button");
+      const dock = trigger.closest(".report-export-dock");
+      if (!(dock instanceof HTMLElement) || button?.disabled) {
+        return;
+      }
+      const shouldOpen = !dock.classList.contains("is-open");
+      closeReportExportMenus(dock);
+      dock.classList.toggle("is-open", shouldOpen);
+      button?.setAttribute("aria-expanded", String(shouldOpen));
+      if (shouldOpen) {
+        positionReportExportMenu(dock);
+      }
+      return;
+    }
+    if (!event.target.closest(".report-export-popover")) {
+      closeReportExportMenus();
+    }
+  };
+
   const start = () => {
     if (!document.body) {
       window.requestAnimationFrame(start);
       return;
     }
     labelIconActions();
+    initializeMagnifierPreference();
     initializeDetectionTables();
     syncPrimaryNavigation();
     syncStickyNavigation();
@@ -438,13 +679,30 @@
     document.addEventListener("click", trackOverflowSelection, true);
     document.addEventListener("click", navigateFromHome, true);
     document.addEventListener("click", handleDetectionTableClick, true);
+    document.addEventListener("click", handleReportExportMenuClick, true);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeReportExportMenus();
+      }
+    });
     document.addEventListener("input", (event) => syncImageComparison(event.target), true);
+    document.addEventListener("pointermove", moveResultMagnifier, true);
+    document.addEventListener("pointerout", leaveResultImage, true);
+    document.addEventListener("change", (event) => {
+      if (event.target instanceof Element && event.target.closest("#magnifier-enabled-setting")) {
+        if (event.target instanceof HTMLInputElement) {
+          document.documentElement.dataset.resultMagnifierEnabled = String(event.target.checked);
+        }
+        hideResultMagnifiers();
+      }
+    }, true);
     window.addEventListener("scroll", scheduleStickyNavigation, { passive: true });
     window.addEventListener("resize", scheduleStickyNavigation, { passive: true });
     window.setInterval(checkRuntimeVersion, 30000);
     new MutationObserver(() => {
       scheduleMenuLabeling();
       initializeDetectionTables();
+      initializeMagnifierPreference();
     }).observe(document.body, {
       childList: true,
       subtree: true,

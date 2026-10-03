@@ -63,6 +63,7 @@ class SettingsComponents:
     settings_panes: tuple[Any, ...]
     enable_compare: Any
     show_summary: Any
+    magnifier_enabled: Any
     model_cards_view: Any
     model_card_select: Any
     apply_model_card_btn: Any
@@ -200,6 +201,13 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                     show_summary = gr.Checkbox(
                         value=saved.show_summary,
                         label="显示参数分析摘要",
+                        elem_classes=["settings-control-surface", "settings-toggle-row"],
+                    )
+                    magnifier_enabled = gr.Checkbox(
+                        value=saved.magnifier_enabled,
+                        label="开启检测图悬停放大镜",
+                        info="鼠标移入检测结果时，在指针右上方显示局部放大图。",
+                        elem_id="magnifier-enabled-setting",
                         elem_classes=["settings-control-surface", "settings-toggle-row"],
                     )
 
@@ -666,6 +674,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
         ),
         enable_compare=enable_compare,
         show_summary=show_summary,
+        magnifier_enabled=magnifier_enabled,
         model_cards_view=model_cards_view,
         model_card_select=model_card_select,
         apply_model_card_btn=apply_model_card_btn,

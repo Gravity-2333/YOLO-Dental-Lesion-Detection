@@ -172,18 +172,20 @@ def model_cards_html(cards: list[dict[str, Any]], selected_path: str | None = No
     return build_model_cards_html(cards, selected_path)
 
 
-def legend_html() -> str:
+def legend_html(*, compact: bool = False) -> str:
     items = []
     for item in CLASS_LEGEND:
+        separator = '<span class="legend-separator">：</span>' if compact else ""
         items.append(
             f"""
 <div class="legend-item">
   <span class="legend-swatch" style="background:{item['color']}"></span>
-  <strong>{item['中文名称']}</strong>
+  {separator}<strong>{item['中文名称']}</strong>
 </div>
 """
         )
-    return '<div class="result-legend">' + "".join(items) + "</div>"
+    classes = "result-legend compact-result-legend" if compact else "result-legend"
+    return f'<div class="{classes}">' + "".join(items) + "</div>"
 
 
 def legend_markdown() -> str:

@@ -289,6 +289,119 @@ def show_context_help(page, scope: str, *, focus: bool = False) -> None:
         raise RuntimeError(f"上下文提示气泡未显示：{scope} {state}")
 
 
+def capture_result_magnifier(page, output_dir: Path, suffix: str) -> None:
+    stage = page.locator(".result-image-stage").first
+    image = stage.locator(".primary-result-card img").first
+    stage.scroll_into_view_if_needed(timeout=10000)
+    box = image.bounding_box()
+    if not box:
+        raise RuntimeError("无法获取检测结果图位置。")
+
+    page.mouse.move(box["x"] + box["width"] * 0.56, box["y"] + box["height"] * 0.58)
+    lens = stage.locator(".result-magnifier.is-visible")
+    lens.wait_for(state="visible", timeout=5000)
+    canvas_ready = lens.locator("canvas").evaluate(
+        """canvas => {
+            const context = canvas.getContext('2d');
+            if (!context || !canvas.width || !canvas.height) return false;
+            const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+            for (let index = 3; index < pixels.length; index += 4) {
+                if (pixels[index] > 0) return true;
+            }
+            return false;
+        }"""
+    )
+    if not canvas_ready:
+        raise RuntimeError("悬停放大镜画布为空。")
+
+    overlay_valid = page.evaluate(
+        """() => {
+            const stage = document.querySelector('.result-image-stage');
+            const legend = stage?.querySelector('.compact-result-legend');
+            if (!stage || !legend) return false;
+            const outer = stage.getBoundingClientRect();
+            const inner = legend.getBoundingClientRect();
+            return inner.width > 0 && inner.height > 0
+                && inner.left >= outer.left && inner.right <= outer.right
+                && inner.top >= outer.top && inner.bottom <= outer.bottom;
+        }"""
+    )
+    if not overlay_valid:
+        raise RuntimeError("结果图例未正确收纳在图片区域内。")
+
+    stage.screenshot(path=str(output_dir / name("03-workbench-result-magnifier.png", suffix)))
+    click_tab(page, "设置")
+    click_settings_section(page, "工作台")
+    toggle = page.get_by_label("开启检测图悬停放大镜", exact=True)
+    toggle.uncheck(timeout=10000)
+    click_tab(page, "检测工作台")
+    disabled_image = page.locator(".primary-result-card img").first
+    disabled_box = disabled_image.bounding_box()
+    if not disabled_box:
+        raise RuntimeError("关闭放大镜后无法重新定位结果图。")
+    page.mouse.move(
+        disabled_box["x"] + disabled_box["width"] * 0.62,
+        disabled_box["y"] + disabled_box["height"] * 0.62,
+    )
+    if page.locator(".result-magnifier.is-visible").count():
+        raise RuntimeError("关闭悬停放大镜后仍然显示放大框。")
+    click_tab(page, "设置")
+    click_settings_section(page, "工作台")
+    page.get_by_label("开启检测图悬停放大镜", exact=True).check(timeout=10000)
+    click_tab(page, "检测工作台")
+
+
+def capture_report_export_menu(page, output_dir: Path, suffix: str) -> None:
+    trigger = page.get_by_role("button", name="导出报告", exact=True)
+    trigger.scroll_into_view_if_needed(timeout=10000)
+    page.wait_for_timeout(400)
+    if not trigger.is_enabled():
+        raise RuntimeError("完成检测后导出报告入口仍不可用。")
+    if page.locator(".report-export-status-line").count():
+        raise RuntimeError("尚未导出时不应显示导出结果提示。")
+
+    trigger.click(timeout=10000)
+    popover = page.locator(
+        ".report-export-dock > .report-export-dock > .styler > .report-export-popover"
+    )
+    popover.wait_for(state="visible", timeout=5000)
+    page.wait_for_timeout(250)
+    geometry = page.evaluate(
+        """() => {
+            const trigger = document.querySelector('.report-export-menu-trigger');
+            const popover = document.querySelector(
+                '.report-export-dock > .report-export-dock > .styler > .report-export-popover'
+            );
+            if (!trigger || !popover) return null;
+            const source = trigger.getBoundingClientRect();
+            const target = popover.getBoundingClientRect();
+            return {
+                toRight: target.left >= source.right,
+                inViewport: target.right <= window.innerWidth && target.bottom <= window.innerHeight,
+            };
+        }"""
+    )
+    if not geometry or not geometry["toRight"] or not geometry["inViewport"]:
+        raise RuntimeError(f"导出浮层位置异常：{geometry}")
+    page.screenshot(path=str(output_dir / name("03-workbench-export-menu.png", suffix)))
+
+    word_action = page.locator("button.report-export-option-word")
+    word_action_count = word_action.count()
+    word_action_enabled = word_action.is_enabled() if word_action_count == 1 else False
+    if word_action_count != 1 or not word_action_enabled:
+        raise RuntimeError(
+            "Word 报告操作未处于唯一且可用的状态："
+            f"count={word_action_count}, enabled={word_action_enabled}。"
+        )
+    word_action.click(timeout=10000)
+    status = page.locator(".report-export-status-line")
+    status.wait_for(state="visible", timeout=120000)
+    status_text = status.inner_text()
+    if "已经导出" not in status_text or ".docx" not in status_text:
+        raise RuntimeError(f"导出提示内容异常：{status_text}")
+    page.screenshot(path=str(output_dir / name("03-workbench-export-success.png", suffix)))
+
+
 def capture(args: argparse.Namespace) -> None:
     base_url = str(args.base_url).rstrip("/")
     output_dir = Path(args.output).expanduser()
@@ -394,6 +507,8 @@ def capture(args: argparse.Namespace) -> None:
                     name("03-workbench-detection-result.png", suffix),
                     reset_scroll=True,
                 )
+                capture_report_export_menu(page, output_dir, suffix)
+                capture_result_magnifier(page, output_dir, suffix)
             except Exception as exc:
                 print(f"03 detection/upload screenshot failed: {exc}")
                 save(page, output_dir, name("03-workbench-detection-result.png", suffix))

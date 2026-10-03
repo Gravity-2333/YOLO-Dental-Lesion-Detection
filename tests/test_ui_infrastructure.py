@@ -289,6 +289,20 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn('["input", "change", "focusin", "pointerover"]', javascript)
         self.assertIn("labelPathValues();", javascript)
 
+    def test_result_magnifier_and_overlay_legend_are_frontend_native(self) -> None:
+        javascript = load_workbench_js()
+        css = load_workbench_css()
+        source = inspect.getsource(build_workbench_page)
+
+        self.assertIn('#magnifier-enabled-setting input[type="checkbox"]', javascript)
+        self.assertIn('document.addEventListener("pointermove", moveResultMagnifier', javascript)
+        self.assertIn('document.createElement("canvas")', javascript)
+        self.assertIn(".result-magnifier", css)
+        self.assertIn(".result-legend-overlay-host", css)
+        self.assertIn("legend_html(compact=True)", source)
+        self.assertNotIn("查看高清结果与疑似区域", source)
+        self.assertNotIn("gr.Gallery(", source)
+
     def test_compact_action_buttons_share_a_stable_height(self) -> None:
         css = load_workbench_css()
         self.assertIn(".row.compact-row > button", css)
@@ -383,8 +397,7 @@ class UiAssetTests(unittest.TestCase):
             tablet.split(".path-picker-row", 1)[1],
         )
         self.assertIn("grid-template-columns: minmax(0, 1fr) 132px !important", tablet)
-        self.assertIn("grid-template-columns: minmax(0, 1fr) 152px !important", tablet)
-        self.assertIn(".export-toolbar .row.path-row", tablet)
+        self.assertNotIn(".export-toolbar", tablet)
         self.assertIn("grid-template-columns: minmax(0, 1fr) 120px !important", tablet)
         self.assertIn(".chat-card .row.path-row", tablet)
         self.assertIn("margin-bottom: 10px !important", tablet)
@@ -434,17 +447,14 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn(".ai-composer-actions", ai_mobile)
         self.assertIn("display: flex !important", ai_mobile)
 
-    def test_mobile_workbench_export_buttons_stretch_with_the_path_row(self) -> None:
+    def test_mobile_report_export_popover_opens_below_the_trigger(self) -> None:
         css = load_workbench_css()
         mobile = css.split("@media (max-width: 640px)", 1)[1]
-        rule = mobile.rsplit(
-            ".export-toolbar .row.path-row > button.secondary-action",
-            1,
-        )[1].split("}", 1)[0]
+        rule = mobile.split(".report-export-popover", 1)[1].split("}", 1)[0]
 
-        self.assertIn("width: 100% !important", rule)
-        self.assertIn("min-width: 100% !important", rule)
-        self.assertIn("max-width: none !important", rule)
+        self.assertIn("top: 52px !important", rule)
+        self.assertIn("left: 0 !important", rule)
+        self.assertIn("width: min(292px, calc(100vw - 48px)) !important", rule)
 
     def test_settings_save_row_is_a_compact_page_action(self) -> None:
         css = load_workbench_css()
@@ -1897,16 +1907,15 @@ class UiContentTests(unittest.TestCase):
         self.assertGreaterEqual(source.count('queue=False,\n            show_progress="hidden"'), 9)
 
         export_ranges = (
-            ("export_word_btn.click(", "download_result_btn.click("),
-            ("export_report_btn.click(", "save_case_btn.click("),
+            ("export_word_btn.click(", "download_result_btn.click(", "export_word_report_with_feedback"),
+            ("export_report_btn.click(", "save_case_btn.click(", "export_zip_report_with_feedback"),
         )
-        for start, end in export_ranges:
+        for start, end, callback in export_ranges:
             with self.subTest(export=start):
                 event_source = source.split(start, 1)[1].split(end, 1)[0]
-                self.assertIn(").success(", event_source)
-                followup = event_source.split("fn=refresh_report_center", 1)[1]
-                self.assertIn('trigger_mode="always_last"', followup)
-                self.assertIn('show_progress="minimal"', followup)
+                self.assertIn(f"fn={callback}", event_source)
+                self.assertIn("report_export_status", event_source)
+                self.assertIn("report_dir_btn", event_source)
 
     def test_result_view_redraws_share_one_latest_request_queue(self) -> None:
         source = app.ui_event_binding_source()
@@ -2253,14 +2262,15 @@ class UiContentTests(unittest.TestCase):
         }
         item["view_cache"] = app._prepare_batch_item_view(item)
 
-        with (
-            patch.object(app, "_result_visual_outputs", side_effect=AssertionError("不应重新生成局部图")),
-            patch.object(app, "_comparison_view_updates", side_effect=AssertionError("不应重新生成对比视图")),
+        with patch.object(
+            app,
+            "_comparison_view_updates",
+            side_effect=AssertionError("不应重新生成对比视图"),
         ):
             outputs = app.select_batch_item(item["display_name"], [item], False)
 
         self.assertIs(outputs[0], image)
-        self.assertIs(outputs[5], image)
+        self.assertIs(outputs[2], image)
 
     def test_workbench_reserves_a_hidden_comparison_section(self) -> None:
         source = inspect.getsource(build_workbench_page)
@@ -2297,6 +2307,38 @@ class UiContentTests(unittest.TestCase):
 
         picker.assert_not_called()
         self.assertIn("远程访问", feedback)
+
+    def test_report_location_opens_only_a_local_managed_report_folder(self) -> None:
+        request = SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"))
+        with TemporaryDirectory() as temp_dir:
+            report = Path(temp_dir) / "reports" / "single" / "report.docx"
+            report.parent.mkdir(parents=True)
+            report.write_bytes(b"report")
+            with patch.object(app.os, "startfile", create=True) as opener:
+                app.open_report_location(str(report), temp_dir, request=request)
+            opener.assert_called_once_with(str(report.parent.resolve()))
+
+            outside = Path(temp_dir) / "outside.docx"
+            outside.write_bytes(b"outside")
+            with self.assertRaises(app.gr.Error):
+                app.open_report_location(str(outside), temp_dir, request=request)
+
+        remote = SimpleNamespace(client=SimpleNamespace(host="192.168.1.25"))
+        with self.assertRaises(app.gr.Error):
+            app.open_report_location("unused.docx", "unused", request=remote)
+
+    def test_report_export_feedback_is_hidden_until_a_path_exists(self) -> None:
+        hidden_status, hidden_open = app.report_export_feedback("", "unused")
+        self.assertEqual(hidden_status, "")
+        self.assertFalse(hidden_open["visible"])
+
+        with TemporaryDirectory() as temp_dir:
+            report = Path(temp_dir) / "reports" / "word" / "result.docx"
+            visible_status, visible_open = app.report_export_feedback(str(report), temp_dir)
+
+        self.assertTrue(visible_open["visible"])
+        self.assertIn("已经导出", visible_status)
+        self.assertIn("reports/word/result.docx", visible_status)
 
     def test_native_path_pickers_do_not_show_a_blocking_page_overlay(self) -> None:
         source = app.ui_event_binding_source()

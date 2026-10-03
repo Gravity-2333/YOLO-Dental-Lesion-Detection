@@ -103,7 +103,6 @@
   .path-row,
   .model-row,
   .chat-input-row,
-  .export-toolbar .path-row,
   .chat-card .path-row {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;
@@ -128,8 +127,7 @@
   .result-panel > .block,
   .result-panel > .form,
   .result-panel .image-grid,
-  .result-panel .insight-grid,
-  .result-panel .export-toolbar {
+  .result-panel .insight-grid {
     flex: 1 1 auto !important;
     width: 100% !important;
     min-width: 0 !important;
@@ -154,7 +152,7 @@
   }
 
   .model-card-grid,
-  .result-legend {
+  .result-legend:not(.compact-result-legend) {
     grid-template-columns: 1fr !important;
   }
 
@@ -178,8 +176,6 @@
   .model-row .block,
   .chat-input-row .form,
   .chat-input-row .block,
-  .export-toolbar .path-row .form,
-  .export-toolbar .path-row .block,
   .chat-card .path-row .form,
   .chat-card .path-row .block {
     width: 100% !important;
@@ -191,7 +187,6 @@
   .row.chat-input-row > button,
   .row.compact-row > button,
   .row.settings-actions > button,
-  .export-toolbar .path-row button,
   .chat-card .path-row button,
   .path-row > button.secondary-action,
   .model-row > button.secondary-action,
@@ -251,14 +246,6 @@
     grid-template-columns: minmax(0, 1fr) 44px 132px !important;
   }
 
-  .export-toolbar .path-row {
-    grid-template-columns: minmax(0, 1fr) 152px !important;
-  }
-
-  .export-toolbar .row.path-row {
-    grid-template-columns: minmax(0, 1fr) 152px !important;
-  }
-
   .chat-card .path-row {
     grid-template-columns: minmax(0, 1fr) 120px !important;
   }
@@ -305,21 +292,6 @@
     width: 132px !important;
     min-width: 132px !important;
     max-width: 132px !important;
-  }
-
-  .export-toolbar .path-row > .secondary-action,
-  .export-toolbar .path-row .secondary-action button {
-    width: 152px !important;
-    min-width: 152px !important;
-    max-width: 152px !important;
-  }
-
-  .export-toolbar .row.path-row > button.secondary-action {
-    flex: 0 0 152px !important;
-    width: 152px !important;
-    min-width: 152px !important;
-    max-width: 152px !important;
-    margin-bottom: 10px !important;
   }
 
   .chat-card .path-row > .secondary-action,
@@ -425,6 +397,24 @@
 }
 
 @media (max-width: 640px) {
+  .report-export-dock {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .report-export-popover {
+    position: absolute !important;
+    top: 52px !important;
+    bottom: auto !important;
+    left: 0 !important;
+    width: min(292px, calc(100vw - 48px)) !important;
+    min-width: 0 !important;
+    transform-origin: left top;
+  }
+
+  .report-export-status {
+    grid-row: 2;
+  }
+
   .settings-nav-control .wrap {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
@@ -608,12 +598,6 @@
     max-width: none !important;
   }
 
-  .export-toolbar .row.path-row > button.secondary-action {
-    width: 100% !important;
-    min-width: 100% !important;
-    max-width: none !important;
-  }
-
   .guide-card {
     margin-bottom: 6px;
   }
@@ -638,6 +622,21 @@
   .primary-result-card {
     height: 320px !important;
     max-height: 320px !important;
+  }
+
+  .result-legend-overlay-host {
+    right: 8px !important;
+    bottom: 8px !important;
+    width: 148px !important;
+  }
+
+  .compact-result-legend {
+    padding: 7px 8px;
+  }
+
+  .result-magnifier {
+    width: 180px;
+    height: 116px;
   }
 
   .short-select {
