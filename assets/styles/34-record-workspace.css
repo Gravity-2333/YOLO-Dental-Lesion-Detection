@@ -454,6 +454,111 @@
   margin-top: 3px !important;
 }
 
+.history-navigator {
+  padding-right: 6px !important;
+  scrollbar-color: #aebdb8 transparent;
+  scrollbar-width: thin;
+}
+
+.history-navigator::-webkit-scrollbar {
+  width: 4px;
+}
+
+.history-navigator::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.history-navigator::-webkit-scrollbar-thumb {
+  border-radius: 2px;
+  background: #aebdb8;
+}
+
+.history-navigator .wrap,
+.history-navigator .wrap-inner {
+  gap: 0 !important;
+}
+
+.history-navigator label {
+  position: relative;
+  display: block !important;
+  min-height: 66px;
+  padding: 13px 12px 13px 38px !important;
+  border: 0 !important;
+  border-bottom: 1px solid #e2e8e5 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.history-navigator label::before {
+  position: absolute;
+  top: 20px;
+  left: 14px;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  border: 2px solid #91aaa4;
+  border-radius: 50%;
+  background: #ffffff;
+  content: "";
+}
+
+.history-navigator label::after {
+  position: absolute;
+  top: 31px;
+  bottom: -15px;
+  left: 18px;
+  width: 1px;
+  background: #d8e1de;
+  content: "";
+}
+
+.history-navigator label:last-child::after {
+  display: none;
+}
+
+.history-navigator label:hover,
+.history-navigator label:focus-within {
+  background: #f4f8f6 !important;
+}
+
+.history-navigator label:has(input:checked) {
+  border-color: #d9e5e1 !important;
+  background: #edf6f3 !important;
+  box-shadow: inset 3px 0 0 #176d64 !important;
+}
+
+.history-navigator label:has(input:checked)::before {
+  border-color: #176d64;
+  background: #176d64;
+  box-shadow: inset 0 0 0 2px #edf6f3;
+}
+
+.history-navigator input[type="radio"] {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+.history-navigator label span {
+  display: block;
+  color: #75827e !important;
+  font-size: 0.7rem !important;
+  font-weight: 500 !important;
+  line-height: 1.65 !important;
+  white-space: pre-line !important;
+}
+
+.history-navigator label span::first-line {
+  color: #263431;
+  font-size: 0.84rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
 .record-table-hint {
   margin: 0 0 10px;
   color: #71807c;
@@ -788,9 +893,25 @@
 
 .record-danger-zone {
   margin-top: 24px !important;
-  padding: 14px !important;
-  border: 1px solid #ecd8d6 !important;
-  background: #fdf9f8 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.record-danger-zone > .record-danger-zone {
+  margin: 0 !important;
+  padding: 16px 0 0 !important;
+  border-top: 1px solid #ead8d5 !important;
+}
+
+.record-danger-zone .styler,
+.record-danger-zone .block {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .record-danger-zone strong,
@@ -804,7 +925,7 @@
 }
 
 .record-danger-zone span {
-  margin: 3px 0 10px;
+  margin: 3px 0 12px;
   color: #8b706d;
   font-size: 0.72rem;
   line-height: 1.5;
@@ -812,6 +933,15 @@
 
 .record-inline-actions {
   gap: 8px !important;
+}
+
+.record-danger-zone .record-inline-actions > button,
+.record-danger-zone .record-inline-actions > .record-toolbar-button {
+  flex: 1 1 0 !important;
+  width: 0 !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
 }
 
 .embedded-report-center {

@@ -131,7 +131,10 @@ def history_choices_from_rows(rows: list[dict[str, Any]]) -> list[tuple[str, str
         image_name = _short_choice_text(row.get("图片名称") or "未命名图片")
         record_id = str(row.get("记录ID") or "").strip()
         if record_id:
-            label = created_at if image_name == "当前单图" else f"{created_at} · {image_name}"
+            title = "当前检测" if image_name == "当前单图" else image_name
+            detection_count = _integer(row.get("检测数量"))
+            level = _short_choice_text(row.get("关注等级") or "待复核", 18)
+            label = f"{title}\n{created_at} · {detection_count} 个检测框 · {level}"
             choice_parts.append((label, record_id))
 
     totals = Counter(label for label, _ in choice_parts)

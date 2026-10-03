@@ -1616,6 +1616,12 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('elem_classes=["record-table-accordion", "compact-accordion"]', report_source)
         self.assertNotIn("gr.Dataframe", report_source)
 
+        css = load_workbench_css()
+        self.assertIn('.history-navigator input[type="radio"]', css)
+        self.assertIn("opacity: 0 !important", css)
+        self.assertIn(".record-danger-zone > .record-danger-zone", css)
+        self.assertIn("flex: 1 1 0 !important", css)
+
     def test_record_read_events_keep_only_the_latest_pending_request(self) -> None:
         source = app.ui_event_binding_source()
         event_ranges = (

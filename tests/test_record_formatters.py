@@ -71,8 +71,14 @@ class RecordFormatterPrivacyTests(unittest.TestCase):
         self.assertEqual(
             choices,
             [
-                ("2026-08-02 12:08:58", "history-internal-id"),
-                ("2026-08-02 12:09:30 · 复查牙片.png", "history-image-id"),
+                (
+                    "当前检测\n2026-08-02 12:08:58 · 0 个检测框 · 待复核",
+                    "history-internal-id",
+                ),
+                (
+                    "复查牙片.png\n2026-08-02 12:09:30 · 0 个检测框 · 待复核",
+                    "history-image-id",
+                ),
             ],
         )
         self.assertEqual(history_id(choices[0][1]), "history-internal-id")
@@ -93,9 +99,9 @@ class RecordFormatterPrivacyTests(unittest.TestCase):
         self.assertEqual(
             [label for label, _ in choices],
             [
-                "2026-08-27 01:38:55 1/3",
-                "2026-08-27 01:38:55 2/3",
-                "2026-08-27 01:38:55 3/3",
+                "当前检测\n2026-08-27 01:38:55 · 0 个检测框 · 待复核 1/3",
+                "当前检测\n2026-08-27 01:38:55 · 0 个检测框 · 待复核 2/3",
+                "当前检测\n2026-08-27 01:38:55 · 0 个检测框 · 待复核 3/3",
             ],
         )
         self.assertEqual(
