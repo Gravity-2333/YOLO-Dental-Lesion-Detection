@@ -500,6 +500,30 @@ def capture(args: argparse.Namespace) -> None:
                     full=True,
                     reset_scroll=True,
                 )
+                click_tab(mobile, "病例记录")
+                mobile.locator(".case-workspace .record-review-layout").wait_for(
+                    state="visible", timeout=15000
+                )
+                check_horizontal_overflow(mobile, "移动端病例工作区")
+                save(
+                    mobile,
+                    output_dir,
+                    name("09-cases-mobile.png", suffix),
+                    full=True,
+                    reset_scroll=True,
+                )
+                click_tab(mobile, "检测历史")
+                mobile.locator(".history-workspace .record-review-layout").wait_for(
+                    state="visible", timeout=15000
+                )
+                check_horizontal_overflow(mobile, "移动端历史审阅台")
+                save(
+                    mobile,
+                    output_dir,
+                    name("10-history-mobile.png", suffix),
+                    full=True,
+                    reset_scroll=True,
+                )
             finally:
                 mobile.close()
         finally:

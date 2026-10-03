@@ -169,9 +169,17 @@ RECORD_BOUNDARY_HTML = """
 
 
 CASE_INTRO_HTML = """
-<div class="card-heading"><div><h2>病例记录</h2><p>保存检测摘要、检测框和建议，便于后续复查。</p></div></div>
-""" + RECORD_BOUNDARY_HTML
+<header class="record-workspace-header">
+  <div><span>CLINICAL ARCHIVE</span><h2>患者病例工作区</h2>
+  <p>整理检测摘要、医生备注和复查资料，快速定位需要持续关注的病例。</p></div>
+  <div class="record-privacy-note record-boundary-strip"><strong>本机数据目录</strong><span>原始上传图默认不随病例和历史保存，也不会自动上传云端</span></div>
+</header>
+"""
 
 HISTORY_INTRO_HTML = """
-<div class="card-heading"><div><h2>检测历史</h2><p>查看已保存的检测摘要，便于回顾分析结果。</p></div></div>
-""" + RECORD_BOUNDARY_HTML
+<header class="record-workspace-header">
+  <div><span>DETECTION ARCHIVE</span><h2>检查历史审阅台</h2>
+  <p>沿时间顺序回顾模型结果、关注等级和已生成报告。</p></div>
+  <div class="record-privacy-note record-boundary-strip"><strong>本机数据目录</strong><span>原始上传图默认不随病例和历史保存，也不会自动上传云端</span></div>
+</header>
+"""

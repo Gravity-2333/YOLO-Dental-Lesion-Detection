@@ -142,7 +142,10 @@ from src.dental_detection.report_center_ui import (
     reset_report_trash_confirmation,
 )
 from src.dental_detection.reporting import SingleReportData, export_batch_docx_report, export_single_docx_report
-from src.dental_detection.record_formatters import format_case_record, format_history_record
+from src.dental_detection.record_formatters import (
+    case_record_detail_html,
+    history_record_detail_html,
+)
 from src.dental_detection.record_views import (
     case_choices_from_rows as _case_choices_from_rows,
     case_table_html as _case_table_html,
@@ -1007,7 +1010,7 @@ def _case_detail_from_choice(
     patient_id: str | None = None,
 ) -> str:
     if not choice:
-        return format_case_record(None)
+        return case_record_detail_html(None)
     return load_case_record(choice, storage_dir, patient_id)
 
 
@@ -1843,7 +1846,7 @@ def save_case_record(
         message,
         gr.update(choices=choices, value=selected),
         _case_table_html(rows),
-        format_case_record(payload),
+        case_record_detail_html(payload),
         _clear_file_output(),
         "",
     )
@@ -1981,19 +1984,19 @@ def load_case_record(
     patient_id: str | None = None,
 ):
     if not choice:
-        return format_case_record({"提示": "暂无病例详情。选择已保存病例后，会在这里显示检测摘要、检测框和辅助建议。"})
+        return case_record_detail_html(None)
     try:
         _ensure_storage_root(storage_dir)
     except gr.Error as exc:
-        return format_case_record({"错误": str(exc)})
+        return case_record_detail_html({"错误": str(exc)})
     try:
         file_name = _case_file_name_from_choice(choice)
     except gr.Error:
-        return format_case_record({"错误": "病例选择无效，请刷新病例列表后重试。"})
+        return case_record_detail_html({"错误": "病例选择无效，请刷新病例列表后重试。"})
     try:
-        return format_case_record(load_case_record_data(storage_dir, file_name, patient_id))
+        return case_record_detail_html(load_case_record_data(storage_dir, file_name, patient_id))
     except (OSError, UnicodeDecodeError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
-        return format_case_record({"错误": f"病例文件损坏或无法读取：{exc}"})
+        return case_record_detail_html({"错误": f"病例文件损坏或无法读取：{exc}"})
 
 
 def load_case_record_and_clear_export(
@@ -2017,7 +2020,7 @@ def refresh_history_records(storage_dir: str, patient_id: str | None = None):
     return (
         gr.update(choices=choices, value=selected),
         _history_table_html(rows),
-        load_history_record(selected, storage_dir, patient_id) if selected else format_history_record(None),
+        load_history_record(selected, storage_dir, patient_id) if selected else history_record_detail_html(None),
         (
             f"历史记录已刷新，当前最多显示最近 {HISTORY_UI_LIMIT} 条。"
             if len(rows) >= HISTORY_UI_LIMIT
@@ -2107,7 +2110,9 @@ def load_history_record(choice: str, storage_dir: str, patient_id: str | None = 
         _ensure_storage_root(storage_dir)
     except gr.Error as exc:
         return str(exc)
-    return format_history_record(load_history_record_data(_history_id(choice), storage_dir, patient_id))
+    return history_record_detail_html(
+        load_history_record_data(_history_id(choice), storage_dir, patient_id)
+    )
 
 
 def delete_selected_history_record(choice: str, storage_dir: str, patient_id: str | None = None):
@@ -2189,7 +2194,7 @@ def clear_all_history_records(
     return (
         gr.update(choices=[], value=None),
         _history_table_html([]),
-        "请选择一条检测历史。",
+        history_record_detail_html(None),
         "当前患者的检测历史已清空。病例记录不会被删除。",
         gr.update(value="清空历史"),
         {},
@@ -2266,17 +2271,17 @@ def clear_patient_workspace_views(conversation_loaded: bool = False):
     return (
         gr.update(choices=[], value=None),
         _case_table_html([]),
-        format_case_record(None),
+        case_record_detail_html(None),
         "已切换患者，病例记录等待加载。",
         _clear_file_output(),
         "",
         gr.update(choices=[], value=None),
         _history_table_html([]),
-        format_history_record(None),
+        history_record_detail_html(None),
         "已切换患者，检测历史等待加载。",
         gr.update(choices=[], value=None),
         '<div class="record-table-empty">当前患者报告等待加载。</div>',
-        "暂无报告记录。",
+        '<div class="report-detail-empty"><strong>暂无可下载报告</strong><span>当前患者报告等待加载。</span></div>',
         _clear_file_output(),
         "",
         gr.update(value="移入回收站", interactive=False),
@@ -3055,7 +3060,7 @@ def save_ui_settings(
         "",
         gr.update(choices=history_choices, value=None),
         _history_table_html([]),
-        format_history_record(None),
+        history_record_detail_html(None),
         history_message,
         _clear_file_output(),
         "",

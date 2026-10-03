@@ -6,9 +6,8 @@ from typing import Any
 
 import pandas as pd
 
-from .history_store import HISTORY_TABLE_COLUMNS
-
-CASE_TABLE_COLUMNS = ["保存时间", "病例编号", "图片名称", "检测数量", "涉及类别", "关注等级", "最高置信度", "文件名"]
+CASE_TABLE_COLUMNS = ["保存时间", "病例编号", "图片名称", "检测数量", "涉及类别", "关注等级", "最高置信度"]
+HISTORY_VIEW_COLUMNS = ["检测时间", "图片名称", "检测数量", "涉及类别", "最高置信度", "关注等级", "模型"]
 
 
 def _short_choice_text(value: Any, max_length: int = 48) -> str:
@@ -52,7 +51,37 @@ def case_choices_from_rows(rows: list[dict[str, Any]]) -> list[tuple[str, str]]:
 
 
 def history_table_from_rows(rows: list[dict[str, Any]]) -> pd.DataFrame:
-    return pd.DataFrame(rows, columns=HISTORY_TABLE_COLUMNS)
+    visible_rows = [{key: row.get(key, "") for key in HISTORY_VIEW_COLUMNS} for row in rows]
+    return pd.DataFrame(visible_rows, columns=HISTORY_VIEW_COLUMNS)
+
+
+def _integer(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _record_overview_html(rows: list[dict[str, Any]], *, kind: str) -> str:
+    total = len(rows)
+    detection_total = sum(_integer(row.get("检测数量")) for row in rows)
+    focus_total = sum("重点" in str(row.get("关注等级") or "") for row in rows)
+    date_key = "保存时间" if kind == "case" else "检测时间"
+    latest = str(rows[0].get(date_key) or "-").replace("T", " ", 1)[:16] if rows else "-"
+    first_label = "病例总数" if kind == "case" else "检查次数"
+    items = (
+        (first_label, total, "当前筛选范围"),
+        ("检测框", detection_total, "累计模型标记"),
+        ("重点关注", focus_total, "建议优先复核"),
+        ("最近记录", latest, "按时间倒序"),
+    )
+    cells = "".join(
+        '<div class="record-stat">'
+        f'<span>{escape(label)}</span><strong>{escape(str(value))}</strong>'
+        f'<small>{escape(description)}</small></div>'
+        for label, value, description in items
+    )
+    return f'<div class="record-stats" data-record-kind="{kind}">{cells}</div>'
 
 
 def dataframe_table_html(frame: pd.DataFrame, empty_message: str) -> str:
@@ -73,11 +102,23 @@ def dataframe_table_html(frame: pd.DataFrame, empty_message: str) -> str:
 
 
 def case_table_html(rows: list[dict[str, Any]]) -> str:
-    return dataframe_table_html(case_table(rows), "当前患者暂无病例记录。")
+    table = dataframe_table_html(case_table(rows), "当前患者暂无病例记录。")
+    return (
+        _record_overview_html(rows, kind="case")
+        + '<details class="record-data-view"><summary>查看病例数据表</summary>'
+        + table
+        + "</details>"
+    )
 
 
 def history_table_html(rows: list[dict[str, Any]]) -> str:
-    return dataframe_table_html(history_table_from_rows(rows), "当前患者暂无检测历史。")
+    table = dataframe_table_html(history_table_from_rows(rows), "当前患者暂无检测历史。")
+    return (
+        _record_overview_html(rows, kind="history")
+        + '<details class="record-data-view"><summary>查看历史数据表</summary>'
+        + table
+        + "</details>"
+    )
 
 
 def history_choices_from_rows(rows: list[dict[str, Any]]) -> list[tuple[str, str]]:

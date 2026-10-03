@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
@@ -225,3 +226,194 @@ def format_history_record(record: dict[str, Any] | None) -> str:
     if advice:
         lines.extend(["", "辅助建议：", advice])
     return "\n".join(lines)
+
+
+def _html_text(value: Any, fallback: str = "-") -> str:
+    text = text_value(value).strip() or fallback
+    return escape(text)
+
+
+def _html_paragraphs(value: Any) -> str:
+    text = text_value(value).strip()
+    if not text:
+        return '<p class="record-empty-copy">暂无内容。</p>'
+    paragraphs = [part.strip() for part in text.split("\n") if part.strip()]
+    return "".join(f"<p>{escape(part)}</p>" for part in paragraphs)
+
+
+def _attention_tone(value: Any) -> tuple[str, str]:
+    label = text_value(value, "无检测结果").strip() or "无检测结果"
+    if "重点" in label:
+        return "critical", label
+    if "复查" in label:
+        return "review", label
+    if "低置信" in label:
+        return "low", label
+    return "clear", label
+
+
+def _detail_empty(title: str, message: str) -> str:
+    return (
+        '<div class="record-detail-empty">'
+        '<span class="record-detail-empty-mark" aria-hidden="true">+</span>'
+        f"<h3>{escape(title)}</h3><p>{escape(message)}</p>"
+        "</div>"
+    )
+
+
+def _record_meta_html(items: list[tuple[str, Any]]) -> str:
+    cells = "".join(
+        '<div class="record-meta-item">'
+        f'<span>{escape(label)}</span><strong>{_html_text(value)}</strong>'
+        "</div>"
+        for label, value in items
+    )
+    return f'<div class="record-meta-grid">{cells}</div>'
+
+
+def _model_summary_html(model_results: Any) -> str:
+    items = list(iter_model_result_items(model_results))
+    if not items:
+        return ""
+    rows = []
+    for index, item in enumerate(items, start=1):
+        model = _model_display_name(model_result_name(item, f"模型 {index}"), f"模型 {index}")
+        detections = list(iter_detection_items(model_result_detections(item)))
+        rows.append(
+            '<div class="record-model-row">'
+            f'<span class="record-model-index">{index:02d}</span>'
+            f'<strong>{escape(model)}</strong><span>{len(detections)} 个检测框</span>'
+            "</div>"
+        )
+    return (
+        '<section class="record-detail-section"><div class="record-section-heading">'
+        '<div><span>MODEL REVIEW</span><h4>模型结果</h4></div></div>'
+        f'<div class="record-model-list">{"".join(rows)}</div></section>'
+    )
+
+
+def _detection_table_html(detections: list[dict[str, Any]]) -> str:
+    if not detections:
+        return '<div class="record-detail-note is-clear">当前记录没有检测框。</div>'
+    rows = []
+    for index, det in enumerate(detections, start=1):
+        class_name = det.get("中文名称") or det.get("class") or "未知类别"
+        confidence = det.get("confidence", "-")
+        try:
+            confidence_text = f"{float(confidence):.2f}"
+        except (TypeError, ValueError):
+            confidence_text = text_value(confidence, "-")
+        tone, attention = _attention_tone(det.get("关注等级"))
+        coordinates = ", ".join(
+            text_value(det.get(key), "-") for key in ("x1", "y1", "x2", "y2")
+        )
+        rows.append(
+            "<tr>"
+            f'<td class="record-index-cell">{index:02d}</td>'
+            f"<td><strong>{_html_text(class_name)}</strong>"
+            f'<span class="record-cell-subtext">{_html_text(det.get("模型"), "未记录模型")}</span></td>'
+            f'<td><span class="record-status record-status-{tone}">{escape(attention)}</span></td>'
+            f"<td>{escape(confidence_text)}</td>"
+            f"<td>{_html_text(det.get('图像区域'), '未计算')}</td>"
+            '<td><details class="record-coordinate"><summary>查看</summary>'
+            f"<span>{escape(coordinates)}</span></details></td>"
+            "</tr>"
+        )
+    return (
+        '<div class="record-detection-table-wrap"><table class="record-detection-table">'
+        "<thead><tr><th>#</th><th>类别 / 模型</th><th>关注等级</th>"
+        "<th>置信度</th><th>图像区域</th><th>坐标</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table></div>"
+    )
+
+
+def case_record_detail_html(data: dict[str, Any] | None) -> str:
+    if not data:
+        return _detail_empty("选择一条病例", "病例摘要、检测明细、医生备注与辅助建议将在这里集中显示。")
+    if "错误" in data:
+        return _detail_empty("病例无法读取", text_value(data.get("错误")))
+    if "提示" in data:
+        return _detail_empty("暂无病例详情", text_value(data.get("提示")))
+
+    detections = _record_detections(data)
+    summary = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+    level = summary.get("关注等级") or next(
+        (row.get("关注等级") for row in detections if row.get("关注等级")),
+        "无检测结果",
+    )
+    tone, level_label = _attention_tone(level)
+    title = text_value(data.get("case_id"), "未命名病例")
+    image_name = data.get("display_name") or data.get("image_name") or "未命名影像"
+    note = text_value(data.get("note")).strip()
+    suggestion = data.get("suggestion")
+    return (
+        '<article class="record-detail-sheet">'
+        '<header class="record-detail-header"><div>'
+        '<span class="record-detail-kicker">CASE REVIEW</span>'
+        f"<h3>{escape(title)}</h3><p>{_html_text(image_name)}</p></div>"
+        f'<span class="record-status record-status-{tone}">{escape(level_label)}</span></header>'
+        + _record_meta_html(
+            [
+                ("保存时间", data.get("created_at")),
+                ("检测框", len(detections)),
+                ("建议来源", _suggestion_source_label(data.get("suggestion_type"))),
+                ("报告", _path_artifact_name(data.get("report_path") or data.get("word_report_path")) or "未生成"),
+            ]
+        )
+        + (
+            '<section class="record-detail-section"><div class="record-section-heading">'
+            '<div><span>CLINICAL NOTE</span><h4>医生备注</h4></div></div>'
+            f'<div class="record-detail-note">{_html_paragraphs(note)}</div></section>'
+            if note
+            else ""
+        )
+        + _model_summary_html(data.get("model_results"))
+        + '<section class="record-detail-section"><div class="record-section-heading"><div>'
+        f'<span>DETECTIONS · {len(detections):02d}</span><h4>检测明细</h4></div></div>'
+        + _detection_table_html(detections)
+        + "</section>"
+        + '<section class="record-detail-section"><div class="record-section-heading"><div>'
+        '<span>ASSISTIVE SUMMARY</span><h4>辅助建议</h4></div></div>'
+        f'<div class="record-advice">{_html_paragraphs(suggestion)}</div></section>'
+        '<footer class="record-safety-note">模型结果仅供辅助参考，需由专业牙科医生结合原始影像复核。</footer>'
+        "</article>"
+    )
+
+
+def history_record_detail_html(record: dict[str, Any] | None) -> str:
+    if not record:
+        return _detail_empty("选择一次检查", "从左侧时间序列中选择记录后，可在这里审阅模型结果和检测框。")
+    detections = _record_detections(record)
+    tone, level_label = _attention_tone(record.get("level"))
+    classes = record.get("classes")
+    if isinstance(classes, (list, tuple, set)):
+        class_text = "、".join(text_value(item) for item in classes if text_value(item).strip()) or "无"
+    else:
+        class_text = text_value(classes, "无")
+    title = record.get("display_name") or record.get("image_name") or "未命名影像"
+    advice = record.get("advice")
+    return (
+        '<article class="record-detail-sheet">'
+        '<header class="record-detail-header"><div>'
+        '<span class="record-detail-kicker">DETECTION REVIEW</span>'
+        f"<h3>{_html_text(title)}</h3><p>{_html_text(record.get('created_at'))}</p></div>"
+        f'<span class="record-status record-status-{tone}">{escape(level_label)}</span></header>'
+        + _record_meta_html(
+            [
+                ("检测数量", record.get("detection_count", len(detections))),
+                ("涉及类别", class_text),
+                ("最高置信度", record.get("max_confidence", "无")),
+                ("CLAHE", "已启用" if record.get("use_clahe") else "未启用"),
+            ]
+        )
+        + _model_summary_html(record.get("model_results"))
+        + '<section class="record-detail-section"><div class="record-section-heading"><div>'
+        f'<span>DETECTIONS · {len(detections):02d}</span><h4>检测明细</h4></div></div>'
+        + _detection_table_html(detections)
+        + "</section>"
+        + '<section class="record-detail-section"><div class="record-section-heading"><div>'
+        '<span>ASSISTIVE SUMMARY</span><h4>辅助建议</h4></div></div>'
+        f'<div class="record-advice">{_html_paragraphs(advice)}</div></section>'
+        '<footer class="record-safety-note">历史结果用于回顾与复核，不替代专业牙科医生诊断。</footer>'
+        "</article>"
+    )

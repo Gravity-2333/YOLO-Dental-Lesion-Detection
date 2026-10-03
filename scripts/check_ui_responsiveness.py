@@ -627,7 +627,7 @@ def main() -> int:
                     )
                     assert_named_button_heights(
                         page,
-                        [("保存病例", "完成检测后可保存"), ("刷新记录",)],
+                        [("保存病例", "完成检测后可保存"), ("刷新病例",)],
                     )
                 if cycle == 0 and name == "检测历史":
                     timed_wait_for_value(
@@ -673,16 +673,13 @@ def main() -> int:
                 assert_path_rows_aligned(page, "存储路径")
 
         timed_click(page, top_tab(page, "病例记录"), "进入病例记录", args.max_seconds, timings)
-        timed_click(
-            page,
-            accordion(page, "结构化病例列表"),
-            "展开结构化病例列表",
-            args.max_seconds,
-            timings,
-        )
+        page.locator(".case-workspace .record-review-layout").wait_for(state="visible")
+        page.locator(".case-workspace .record-stats").wait_for(state="visible")
+        assert_no_page_overflow(page, "病例工作区")
         timed_click(page, top_tab(page, "检测历史"), "进入检测历史", args.max_seconds, timings)
-        for name in ["结构化历史列表", "结构化报告列表"]:
-            timed_click(page, accordion(page, name), f"展开{name}", args.max_seconds, timings)
+        page.locator(".history-workspace .record-review-layout").wait_for(state="visible")
+        page.locator(".history-workspace .embedded-report-center").first.wait_for(state="visible")
+        assert_no_page_overflow(page, "历史审阅台")
 
         for name in ["首页", "设置", "检测工作台", "检测历史", "病例记录", "AI 问答"]:
             timed_click(page, top_tab(page, name), f"重组件后导航/{name}", args.max_seconds, timings)
@@ -724,6 +721,12 @@ def main() -> int:
         wait_for_ui(mobile)
         assert_no_page_overflow(mobile, "移动端工作台")
         assert_context_help_bubble(mobile, ".workbench-model-status", activate="focus")
+        top_tab(mobile, "病例记录").click(timeout=10000)
+        mobile.locator(".case-workspace .record-review-layout").wait_for(state="visible")
+        assert_no_page_overflow(mobile, "移动端病例工作区")
+        top_tab(mobile, "检测历史").click(timeout=10000)
+        mobile.locator(".history-workspace .record-review-layout").wait_for(state="visible")
+        assert_no_page_overflow(mobile, "移动端历史审阅台")
         mobile.close()
         browser.close()
 

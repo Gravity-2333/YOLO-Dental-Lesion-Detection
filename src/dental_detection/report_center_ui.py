@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
+from html import escape
 from pathlib import Path
 import shutil
 import sqlite3
@@ -30,9 +31,9 @@ REPORT_TRASH_CONFIRM_LABEL = "再次点击确认"
 
 @dataclass(frozen=True, slots=True)
 class ReportCenterComponents:
-    report_select: gr.Dropdown
+    report_select: gr.Radio
     report_table: gr.HTML
-    report_detail: gr.Markdown
+    report_detail: gr.HTML
     report_file: gr.File
     report_feedback: gr.Textbox
     refresh_button: gr.Button
@@ -124,18 +125,24 @@ def _report_table_html(
     return dataframe_table_html(frame, "当前患者暂无报告记录。")
 
 
-def _report_detail(storage_dir: str, report: ReportAsset | None) -> str:
+def _report_detail_html(storage_dir: str, report: ReportAsset | None) -> str:
     if report is None:
-        return "暂无报告记录。"
+        return (
+            '<div class="report-detail-empty"><strong>暂无可下载报告</strong>'
+            '<span>完成检测并导出 Word 或 ZIP 后，文件会出现在这里。</span></div>'
+        )
     status = _file_status(storage_dir, report)
-    return "\n".join(
-        [
-            f"文件名：{report.file_name}",
-            f"格式：{report.report_format.upper()}",
-            f"生成时间：{_local_timestamp(report.created_at)}",
-            f"模型：{report.model_version or '未记录'}",
-            f"文件状态：{status}",
-        ]
+    tone = "ready" if status == "可用" else "missing"
+    format_key = str(report.report_format or "").strip().upper() or "FILE"
+    return (
+        '<article class="report-file-card">'
+        f'<span class="report-format-mark">{escape(format_key)}</span>'
+        '<div class="report-file-copy">'
+        f'<strong>{escape(report.file_name)}</strong>'
+        f'<span>{escape(_local_timestamp(report.created_at))} · '
+        f'{escape(report.model_version or "未记录模型")}</span></div>'
+        f'<span class="report-file-status is-{tone}">{escape(status)}</span>'
+        "</article>"
     )
 
 
@@ -158,23 +165,29 @@ def build_report_center(
     patient_id: str,
     *,
     load_initial: bool = True,
+    embedded: bool = False,
 ) -> ReportCenterComponents:
     reports = _load_reports(storage_dir, patient_id) if load_initial else []
     statuses = _report_statuses(storage_dir, reports)
     choices = _report_choices(storage_dir, reports, statuses)
     selected_id = choices[0][1] if choices else None
     selected = reports[0] if reports else None
-    with gr.Group(elem_classes=["section-card", "case-card"]):
+    group_classes = ["report-center", "embedded-report-center" if embedded else "section-card"]
+    with gr.Group(elem_classes=group_classes):
         gr.HTML(
-            '<div class="card-heading"><div><h2>报告中心</h2>'
-            '<p>集中查看当前患者已生成的 Word 和 ZIP 报告。</p></div></div>'
+            '<div class="record-pane-heading report-center-heading"><div>'
+            '<span>REPORT FILES</span><h3>相关报告</h3></div>'
+            '<p>当前患者已经生成的 Word 和 ZIP 文件。</p></div>'
         )
-        with gr.Row(elem_classes=["compact-row"]):
-            refresh_button = gr.Button("刷新报告", elem_classes=["secondary-action", "compact-button"])
+        with gr.Row(elem_classes=["record-detail-toolbar", "report-toolbar"]):
+            refresh_button = gr.Button(
+                "刷新报告",
+                elem_classes=["secondary-action", "record-toolbar-button"],
+            )
             trash_button = gr.Button(
                 REPORT_TRASH_LABEL,
                 interactive=bool(selected),
-                elem_classes=["danger-action", "compact-button"],
+                elem_classes=["danger-action", "record-toolbar-button"],
             )
         report_feedback = gr.Textbox(
             label="报告反馈",
@@ -182,11 +195,17 @@ def build_report_center(
             lines=1,
             elem_classes=["inline-feedback"],
         )
-        report_select = gr.Dropdown(label="已生成报告", choices=choices, value=selected_id)
+        report_select = gr.Radio(
+            label="已生成报告",
+            show_label=False,
+            choices=choices,
+            value=selected_id,
+            elem_classes=["record-navigator", "report-navigator"],
+        )
         with gr.Accordion(
-            "结构化报告列表",
+            "报告数据表",
             open=False,
-            elem_classes=["compact-accordion"],
+            elem_classes=["record-table-accordion", "compact-accordion"],
         ):
             report_table = gr.HTML(
                 value=_report_table_html(storage_dir, reports, statuses),
@@ -198,17 +217,10 @@ def build_report_center(
             label="下载报告",
             visible=bool(initial_file["visible"]),
         )
-        report_detail = gr.Markdown(
-            value=_report_detail(storage_dir, selected),
-            label="报告详情",
-            show_label=True,
-            sanitize_html=True,
-            line_breaks=True,
-            header_links=False,
-            buttons=["copy"],
-            container=True,
+        report_detail = gr.HTML(
+            value=_report_detail_html(storage_dir, selected),
             elem_id="report-detail",
-            elem_classes=["record-detail"],
+            elem_classes=["report-detail"],
         )
     return ReportCenterComponents(
         report_select=report_select,
@@ -239,7 +251,7 @@ def refresh_report_center(
     return (
         gr.update(choices=choices, value=selected_id),
         _report_table_html(storage_dir, reports, statuses),
-        _report_detail(storage_dir, selected),
+        _report_detail_html(storage_dir, selected),
         _report_file_output(storage_dir, selected) if include_file else clear_file_output(),
         feedback,
         gr.update(value=REPORT_TRASH_LABEL, interactive=bool(selected)),
@@ -249,7 +261,7 @@ def refresh_report_center(
 def load_report_center_item(report_id: str, storage_dir: str, patient_id: str):
     if not str(report_id or "").strip():
         return (
-            "暂无报告记录。",
+            _report_detail_html(storage_dir, None),
             clear_file_output(),
             "",
             gr.update(value=REPORT_TRASH_LABEL, interactive=False),
@@ -261,13 +273,13 @@ def load_report_center_item(report_id: str, storage_dir: str, patient_id: str):
         raise gr.Error(friendly_error_message(exc, "报告记录读取失败")) from exc
     if not path.is_file():
         return (
-            _report_detail(storage_dir, report),
+            _report_detail_html(storage_dir, report),
             clear_file_output(),
             "报告文件已不存在，可以将这条失效记录移入回收站。",
             gr.update(value=REPORT_TRASH_LABEL, interactive=True),
         )
     return (
-        _report_detail(storage_dir, report),
+        _report_detail_html(storage_dir, report),
         file_component_output(path),
         "",
         gr.update(value=REPORT_TRASH_LABEL, interactive=True),

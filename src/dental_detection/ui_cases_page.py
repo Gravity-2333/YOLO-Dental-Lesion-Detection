@@ -5,9 +5,9 @@ from typing import Any
 
 import gradio as gr
 
-from .record_formatters import format_case_record
+from .record_formatters import case_record_detail_html
 from .record_views import case_choices_from_rows, case_table_html
-from .ui_content import CASE_INTRO_HTML, section_heading
+from .ui_content import CASE_INTRO_HTML
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,188 +54,215 @@ class CasesComponents:
 
 
 def build_cases_page(data: CasesPageData) -> CasesComponents:
-    with gr.Group(elem_classes=["section-card", "case-card"]):
-        gr.HTML(CASE_INTRO_HTML)
-        patient_select = gr.Dropdown(
-            label="当前患者档案",
-            choices=data.patient_choices,
-            value=data.selected_patient_id,
-        )
-        with gr.Accordion("添加患者档案", open=False, elem_classes=["compact-accordion"]):
-            with gr.Row(elem_classes=["compact-row"]):
-                new_patient_name = gr.Textbox(
-                    label="档案名称",
-                    placeholder="例如：本人、儿童或家人",
-                    lines=1,
-                    max_lines=1,
-                )
-                new_patient_reference = gr.Textbox(
-                    label="档案编号（可选）",
-                    placeholder="例如：P-002",
-                    lines=1,
-                    max_lines=1,
-                )
-                add_patient_button = gr.Button(
-                    "添加档案",
-                    elem_classes=["secondary-action", "compact-button"],
-                )
-        with gr.Accordion("管理当前档案", open=False, elem_classes=["compact-accordion"]):
-            with gr.Row(elem_classes=["compact-row"]):
-                edit_patient_name = gr.Textbox(
-                    value=data.selected_patient_name,
-                    label="档案名称",
-                    lines=1,
-                    max_lines=1,
-                )
-                edit_patient_reference = gr.Textbox(
-                    value=data.selected_patient_reference,
-                    label="档案编号（可选）",
-                    lines=1,
-                    max_lines=1,
-                )
-            with gr.Row(elem_classes=["compact-row"]):
-                save_patient_button = gr.Button(
-                    "保存档案",
-                    elem_classes=["secondary-action", "compact-button"],
-                )
-                archive_patient_button = gr.Button(
-                    "归档当前档案",
-                    interactive=False,
-                    elem_classes=["secondary-action", "compact-button"],
-                )
-        with gr.Accordion("恢复已归档档案", open=False, elem_classes=["compact-accordion"]):
-            with gr.Row(elem_classes=["compact-row"]):
-                archived_patient_select = gr.Dropdown(
-                    label="已归档档案",
-                    choices=data.archived_patient_choices,
-                    value=(
-                        data.archived_patient_choices[0][1]
-                        if data.archived_patient_choices
-                        else None
-                    ),
-                )
-                restore_patient_button = gr.Button(
-                    "恢复档案",
-                    interactive=bool(data.archived_patient_choices),
-                    elem_classes=["secondary-action", "compact-button"],
-                )
-        patient_feedback = gr.HTML()
-        with gr.Row(elem_classes=["compact-row"]):
-            case_id = gr.Textbox(
-                label="病例编号 / 备注名称",
-                placeholder="例如：20260602-复查",
-                lines=1,
-                max_lines=1,
-            )
-            case_note = gr.Textbox(
-                label="病例备注",
-                placeholder="可填写主诉、复查说明或医生备注",
-                lines=1,
-                max_lines=3,
-            )
-        with gr.Row(elem_classes=["compact-row"]):
-            save_case_button = gr.Button(
-                "完成检测后可保存",
-                variant="primary",
-                interactive=False,
-                elem_classes=["primary-action", "compact-button"],
+    with gr.Group(elem_classes=["record-workspace", "case-workspace"]):
+        gr.HTML(CASE_INTRO_HTML, elem_classes=["record-workspace-header-host"])
+
+        with gr.Row(elem_classes=["record-patient-bar"], equal_height=True):
+            patient_select = gr.Dropdown(
+                label="当前患者档案",
+                choices=data.patient_choices,
+                value=data.selected_patient_id,
+                elem_classes=["record-patient-select"],
+                scale=1,
             )
             refresh_case_button = gr.Button(
-                "刷新记录",
-                elem_classes=["secondary-action", "compact-button"],
+                "刷新病例",
+                elem_classes=["secondary-action", "record-toolbar-button"],
+                scale=0,
             )
-        case_feedback = gr.Textbox(
-            label="病例反馈",
-            interactive=False,
-            lines=1,
-            elem_classes=["inline-feedback"],
-        )
 
-    with gr.Group(elem_classes=["section-card", "case-card"]):
-        gr.HTML(
-            section_heading(
-                "已保存病例",
-                "选择记录后查看结构化详情；暂无记录时可先完成一次检测并点击保存病例。",
-            )
-        )
-        with gr.Row(elem_classes=["compact-row"]):
-            keyword = gr.Textbox(
-                label="搜索病例",
-                placeholder="病例编号、图片名称、备注、类别或建议",
-                lines=1,
-                max_lines=1,
-            )
-            class_filter = gr.Dropdown(
-                label="类别筛选",
-                choices=["全部", "龋齿", "根尖周病变", "阻生牙", "无检测结果"],
-                value="全部",
-            )
-            level_filter = gr.Dropdown(
-                label="关注等级筛选",
-                choices=["全部", "重点关注", "建议复查", "低置信度参考", "无检测结果"],
-                value="全部",
-            )
-        with gr.Row(elem_classes=["compact-row"]):
-            date_from = gr.Textbox(
-                label="开始日期",
-                placeholder="YYYY-MM-DD",
-                lines=1,
-                max_lines=1,
-            )
-            date_to = gr.Textbox(
-                label="结束日期",
-                placeholder="YYYY-MM-DD",
-                lines=1,
-                max_lines=1,
-            )
-        with gr.Row(elem_classes=["compact-row"]):
-            search_button = gr.Button(
-                "搜索/筛选",
-                elem_classes=["secondary-action", "compact-button"],
-            )
-            delete_button = gr.Button(
-                "移入回收站",
-                interactive=False,
-                elem_classes=["danger-action", "compact-button"],
-            )
-            export_button = gr.Button(
-                "导出病例报告",
-                interactive=False,
-                elem_classes=["secondary-action", "compact-button"],
-            )
-        case_select = gr.Dropdown(
-            label="已保存病例",
-            choices=case_choices_from_rows(data.initial_case_rows),
-        )
         with gr.Accordion(
-            "结构化病例列表",
+            "患者档案管理",
             open=False,
-            elem_classes=["compact-accordion"],
+            elem_classes=["record-management", "compact-accordion"],
         ):
-            case_table = gr.HTML(
-                value=case_table_html(data.initial_case_rows),
-                elem_classes=["record-table-shell"],
+            with gr.Row(elem_classes=["record-management-grid"]):
+                with gr.Column(elem_classes=["record-management-section"]):
+                    gr.HTML("<h3>添加档案</h3><p>为本人或家庭成员建立独立记录。</p>")
+                    new_patient_name = gr.Textbox(
+                        label="档案名称",
+                        placeholder="例如：本人、儿童或家人",
+                        lines=1,
+                        max_lines=1,
+                    )
+                    new_patient_reference = gr.Textbox(
+                        label="档案编号（可选）",
+                        placeholder="例如：P-002",
+                        lines=1,
+                        max_lines=1,
+                    )
+                    add_patient_button = gr.Button(
+                        "添加档案",
+                        elem_classes=["secondary-action", "compact-button"],
+                    )
+                with gr.Column(elem_classes=["record-management-section"]):
+                    gr.HTML("<h3>当前档案</h3><p>修改名称或将当前档案归档。</p>")
+                    edit_patient_name = gr.Textbox(
+                        value=data.selected_patient_name,
+                        label="档案名称",
+                        lines=1,
+                        max_lines=1,
+                    )
+                    edit_patient_reference = gr.Textbox(
+                        value=data.selected_patient_reference,
+                        label="档案编号（可选）",
+                        lines=1,
+                        max_lines=1,
+                    )
+                    with gr.Row(elem_classes=["record-inline-actions"]):
+                        save_patient_button = gr.Button(
+                            "保存档案",
+                            elem_classes=["secondary-action", "compact-button"],
+                        )
+                        archive_patient_button = gr.Button(
+                            "归档",
+                            interactive=False,
+                            elem_classes=["danger-action", "compact-button"],
+                        )
+                with gr.Column(elem_classes=["record-management-section"]):
+                    gr.HTML("<h3>归档恢复</h3><p>恢复后重新显示在患者选择器中。</p>")
+                    archived_patient_select = gr.Dropdown(
+                        label="已归档档案",
+                        choices=data.archived_patient_choices,
+                        value=(
+                            data.archived_patient_choices[0][1]
+                            if data.archived_patient_choices
+                            else None
+                        ),
+                    )
+                    restore_patient_button = gr.Button(
+                        "恢复档案",
+                        interactive=bool(data.archived_patient_choices),
+                        elem_classes=["secondary-action", "compact-button"],
+                    )
+            patient_feedback = gr.HTML(elem_classes=["record-management-feedback"])
+
+        with gr.Group(elem_classes=["record-capture-strip"]):
+            gr.HTML(
+                '<div class="record-strip-heading"><span>NEW CASE</span>'
+                '<div><h3>保存当前检测</h3><p>检测完成后补充病例编号和医生备注。</p></div></div>'
             )
-        report_file = gr.File(label="病例报告 Word", visible=False)
-        report_path = gr.Textbox(
-            label="病例报告路径",
-            interactive=False,
-            lines=1,
-            max_lines=1,
-            elem_classes=["path-output"],
-        )
-        case_detail = gr.Markdown(
-            value=format_case_record(None),
-            label="病例详情",
-            show_label=True,
-            sanitize_html=True,
-            line_breaks=True,
-            header_links=False,
-            buttons=["copy"],
-            container=True,
-            elem_id="case-detail",
-            elem_classes=["record-detail"],
-        )
+            with gr.Row(elem_classes=["record-capture-fields"], equal_height=True):
+                case_id = gr.Textbox(
+                    label="病例编号 / 备注名称",
+                    placeholder="例如：20261002-复查",
+                    lines=1,
+                    max_lines=1,
+                    scale=3,
+                )
+                case_note = gr.Textbox(
+                    label="病例备注",
+                    placeholder="主诉、复查说明或医生备注",
+                    lines=1,
+                    max_lines=3,
+                    scale=5,
+                )
+                save_case_button = gr.Button(
+                    "完成检测后可保存",
+                    variant="primary",
+                    interactive=False,
+                    elem_classes=["primary-action", "record-save-button"],
+                    scale=0,
+                )
+            case_feedback = gr.Textbox(
+                label="病例反馈",
+                interactive=False,
+                lines=1,
+                show_label=False,
+                elem_classes=["inline-feedback", "record-feedback"],
+            )
+
+        with gr.Row(elem_classes=["record-review-layout"], equal_height=False):
+            with gr.Column(scale=4, min_width=320, elem_classes=["record-library-pane"]):
+                gr.HTML(
+                    '<div class="record-pane-heading"><div><span>CASE LIBRARY</span>'
+                    '<h3>病例档案</h3></div><p>搜索、筛选并选择需要复核的病例。</p></div>'
+                )
+                keyword = gr.Textbox(
+                    label="搜索病例",
+                    show_label=False,
+                    placeholder="搜索编号、影像、备注或类别",
+                    lines=1,
+                    max_lines=1,
+                    elem_classes=["record-search"],
+                )
+                with gr.Row(elem_classes=["record-filter-row"]):
+                    class_filter = gr.Dropdown(
+                        label="类别",
+                        choices=["全部", "龋齿", "根尖周病变", "阻生牙", "无检测结果"],
+                        value="全部",
+                    )
+                    level_filter = gr.Dropdown(
+                        label="关注等级",
+                        choices=["全部", "重点关注", "建议复查", "低置信度参考", "无检测结果"],
+                        value="全部",
+                    )
+                with gr.Accordion(
+                    "日期范围",
+                    open=False,
+                    elem_classes=["record-filter-accordion", "compact-accordion"],
+                ):
+                    with gr.Row(elem_classes=["record-filter-row"]):
+                        date_from = gr.Textbox(
+                            label="开始日期",
+                            placeholder="YYYY-MM-DD",
+                            lines=1,
+                            max_lines=1,
+                        )
+                        date_to = gr.Textbox(
+                            label="结束日期",
+                            placeholder="YYYY-MM-DD",
+                            lines=1,
+                            max_lines=1,
+                        )
+                search_button = gr.Button(
+                    "应用筛选",
+                    elem_classes=["secondary-action", "record-filter-button"],
+                )
+                case_table = gr.HTML(
+                    value=case_table_html(data.initial_case_rows),
+                    elem_classes=["record-overview"],
+                )
+                case_select = gr.Radio(
+                    label="病例列表",
+                    show_label=False,
+                    choices=case_choices_from_rows(data.initial_case_rows),
+                    elem_classes=["record-navigator", "case-navigator"],
+                )
+
+            with gr.Column(scale=7, min_width=480, elem_classes=["record-detail-pane"]):
+                with gr.Row(elem_classes=["record-detail-toolbar"], equal_height=True):
+                    gr.HTML(
+                        '<div><span>CASE REVIEW</span><h3>病例详情</h3></div>',
+                        elem_classes=["record-detail-title"],
+                    )
+                    export_button = gr.Button(
+                        "导出病例报告",
+                        interactive=False,
+                        elem_classes=["secondary-action", "record-toolbar-button"],
+                    )
+                    delete_button = gr.Button(
+                        "移入回收站",
+                        interactive=False,
+                        elem_classes=["danger-action", "record-toolbar-button"],
+                    )
+                case_detail = gr.HTML(
+                    value=case_record_detail_html(None),
+                    elem_id="case-detail",
+                    elem_classes=["record-detail"],
+                )
+                report_file = gr.File(
+                    label="病例报告 Word",
+                    visible=False,
+                    elem_classes=["record-download"],
+                )
+                report_path = gr.Textbox(
+                    label="病例报告路径",
+                    interactive=False,
+                    lines=1,
+                    max_lines=1,
+                    elem_classes=["path-output", "record-path-output"],
+                )
 
     return CasesComponents(
         patient_select=patient_select,
