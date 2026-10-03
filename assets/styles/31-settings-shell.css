@@ -75,6 +75,72 @@
   transition: color 160ms ease, background-color 160ms ease !important;
 }
 
+.settings-nav-ai-parent {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  min-height: 46px !important;
+  padding: 0 17px 0 16px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: #596663 !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: color 160ms ease, background-color 160ms ease !important;
+}
+
+.settings-nav-ai-parent:hover,
+.settings-nav-ai-parent:focus-visible {
+  background: #f3f5f4 !important;
+  color: #172522 !important;
+  outline: none !important;
+}
+
+.settings-nav-ai-parent.is-active {
+  color: var(--brand-ink) !important;
+  font-weight: 700 !important;
+}
+
+.settings-nav-ai-chevron {
+  flex: 0 0 auto;
+  width: 0;
+  height: 0;
+  border-top: 5px solid currentColor;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  transform: rotate(0deg);
+  transition: transform 160ms ease;
+}
+
+.settings-ai-expanded .settings-nav-ai-chevron {
+  transform: rotate(180deg);
+}
+
+.settings-nav-control label.settings-nav-ai-child {
+  position: relative !important;
+  min-height: 40px !important;
+  padding-left: 38px !important;
+  font-size: 0.92rem !important;
+}
+
+.settings-nav-control label.settings-nav-ai-child::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 21px;
+  width: 1px;
+  background: #d8e2df;
+  content: "";
+}
+
+.settings-nav-control:not(.settings-ai-expanded) label.settings-nav-ai-child {
+  display: none !important;
+}
+
 .settings-nav-control label:hover,
 .settings-nav-control label:focus-within {
   color: #172522 !important;

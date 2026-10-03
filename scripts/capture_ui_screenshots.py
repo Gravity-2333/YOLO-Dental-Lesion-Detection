@@ -100,9 +100,17 @@ def click_accordion(page, label: str) -> None:
 
 
 def click_settings_section(page, label: str) -> None:
+    if label in {"接口", "自动化"}:
+        parent = page.locator(".settings-nav-ai-parent")
+        if parent.count() != 1:
+            raise RuntimeError("无法定位 AI 设置父栏目。")
+        if parent.get_attribute("aria-expanded") != "true":
+            parent.click(timeout=10000)
     section = page.get_by_role("radio", name=label, exact=True)
     if section.count() == 0:
         raise RuntimeError(f"无法定位设置栏目：{label}")
+    if label in {"接口", "自动化"}:
+        section.first.wait_for(state="visible", timeout=5000)
     section.first.click(timeout=15000)
     page.wait_for_timeout(800)
 
@@ -111,7 +119,7 @@ def check_settings_round_trip_visibility(page, output_dir: Path, suffix: str) ->
     expected_titles = {
         "工作台": "工作台",
         "模型": "模型与推理",
-        "AI": "AI 接口",
+        "接口": "AI 接口",
         "自动化": "对话自动化",
         "存储": "存储与隐私",
     }
@@ -143,9 +151,52 @@ def check_settings_round_trip_visibility(page, output_dir: Path, suffix: str) ->
             )
 
 
+def check_settings_ai_subnavigation(page, output_dir: Path, suffix: str) -> None:
+    click_tab(page, "设置")
+    click_settings_section(page, "工作台")
+    parent = page.locator(".settings-nav-ai-parent")
+    interface = page.get_by_role("radio", name="接口", exact=True)
+    automation = page.get_by_role("radio", name="自动化", exact=True)
+    if parent.count() != 1 or parent.get_attribute("aria-expanded") != "false":
+        raise RuntimeError("AI 设置父栏目初始收起状态异常。")
+    if interface.is_visible() or automation.is_visible():
+        raise RuntimeError("AI 设置子栏目在收起时仍然可见。")
+
+    parent.click(timeout=10000)
+    interface.wait_for(state="visible", timeout=5000)
+    automation.wait_for(state="visible", timeout=5000)
+    if parent.get_attribute("aria-expanded") != "true":
+        raise RuntimeError("AI 设置父栏目展开状态未同步。")
+    page.screenshot(
+        path=str(output_dir / name("02-settings-ai-subnav-open.png", suffix)),
+        full_page=False,
+    )
+
+    interface.click(timeout=10000)
+    page.locator(".settings-page-heading h2", has_text="AI 接口").wait_for(state="visible")
+    if not parent.evaluate("button => button.classList.contains('is-active')"):
+        raise RuntimeError("选择接口子栏目后 AI 父栏目未显示激活状态。")
+    page.screenshot(
+        path=str(output_dir / name("02-settings-ai-interface.png", suffix)),
+        full_page=False,
+    )
+
+    parent.click(timeout=10000)
+    if interface.is_visible() or automation.is_visible():
+        raise RuntimeError("AI 设置父栏目无法收起子栏目。")
+    parent.click(timeout=10000)
+    automation.wait_for(state="visible", timeout=5000)
+    automation.click(timeout=10000)
+    page.locator(".settings-page-heading h2", has_text="对话自动化").wait_for(state="visible")
+
+    click_settings_section(page, "模型")
+    if parent.get_attribute("aria-expanded") != "false":
+        raise RuntimeError("离开 AI 设置后子栏目未自动收起。")
+
+
 def configure_isolated_detection_session(page, storage_dir: Path) -> bool:
     click_tab(page, "设置")
-    click_settings_section(page, "AI")
+    click_settings_section(page, "接口")
     ai_enabled = page.get_by_label("启用 AI 建议与问答")
     if ai_enabled.count() != 1:
         raise RuntimeError("截图会话无法唯一定位 AI 开关，已停止以避免外部请求。")
@@ -168,7 +219,7 @@ def configure_isolated_detection_session(page, storage_dir: Path) -> bool:
 def open_ai_page_for_capture(page, restore_enabled: bool) -> None:
     if restore_enabled:
         click_tab(page, "设置")
-        click_settings_section(page, "AI")
+        click_settings_section(page, "接口")
         ai_enabled = page.get_by_label("启用 AI 建议与问答")
         if not ai_enabled.is_checked():
             ai_enabled.check(timeout=10000)
@@ -653,6 +704,7 @@ def capture(args: argparse.Namespace) -> None:
                 print(f"02 screenshot failed: {exc}")
                 save(page, output_dir, name("02-workbench-model-selection.png", suffix))
 
+            check_settings_ai_subnavigation(page, output_dir, suffix)
             check_settings_round_trip_visibility(page, output_dir, suffix)
 
             ai_was_enabled = configure_isolated_detection_session(page, Path(temp_storage))

@@ -683,7 +683,15 @@ def main() -> int:
 
         timed_click(page, top_tab(page, "设置"), "进入设置", args.max_seconds, timings)
         assert_context_help_bubble(page, ".settings-pane-host")
-        for name in ["工作台", "模型", "AI", "自动化", "存储"]:
+        for name in ["工作台", "模型", "接口", "自动化", "存储"]:
+            if name == "接口":
+                timed_click(
+                    page,
+                    page.locator(".settings-nav-ai-parent"),
+                    "展开设置/AI",
+                    args.max_seconds,
+                    timings,
+                )
             timed_click(
                 page,
                 visible_radio(page, name),

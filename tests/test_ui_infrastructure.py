@@ -582,6 +582,22 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("scheduleSettingsPaneSync", javascript)
         self.assertIn("settings-pane-client-hidden", css)
 
+    def test_ai_settings_navigation_uses_expandable_interface_and_automation_children(self) -> None:
+        source = inspect.getsource(build_settings_page)
+        switch_source = inspect.getsource(app.switch_settings_section)
+        javascript = load_workbench_js()
+        css = load_workbench_css()
+
+        self.assertIn('choices=["工作台", "模型", "接口", "自动化", "存储"]', source)
+        self.assertIn('("工作台", "模型", "接口", "自动化", "存储")', switch_source)
+        self.assertIn("settings-nav-ai-parent", javascript)
+        self.assertIn("settings-nav-ai-chevron", javascript)
+        self.assertIn("settingsAiExpanded", javascript)
+        self.assertIn('parent.setAttribute("aria-expanded"', javascript)
+        self.assertIn("settings-nav-ai-child", css)
+        self.assertIn("settings-ai-expanded", css)
+        self.assertIn("grid-template-columns: repeat(4, minmax(0, 1fr))", css)
+
     def test_settings_advanced_trigger_centers_text_and_chevron(self) -> None:
         css = load_workbench_css()
         trigger_rule = css.split(".settings-advanced > button.label-wrap {", 1)[1].split(

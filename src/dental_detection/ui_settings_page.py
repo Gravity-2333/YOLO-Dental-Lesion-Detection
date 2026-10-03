@@ -173,7 +173,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
     saved = data.saved
     with gr.Row(elem_classes=["settings-nav-shell"], equal_height=False):
         settings_nav = gr.Radio(
-            choices=["工作台", "模型", "AI", "自动化", "存储"],
+            choices=["工作台", "模型", "接口", "自动化", "存储"],
             value="工作台",
             label="设置栏目",
             show_label=False,

@@ -27,7 +27,7 @@
 
   .settings-nav-control .wrap {
     display: grid !important;
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     align-items: center !important;
     gap: 4px !important;
     width: 100% !important;
@@ -41,6 +41,49 @@
     min-width: 0 !important;
     justify-content: center !important;
     padding: 0 8px !important;
+  }
+
+  .settings-nav-ai-parent {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    min-height: 46px !important;
+    padding: 0 8px !important;
+  }
+
+  .settings-nav-control label:has(input[value="工作台"]) {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  .settings-nav-control label:has(input[value="模型"]) {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+  }
+
+  .settings-nav-control label:has(input[value="存储"]) {
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+  }
+
+  .settings-nav-control label.settings-nav-ai-child {
+    min-height: 38px !important;
+    padding: 0 8px !important;
+  }
+
+  .settings-nav-control label.settings-nav-ai-child::before {
+    display: none !important;
+  }
+
+  .settings-nav-control label.settings-nav-ai-child:has(input[value="接口"]) {
+    grid-column: 3 !important;
+    grid-row: 2 !important;
+  }
+
+  .settings-nav-control label.settings-nav-ai-child:has(input[value="自动化"]) {
+    grid-column: 4 !important;
+    grid-row: 2 !important;
   }
 
   .settings-pane-host,
@@ -422,7 +465,27 @@
   }
 
   .settings-nav-control .wrap {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .settings-nav-ai-parent {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+  }
+
+  .settings-nav-control label:has(input[value="存储"]) {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+  }
+
+  .settings-nav-control label.settings-nav-ai-child:has(input[value="接口"]) {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+  }
+
+  .settings-nav-control label.settings-nav-ai-child:has(input[value="自动化"]) {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
   }
 
   .settings-nav-control label {

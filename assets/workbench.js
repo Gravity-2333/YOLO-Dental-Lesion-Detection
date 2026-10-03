@@ -16,6 +16,7 @@
   let labelingScheduled = false;
   let stickyNavigationScheduled = false;
   let settingsPaneSyncScheduled = false;
+  let settingsAiExpanded = false;
   let runtimeAppId = "";
   let runtimeCheckInFlight = false;
   let runtimeReloading = false;
@@ -26,13 +27,51 @@
   const SETTINGS_PANE_CLASSES = new Map([
     ["工作台", "settings-pane-workbench"],
     ["模型", "settings-pane-model"],
-    ["AI", "settings-pane-ai"],
+    ["接口", "settings-pane-ai"],
     ["自动化", "settings-pane-automation"],
     ["存储", "settings-pane-storage"],
   ]);
 
+  const initializeSettingsNavigation = () => {
+    const nav = document.querySelector(".settings-nav-control");
+    const wrap = [...(nav?.querySelectorAll(".wrap") || [])].find((candidate) => (
+      candidate.querySelector(':scope > label input[type="radio"]')
+    ));
+    if (!(nav instanceof HTMLElement) || !(wrap instanceof HTMLElement)) {
+      return;
+    }
+    const labels = [...wrap.querySelectorAll(":scope > label")];
+    const labelFor = (value) => labels.find((label) => (
+      label.querySelector('input[type="radio"]')?.value === value
+    ));
+    const interfaceLabel = labelFor("接口");
+    const automationLabel = labelFor("自动化");
+    if (!(interfaceLabel instanceof HTMLElement) || !(automationLabel instanceof HTMLElement)) {
+      return;
+    }
+    interfaceLabel.classList.add("settings-nav-ai-child");
+    automationLabel.classList.add("settings-nav-ai-child");
+
+    let parent = wrap.querySelector(":scope > .settings-nav-ai-parent");
+    if (!(parent instanceof HTMLButtonElement)) {
+      parent = document.createElement("button");
+      parent.type = "button";
+      parent.className = "settings-nav-ai-parent";
+      parent.innerHTML = '<span>AI</span><span class="settings-nav-ai-chevron" aria-hidden="true"></span>';
+      wrap.insertBefore(parent, interfaceLabel);
+    }
+    const selected = nav.querySelector('input[type="radio"]:checked')?.value || "";
+    const aiSelected = selected === "接口" || selected === "自动化";
+    nav.classList.toggle("settings-ai-expanded", settingsAiExpanded);
+    parent.classList.toggle("is-active", aiSelected);
+    parent.setAttribute("aria-expanded", String(settingsAiExpanded));
+    parent.setAttribute("aria-controls", "settings-ai-subnav");
+    interfaceLabel.id = "settings-ai-subnav";
+  };
+
   const syncSettingsPaneVisibility = () => {
     settingsPaneSyncScheduled = false;
+    initializeSettingsNavigation();
     const shell = document.querySelector(".settings-nav-shell");
     const selected = shell?.querySelector(
       '.settings-nav-control input[type="radio"]:checked',
@@ -53,6 +92,25 @@
     }
     settingsPaneSyncScheduled = true;
     window.requestAnimationFrame(syncSettingsPaneVisibility);
+  };
+
+  const handleSettingsNavigationClick = (event) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    const parent = event.target.closest(".settings-nav-ai-parent");
+    if (parent) {
+      settingsAiExpanded = !settingsAiExpanded;
+      initializeSettingsNavigation();
+      return;
+    }
+    const label = event.target.closest(".settings-nav-control label");
+    const value = label?.querySelector('input[type="radio"]')?.value;
+    if (!value) {
+      return;
+    }
+    settingsAiExpanded = value === "接口" || value === "自动化";
+    scheduleSettingsPaneSync();
   };
 
   const readRuntimeAppId = async (response) => {
@@ -821,6 +879,7 @@
     document.addEventListener("click", handleDetectionTableClick, true);
     document.addEventListener("click", handleReportExportMenuClick, true);
     document.addEventListener("click", handleMagnifierToggleClick, true);
+    document.addEventListener("click", handleSettingsNavigationClick, true);
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         closeReportExportMenus();

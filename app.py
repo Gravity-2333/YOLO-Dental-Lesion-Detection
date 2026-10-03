@@ -938,7 +938,7 @@ def _normalize_history_limit(value: Any) -> int:
 
 def switch_settings_section(section: str):
     selected = str(section or "工作台")
-    sections = ("工作台", "模型", "AI", "自动化", "存储")
+    sections = ("工作台", "模型", "接口", "自动化", "存储")
     if selected not in sections:
         selected = "工作台"
     return tuple(gr.update(visible=name == selected) for name in sections)
