@@ -390,6 +390,24 @@ def show_context_help(page, scope: str, *, focus: bool = False) -> None:
         raise RuntimeError(f"上下文提示气泡未显示：{scope} {state}")
 
 
+def check_storage_heading_help(page, output_dir: Path, suffix: str) -> None:
+    click_tab(page, "设置")
+    click_settings_section(page, "存储")
+    title = page.locator(".settings-page-heading h2", has_text="存储与隐私")
+    if title.count() != 1 or not title.is_visible():
+        raise RuntimeError("存储设置页标题缺失或重复。")
+    if page.locator(".settings-card .section-heading", has_text="存储与隐私").count():
+        raise RuntimeError("存储设置页仍保留重复的分区标题。")
+    help_root = page.locator(".settings-page-heading > .context-help")
+    if help_root.count() != 1 or not help_root.is_visible():
+        raise RuntimeError("存储说明问号未移动到页面标题区域。")
+    show_context_help(page, ".settings-page-heading")
+    page.screenshot(
+        path=str(output_dir / name("02-settings-storage-heading-help.png", suffix)),
+        full_page=False,
+    )
+
+
 def capture_result_magnifier(page, output_dir: Path, suffix: str) -> None:
     stage = page.locator(".result-image-stage").first
     image = stage.locator(".primary-result-card img").first
@@ -706,6 +724,7 @@ def capture(args: argparse.Namespace) -> None:
 
             check_settings_ai_subnavigation(page, output_dir, suffix)
             check_settings_round_trip_visibility(page, output_dir, suffix)
+            check_storage_heading_help(page, output_dir, suffix)
 
             ai_was_enabled = configure_isolated_detection_session(page, Path(temp_storage))
             try:

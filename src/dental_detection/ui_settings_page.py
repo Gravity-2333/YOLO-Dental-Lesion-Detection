@@ -20,6 +20,7 @@ from .ui_content import (
     DISPLAY_OPTIONS_HELP,
     MODEL_SELECTION_HELP,
     STORAGE_HELP,
+    context_help_html,
     field_label_with_help_html,
     section_heading,
 )
@@ -162,9 +163,17 @@ def advanced_settings():
             yield
 
 
-def settings_page_heading(title: str, description: str) -> None:
+def settings_page_heading(
+    title: str,
+    description: str,
+    *,
+    help_title: str | None = None,
+    help_text: str | None = None,
+) -> None:
+    help_html = context_help_html(help_title or "说明", help_text) if help_text else ""
     gr.HTML(
-        f'<div class="settings-page-heading"><h2>{title}</h2><p>{description}</p></div>',
+        f'<div class="settings-page-heading"><h2>{title}</h2>'
+        f'<p>{description}</p>{help_html}</div>',
         elem_classes=["settings-page-heading-host"],
     )
 
@@ -603,16 +612,13 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
             elem_classes=["settings-pane-host", "settings-pane-storage"],
         ) as storage_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
-                settings_page_heading("存储与隐私", "管理本地记录、保留数量和数据目录。")
+                settings_page_heading(
+                    "存储与隐私",
+                    "管理本地记录、保留数量和数据目录。",
+                    help_title="存储说明",
+                    help_text=STORAGE_HELP,
+                )
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
-                    gr.HTML(
-                        section_heading(
-                            "存储与隐私",
-                            "管理本地记录和数据目录。",
-                            help_title="存储说明",
-                            help_text=STORAGE_HELP,
-                        )
-                    )
                     auto_save = gr.Checkbox(
                         value=saved.auto_save,
                         label="自动保存对话记录",

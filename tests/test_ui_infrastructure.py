@@ -563,6 +563,19 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("border: 0", nested_rule)
         self.assertIn("padding: 0", nested_rule)
 
+    def test_storage_help_is_attached_to_the_page_heading_without_duplicate_section(self) -> None:
+        source = inspect.getsource(build_settings_page)
+        storage_source = source.split("as storage_settings_pane:", 1)[1].split(
+            "with gr.Row(elem_classes=[\"settings-actions\"])", 1
+        )[0]
+        css = load_workbench_css()
+
+        self.assertEqual(storage_source.count('"存储与隐私"'), 1)
+        self.assertIn('help_title="存储说明"', storage_source)
+        self.assertIn("help_text=STORAGE_HELP", storage_source)
+        self.assertNotIn("section_heading(", storage_source)
+        self.assertIn(".settings-page-heading > .context-help", css)
+
     def test_settings_panes_have_semantic_client_visibility_guards(self) -> None:
         source = inspect.getsource(build_settings_page)
         javascript = load_workbench_js()
