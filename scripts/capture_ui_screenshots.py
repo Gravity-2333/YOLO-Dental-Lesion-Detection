@@ -428,13 +428,25 @@ def capture_result_magnifier(page, output_dir: Path, suffix: str) -> None:
 
 
 def capture_report_export_menu(page, output_dir: Path, suffix: str) -> None:
-    trigger = page.get_by_role("button", name="导出报告", exact=True)
+    trigger = page.get_by_role("button", name="导出", exact=True)
     trigger.scroll_into_view_if_needed(timeout=10000)
     page.wait_for_timeout(400)
     if not trigger.is_enabled():
-        raise RuntimeError("完成检测后导出报告入口仍不可用。")
+        raise RuntimeError("完成检测后导出入口仍不可用。")
     if page.locator(".report-export-status-line").count():
         raise RuntimeError("尚未导出时不应显示导出结果提示。")
+    if page.locator(".result-download-bar").count():
+        raise RuntimeError("检测结果图下载仍占用独立区域。")
+
+    trigger.hover()
+    hover_style = trigger.evaluate(
+        """button => {
+            const style = getComputedStyle(button);
+            return { color: style.color, background: style.backgroundColor, opacity: style.opacity };
+        }"""
+    )
+    if hover_style["color"] == hover_style["background"] or hover_style["opacity"] != "1":
+        raise RuntimeError(f"导出按钮悬浮态不可读：{hover_style}")
 
     trigger.click(timeout=10000)
     popover = page.locator(
@@ -451,13 +463,18 @@ def capture_report_export_menu(page, output_dir: Path, suffix: str) -> None:
             if (!trigger || !popover) return null;
             const source = trigger.getBoundingClientRect();
             const target = popover.getBoundingClientRect();
+            const dock = [...document.querySelectorAll('.report-export-dock')]
+                .filter(candidate => candidate.contains(trigger))
+                .map(candidate => candidate.getBoundingClientRect())
+                .find(rect => rect.width > 0);
             return {
-                toRight: target.left >= source.right,
+                beside: target.right <= source.left || target.left >= source.right,
+                rightAligned: Boolean(dock && Math.abs(dock.right - source.right) <= 4),
                 inViewport: target.right <= window.innerWidth && target.bottom <= window.innerHeight,
             };
         }"""
     )
-    if not geometry or not geometry["toRight"] or not geometry["inViewport"]:
+    if not geometry or not geometry["beside"] or not geometry["rightAligned"] or not geometry["inViewport"]:
         raise RuntimeError(f"导出浮层位置异常：{geometry}")
     page.screenshot(path=str(output_dir / name("03-workbench-export-menu.png", suffix)))
 
@@ -476,6 +493,21 @@ def capture_report_export_menu(page, output_dir: Path, suffix: str) -> None:
     if "已经导出" not in status_text or ".docx" not in status_text:
         raise RuntimeError(f"导出提示内容异常：{status_text}")
     page.screenshot(path=str(output_dir / name("03-workbench-export-success.png", suffix)))
+
+    trigger.click(timeout=10000)
+    image_action = page.locator("button.report-export-option-image")
+    image_action.wait_for(state="visible", timeout=5000)
+    if not image_action.is_enabled():
+        raise RuntimeError("结果图片操作未处于可用状态。")
+    image_action.click(timeout=10000)
+    page.wait_for_function(
+        """() => {
+            const line = document.querySelector('.report-export-status-line');
+            return Boolean(line && /\.png/i.test(line.textContent || '') && !/\.docx/i.test(line.textContent || ''));
+        }""",
+        timeout=120000,
+    )
+    page.screenshot(path=str(output_dir / name("03-workbench-image-export-success.png", suffix)))
 
 
 def capture(args: argparse.Namespace) -> None:

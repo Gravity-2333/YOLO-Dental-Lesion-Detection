@@ -65,9 +65,9 @@ def bind_export_and_record_events(c: SimpleNamespace, h: ModuleType) -> None:
         show_progress="hidden",
     )
     c.download_result_btn.click(
-        fn=h.download_result_image,
+        fn=h.download_result_image_with_feedback,
         inputs=[c.batch_state, c.batch_select, c.storage_dir],
-        outputs=[c.result_image_file, c.result_image_path],
+        outputs=[c.result_image_file, c.result_image_path, c.report_export_status],
         concurrency_limit=1,
         concurrency_id=h.EXPORT_CONCURRENCY_ID,
         show_progress="minimal",

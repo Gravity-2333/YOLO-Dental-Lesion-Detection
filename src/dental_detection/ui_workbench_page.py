@@ -304,27 +304,9 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                             elem_classes=["result-card"],
                         )
 
-            with gr.Group(elem_classes=["result-download-bar"]):
-                with gr.Row(elem_classes=["path-row"]):
-                    result_image_path = gr.Textbox(
-                        label="检测结果图路径",
-                        interactive=False,
-                        lines=1,
-                        max_lines=1,
-                        scale=8,
-                        elem_classes=["path-output"],
-                    )
-                    download_result_btn = gr.Button(
-                        "下载检测结果图",
-                        interactive=False,
-                        elem_classes=["secondary-action"],
-                        scale=2,
-                    )
-                    result_image_file = gr.File(label="检测结果图 PNG", visible=False)
-
             with gr.Group(elem_classes=["report-export-dock"]):
                 report_export_menu_btn = gr.Button(
-                    "导出报告",
+                    "导出",
                     interactive=False,
                     elem_classes=["report-export-menu-trigger"],
                 )
@@ -332,15 +314,16 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                     gr.HTML(
                         '<div class="report-export-popover-heading">'
                         '<strong>导出当前结果</strong>'
-                        '<span>选择文件格式</span>'
+                        '<span>选择导出内容</span>'
                         '</div>',
                         container=False,
                     )
+                    result_image_path = gr.State("")
                     word_report_path = gr.State("")
                     report_path = gr.State("")
                     with gr.Group(elem_classes=["report-export-choice"]):
                         export_word_btn = gr.Button(
-                            "生成 Word 报告",
+                            "导出 Word 报告",
                             interactive=False,
                             elem_classes=["report-export-option", "report-export-option-word"],
                         )
@@ -357,7 +340,7 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                             )
                     with gr.Group(elem_classes=["report-export-choice"]):
                         export_report_btn = gr.Button(
-                            "生成 ZIP 数据包",
+                            "导出 ZIP 数据包",
                             interactive=False,
                             elem_classes=["report-export-option", "report-export-option-zip"],
                         )
@@ -372,6 +355,13 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                                 visible=False,
                                 elem_classes=["report-export-subaction", "download-action"],
                             )
+                    with gr.Group(elem_classes=["report-export-choice"]):
+                        download_result_btn = gr.Button(
+                            "下载结果图片",
+                            interactive=False,
+                            elem_classes=["report-export-option", "report-export-option-image"],
+                        )
+                        result_image_file = gr.File(label="检测结果图 PNG", visible=False)
                 report_export_status = gr.HTML(
                     "",
                     container=False,

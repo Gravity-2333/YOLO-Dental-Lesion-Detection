@@ -756,6 +756,10 @@
       }
       return;
     }
+    if (event.target.closest(".report-export-option")) {
+      closeReportExportMenus();
+      return;
+    }
     if (!event.target.closest(".report-export-popover")) {
       closeReportExportMenus();
     }

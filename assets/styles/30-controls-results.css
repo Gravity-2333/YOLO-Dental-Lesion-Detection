@@ -1155,7 +1155,7 @@ td {
   position: relative !important;
   z-index: 60 !important;
   display: grid !important;
-  grid-template-columns: 158px minmax(0, 1fr) !important;
+  grid-template-columns: minmax(0, 1fr) 132px !important;
   align-items: start !important;
   gap: 0 14px !important;
   width: 100% !important;
@@ -1171,19 +1171,24 @@ td {
   display: contents !important;
 }
 
+.report-export-dock > .report-export-dock > .styler {
+  display: contents !important;
+}
+
 .report-export-menu-trigger {
-  grid-column: 1;
+  grid-column: 2;
   grid-row: 1;
-  width: 158px !important;
-  min-width: 158px !important;
-  max-width: 158px !important;
+  justify-self: end !important;
+  width: 132px !important;
+  min-width: 132px !important;
+  max-width: 132px !important;
 }
 
 .report-export-menu-trigger button,
 button.report-export-menu-trigger {
   position: relative;
-  width: 158px !important;
-  min-width: 158px !important;
+  width: 132px !important;
+  min-width: 132px !important;
   min-height: 44px !important;
   padding: 0 38px 0 18px !important;
   border: 0 !important;
@@ -1191,8 +1196,19 @@ button.report-export-menu-trigger {
   background: #176f65 !important;
   box-shadow: 0 6px 16px rgba(23, 111, 101, 0.18) !important;
   color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
   font-weight: 700 !important;
+  opacity: 1 !important;
   transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease !important;
+}
+
+.report-export-menu-trigger button span,
+button.report-export-menu-trigger span,
+.report-export-menu-trigger button svg,
+button.report-export-menu-trigger svg {
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  opacity: 1 !important;
 }
 
 .report-export-menu-trigger button::after,
@@ -1331,7 +1347,8 @@ button.report-export-option:not(:disabled):hover {
 }
 
 .report-export-option-word::after,
-.report-export-option-zip::after {
+.report-export-option-zip::after,
+.report-export-option-image::after {
   position: absolute;
   top: 50%;
   right: 12px;
@@ -1347,6 +1364,7 @@ button.report-export-option:not(:disabled):hover {
 
 .report-export-option-word::after { content: "DOCX"; }
 .report-export-option-zip::after { content: "ZIP"; }
+.report-export-option-image::after { content: "PNG"; }
 
 .report-export-choice-actions {
   display: flex !important;
@@ -1397,13 +1415,22 @@ a.report-export-subaction {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  color: #52635f;
+  color: #425550 !important;
+  -webkit-text-fill-color: #425550 !important;
   font-size: 0.82rem;
   line-height: 1.45;
+  opacity: 1 !important;
+}
+
+.report-export-status-line span {
+  color: inherit !important;
+  -webkit-text-fill-color: inherit !important;
+  opacity: 1 !important;
 }
 
 .report-export-status-line strong {
-  color: #176f65;
+  color: #176f65 !important;
+  -webkit-text-fill-color: #176f65 !important;
   font-weight: 650;
   overflow-wrap: anywhere;
   word-break: break-word;

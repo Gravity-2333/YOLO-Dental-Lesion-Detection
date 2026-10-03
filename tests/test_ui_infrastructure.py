@@ -312,6 +312,19 @@ class UiAssetTests(unittest.TestCase):
         self.assertNotIn("查看高清结果与疑似区域", source)
         self.assertNotIn("gr.Gallery(", source)
 
+    def test_result_exports_share_a_right_aligned_menu_and_single_status_row(self) -> None:
+        source = inspect.getsource(build_workbench_page)
+        css = load_workbench_css()
+
+        self.assertNotIn('elem_classes=["result-download-bar"]', source)
+        self.assertIn('"导出",', source)
+        self.assertIn('"下载结果图片",', source)
+        self.assertIn('"report-export-option-image"', source)
+        self.assertIn("grid-column: 2", css)
+        self.assertIn("justify-self: end !important", css)
+        self.assertIn("grid-column: 1 / -1", css)
+        self.assertIn('.report-export-option-image::after { content: "PNG"; }', css)
+
     def test_compact_action_buttons_share_a_stable_height(self) -> None:
         css = load_workbench_css()
         self.assertIn(".row.compact-row > button", css)
@@ -462,7 +475,8 @@ class UiAssetTests(unittest.TestCase):
         rule = mobile.split(".report-export-popover", 1)[1].split("}", 1)[0]
 
         self.assertIn("top: 52px !important", rule)
-        self.assertIn("left: 0 !important", rule)
+        self.assertIn("right: 0 !important", rule)
+        self.assertIn("left: auto !important", rule)
         self.assertIn("width: min(292px, calc(100vw - 48px)) !important", rule)
 
     def test_settings_save_row_is_a_compact_page_action(self) -> None:
@@ -2402,6 +2416,21 @@ class UiContentTests(unittest.TestCase):
         self.assertTrue(visible_open["visible"])
         self.assertIn("已经导出", visible_status)
         self.assertIn("reports/word/result.docx", visible_status)
+
+    def test_result_image_export_replaces_the_shared_status_with_png_path(self) -> None:
+        image = Image.new("RGB", (48, 32), "white")
+        state = [{"name": "当前单图", "result": {"annotated": image}}]
+
+        with TemporaryDirectory() as temp_dir:
+            file_update, path_text, status = app.download_result_image_with_feedback(
+                state, "当前单图", temp_dir
+            )
+
+        self.assertTrue(file_update["value"])
+        self.assertTrue(path_text.endswith(".png"))
+        self.assertIn("已经导出", status)
+        self.assertIn(".png", status)
+        self.assertNotIn(".docx", status)
 
     def test_native_path_pickers_do_not_show_a_blocking_page_overlay(self) -> None:
         source = app.ui_event_binding_source()
