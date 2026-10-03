@@ -323,6 +323,9 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("grid-column: 2", css)
         self.assertIn("justify-self: end !important", css)
         self.assertIn("grid-column: 1 / -1", css)
+        self.assertIn("button.report-export-menu-trigger:disabled", css)
+        self.assertIn("-webkit-text-fill-color: #53615f !important", css)
+        self.assertIn("opacity: 1 !important", css)
         self.assertIn('.report-export-option-image::after { content: "PNG"; }', css)
 
     def test_compact_action_buttons_share_a_stable_height(self) -> None:

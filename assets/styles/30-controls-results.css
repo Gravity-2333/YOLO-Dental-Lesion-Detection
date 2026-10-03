@@ -1232,6 +1232,21 @@ button.report-export-menu-trigger:not(:disabled):hover {
   transform: translateY(-2px);
 }
 
+.report-export-menu-trigger button:disabled,
+button.report-export-menu-trigger:disabled {
+  border: 1px solid #cbd5d1 !important;
+  background: #edf1f2 !important;
+  box-shadow: none !important;
+  color: #53615f !important;
+  -webkit-text-fill-color: #53615f !important;
+  opacity: 1 !important;
+}
+
+.report-export-menu-trigger button:disabled::after,
+button.report-export-menu-trigger:disabled::after {
+  border-color: #70807d !important;
+}
+
 .report-export-dock.is-open .report-export-menu-trigger button::after,
 .report-export-dock.is-open button.report-export-menu-trigger::after {
   transform: translateY(-30%) rotate(225deg);

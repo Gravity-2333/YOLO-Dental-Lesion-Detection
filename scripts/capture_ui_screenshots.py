@@ -427,6 +427,33 @@ def capture_result_magnifier(page, output_dir: Path, suffix: str) -> None:
     click_tab(page, "检测工作台")
 
 
+def capture_disabled_export_button(page, output_dir: Path, suffix: str) -> None:
+    trigger = page.get_by_role("button", name="导出", exact=True)
+    trigger.scroll_into_view_if_needed(timeout=10000)
+    page.wait_for_timeout(250)
+    if trigger.is_enabled():
+        raise RuntimeError("尚未检测时导出入口不应可用。")
+    style = trigger.evaluate(
+        """button => {
+            const value = getComputedStyle(button);
+            return {
+                color: value.color,
+                textFill: value.webkitTextFillColor,
+                background: value.backgroundColor,
+                border: value.borderColor,
+                opacity: value.opacity,
+            };
+        }"""
+    )
+    if (
+        style["opacity"] != "1"
+        or style["color"] != style["textFill"]
+        or style["color"] == style["background"]
+    ):
+        raise RuntimeError(f"导出按钮禁用态不可读：{style}")
+    trigger.screenshot(path=str(output_dir / name("01-workbench-export-disabled.png", suffix)))
+
+
 def capture_report_export_menu(page, output_dir: Path, suffix: str) -> None:
     trigger = page.get_by_role("button", name="导出", exact=True)
     trigger.scroll_into_view_if_needed(timeout=10000)
@@ -566,6 +593,7 @@ def capture(args: argparse.Namespace) -> None:
                 name("01-workbench-desktop.png", suffix),
                 reset_scroll=True,
             )
+            capture_disabled_export_button(page, output_dir, suffix)
             show_context_help(page, ".workbench-model-status")
             save(page, output_dir, name("01-workbench-help-tooltip.png", suffix))
 
