@@ -301,6 +301,8 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn(".result-magnifier-toggle", javascript)
         self.assertIn("synchronizeMagnifierSettingInput", javascript)
         self.assertIn('lens.dataset.quadrant =', javascript)
+        self.assertIn("document.body.appendChild(lens)", javascript)
+        self.assertIn("lens.dataset.viewportConstrained", javascript)
         self.assertIn('lens.dataset.zoom = formatMagnifierZoom()', javascript)
         self.assertIn('document.createElement("canvas")', javascript)
         self.assertIn(".result-magnifier", css)

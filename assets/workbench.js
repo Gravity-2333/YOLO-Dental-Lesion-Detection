@@ -478,16 +478,19 @@
   };
 
   const ensureResultMagnifier = (stage) => {
-    let lens = stage.querySelector(":scope > .result-magnifier");
+    let lens = document.body.querySelector(":scope > .result-magnifier");
     if (lens instanceof HTMLElement) {
+      lens.dataset.stageId = stage.dataset.magnifierStageId || "result";
       return lens;
     }
+    stage.dataset.magnifierStageId = stage.dataset.magnifierStageId || "result";
     lens = document.createElement("div");
     lens.className = "result-magnifier";
     lens.setAttribute("aria-hidden", "true");
+    lens.dataset.stageId = stage.dataset.magnifierStageId;
     const canvas = document.createElement("canvas");
     lens.appendChild(canvas);
-    stage.appendChild(lens);
+    document.body.appendChild(lens);
     return lens;
   };
 
@@ -546,31 +549,25 @@
     }
     lens.classList.add("is-visible");
 
-    const stageRect = stage.getBoundingClientRect();
     const lensWidth = lens.offsetWidth;
     const lensHeight = lens.offsetHeight;
     const gap = 18;
-    const pointerLeft = event.clientX - stageRect.left;
-    const pointerTop = event.clientY - stageRect.top;
-    const contentLeft = bounds.left - stageRect.left;
-    const contentTop = bounds.top - stageRect.top;
-    const contentRight = contentLeft + bounds.width;
-    const contentBottom = contentTop + bounds.height;
     const placeLeft = x <= bounds.width / 2;
     const placeAbove = y <= bounds.height / 2;
-    let left = placeLeft ? pointerLeft - lensWidth - gap : pointerLeft + gap;
-    let top = placeAbove ? pointerTop - lensHeight - gap : pointerTop + gap;
-    left = Math.max(
-      contentLeft + 8,
-      Math.min(left, contentRight - lensWidth - 8),
-    );
-    top = Math.max(
-      contentTop + 8,
-      Math.min(top, contentBottom - lensHeight - 8),
-    );
+    const requestedLeft = placeLeft
+      ? event.clientX - lensWidth - gap
+      : event.clientX + gap;
+    const requestedTop = placeAbove
+      ? event.clientY - lensHeight - gap
+      : event.clientY + gap;
+    const left = Math.max(8, Math.min(requestedLeft, window.innerWidth - lensWidth - 8));
+    const top = Math.max(8, Math.min(requestedTop, window.innerHeight - lensHeight - 8));
     lens.style.left = `${left}px`;
     lens.style.top = `${top}px`;
     lens.dataset.quadrant = `${placeAbove ? "top" : "bottom"}-${placeLeft ? "left" : "right"}`;
+    lens.dataset.viewportConstrained = String(
+      left !== requestedLeft || top !== requestedTop,
+    );
     lens.dataset.zoom = formatMagnifierZoom();
 
     const deviceScale = Math.min(2, window.devicePixelRatio || 1);

@@ -312,7 +312,7 @@ def capture_result_magnifier(page, output_dir: Path, suffix: str) -> None:
         raise RuntimeError("无法获取检测结果图位置。")
 
     page.mouse.move(box["x"] + box["width"] * 0.68, box["y"] + box["height"] * 0.68)
-    lens = stage.locator(".result-magnifier")
+    lens = page.locator("body > .result-magnifier")
     lens.wait_for(state="visible", timeout=5000)
     canvas_ready = lens.locator("canvas").evaluate(
         """canvas => {
@@ -329,19 +329,39 @@ def capture_result_magnifier(page, output_dir: Path, suffix: str) -> None:
         raise RuntimeError("悬停放大镜画布为空。")
 
     for quadrant, horizontal, vertical in (
-        ("top-left", 0.32, 0.32),
-        ("top-right", 0.68, 0.32),
-        ("bottom-left", 0.32, 0.68),
-        ("bottom-right", 0.68, 0.68),
+        ("top-left", 0.4, 0.4),
+        ("top-right", 0.6, 0.4),
+        ("bottom-left", 0.4, 0.6),
+        ("bottom-right", 0.6, 0.6),
     ):
+        pointer_x = box["x"] + box["width"] * horizontal
+        pointer_y = box["y"] + box["height"] * vertical
         page.mouse.move(
-            box["x"] + box["width"] * horizontal,
-            box["y"] + box["height"] * vertical,
+            pointer_x,
+            pointer_y,
         )
         lens.wait_for(state="visible", timeout=5000)
         page.wait_for_timeout(100)
         if lens.get_attribute("data-quadrant") != quadrant:
             raise RuntimeError(f"放大镜象限位置错误：期望 {quadrant}。")
+        lens_box = lens.bounding_box()
+        if not lens_box:
+            raise RuntimeError(f"无法读取 {quadrant} 放大框位置。")
+        horizontally_correct = (
+            lens_box["x"] + lens_box["width"] <= pointer_x
+            if horizontal < 0.5
+            else lens_box["x"] >= pointer_x
+        )
+        vertically_correct = (
+            lens_box["y"] + lens_box["height"] <= pointer_y
+            if vertical < 0.5
+            else lens_box["y"] >= pointer_y
+        )
+        if not horizontally_correct or not vertically_correct:
+            raise RuntimeError(
+                f"{quadrant} 放大框未位于鼠标对应方向："
+                f"pointer=({pointer_x}, {pointer_y}), lens={lens_box}"
+            )
 
     zoom_before = lens.get_attribute("data-zoom")
     page.keyboard.down("Control")
@@ -385,7 +405,7 @@ def capture_result_magnifier(page, output_dir: Path, suffix: str) -> None:
     page.mouse.move(box["x"] + box["width"] * 0.68, box["y"] + box["height"] * 0.68)
     lens.wait_for(state="visible", timeout=5000)
 
-    stage.screenshot(path=str(output_dir / name("03-workbench-result-magnifier.png", suffix)))
+    page.screenshot(path=str(output_dir / name("03-workbench-result-magnifier.png", suffix)))
     click_tab(page, "设置")
     click_settings_section(page, "工作台")
     toggle = page.get_by_label("开启检测图悬停放大镜", exact=True)
