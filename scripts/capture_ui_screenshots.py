@@ -80,6 +80,20 @@ def click_tab(page, tab_name: str) -> None:
     page.wait_for_timeout(1500)
 
 
+def check_ai_to_workbench_navigation(page, console_errors: list[str]) -> None:
+    click_tab(page, "AI 问答")
+    if page.locator(".ai-chat-thread").count() != 1:
+        raise RuntimeError("AI 工作台聊天区域未正确渲染。")
+    click_tab(page, "检测工作台")
+    page.get_by_text("上传影像", exact=True).wait_for(state="visible", timeout=15000)
+    svelte_loops = [
+        message for message in console_errors
+        if "effect_update_depth_exceeded" in message
+    ]
+    if svelte_loops:
+        raise RuntimeError("AI 工作台返回检测界面时触发了 Svelte 更新循环。")
+
+
 def click_accordion(page, label: str) -> None:
     page.get_by_role("button", name=re.compile(rf"^{re.escape(label)}")).first.click(timeout=15000)
     page.wait_for_timeout(800)
@@ -414,6 +428,13 @@ def capture(args: argparse.Namespace) -> None:
     with TemporaryDirectory(prefix="dental-ui-regression-") as temp_storage, sync_playwright() as p:
         browser = launch_chromium_with_fallback(p, headless=True)
         page = browser.new_page(viewport={"width": 1440, "height": 950})
+        console_errors: list[str] = []
+        page.on(
+            "console",
+            lambda message: console_errors.append(message.text)
+            if message.type == "error"
+            else None,
+        )
         try:
             wait_ready(page, base_url)
             check_horizontal_overflow(page, "桌面首页")
@@ -524,6 +545,7 @@ def capture(args: argparse.Namespace) -> None:
             except Exception as exc:
                 print(f"04-ai-chat.png screenshot failed: {exc}")
                 save(page, output_dir, name("04-ai-chat.png", suffix))
+            check_ai_to_workbench_navigation(page, console_errors)
 
             for tab_name, filename in [
                 ("病例记录", "05-cases.png"),

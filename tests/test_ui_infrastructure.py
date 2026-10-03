@@ -683,6 +683,12 @@ class DependencyManifestTests(unittest.TestCase):
         self.assertIn("-r requirements.txt", development)
         self.assertIn("playwright", development.casefold())
 
+    def test_runtime_manifest_uses_gradio_with_tab_loop_fix(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        runtime = (project_root / "requirements.txt").read_text(encoding="utf-8")
+
+        self.assertIn("gradio>=6.29.1,<7.0", runtime)
+
     def test_final_page_screenshots_reset_scroll_before_capture(self) -> None:
         screenshot_source = (
             Path(__file__).resolve().parents[1] / "scripts" / "capture_ui_screenshots.py"
@@ -709,6 +715,8 @@ class DependencyManifestTests(unittest.TestCase):
         self.assertIn('name("08-settings-mobile.png", suffix)', screenshot_source)
         self.assertIn(".app-primary-nav-list > li > button[data-app-target=", screenshot_source)
         self.assertIn('click_tab(mobile, "设置")', screenshot_source)
+        self.assertIn("check_ai_to_workbench_navigation(page, console_errors)", screenshot_source)
+        self.assertIn("effect_update_depth_exceeded", screenshot_source)
         self.assertIn('mobile.locator(".settings-actions").wait_for', screenshot_source)
         self.assertIn('check_horizontal_overflow(mobile, "移动端设置页")', screenshot_source)
         self.assertIn('full=tab_name == "检测历史"', screenshot_source)
