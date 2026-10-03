@@ -586,6 +586,16 @@ def capture_report_export_menu(page, output_dir: Path, suffix: str) -> None:
     )
     popover.wait_for(state="visible", timeout=5000)
     page.wait_for_timeout(250)
+    option_ui = page.evaluate(
+        """() => ({
+            icons: document.querySelectorAll('.report-export-option-icon svg').length,
+            descriptions: document.querySelectorAll('.report-export-option-copy small').length,
+            formats: [...document.querySelectorAll('.report-export-option-format')]
+                .map(node => node.textContent.trim()),
+        })"""
+    )
+    if option_ui != {"icons": 3, "descriptions": 3, "formats": ["DOCX", "ZIP", "PNG"]}:
+        raise RuntimeError(f"导出菜单信息层级未正确渲染：{option_ui}")
     geometry = page.evaluate(
         """() => {
             const trigger = document.querySelector('.report-export-menu-trigger');
@@ -599,14 +609,22 @@ def capture_report_export_menu(page, output_dir: Path, suffix: str) -> None:
                 .filter(candidate => candidate.contains(trigger))
                 .map(candidate => candidate.getBoundingClientRect())
                 .find(rect => rect.width > 0);
+            const headerBottom = document.querySelector('.app-header')?.getBoundingClientRect().bottom || 0;
             return {
                 beside: target.right <= source.left || target.left >= source.right,
                 rightAligned: Boolean(dock && Math.abs(dock.right - source.right) <= 4),
                 inViewport: target.right <= window.innerWidth && target.bottom <= window.innerHeight,
+                clearsHeader: target.top >= headerBottom,
             };
         }"""
     )
-    if not geometry or not geometry["beside"] or not geometry["rightAligned"] or not geometry["inViewport"]:
+    if (
+        not geometry
+        or not geometry["beside"]
+        or not geometry["rightAligned"]
+        or not geometry["inViewport"]
+        or not geometry["clearsHeader"]
+    ):
         raise RuntimeError(f"导出浮层位置异常：{geometry}")
     page.screenshot(path=str(output_dir / name("03-workbench-export-menu.png", suffix)))
 

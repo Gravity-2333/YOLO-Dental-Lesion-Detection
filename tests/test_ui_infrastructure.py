@@ -315,6 +315,7 @@ class UiAssetTests(unittest.TestCase):
     def test_result_exports_share_a_right_aligned_menu_and_single_status_row(self) -> None:
         source = inspect.getsource(build_workbench_page)
         css = load_workbench_css()
+        javascript = load_workbench_js()
 
         self.assertNotIn('elem_classes=["result-download-bar"]', source)
         self.assertIn('"导出",', source)
@@ -326,7 +327,15 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("button.report-export-menu-trigger:disabled", css)
         self.assertIn("-webkit-text-fill-color: #53615f !important", css)
         self.assertIn("opacity: 1 !important", css)
-        self.assertIn('.report-export-option-image::after { content: "PNG"; }', css)
+        self.assertIn("reportExportOptionDefinitions", javascript)
+        self.assertIn('label: "Word 报告"', javascript)
+        self.assertIn('description: "保存当前标注影像"', javascript)
+        self.assertIn('format: "PNG"', javascript)
+        self.assertIn('document.querySelector(".app-header")', javascript)
+        self.assertIn("const safeTop", javascript)
+        self.assertIn(".report-export-option-icon", css)
+        self.assertIn(".report-export-option-copy", css)
+        self.assertNotIn('.report-export-option-image::after { content: "PNG"; }', css)
 
     def test_compact_action_buttons_share_a_stable_height(self) -> None:
         css = load_workbench_css()
@@ -480,7 +489,7 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("top: 52px !important", rule)
         self.assertIn("right: 0 !important", rule)
         self.assertIn("left: auto !important", rule)
-        self.assertIn("width: min(292px, calc(100vw - 48px)) !important", rule)
+        self.assertIn("width: min(356px, calc(100vw - 32px)) !important", rule)
 
     def test_settings_save_row_is_a_compact_page_action(self) -> None:
         css = load_workbench_css()

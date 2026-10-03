@@ -790,6 +790,48 @@
     return candidate?.querySelector("button") || null;
   };
 
+  const reportExportOptionDefinitions = {
+    "report-export-option-word": {
+      label: "Word 报告",
+      description: "适合打印与病例归档",
+      format: "DOCX",
+      icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg>',
+    },
+    "report-export-option-zip": {
+      label: "完整数据包",
+      description: "包含报告、表格与结果资源",
+      format: "ZIP",
+      icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8M1 3h22v5H1Z"/><path d="M10 12h4"/></svg>',
+    },
+    "report-export-option-image": {
+      label: "结果图片",
+      description: "保存当前标注影像",
+      format: "PNG",
+      icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>',
+    },
+  };
+
+  const decorateReportExportOptions = () => {
+    Object.entries(reportExportOptionDefinitions).forEach(([className, definition]) => {
+      document.querySelectorAll(`button.${className}`).forEach((button) => {
+        if (!(button instanceof HTMLButtonElement) || button.dataset.exportOptionDecorated === "true") {
+          return;
+        }
+        button.dataset.exportOptionDecorated = "true";
+        button.setAttribute("aria-label", definition.label);
+        button.innerHTML = `
+          <span class="report-export-option-icon">${definition.icon}</span>
+          <span class="report-export-option-copy">
+            <strong>${definition.label}</strong>
+            <small>${definition.description}</small>
+          </span>
+          <span class="report-export-option-format">${definition.format}</span>
+          <span class="report-export-option-arrow" aria-hidden="true"></span>
+        `;
+      });
+    });
+  };
+
   const closeReportExportMenus = (except = null) => {
     document.querySelectorAll(".report-export-dock.is-open").forEach((dock) => {
       if (dock === except) {
@@ -811,12 +853,14 @@
     const triggerRect = button.getBoundingClientRect();
     const popoverRect = popover.getBoundingClientRect();
     const gap = 12;
+    const headerBottom = document.querySelector(".app-header")?.getBoundingClientRect().bottom || 0;
+    const safeTop = Math.max(gap, headerBottom + gap);
     let left = triggerRect.right + gap;
     if (left + popoverRect.width > window.innerWidth - gap) {
       left = triggerRect.left - popoverRect.width - gap;
     }
     const top = Math.max(
-      gap,
+      safeTop,
       Math.min(
         triggerRect.bottom - popoverRect.height,
         window.innerHeight - popoverRect.height - gap,
@@ -864,6 +908,7 @@
     initializeMagnifierPreference();
     initializeMagnifierToggleButtons();
     initializeDetectionTables();
+    decorateReportExportOptions();
     syncPrimaryNavigation();
     syncStickyNavigation();
     scheduleSettingsPaneSync();
@@ -909,6 +954,7 @@
     new MutationObserver(() => {
       scheduleMenuLabeling();
       initializeDetectionTables();
+      decorateReportExportOptions();
       initializeMagnifierPreference();
       initializeMagnifierToggleButtons();
       synchronizeMagnifierSettingInput();

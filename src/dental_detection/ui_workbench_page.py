@@ -313,8 +313,9 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                 with gr.Group(elem_classes=["report-export-popover"]):
                     gr.HTML(
                         '<div class="report-export-popover-heading">'
+                        '<span class="report-export-popover-kicker">EXPORT</span>'
                         '<strong>导出当前结果</strong>'
-                        '<span>选择导出内容</span>'
+                        '<span>选择文件类型</span>'
                         '</div>',
                         container=False,
                     )
