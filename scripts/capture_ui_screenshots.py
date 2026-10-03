@@ -311,8 +311,8 @@ def capture_result_magnifier(page, output_dir: Path, suffix: str) -> None:
     if not box:
         raise RuntimeError("无法获取检测结果图位置。")
 
-    page.mouse.move(box["x"] + box["width"] * 0.56, box["y"] + box["height"] * 0.58)
-    lens = stage.locator(".result-magnifier.is-visible")
+    page.mouse.move(box["x"] + box["width"] * 0.68, box["y"] + box["height"] * 0.68)
+    lens = stage.locator(".result-magnifier")
     lens.wait_for(state="visible", timeout=5000)
     canvas_ready = lens.locator("canvas").evaluate(
         """canvas => {
@@ -328,20 +328,62 @@ def capture_result_magnifier(page, output_dir: Path, suffix: str) -> None:
     if not canvas_ready:
         raise RuntimeError("悬停放大镜画布为空。")
 
+    for quadrant, horizontal, vertical in (
+        ("top-left", 0.32, 0.32),
+        ("top-right", 0.68, 0.32),
+        ("bottom-left", 0.32, 0.68),
+        ("bottom-right", 0.68, 0.68),
+    ):
+        page.mouse.move(
+            box["x"] + box["width"] * horizontal,
+            box["y"] + box["height"] * vertical,
+        )
+        lens.wait_for(state="visible", timeout=5000)
+        page.wait_for_timeout(100)
+        if lens.get_attribute("data-quadrant") != quadrant:
+            raise RuntimeError(f"放大镜象限位置错误：期望 {quadrant}。")
+
+    zoom_before = lens.get_attribute("data-zoom")
+    page.keyboard.down("Control")
+    page.mouse.wheel(0, -120)
+    page.keyboard.up("Control")
+    zoom_after = lens.get_attribute("data-zoom")
+    if zoom_before == zoom_after:
+        raise RuntimeError("Ctrl + 滚轮未调整放大镜倍率。")
+
     overlay_valid = page.evaluate(
         """() => {
             const stage = document.querySelector('.result-image-stage');
             const legend = stage?.querySelector('.compact-result-legend');
-            if (!stage || !legend) return false;
+            const image = stage?.querySelector('.primary-result-card img');
+            if (!stage || !legend || !image) return false;
             const outer = stage.getBoundingClientRect();
             const inner = legend.getBoundingClientRect();
+            const imageRect = image.getBoundingClientRect();
             return inner.width > 0 && inner.height > 0
                 && inner.left >= outer.left && inner.right <= outer.right
-                && inner.top >= outer.top && inner.bottom <= outer.bottom;
+                && inner.top >= imageRect.bottom - 1
+                && inner.bottom <= outer.bottom
+                && !legend.querySelector('.legend-separator');
         }"""
     )
     if not overlay_valid:
-        raise RuntimeError("结果图例未正确收纳在图片区域内。")
+        raise RuntimeError("结果图例仍遮挡影像、超出结果区或保留了冒号。")
+
+    toolbar_toggle = page.locator(".result-magnifier-toggle")
+    if toolbar_toggle.count() != 1 or toolbar_toggle.get_attribute("aria-pressed") != "true":
+        raise RuntimeError("结果图工具栏未显示已开启的放大镜按钮。")
+    toolbar_toggle.click(timeout=10000)
+    if toolbar_toggle.get_attribute("aria-pressed") != "false":
+        raise RuntimeError("结果图工具栏未能关闭放大镜。")
+    page.mouse.move(box["x"] + box["width"] * 0.6, box["y"] + box["height"] * 0.6)
+    if page.locator(".result-magnifier.is-visible").count():
+        raise RuntimeError("工具栏关闭放大镜后放大框仍然显示。")
+    toolbar_toggle.click(timeout=10000)
+    if toolbar_toggle.get_attribute("aria-pressed") != "true":
+        raise RuntimeError("结果图工具栏未能重新开启放大镜。")
+    page.mouse.move(box["x"] + box["width"] * 0.68, box["y"] + box["height"] * 0.68)
+    lens.wait_for(state="visible", timeout=5000)
 
     stage.screenshot(path=str(output_dir / name("03-workbench-result-magnifier.png", suffix)))
     click_tab(page, "设置")

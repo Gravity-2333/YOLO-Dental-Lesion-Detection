@@ -20,6 +20,8 @@
   let runtimeReloading = false;
   let lastRuntimeCheckAt = 0;
   let magnifierPreferenceInitialized = false;
+  let magnifierZoom = 2.5;
+  const MAGNIFIER_ICON = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>';
 
   const readRuntimeAppId = async (response) => {
     if (!response.body || !response.body.getReader) {
@@ -401,6 +403,60 @@
     return !(input instanceof HTMLInputElement) || input.checked;
   };
 
+  const formatMagnifierZoom = () => `${magnifierZoom.toFixed(2).replace(/\.?0+$/u, "")}x`;
+
+  const synchronizeMagnifierToggleButtons = () => {
+    const enabled = magnifierEnabled();
+    document.querySelectorAll(".result-magnifier-toggle").forEach((button) => {
+      button.classList.toggle("is-active", enabled);
+      button.setAttribute("aria-pressed", String(enabled));
+      button.setAttribute("aria-label", enabled ? "关闭悬停放大镜" : "开启悬停放大镜");
+      button.setAttribute("title", enabled ? "关闭悬停放大镜" : "开启悬停放大镜");
+    });
+  };
+
+  const initializeMagnifierToggleButtons = () => {
+    document.querySelectorAll(".primary-result-card .icon-button-wrapper.top-panel").forEach((toolbar) => {
+      if (toolbar.querySelector(".result-magnifier-toggle")) {
+        return;
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "result-magnifier-toggle";
+      button.innerHTML = MAGNIFIER_ICON;
+      toolbar.prepend(button);
+    });
+    synchronizeMagnifierToggleButtons();
+  };
+
+  const synchronizeMagnifierSettingInput = () => {
+    const runtimeValue = document.documentElement.dataset.resultMagnifierEnabled;
+    const input = document.querySelector(
+      '#magnifier-enabled-setting input[type="checkbox"]',
+    );
+    if (
+      (runtimeValue === "true" || runtimeValue === "false")
+      && input instanceof HTMLInputElement
+      && input.checked !== (runtimeValue === "true")
+    ) {
+      input.click();
+    }
+  };
+
+  const setMagnifierEnabled = (enabled) => {
+    document.documentElement.dataset.resultMagnifierEnabled = String(enabled);
+    const input = document.querySelector(
+      '#magnifier-enabled-setting input[type="checkbox"]',
+    );
+    if (input instanceof HTMLInputElement && input.checked !== enabled) {
+      input.click();
+    }
+    if (!enabled) {
+      hideResultMagnifiers();
+    }
+    synchronizeMagnifierToggleButtons();
+  };
+
   const initializeMagnifierPreference = () => {
     if (magnifierPreferenceInitialized) {
       return;
@@ -412,6 +468,7 @@
     document.documentElement.dataset.resultMagnifierEnabled =
       marker.dataset.enabled === "false" ? "false" : "true";
     magnifierPreferenceInitialized = true;
+    synchronizeMagnifierToggleButtons();
   };
 
   const hideResultMagnifiers = () => {
@@ -493,18 +550,28 @@
     const lensWidth = lens.offsetWidth;
     const lensHeight = lens.offsetHeight;
     const gap = 18;
-    let left = event.clientX - stageRect.left + gap;
-    let top = event.clientY - stageRect.top - lensHeight - gap;
-    if (left + lensWidth > stageRect.width - 8) {
-      left = event.clientX - stageRect.left - lensWidth - gap;
-    }
-    if (top < 8) {
-      top = event.clientY - stageRect.top + gap;
-    }
-    left = Math.max(8, Math.min(left, stageRect.width - lensWidth - 8));
-    top = Math.max(8, Math.min(top, stageRect.height - lensHeight - 8));
+    const pointerLeft = event.clientX - stageRect.left;
+    const pointerTop = event.clientY - stageRect.top;
+    const contentLeft = bounds.left - stageRect.left;
+    const contentTop = bounds.top - stageRect.top;
+    const contentRight = contentLeft + bounds.width;
+    const contentBottom = contentTop + bounds.height;
+    const placeLeft = x <= bounds.width / 2;
+    const placeAbove = y <= bounds.height / 2;
+    let left = placeLeft ? pointerLeft - lensWidth - gap : pointerLeft + gap;
+    let top = placeAbove ? pointerTop - lensHeight - gap : pointerTop + gap;
+    left = Math.max(
+      contentLeft + 8,
+      Math.min(left, contentRight - lensWidth - 8),
+    );
+    top = Math.max(
+      contentTop + 8,
+      Math.min(top, contentBottom - lensHeight - 8),
+    );
     lens.style.left = `${left}px`;
     lens.style.top = `${top}px`;
+    lens.dataset.quadrant = `${placeAbove ? "top" : "bottom"}-${placeLeft ? "left" : "right"}`;
+    lens.dataset.zoom = formatMagnifierZoom();
 
     const deviceScale = Math.min(2, window.devicePixelRatio || 1);
     const canvasWidth = Math.max(1, lens.clientWidth);
@@ -519,7 +586,7 @@
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = "high";
 
-    const zoom = 2.5;
+    const zoom = magnifierZoom;
     const sourceWidth = Math.min(image.naturalWidth, canvasWidth / zoom / bounds.scale);
     const sourceHeight = Math.min(image.naturalHeight, canvasHeight / zoom / bounds.scale);
     const sourceX = Math.max(
@@ -548,6 +615,44 @@
       canvasWidth,
       canvasHeight,
     );
+  };
+
+  const adjustResultMagnifierZoom = (event) => {
+    if (!event.ctrlKey || !(event.target instanceof Element)) {
+      return;
+    }
+    const card = event.target.closest(".primary-result-card");
+    const image = card?.querySelector("img");
+    if (!(image instanceof HTMLImageElement) || !magnifierEnabled()) {
+      return;
+    }
+    const bounds = imageContentBounds(image);
+    if (
+      !bounds
+      || event.clientX < bounds.left
+      || event.clientX > bounds.left + bounds.width
+      || event.clientY < bounds.top
+      || event.clientY > bounds.top + bounds.height
+    ) {
+      return;
+    }
+    event.preventDefault();
+    const direction = event.deltaY < 0 ? 1 : -1;
+    magnifierZoom = Math.max(1.5, Math.min(5, magnifierZoom + direction * 0.25));
+    moveResultMagnifier(event);
+  };
+
+  const handleMagnifierToggleClick = (event) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    const button = event.target.closest(".result-magnifier-toggle");
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    setMagnifierEnabled(!magnifierEnabled());
   };
 
   const leaveResultImage = (event) => {
@@ -666,6 +771,7 @@
     }
     labelIconActions();
     initializeMagnifierPreference();
+    initializeMagnifierToggleButtons();
     initializeDetectionTables();
     syncPrimaryNavigation();
     syncStickyNavigation();
@@ -680,6 +786,7 @@
     document.addEventListener("click", navigateFromHome, true);
     document.addEventListener("click", handleDetectionTableClick, true);
     document.addEventListener("click", handleReportExportMenuClick, true);
+    document.addEventListener("click", handleMagnifierToggleClick, true);
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         closeReportExportMenus();
@@ -688,12 +795,14 @@
     document.addEventListener("input", (event) => syncImageComparison(event.target), true);
     document.addEventListener("pointermove", moveResultMagnifier, true);
     document.addEventListener("pointerout", leaveResultImage, true);
+    document.addEventListener("wheel", adjustResultMagnifierZoom, { capture: true, passive: false });
     document.addEventListener("change", (event) => {
       if (event.target instanceof Element && event.target.closest("#magnifier-enabled-setting")) {
         if (event.target instanceof HTMLInputElement) {
           document.documentElement.dataset.resultMagnifierEnabled = String(event.target.checked);
         }
         hideResultMagnifiers();
+        synchronizeMagnifierToggleButtons();
       }
     }, true);
     window.addEventListener("scroll", scheduleStickyNavigation, { passive: true });
@@ -703,6 +812,8 @@
       scheduleMenuLabeling();
       initializeDetectionTables();
       initializeMagnifierPreference();
+      initializeMagnifierToggleButtons();
+      synchronizeMagnifierSettingInput();
     }).observe(document.body, {
       childList: true,
       subtree: true,

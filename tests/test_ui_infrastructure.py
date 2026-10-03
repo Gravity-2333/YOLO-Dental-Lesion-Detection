@@ -22,6 +22,7 @@ from src.dental_detection.example_assets import (
     example_preview_text,
     load_example_metadata,
 )
+from src.dental_detection.model_info import legend_html
 from src.dental_detection.record_formatters import (
     case_record_detail_html,
     history_record_detail_html,
@@ -296,10 +297,16 @@ class UiAssetTests(unittest.TestCase):
 
         self.assertIn('#magnifier-enabled-setting input[type="checkbox"]', javascript)
         self.assertIn('document.addEventListener("pointermove", moveResultMagnifier', javascript)
+        self.assertIn('document.addEventListener("wheel", adjustResultMagnifierZoom', javascript)
+        self.assertIn(".result-magnifier-toggle", javascript)
+        self.assertIn("synchronizeMagnifierSettingInput", javascript)
+        self.assertIn('lens.dataset.quadrant =', javascript)
+        self.assertIn('lens.dataset.zoom = formatMagnifierZoom()', javascript)
         self.assertIn('document.createElement("canvas")', javascript)
         self.assertIn(".result-magnifier", css)
         self.assertIn(".result-legend-overlay-host", css)
         self.assertIn("legend_html(compact=True)", source)
+        self.assertNotIn('class="legend-separator"', legend_html(compact=True))
         self.assertNotIn("查看高清结果与疑似区域", source)
         self.assertNotIn("gr.Gallery(", source)
 

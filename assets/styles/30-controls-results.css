@@ -142,11 +142,13 @@
 }
 
 .result-legend-overlay-host {
-  position: absolute !important;
-  right: 14px !important;
-  bottom: 14px !important;
-  z-index: 6 !important;
-  width: 164px !important;
+  position: relative !important;
+  z-index: 2 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  padding: 9px 14px 11px !important;
   pointer-events: none !important;
 }
 
@@ -155,15 +157,14 @@
   flex-direction: column;
   gap: 5px;
   box-sizing: border-box;
-  width: 100%;
+  width: auto;
   min-width: 0;
   margin: 0;
-  padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(107, 121, 116, 0.32);
-  border-radius: 6px;
-  box-shadow: 0 6px 18px rgba(21, 34, 31, 0.12);
-  backdrop-filter: blur(5px);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .compact-result-legend .legend-item {
@@ -186,17 +187,10 @@
   margin: 0;
 }
 
-.compact-result-legend .legend-separator,
 .compact-result-legend strong {
   color: #23312e;
   font-size: 0.76rem;
   line-height: 1.35;
-}
-
-.compact-result-legend .legend-separator {
-  grid-area: auto !important;
-  color: #64748b;
-  text-align: center;
 }
 
 .compact-result-legend strong {
@@ -232,7 +226,7 @@
 }
 
 .result-magnifier::after {
-  content: "2.5x";
+  content: attr(data-zoom);
   position: absolute;
   top: 7px;
   right: 8px;
@@ -242,6 +236,39 @@
   border-radius: 4px;
   font-size: 0.68rem;
   font-weight: 700;
+}
+
+.result-magnifier-toggle {
+  display: grid;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 7px;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #9aa4a1;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.result-magnifier-toggle svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.result-magnifier-toggle:hover,
+.result-magnifier-toggle:focus-visible {
+  background: #edf4f1;
+  color: #44635c;
+}
+
+.result-magnifier-toggle.is-active {
+  background: #e3f2ed;
+  color: #167969;
 }
 
 .legend-item {
