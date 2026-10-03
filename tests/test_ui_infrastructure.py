@@ -121,6 +121,29 @@ class UiAssetTests(unittest.TestCase):
             self.assertIn("&lt;script&gt;", detail_html)
             self.assertNotIn("<script>", detail_html)
 
+    def test_detection_details_are_paginated_and_coordinates_use_full_width_rows(self) -> None:
+        detections = [
+            {
+                "中文名称": "龋齿",
+                "confidence": 0.8,
+                "关注等级": "重点关注",
+                "x1": index + 0.1,
+                "y1": index + 0.2,
+                "x2": index + 0.3,
+                "y2": index + 0.4,
+            }
+            for index in range(17)
+        ]
+        detail_html = history_record_detail_html({"detections": detections})
+
+        self.assertEqual(detail_html.count('class="record-detection-row"'), 17)
+        self.assertEqual(detail_html.count('class="record-coordinate-row"'), 17)
+        self.assertIn('data-page-size="8"', detail_html)
+        self.assertIn("第 1 / 3 页 · 共 17 项", detail_html)
+        self.assertIn('class="record-coordinate-trigger"', detail_html)
+        self.assertIn('colspan="5"', detail_html)
+        self.assertNotIn('<details class="record-coordinate"', detail_html)
+
     def test_css_bundle_is_complete_and_ordered(self) -> None:
         self.assertTrue(all(path.is_file() for path in CSS_BUNDLE_FILES))
         css = load_workbench_css()
@@ -141,6 +164,9 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn('attributeFilter: ["data-toast-sequence"]', javascript)
         self.assertIn('toast.style.animation = "none"', javascript)
         self.assertIn("void toast.offsetWidth", javascript)
+        self.assertIn("initializeDetectionTables", javascript)
+        self.assertIn("renderDetectionTablePage", javascript)
+        self.assertIn("handleDetectionTableClick", javascript)
 
     def test_ai_composer_keyboard_matches_visible_shortcut_hint(self) -> None:
         javascript = load_workbench_js()

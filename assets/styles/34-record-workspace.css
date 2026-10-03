@@ -776,15 +776,24 @@
   font-size: 0.75rem;
 }
 
+.record-detection-grid {
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid #dfe5e2;
+  background: #ffffff;
+}
+
 .record-detection-table-wrap {
   max-width: 100%;
-  overflow-x: auto;
-  border: 1px solid #dfe5e2;
+  max-height: min(520px, 62vh);
+  overflow: auto;
+  scrollbar-color: #aebdb8 #f3f6f5;
+  scrollbar-width: thin;
 }
 
 .record-detection-table {
   width: 100%;
-  min-width: 690px;
+  min-width: 640px;
   border-collapse: collapse;
   font-size: 0.78rem;
 }
@@ -799,14 +808,17 @@
 }
 
 .record-detection-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   background: #f3f6f5;
   color: #52615d;
   font-size: 0.7rem;
   font-weight: 800;
 }
 
-.record-detection-table tr:last-child td {
-  border-bottom: 0;
+.record-detection-row:hover td {
+  background: #f8faf9;
 }
 
 .record-index-cell {
@@ -825,22 +837,154 @@
   white-space: nowrap;
 }
 
-.record-coordinate {
-  position: relative;
+.record-assessment-cell {
+  min-width: 112px;
 }
 
-.record-coordinate summary {
+.record-confidence {
+  display: block;
+  margin-top: 6px;
+  color: #697671;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.record-coordinate-trigger {
+  min-width: 82px;
+  padding: 7px 9px;
+  border: 1px solid #a9c5bf;
+  border-radius: 4px;
+  background: #ffffff;
   color: #176d64;
+  font: inherit;
+  font-size: 0.72rem;
   font-weight: 700;
   cursor: pointer;
 }
 
-.record-coordinate span {
+.record-coordinate-trigger:hover,
+.record-coordinate-trigger:focus-visible,
+.record-coordinate-trigger[aria-expanded="true"] {
+  border-color: #176d64;
+  background: #edf6f3;
+  outline: 0;
+}
+
+.record-coordinate-row td {
+  padding: 0 !important;
+  background: #f7faf9;
+}
+
+.record-coordinate-panel {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(300px, 2fr);
+  align-items: center;
+  gap: 18px;
+  padding: 14px 16px;
+  border-left: 3px solid #176d64;
+}
+
+.record-coordinate-heading span,
+.record-coordinate-heading strong {
   display: block;
-  min-width: 180px;
-  margin-top: 6px;
+}
+
+.record-coordinate-heading span {
+  color: var(--brand-gold-dark);
+  font-size: 0.64rem;
+  font-weight: 800;
+}
+
+.record-coordinate-heading strong {
+  margin-top: 3px;
+  color: #2d3a37;
+  font-size: 0.76rem;
+}
+
+.record-coordinate-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid #dce4e1;
+  background: #dce4e1;
+}
+
+.record-coordinate-value {
+  padding: 8px 10px;
+  background: #ffffff;
+}
+
+.record-coordinate-value span,
+.record-coordinate-value strong {
+  display: block;
+}
+
+.record-coordinate-value span {
+  color: #7b8884;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.record-coordinate-value strong {
+  margin-top: 2px;
+  color: #33413e;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.record-table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  padding: 8px 10px 8px 14px;
+  border-top: 1px solid #dfe5e2;
+  background: #f8faf9;
+}
+
+.record-page-status,
+.record-page-number {
   color: #66736f;
   font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.record-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.record-page-button {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #cad5d1;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #2e3b38;
+  font: inherit;
+  font-size: 1.08rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.record-page-button:hover:not(:disabled),
+.record-page-button:focus-visible {
+  border-color: #176d64;
+  color: #176d64;
+  outline: 0;
+}
+
+.record-page-button:disabled {
+  color: #adb7b4;
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .record-safety-note {
@@ -1174,6 +1318,31 @@
 
   .record-detail-empty {
     min-height: 260px;
+  }
+
+  .record-detection-table-wrap {
+    max-height: 460px;
+  }
+
+  .record-coordinate-panel {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .record-coordinate-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .record-table-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .record-page-actions {
+    align-self: stretch;
+    justify-content: flex-end;
   }
 
   .report-file-card {

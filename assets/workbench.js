@@ -342,12 +342,90 @@
     });
   };
 
+  const renderDetectionTablePage = (grid, requestedPage) => {
+    const rows = [...grid.querySelectorAll(".record-detection-row")];
+    const pageSize = Math.max(1, Number.parseInt(grid.dataset.pageSize || "8", 10));
+    const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+    const currentPage = Math.min(pageCount, Math.max(1, requestedPage));
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+
+    rows.forEach((row, index) => {
+      const isVisible = index >= startIndex && index < endIndex;
+      row.hidden = !isVisible;
+      const detail = row.nextElementSibling;
+      if (detail?.classList.contains("record-coordinate-row")) {
+        detail.hidden = true;
+      }
+      row.querySelector(".record-coordinate-trigger")?.setAttribute("aria-expanded", "false");
+    });
+
+    grid.dataset.currentPage = String(currentPage);
+    const status = grid.querySelector(".record-page-status");
+    const pageNumber = grid.querySelector(".record-page-number");
+    if (status) {
+      status.textContent = `第 ${currentPage} / ${pageCount} 页 · 共 ${rows.length} 项`;
+    }
+    if (pageNumber) {
+      pageNumber.textContent = `${currentPage} / ${pageCount}`;
+    }
+    const previous = grid.querySelector('[data-page-action="previous"]');
+    const next = grid.querySelector('[data-page-action="next"]');
+    if (previous instanceof HTMLButtonElement) {
+      previous.disabled = currentPage <= 1;
+    }
+    if (next instanceof HTMLButtonElement) {
+      next.disabled = currentPage >= pageCount;
+    }
+  };
+
+  const initializeDetectionTables = () => {
+    document.querySelectorAll(".record-detection-grid").forEach((grid) => {
+      if (!(grid instanceof HTMLElement) || grid.dataset.paginationReady === "true") {
+        return;
+      }
+      grid.dataset.paginationReady = "true";
+      renderDetectionTablePage(grid, Number.parseInt(grid.dataset.currentPage || "1", 10));
+    });
+  };
+
+  const handleDetectionTableClick = (event) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    const coordinateTrigger = event.target.closest(".record-coordinate-trigger");
+    if (coordinateTrigger instanceof HTMLButtonElement) {
+      const row = coordinateTrigger.closest(".record-detection-row");
+      const detail = row?.nextElementSibling;
+      if (detail?.classList.contains("record-coordinate-row")) {
+        const shouldOpen = coordinateTrigger.getAttribute("aria-expanded") !== "true";
+        coordinateTrigger.setAttribute("aria-expanded", String(shouldOpen));
+        detail.hidden = !shouldOpen;
+      }
+      return;
+    }
+
+    const pageButton = event.target.closest(".record-page-button");
+    if (!(pageButton instanceof HTMLButtonElement) || pageButton.disabled) {
+      return;
+    }
+    const grid = pageButton.closest(".record-detection-grid");
+    if (!(grid instanceof HTMLElement)) {
+      return;
+    }
+    const currentPage = Number.parseInt(grid.dataset.currentPage || "1", 10);
+    const direction = pageButton.dataset.pageAction === "previous" ? -1 : 1;
+    renderDetectionTablePage(grid, currentPage + direction);
+    grid.querySelector(".record-detection-table-wrap")?.scrollTo({ top: 0, behavior: "auto" });
+  };
+
   const start = () => {
     if (!document.body) {
       window.requestAnimationFrame(start);
       return;
     }
     labelIconActions();
+    initializeDetectionTables();
     syncPrimaryNavigation();
     syncStickyNavigation();
     void checkRuntimeVersion();
@@ -359,11 +437,15 @@
     });
     document.addEventListener("click", trackOverflowSelection, true);
     document.addEventListener("click", navigateFromHome, true);
+    document.addEventListener("click", handleDetectionTableClick, true);
     document.addEventListener("input", (event) => syncImageComparison(event.target), true);
     window.addEventListener("scroll", scheduleStickyNavigation, { passive: true });
     window.addEventListener("resize", scheduleStickyNavigation, { passive: true });
     window.setInterval(checkRuntimeVersion, 30000);
-    new MutationObserver(scheduleMenuLabeling).observe(document.body, {
+    new MutationObserver(() => {
+      scheduleMenuLabeling();
+      initializeDetectionTables();
+    }).observe(document.body, {
       childList: true,
       subtree: true,
     });

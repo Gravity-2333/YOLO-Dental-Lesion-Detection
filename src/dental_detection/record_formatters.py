@@ -295,6 +295,7 @@ def _model_summary_html(model_results: Any) -> str:
 def _detection_table_html(detections: list[dict[str, Any]]) -> str:
     if not detections:
         return '<div class="record-detail-note is-clear">当前记录没有检测框。</div>'
+    page_size = 8
     rows = []
     for index, det in enumerate(detections, start=1):
         class_name = det.get("中文名称") or det.get("class") or "未知类别"
@@ -304,26 +305,52 @@ def _detection_table_html(detections: list[dict[str, Any]]) -> str:
         except (TypeError, ValueError):
             confidence_text = text_value(confidence, "-")
         tone, attention = _attention_tone(det.get("关注等级"))
-        coordinates = ", ".join(
-            text_value(det.get(key), "-") for key in ("x1", "y1", "x2", "y2")
+        coordinate_items = tuple(
+            (key.upper(), text_value(det.get(key), "-"))
+            for key in ("x1", "y1", "x2", "y2")
         )
+        coordinate_cells = "".join(
+            '<div class="record-coordinate-value">'
+            f'<span>{escape(label)}</span><strong>{escape(value)}</strong></div>'
+            for label, value in coordinate_items
+        )
+        hidden = " hidden" if index > page_size else ""
         rows.append(
-            "<tr>"
+            f'<tr class="record-detection-row" data-row-index="{index}"{hidden}>'
             f'<td class="record-index-cell">{index:02d}</td>'
             f"<td><strong>{_html_text(class_name)}</strong>"
             f'<span class="record-cell-subtext">{_html_text(det.get("模型"), "未记录模型")}</span></td>'
-            f'<td><span class="record-status record-status-{tone}">{escape(attention)}</span></td>'
-            f"<td>{escape(confidence_text)}</td>"
+            '<td class="record-assessment-cell">'
+            f'<span class="record-status record-status-{tone}">{escape(attention)}</span>'
+            f'<span class="record-confidence">置信度 {escape(confidence_text)}</span></td>'
             f"<td>{_html_text(det.get('图像区域'), '未计算')}</td>"
-            '<td><details class="record-coordinate"><summary>查看</summary>'
-            f"<span>{escape(coordinates)}</span></details></td>"
+            '<td><button type="button" class="record-coordinate-trigger" '
+            'aria-expanded="false">查看坐标</button></td>'
             "</tr>"
+            f'<tr class="record-coordinate-row" data-row-index="{index}" hidden>'
+            '<td colspan="5"><div class="record-coordinate-panel">'
+            '<div class="record-coordinate-heading"><span>BOUNDING BOX</span>'
+            f'<strong>{_html_text(class_name)} · 检测框 {index:02d}</strong></div>'
+            f'<div class="record-coordinate-grid">{coordinate_cells}</div>'
+            "</div></td></tr>"
         )
+    total_pages = max(1, (len(detections) + page_size - 1) // page_size)
+    next_disabled = " disabled" if total_pages == 1 else ""
     return (
+        f'<div class="record-detection-grid" data-page-size="{page_size}" data-current-page="1">'
         '<div class="record-detection-table-wrap"><table class="record-detection-table">'
-        "<thead><tr><th>#</th><th>类别 / 模型</th><th>关注等级</th>"
-        "<th>置信度</th><th>图像区域</th><th>坐标</th></tr></thead>"
+        "<thead><tr><th>#</th><th>类别 / 模型</th><th>模型研判</th>"
+        "<th>图像区域</th><th>详情</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table></div>"
+        '<div class="record-table-pagination" role="navigation" aria-label="检测明细分页">'
+        f'<span class="record-page-status" aria-live="polite">第 1 / {total_pages} 页 · 共 {len(detections)} 项</span>'
+        '<div class="record-page-actions">'
+        '<button type="button" class="record-page-button" data-page-action="previous" '
+        'aria-label="上一页" title="上一页" disabled>‹</button>'
+        f'<span class="record-page-number">1 / {total_pages}</span>'
+        '<button type="button" class="record-page-button" data-page-action="next" '
+        f'aria-label="下一页" title="下一页"{next_disabled}>›</button>'
+        "</div></div></div>"
     )
 
 

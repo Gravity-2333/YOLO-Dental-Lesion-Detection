@@ -96,6 +96,37 @@ def assert_history_output_contract(page) -> None:
         raise RuntimeError("报告详情组件内容串位。")
 
 
+def assert_detection_table_controls(page) -> None:
+    grids = page.locator(".record-detection-grid:visible")
+    if not grids.count():
+        return
+    grid = grids.first
+    page_size = int(grid.get_attribute("data-page-size") or "8")
+    visible_rows = grid.locator(".record-detection-row:visible")
+    if not 0 < visible_rows.count() <= page_size:
+        raise RuntimeError(f"检测明细分页行数异常：{visible_rows.count()} / {page_size}")
+
+    trigger = grid.locator(".record-coordinate-trigger:visible").first
+    trigger.click()
+    coordinate_row = grid.locator(".record-coordinate-row:visible").first
+    coordinate_row.wait_for(state="visible")
+    if coordinate_row.locator(".record-coordinate-value").count() != 4:
+        raise RuntimeError("检测框坐标详情未完整显示 X1、Y1、X2、Y2。")
+    trigger.click()
+
+    next_button = grid.locator('[data-page-action="next"]')
+    if next_button.is_visible() and next_button.is_enabled():
+        before = grid.locator(".record-page-status").inner_text()
+        next_button.click()
+        wait_for_ui(page)
+        after = grid.locator(".record-page-status").inner_text()
+        if before == after:
+            raise RuntimeError("检测明细下一页按钮未更新分页状态。")
+        previous = grid.locator('[data-page-action="previous"]')
+        previous.click()
+        wait_for_ui(page)
+
+
 def assert_named_button_heights(page, labels: list[tuple[str, ...]], *, tolerance: int = 1) -> None:
     heights = page.evaluate(
         """groups => groups.map(group => {
@@ -639,6 +670,7 @@ def main() -> int:
                     )
                     assert_history_page_settled(page, args.max_seconds, timings)
                     assert_history_output_contract(page)
+                    assert_detection_table_controls(page)
 
         timed_click(page, top_tab(page, "AI 问答"), "进入 AI 问答", args.max_seconds, timings)
         runtime_status = page.locator(".ai-chat-runtime").first
