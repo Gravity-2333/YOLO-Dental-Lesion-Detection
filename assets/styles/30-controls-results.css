@@ -871,20 +871,28 @@ input[aria-label="对比模型路径"],
 }
 
 .upload-input button[aria-label="将图像文件拖放到此处以上传"] .icon-wrap {
+  display: grid !important;
+  flex: 0 0 42px !important;
   width: 42px !important;
   height: 42px !important;
   margin-bottom: 10px !important;
+  padding: 0 !important;
+  place-items: center !important;
   border: 1px solid #c6d8d3 !important;
   border-radius: 50% !important;
   background: #ffffff !important;
   color: var(--primary) !important;
+  line-height: 0 !important;
 }
 
 .upload-input button[aria-label="将图像文件拖放到此处以上传"] svg {
+  display: block !important;
   width: 20px !important;
   height: 20px !important;
+  margin: 0 !important;
   color: var(--primary) !important;
   opacity: 0.78 !important;
+  transform: none !important;
 }
 
 .upload-input [data-testid="image"],

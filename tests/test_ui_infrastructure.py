@@ -294,6 +294,24 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn(".row.compact-row > button", css)
         self.assertIn("height: var(--primary-height) !important", css)
 
+    def test_single_upload_icon_is_centered_inside_its_circle(self) -> None:
+        css = load_workbench_css()
+        icon_rule = css.split(
+            '.upload-input button[aria-label="将图像文件拖放到此处以上传"] .icon-wrap {',
+            1,
+        )[1].split("}", 1)[0]
+        svg_rule = css.split(
+            '.upload-input button[aria-label="将图像文件拖放到此处以上传"] svg {',
+            1,
+        )[1].split("}", 1)[0]
+
+        self.assertIn("display: grid !important", icon_rule)
+        self.assertIn("place-items: center !important", icon_rule)
+        self.assertIn("line-height: 0 !important", icon_rule)
+        self.assertIn("display: block !important", svg_rule)
+        self.assertIn("margin: 0 !important", svg_rule)
+        self.assertIn("transform: none !important", svg_rule)
+
     def test_dropdown_selected_value_stays_visible_with_a_roomier_control(self) -> None:
         css = load_workbench_css()
         value_rule = css.split(
