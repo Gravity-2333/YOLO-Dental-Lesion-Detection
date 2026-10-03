@@ -6,6 +6,7 @@ using this module while the application is migrated incrementally.
 
 from .advice import _normalize_class_name, default_advice, detection_prompt
 from .ai_client import (
+    ai_advice_ready,
     chat_completion,
     is_private_base_url,
     normalize_base_url,
@@ -121,6 +122,7 @@ __all__ = [
     "SAFETY_NOTICE",
     "AiSettings",
     "_normalize_class_name",
+    "ai_advice_ready",
     "case_dir",
     "chat_completion",
     "conversation_dir",

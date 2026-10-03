@@ -1295,6 +1295,52 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("1 条消息", loaded_status)
         self.assertIn("检测文字与提问，不含影像", loaded_status)
 
+    def test_detection_advice_skips_unconfigured_api_and_calls_ready_api_once(self) -> None:
+        detections = [{"class": "Caries", "confidence": 0.86}]
+        unconfigured = AiSettings(
+            enabled=True,
+            base_url="https://example.com/v1",
+            key_mode="环境变量",
+            api_key="MISSING_TEST_KEY",
+        )
+        configured = AiSettings(
+            enabled=True,
+            base_url="https://example.com/v1",
+            key_mode="直接 Key 值",
+            api_key="test-key",
+        )
+
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch.object(app, "chat_completion") as completion,
+        ):
+            fallback = app._build_advice(unconfigured, detections)
+        completion.assert_not_called()
+        self.assertEqual(fallback, app.default_advice(detections))
+        self.assertEqual(app._suggestion_type(unconfigured), "default")
+
+        with patch.object(app, "chat_completion", return_value="请结合临床检查复核。") as completion:
+            generated = app._build_advice(configured, detections)
+        completion.assert_called_once()
+        self.assertEqual(generated, "请结合临床检查复核。")
+        self.assertEqual(app._suggestion_type(configured), "ai")
+
+    def test_detection_advice_falls_back_when_api_returns_empty(self) -> None:
+        settings = AiSettings(
+            enabled=True,
+            base_url="https://example.com/v1",
+            key_mode="直接 Key 值",
+            api_key="test-key",
+        )
+        detections = [{"class": "Periapical_Lesion", "confidence": 0.72}]
+
+        with patch.object(app, "chat_completion", return_value="   ") as completion:
+            advice = app._build_advice(settings, detections)
+
+        completion.assert_called_once()
+        self.assertIn("检测摘要", advice)
+        self.assertIn("AI 建议生成失败", advice)
+
     def test_continue_chat_sends_current_detection_text_without_private_artifacts(self) -> None:
         batch_state = [
             {

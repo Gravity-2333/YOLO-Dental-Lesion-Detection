@@ -145,6 +145,7 @@ MODEL_SELECTION_HELP = (
 
 AI_INTERFACE_HELP = (
     "兼容 OpenAI Chat Completions。\n\n"
+    "启用 AI 且接口配置可用时，每次检测会自动请求一次辅助建议；未配置时直接使用本地默认建议。\n\n"
     "测试请求只发送“请只回复 OK”，字段限定为 model、messages、temperature、max_tokens。"
 )
 

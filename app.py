@@ -20,7 +20,12 @@ import torch
 
 from src.dental_detection.advice import default_advice, detection_prompt
 from src.dental_detection.ai_detection_context import build_detection_text_context
-from src.dental_detection.ai_client import chat_completion, normalize_base_url, test_chat_completion
+from src.dental_detection.ai_client import (
+    ai_advice_ready,
+    chat_completion,
+    normalize_base_url,
+    test_chat_completion,
+)
 from src.dental_detection.chat_automation import (
     DEFAULT_FOLLOWUP_QUESTIONS,
     generate_conversation_title,
@@ -895,21 +900,25 @@ def _api_key_inputs(saved: AiSettings) -> tuple[str, str]:
 
 
 def _build_advice(settings: AiSettings, detections: list[dict[str, Any]]) -> str:
-    if not settings.enabled:
-        return default_advice(detections)
+    fallback = default_advice(detections)
+    if not ai_advice_ready(settings):
+        return fallback
     style_prompt = _advice_style_prompt(settings.advice_style)
     prompt = settings.custom_prompt
     if style_prompt:
         prompt = f"{prompt}\n{style_prompt}"
     try:
-        return chat_completion(
+        generated = chat_completion(
             settings,
             detection_prompt(detections, prompt),
             temperature=0.2,
             max_tokens=500,
         )
+        if not str(generated or "").strip():
+            raise ValueError("AI 接口返回为空。")
+        return str(generated).strip()
     except Exception as exc:
-        return f"{default_advice(detections)}\n\n{concise_error_message(exc, 'AI 建议生成失败')}"
+        return f"{fallback}\n\n{concise_error_message(exc, 'AI 建议生成失败')}"
 
 
 def _advice_style_prompt(style: str) -> str:
@@ -1015,8 +1024,8 @@ def _chat_message(role: str, content: str) -> dict[str, Any]:
     }
 
 
-def _suggestion_type(ai_enabled: bool) -> str:
-    return "ai" if ai_enabled else "default"
+def _suggestion_type(settings: AiSettings) -> str:
+    return "ai" if ai_advice_ready(settings) else "default"
 
 
 def _safe_stem(name: str) -> str:
@@ -2546,7 +2555,7 @@ def run_single_detection(
             "result": primary,
             "all_results": all_results,
             "advice": advice,
-            "suggestion_type": _suggestion_type(settings.enabled),
+            "suggestion_type": _suggestion_type(settings),
             "quality_text": quality_text,
             "quality_level": quality_level,
             "summary": summary,
@@ -2739,7 +2748,7 @@ def run_batch_detection(
             "result": result,
             "all_results": all_results,
             "advice": advice,
-            "suggestion_type": _suggestion_type(settings.enabled),
+            "suggestion_type": _suggestion_type(settings),
             "quality_text": quality_text,
             "quality_level": quality_level,
             "summary": item_summary,

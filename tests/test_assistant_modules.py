@@ -14,7 +14,12 @@ from unittest.mock import patch
 from src.dental_detection import assistant, chat_automation, conversation_store, settings_store
 from src.dental_detection.advice import default_advice, detection_prompt
 from src.dental_detection.ai_detection_context import build_detection_text_context
-from src.dental_detection.ai_client import _friendly_ai_error, normalize_base_url, validate_ai_request
+from src.dental_detection.ai_client import (
+    _friendly_ai_error,
+    ai_advice_ready,
+    normalize_base_url,
+    validate_ai_request,
+)
 from src.dental_detection.ai_defaults import DEFAULT_AI_MODEL, SAFETY_NOTICE
 from src.dental_detection.conversation_store import (
     MAX_CONVERSATION_FILE_BYTES,
@@ -119,6 +124,31 @@ class AiClientTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(api_key, "EMPTY")
         self.assertEqual(error, "")
+
+    def test_detection_advice_requires_enabled_and_usable_configuration(self) -> None:
+        direct = AiSettings(
+            enabled=True,
+            base_url="https://example.com/v1",
+            key_mode="直接 Key 值",
+            api_key="test-key",
+        )
+        missing = AiSettings(
+            enabled=True,
+            base_url="https://example.com/v1",
+            key_mode="环境变量",
+            api_key="MISSING_TEST_KEY",
+        )
+        disabled = AiSettings(
+            enabled=False,
+            base_url="https://example.com/v1",
+            key_mode="直接 Key 值",
+            api_key="test-key",
+        )
+
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertTrue(ai_advice_ready(direct))
+            self.assertFalse(ai_advice_ready(missing))
+            self.assertFalse(ai_advice_ready(disabled))
 
     def test_ai_model_errors_are_not_reported_as_yolo_file_failures(self) -> None:
         message = friendly_error_message(

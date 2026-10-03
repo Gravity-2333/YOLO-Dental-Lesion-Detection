@@ -82,6 +82,14 @@ def validate_ai_request(settings: AiSettings) -> tuple[bool, str, str]:
     return False, "", "公网 API 地址需要填写 API Key，或在环境变量模式中填写环境变量名。"
 
 
+def ai_advice_ready(settings: AiSettings) -> bool:
+    """Return whether detection advice may make one external AI request."""
+    if not settings.enabled:
+        return False
+    configured, _, _ = validate_ai_request(settings)
+    return configured
+
+
 AI_REQUEST_TIMEOUT = 30.0  # 秒，OpenAI-compatible API 请求超时
 
 

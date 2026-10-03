@@ -1689,28 +1689,35 @@ except Exception as e:
     print(f"✗ 模型格式错误提示测试失败: {e}")
     sys.exit(1)
 
-print("\n测试54: 检查 AI 建议失败提示包含处理建议...")
+print("\n测试54: 检查未配置 AI 接口时直接使用内置建议...")
 try:
     import app
     from src.dental_detection.assistant import AiSettings
 
     original_chat_completion = app.chat_completion
+    request_count = {"value": 0}
 
     def fail_chat(*args, **kwargs):
+        request_count["value"] += 1
         raise ValueError("API Key missing")
 
     app.chat_completion = fail_chat
     try:
-        settings = AiSettings(enabled=True, api_key="", key_mode="直接 Key 值")
-        advice = app._build_advice(settings, [{"class": "Caries", "confidence": 0.86}])
+        settings = AiSettings(
+            enabled=True,
+            base_url="https://api.deepseek.com/v1",
+            api_key="",
+            key_mode="直接 Key 值",
+        )
+        detections = [{"class": "Caries", "confidence": 0.86}]
+        advice = app._build_advice(settings, detections)
     finally:
         app.chat_completion = original_chat_completion
-    assert "检测摘要" in advice, "AI 失败时仍应保留内置建议"
-    assert "AI 接口鉴权失败" in advice, "AI 失败应转换为用户友好提示"
-    assert "建议处理" in advice and "测试接口" in advice, "AI 失败提示应包含下一步操作"
-    print("✓ AI 建议失败提示正常")
+    assert request_count["value"] == 0, "缺少公网 API Key 时不应发起 AI 请求"
+    assert advice == app.default_advice(detections), "未配置接口时应只显示对应内置建议"
+    print("✓ 未配置 AI 接口时直接使用内置建议")
 except Exception as e:
-    print(f"✗ AI 建议失败提示测试失败: {e}")
+    print(f"✗ 未配置 AI 接口回退测试失败: {e}")
     sys.exit(1)
 
 print("\n测试55: 检查 AI 对话失败提示保留输入并给出建议...")
