@@ -107,6 +107,42 @@ def click_settings_section(page, label: str) -> None:
     page.wait_for_timeout(800)
 
 
+def check_settings_round_trip_visibility(page, output_dir: Path, suffix: str) -> None:
+    expected_titles = {
+        "工作台": "工作台",
+        "模型": "模型与推理",
+        "AI": "AI 接口",
+        "自动化": "对话自动化",
+        "存储": "存储与隐私",
+    }
+    click_tab(page, "设置")
+    for section, expected_title in expected_titles.items():
+        click_settings_section(page, section)
+        click_tab(page, "检测历史")
+        click_tab(page, "设置")
+        page.wait_for_timeout(500)
+        visible_titles = page.evaluate(
+            """() => [...document.querySelectorAll('.settings-pane')]
+                .filter(pane => {
+                    const rect = pane.getBoundingClientRect();
+                    const style = getComputedStyle(pane);
+                    return style.display !== 'none' && style.visibility !== 'hidden'
+                        && rect.width > 1 && rect.height > 1;
+                })
+                .map(pane => pane.querySelector('h2')?.textContent?.trim() || '')"""
+        )
+        if visible_titles != [expected_title]:
+            raise RuntimeError(
+                f"设置栏目往返后显隐异常：{section} -> {visible_titles}，"
+                f"期望仅显示 {expected_title}。"
+            )
+        if section == "模型":
+            page.screenshot(
+                path=str(output_dir / name("02-settings-model-return.png", suffix)),
+                full_page=False,
+            )
+
+
 def configure_isolated_detection_session(page, storage_dir: Path) -> bool:
     click_tab(page, "设置")
     click_settings_section(page, "AI")
@@ -616,6 +652,8 @@ def capture(args: argparse.Namespace) -> None:
             except Exception as exc:
                 print(f"02 screenshot failed: {exc}")
                 save(page, output_dir, name("02-workbench-model-selection.png", suffix))
+
+            check_settings_round_trip_visibility(page, output_dir, suffix)
 
             ai_was_enabled = configure_isolated_detection_session(page, Path(temp_storage))
             try:

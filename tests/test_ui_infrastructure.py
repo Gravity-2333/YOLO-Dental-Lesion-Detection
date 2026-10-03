@@ -563,6 +563,25 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("border: 0", nested_rule)
         self.assertIn("padding: 0", nested_rule)
 
+    def test_settings_panes_have_semantic_client_visibility_guards(self) -> None:
+        source = inspect.getsource(build_settings_page)
+        javascript = load_workbench_js()
+        css = load_workbench_css()
+
+        for pane_class in (
+            "settings-pane-workbench",
+            "settings-pane-model",
+            "settings-pane-ai",
+            "settings-pane-automation",
+            "settings-pane-storage",
+        ):
+            with self.subTest(pane_class=pane_class):
+                self.assertIn(pane_class, source)
+                self.assertIn(pane_class, javascript)
+        self.assertIn("syncSettingsPaneVisibility", javascript)
+        self.assertIn("scheduleSettingsPaneSync", javascript)
+        self.assertIn("settings-pane-client-hidden", css)
+
     def test_settings_advanced_trigger_centers_text_and_chevron(self) -> None:
         css = load_workbench_css()
         trigger_rule = css.split(".settings-advanced > button.label-wrap {", 1)[1].split(

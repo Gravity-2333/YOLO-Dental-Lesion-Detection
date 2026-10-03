@@ -181,7 +181,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
             scale=0,
             min_width=210,
         )
-        with gr.Group(visible=True, elem_classes=["settings-pane-host"]) as workbench_settings_pane:
+        with gr.Group(
+            visible=True,
+            elem_classes=["settings-pane-host", "settings-pane-workbench"],
+        ) as workbench_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
                 settings_page_heading("工作台", "调整检测工作区默认展示的能力。")
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
@@ -211,7 +214,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                         elem_classes=["settings-control-surface", "settings-toggle-row"],
                     )
 
-        with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as model_settings_pane:
+        with gr.Group(
+            visible=False,
+            elem_classes=["settings-pane-host", "settings-pane-model"],
+        ) as model_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
                 settings_page_heading("模型与推理", "选择临床辅助筛查使用的权重和运行模式。")
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
@@ -355,7 +361,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                     model_info_markdown = gr.Markdown(data.model_info_markdown)
                     gr.HTML(legend_html())
 
-        with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as ai_settings_pane:
+        with gr.Group(
+            visible=False,
+            elem_classes=["settings-pane-host", "settings-pane-ai"],
+        ) as ai_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
                 settings_page_heading("AI 接口", "配置建议生成、问答模型和接口凭据。")
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
@@ -492,7 +501,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                 elem_classes=["settings-feedback-field"],
                             )
 
-        with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as automation_settings_pane:
+        with gr.Group(
+            visible=False,
+            elem_classes=["settings-pane-host", "settings-pane-automation"],
+        ) as automation_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
                 settings_page_heading("对话自动化", "控制标题、后续问题及其交互方式。")
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
@@ -586,7 +598,10 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                                     ],
                                 )
 
-        with gr.Group(visible=False, elem_classes=["settings-pane-host"]) as storage_settings_pane:
+        with gr.Group(
+            visible=False,
+            elem_classes=["settings-pane-host", "settings-pane-storage"],
+        ) as storage_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
                 settings_page_heading("存储与隐私", "管理本地记录、保留数量和数据目录。")
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):

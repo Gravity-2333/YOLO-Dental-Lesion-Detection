@@ -15,6 +15,7 @@
   const TAB_ROOT_SELECTOR = ".main-tabs, .sub-tabs";
   let labelingScheduled = false;
   let stickyNavigationScheduled = false;
+  let settingsPaneSyncScheduled = false;
   let runtimeAppId = "";
   let runtimeCheckInFlight = false;
   let runtimeReloading = false;
@@ -22,6 +23,37 @@
   let magnifierPreferenceInitialized = false;
   let magnifierZoom = 2.5;
   const MAGNIFIER_ICON = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>';
+  const SETTINGS_PANE_CLASSES = new Map([
+    ["工作台", "settings-pane-workbench"],
+    ["模型", "settings-pane-model"],
+    ["AI", "settings-pane-ai"],
+    ["自动化", "settings-pane-automation"],
+    ["存储", "settings-pane-storage"],
+  ]);
+
+  const syncSettingsPaneVisibility = () => {
+    settingsPaneSyncScheduled = false;
+    const shell = document.querySelector(".settings-nav-shell");
+    const selected = shell?.querySelector(
+      '.settings-nav-control input[type="radio"]:checked',
+    );
+    if (!(shell instanceof HTMLElement) || !(selected instanceof HTMLInputElement)) {
+      return;
+    }
+    SETTINGS_PANE_CLASSES.forEach((paneClass, section) => {
+      shell.querySelectorAll(`.settings-pane-host.${paneClass}`).forEach((pane) => {
+        pane.classList.toggle("settings-pane-client-hidden", section !== selected.value);
+      });
+    });
+  };
+
+  const scheduleSettingsPaneSync = () => {
+    if (settingsPaneSyncScheduled) {
+      return;
+    }
+    settingsPaneSyncScheduled = true;
+    window.requestAnimationFrame(syncSettingsPaneVisibility);
+  };
 
   const readRuntimeAppId = async (response) => {
     if (!response.body || !response.body.getReader) {
@@ -776,6 +808,7 @@
     initializeDetectionTables();
     syncPrimaryNavigation();
     syncStickyNavigation();
+    scheduleSettingsPaneSync();
     void checkRuntimeVersion();
     window.addEventListener("focus", checkRuntimeVersion);
     window.addEventListener("online", checkRuntimeVersion);
@@ -794,6 +827,11 @@
       }
     });
     document.addEventListener("input", (event) => syncImageComparison(event.target), true);
+    document.addEventListener("input", (event) => {
+      if (event.target instanceof Element && event.target.closest(".settings-nav-control")) {
+        scheduleSettingsPaneSync();
+      }
+    }, true);
     document.addEventListener("pointermove", moveResultMagnifier, true);
     document.addEventListener("pointerout", leaveResultImage, true);
     document.addEventListener("wheel", adjustResultMagnifierZoom, { capture: true, passive: false });
@@ -815,6 +853,7 @@
       initializeMagnifierPreference();
       initializeMagnifierToggleButtons();
       synchronizeMagnifierSettingInput();
+      scheduleSettingsPaneSync();
     }).observe(document.body, {
       childList: true,
       subtree: true,

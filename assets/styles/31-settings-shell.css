@@ -122,6 +122,11 @@
   display: none !important;
 }
 
+.settings-nav-shell > .settings-pane-host.settings-pane-client-hidden,
+.settings-pane-host.settings-pane-client-hidden {
+  display: none !important;
+}
+
 .settings-pane {
   gap: 24px !important;
   width: 100% !important;
