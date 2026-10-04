@@ -256,12 +256,10 @@ def build_cases_page(data: CasesPageData) -> CasesComponents:
                     visible=False,
                     elem_classes=["record-download"],
                 )
-                report_path = gr.Textbox(
-                    label="病例报告路径",
-                    interactive=False,
-                    lines=1,
-                    max_lines=1,
-                    elem_classes=["path-output", "record-path-output"],
+                report_path = gr.HTML(
+                    value="",
+                    container=False,
+                    elem_classes=["export-path-status", "record-path-output"],
                 )
 
     return CasesComponents(

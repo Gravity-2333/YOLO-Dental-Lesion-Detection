@@ -2497,6 +2497,44 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("已经导出", visible_status)
         self.assertIn("reports/word/result.docx", visible_status)
 
+    def test_all_export_path_outputs_share_the_inline_feedback_pattern(self) -> None:
+        css = load_workbench_css()
+        case_source = inspect.getsource(build_cases_page)
+        chat_source = inspect.getsource(build_ai_chat_page)
+        workbench_source = inspect.getsource(build_workbench_page)
+        events = app.ui_event_binding_source()
+
+        self.assertIn('elem_classes=["export-path-status", "record-path-output"]', case_source)
+        self.assertIn('elem_classes=["export-path-status"]', chat_source)
+        self.assertEqual(workbench_source.count('elem_classes=["export-path-status"]'), 2)
+        self.assertIn(".export-path-status:not(:has(.report-export-status-line))", css)
+        self.assertIn("fn=export_batch_results_with_feedback", events)
+        self.assertIn("fn=export_batch_word_report_with_feedback", events)
+        self.assertIn("fn=export_selected_case_record_with_feedback", events)
+
+        with TemporaryDirectory() as temp_dir:
+            report = Path(temp_dir) / "cases" / "<case>&report.docx"
+            feedback = app.export_path_feedback_html(str(report), temp_dir)
+        self.assertIn("已经导出", feedback)
+        self.assertIn("cases/&lt;case&gt;&amp;report.docx", feedback)
+        self.assertNotIn(str(report), feedback)
+
+        with TemporaryDirectory() as temp_dir:
+            exported = str(Path(temp_dir) / "exports" / "result.zip")
+            with patch.object(app, "export_batch_results", return_value=("file", exported, [])):
+                batch_result = app.export_batch_results_with_feedback([], temp_dir)
+            with patch.object(app, "export_batch_word_report", return_value=("file", exported, [])):
+                word_result = app.export_batch_word_report_with_feedback([], temp_dir)
+            with patch.object(app, "export_selected_case_record", return_value=("file", exported)):
+                case_result = app.export_selected_case_record_with_feedback("case.json", temp_dir)
+            with patch.object(app, "export_chat", return_value=("file", exported)):
+                chat_result = app.export_chat_workspace(
+                    [{"role": "assistant", "content": "完成"}], temp_dir
+                )
+        for result in (batch_result, word_result, case_result, chat_result):
+            self.assertIn("已经导出", result[1])
+            self.assertIn("exports/result.zip", result[1])
+
     def test_result_image_export_replaces_the_shared_status_with_png_path(self) -> None:
         image = Image.new("RGB", (48, 32), "white")
         state = [{"name": "当前单图", "result": {"annotated": image}}]

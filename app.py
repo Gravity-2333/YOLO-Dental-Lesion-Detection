@@ -734,11 +734,11 @@ def open_report_location(
     gr.Info("已打开报告所在文件夹。")
 
 
-def report_export_feedback(report_path_value: str, storage_dir: str):
-    """Build the unobtrusive, refreshable export result shown below the menu."""
+def export_path_feedback_html(report_path_value: str, storage_dir: str) -> str:
+    """Build the shared unobtrusive path feedback used by export workflows."""
     path_text = str(report_path_value or "").strip()
     if not path_text:
-        return "", gr.update(visible=False)
+        return ""
 
     path = Path(path_text)
     try:
@@ -752,9 +752,14 @@ def report_export_feedback(report_path_value: str, storage_dir: str):
         '<div class="report-export-status-line">'
         '<span class="report-export-status-mark" aria-hidden="true"></span>'
         f'<span>已经导出 <strong title="{safe_full_path}">{safe_path}</strong></span>'
-        "</div>",
-        gr.update(visible=True),
+        "</div>"
     )
+
+
+def report_export_feedback(report_path_value: str, storage_dir: str):
+    """Build the refreshable single-result export feedback and folder action."""
+    feedback = export_path_feedback_html(report_path_value, storage_dir)
+    return feedback, gr.update(visible=bool(feedback))
 
 
 def choose_model_dir(
@@ -1553,6 +1558,11 @@ def export_batch_results(batch_state: list[dict[str, Any]], storage_dir: str):
     return _file_component_output(zip_path), str(zip_path), batch_state
 
 
+def export_batch_results_with_feedback(batch_state: list[dict[str, Any]], storage_dir: str):
+    file_output, path_text, updated_state = export_batch_results(batch_state, storage_dir)
+    return file_output, export_path_feedback_html(path_text, storage_dir), updated_state
+
+
 def export_batch_word_report(batch_state: list[dict[str, Any]], storage_dir: str):
     if not batch_state:
         raise gr.Error("请先完成批量检测，再导出合并 Word 报告。")
@@ -1571,6 +1581,11 @@ def export_batch_word_report(batch_state: list[dict[str, Any]], storage_dir: str
     _sync_report_path(batch_state, batch_state, path, "word_report_path")
     update_history_report_paths(batch_state, path, storage_dir)
     return _file_component_output(path), str(path), batch_state
+
+
+def export_batch_word_report_with_feedback(batch_state: list[dict[str, Any]], storage_dir: str):
+    file_output, path_text, updated_state = export_batch_word_report(batch_state, storage_dir)
+    return file_output, export_path_feedback_html(path_text, storage_dir), updated_state
 
 
 def export_single_report(batch_state: list[dict[str, Any]], selected_name: str, storage_dir: str):
@@ -2054,6 +2069,15 @@ def export_selected_case_record(
         raise gr.Error(f"病例文件损坏或无法读取：{exc}") from exc
     _remember_allowed_file_root(path.parent)
     return _file_component_output(path), str(path)
+
+
+def export_selected_case_record_with_feedback(
+    choice: str,
+    storage_dir: str,
+    patient_id: str | None = None,
+):
+    file_output, path_text = export_selected_case_record(choice, storage_dir, patient_id)
+    return file_output, export_path_feedback_html(path_text, storage_dir)
 
 
 def load_case_record(
@@ -3781,7 +3805,7 @@ def export_chat_workspace(
     file_output, path_text = export_chat(history, storage_dir, patient_id)
     return (
         file_output,
-        path_text,
+        export_path_feedback_html(path_text, storage_dir),
         Path(path_text).name,
         conversation_title(history),
     )

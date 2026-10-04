@@ -30,7 +30,7 @@ def bind_export_and_record_events(c: SimpleNamespace, h: ModuleType) -> None:
         show_progress="minimal",
     )
     c.export_batch_btn.click(
-        fn=h.export_batch_results,
+        fn=h.export_batch_results_with_feedback,
         inputs=[c.batch_state, c.storage_dir],
         outputs=[c.batch_export_file, c.batch_export_path, c.batch_state],
         concurrency_limit=1,
@@ -38,7 +38,7 @@ def bind_export_and_record_events(c: SimpleNamespace, h: ModuleType) -> None:
         show_progress="minimal",
     )
     c.export_batch_word_btn.click(
-        fn=h.export_batch_word_report,
+        fn=h.export_batch_word_report_with_feedback,
         inputs=[c.batch_state, c.storage_dir],
         outputs=[c.batch_word_file, c.batch_word_path, c.batch_state],
         concurrency_limit=1,
@@ -159,7 +159,7 @@ def bind_export_and_record_events(c: SimpleNamespace, h: ModuleType) -> None:
         show_progress="minimal",
     )
     c.export_case_btn.click(
-        fn=h.export_selected_case_record,
+        fn=h.export_selected_case_record_with_feedback,
         inputs=[c.case_select, c.storage_dir, c.case_patient_select],
         outputs=[c.case_report_file, c.case_report_path],
         concurrency_limit=1,

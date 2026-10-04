@@ -407,11 +407,10 @@ def build_ai_chat_page(data: AiChatPageData) -> AiChatComponents:
                     '<div class="ai-composer-note"><span>Enter 发送 · Shift + Enter 换行</span>'
                     '<span>AI 结果仅供辅助参考，不能替代专业牙科医生诊断</span></div>'
                 )
-                export_path = gr.Textbox(
-                    label="导出路径",
-                    interactive=False,
-                    visible=False,
-                    elem_classes=["path-output"],
+                export_path = gr.HTML(
+                    value="",
+                    container=False,
+                    elem_classes=["export-path-status"],
                 )
                 export_file = gr.File(label="导出的对话文件", visible=False)
     return AiChatComponents(

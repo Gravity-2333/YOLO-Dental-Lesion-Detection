@@ -193,19 +193,15 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                             )
                             batch_export_file = gr.File(label="批量结果 ZIP", visible=False)
                             batch_word_file = gr.File(label="批量 Word 报告", visible=False)
-                        batch_export_path = gr.Textbox(
-                            label="批量导出路径",
-                            interactive=False,
-                            lines=1,
-                            max_lines=1,
-                            elem_classes=["path-output"],
+                        batch_export_path = gr.HTML(
+                            value="",
+                            container=False,
+                            elem_classes=["export-path-status"],
                         )
-                        batch_word_path = gr.Textbox(
-                            label="批量 Word 报告路径",
-                            interactive=False,
-                            lines=1,
-                            max_lines=1,
-                            elem_classes=["path-output"],
+                        batch_word_path = gr.HTML(
+                            value="",
+                            container=False,
+                            elem_classes=["export-path-status"],
                         )
                         batch_overview = gr.HTML(
                             value="",

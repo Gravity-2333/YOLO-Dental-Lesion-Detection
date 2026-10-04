@@ -444,6 +444,45 @@ def check_case_capture_layout(page) -> None:
         raise RuntimeError(f"病例保存按钮启用态未使用主操作色：{layout}")
 
 
+def preview_case_export_feedback(page) -> None:
+    status = page.locator(".record-path-output").first
+    if status.count() == 0:
+        raise RuntimeError("病例导出路径反馈组件缺失。")
+    if status.is_visible():
+        raise RuntimeError("未导出病例报告时路径反馈不应占用页面空间。")
+    status.evaluate(
+        """element => {
+            element.innerHTML = `
+                <div class="report-export-status-line">
+                    <span class="report-export-status-mark" aria-hidden="true"></span>
+                    <span>已经导出 <strong title="E:\\data\\cases\\case_report.docx">cases/case_report.docx</strong></span>
+                </div>`;
+        }"""
+    )
+    status.wait_for(state="visible", timeout=5000)
+    styles = status.evaluate(
+        """element => {
+            const rect = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            const mark = element.querySelector('.report-export-status-mark');
+            const strong = element.querySelector('strong');
+            return {
+                height: rect.height,
+                borderWidth: parseFloat(style.borderTopWidth),
+                background: style.backgroundColor,
+                markSize: mark?.getBoundingClientRect().width || 0,
+                pathColor: strong ? getComputedStyle(strong).color : '',
+            };
+        }"""
+    )
+    if styles["height"] > 42 or styles["borderWidth"] > 0 or styles["background"] != "rgba(0, 0, 0, 0)":
+        raise RuntimeError(f"病例路径反馈仍像输入框或卡片：{styles}")
+    if styles["markSize"] < 6 or styles["pathColor"] != "rgb(23, 111, 101)":
+        raise RuntimeError(f"病例路径反馈的状态标记或路径强调异常：{styles}")
+    status.scroll_into_view_if_needed()
+    page.wait_for_timeout(200)
+
+
 def capture_empty_comparison_view(page, output_dir: Path, suffix: str) -> None:
     page.get_by_role("tab", name="滑动对比", exact=True).click(timeout=10000)
     empty = page.locator(".image-compare-empty")
@@ -943,6 +982,13 @@ def capture(args: argparse.Namespace) -> None:
                         full=tab_name == "检测历史",
                         reset_scroll=True,
                     )
+                    if tab_name == "病例记录":
+                        preview_case_export_feedback(detail_page)
+                        save(
+                            detail_page,
+                            output_dir,
+                            name("05-cases-export-feedback.png", suffix),
+                        )
                     if tab_name == "设置":
                         show_context_help(detail_page, ".settings-pane-host")
                         save(

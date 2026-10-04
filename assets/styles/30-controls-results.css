@@ -1530,13 +1530,26 @@ a.report-export-subaction {
   box-shadow: none !important;
 }
 
-.report-export-status:not(:has(.report-export-status-line)) {
+.export-path-status {
+  min-width: 0 !important;
+  margin-top: 10px !important;
+  padding: 0 2px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.report-export-status:not(:has(.report-export-status-line)),
+.export-path-status:not(:has(.report-export-status-line)) {
   display: none !important;
 }
 
 .report-export-status .block,
 .report-export-status .html-container,
-.report-export-status .prose {
+.report-export-status .prose,
+.export-path-status .block,
+.export-path-status .html-container,
+.export-path-status .prose {
   padding: 0 !important;
   border: 0 !important;
   background: transparent !important;
