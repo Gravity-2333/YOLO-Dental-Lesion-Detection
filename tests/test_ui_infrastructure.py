@@ -993,7 +993,7 @@ class UiContentTests(unittest.TestCase):
         page_source = inspect.getsource(build_history_page)
         self.assertIn('"删除所选"', page_source)
         self.assertIn('"清空历史"', page_source)
-        self.assertGreaterEqual(page_source.count("interactive=False"), 3)
+        self.assertIn('elem_classes=["history-action-proxies"]', page_source)
         source = app.ui_event_binding_source()
         event_source = source.split("history_select.change(", 1)[1].split(
             "delete_history_btn.click(", 1
@@ -1006,7 +1006,11 @@ class UiContentTests(unittest.TestCase):
 
         history_source = inspect.getsource(build_history_page)
         self.assertIn("history_select = gr.Radio(", history_source)
-        self.assertIn('elem_classes=["record-navigator", "history-navigator"]', history_source)
+        self.assertIn('elem_classes=["history-state-proxy"]', history_source)
+        javascript = load_workbench_js()
+        self.assertIn("selectHistoryQueueItem", javascript)
+        self.assertIn("handleHistoryWorkspaceClick", javascript)
+        self.assertIn('historyProxyButton(actionButton.dataset.historyAction)?.click()', javascript)
 
     def test_analysis_buttons_follow_uploaded_input_state(self) -> None:
         self.assertFalse(analysis_button_state(None)["interactive"])

@@ -8,6 +8,7 @@ from src.dental_detection.record_views import (
     case_choices_from_rows,
     history_choices_from_rows,
     history_id,
+    history_table_html,
 )
 
 
@@ -108,6 +109,27 @@ class RecordFormatterPrivacyTests(unittest.TestCase):
             [value for _, value in choices],
             ["history-0", "history-1", "history-2"],
         )
+
+    def test_history_table_renders_a_semantic_review_queue(self) -> None:
+        html = history_table_html(
+            [
+                {
+                    "检测时间": "2026-10-04T09:32:03",
+                    "图片名称": "当前单图",
+                    "记录ID": "history-1",
+                    "检测数量": 1,
+                    "涉及类别": "根尖周病变",
+                    "关注等级": "建议复查",
+                }
+            ],
+            selected_id="history-1",
+        )
+
+        self.assertIn('class="history-queue"', html)
+        self.assertIn('data-history-id="history-1"', html)
+        self.assertIn('class="history-queue-item is-selected"', html)
+        self.assertIn('aria-pressed="true"', html)
+        self.assertIn('class="record-data-view history-data-view"', html)
 
     def test_history_detail_localizes_missing_model_name(self) -> None:
         detail = format_history_record(

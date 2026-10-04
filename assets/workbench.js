@@ -899,6 +899,118 @@
     }
   };
 
+  const historyProxyButton = (action) => {
+    const className = action === "clear" ? ".history-clear-proxy" : ".history-delete-proxy";
+    const host = document.querySelector(className);
+    if (host instanceof HTMLButtonElement) {
+      return host;
+    }
+    return host?.querySelector("button") || null;
+  };
+
+  const closeHistoryActionMenus = (except = null) => {
+    document.querySelectorAll(".history-actions.is-open").forEach((menu) => {
+      if (menu === except) {
+        return;
+      }
+      menu.classList.remove("is-open");
+      menu.querySelector(".history-actions-trigger")?.setAttribute("aria-expanded", "false");
+      menu.querySelector(".history-actions-menu")?.setAttribute("aria-hidden", "true");
+    });
+  };
+
+  const syncHistoryActionMenu = () => {
+    document.querySelectorAll("[data-history-action]").forEach((button) => {
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+      const action = button.dataset.historyAction;
+      const proxy = historyProxyButton(action);
+      button.disabled = !proxy || proxy.disabled;
+      const title = button.querySelector("strong");
+      if (!(title instanceof HTMLElement) || !(proxy instanceof HTMLButtonElement)) {
+        return;
+      }
+      let nextTitle = "";
+      if (action === "delete") {
+        nextTitle = proxy.textContent?.includes("确认") ? "确认删除当前记录" : "删除当前记录";
+      } else {
+        nextTitle = proxy.textContent?.includes("确认") ? "确认清空患者历史" : "清空患者历史";
+      }
+      if (title.textContent !== nextTitle) {
+        title.textContent = nextTitle;
+      }
+    });
+  };
+
+  const selectHistoryQueueItem = (button) => {
+    const recordId = button?.dataset.historyId;
+    if (!recordId) {
+      return;
+    }
+    const inputs = document.querySelectorAll('.history-state-proxy input[type="radio"]');
+    const input = Array.from(inputs).find((candidate) => candidate.value === recordId);
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    document.querySelectorAll(".history-queue-item").forEach((item) => {
+      const selected = item === button;
+      item.classList.toggle("is-selected", selected);
+      item.setAttribute("aria-pressed", String(selected));
+    });
+    if (!input.checked) {
+      input.click();
+    }
+  };
+
+  const syncHistoryQueueSelection = () => {
+    const checked = document.querySelector('.history-state-proxy input[type="radio"]:checked');
+    if (!(checked instanceof HTMLInputElement)) {
+      syncHistoryActionMenu();
+      return;
+    }
+    document.querySelectorAll(".history-queue-item").forEach((item) => {
+      const selected = item.dataset.historyId === checked.value;
+      item.classList.toggle("is-selected", selected);
+      item.setAttribute("aria-pressed", String(selected));
+    });
+    syncHistoryActionMenu();
+  };
+
+  const handleHistoryWorkspaceClick = (event) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    const queueItem = event.target.closest(".history-queue-item");
+    if (queueItem instanceof HTMLButtonElement) {
+      selectHistoryQueueItem(queueItem);
+      return;
+    }
+    const trigger = event.target.closest(".history-actions-trigger");
+    if (trigger instanceof HTMLButtonElement) {
+      const actions = trigger.closest(".history-actions");
+      if (!(actions instanceof HTMLElement)) {
+        return;
+      }
+      const shouldOpen = !actions.classList.contains("is-open");
+      closeHistoryActionMenus(actions);
+      actions.classList.toggle("is-open", shouldOpen);
+      trigger.setAttribute("aria-expanded", String(shouldOpen));
+      actions.querySelector(".history-actions-menu")?.setAttribute("aria-hidden", String(!shouldOpen));
+      syncHistoryActionMenu();
+      return;
+    }
+    const actionButton = event.target.closest("[data-history-action]");
+    if (actionButton instanceof HTMLButtonElement && !actionButton.disabled) {
+      historyProxyButton(actionButton.dataset.historyAction)?.click();
+      closeHistoryActionMenus();
+      return;
+    }
+    if (!event.target.closest(".history-actions-menu")) {
+      closeHistoryActionMenus();
+    }
+  };
+
   const start = () => {
     if (!document.body) {
       window.requestAnimationFrame(start);
@@ -909,6 +1021,7 @@
     initializeMagnifierToggleButtons();
     initializeDetectionTables();
     decorateReportExportOptions();
+    syncHistoryQueueSelection();
     syncPrimaryNavigation();
     syncStickyNavigation();
     scheduleSettingsPaneSync();
@@ -923,11 +1036,13 @@
     document.addEventListener("click", navigateFromHome, true);
     document.addEventListener("click", handleDetectionTableClick, true);
     document.addEventListener("click", handleReportExportMenuClick, true);
+    document.addEventListener("click", handleHistoryWorkspaceClick, true);
     document.addEventListener("click", handleMagnifierToggleClick, true);
     document.addEventListener("click", handleSettingsNavigationClick, true);
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         closeReportExportMenus();
+        closeHistoryActionMenus();
       }
     });
     document.addEventListener("input", (event) => syncImageComparison(event.target), true);
@@ -959,6 +1074,7 @@
       initializeMagnifierToggleButtons();
       synchronizeMagnifierSettingInput();
       scheduleSettingsPaneSync();
+      syncHistoryQueueSelection();
     }).observe(document.body, {
       childList: true,
       subtree: true,

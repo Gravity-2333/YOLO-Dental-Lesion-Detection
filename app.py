@@ -2121,7 +2121,7 @@ def refresh_history_records(storage_dir: str, patient_id: str | None = None):
     selected = choices[0][1] if choices else None
     return (
         gr.update(choices=choices, value=selected),
-        _history_table_html(rows),
+        _history_table_html(rows, selected),
         load_history_record(selected, storage_dir, patient_id) if selected else history_record_detail_html(None),
         (
             f"历史记录已刷新，当前最多显示最近 {HISTORY_UI_LIMIT} 条。"

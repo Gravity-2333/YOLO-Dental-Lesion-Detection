@@ -33,6 +33,8 @@ class HistoryComponents:
 
 
 def build_history_page(data: HistoryPageData) -> HistoryComponents:
+    initial_choices = history_choices_from_rows(data.initial_history_rows)
+    initial_selected = initial_choices[0][1] if initial_choices else None
     with gr.Group(elem_classes=["record-workspace", "history-workspace"]):
         gr.HTML(HISTORY_INTRO_HTML, elem_classes=["record-workspace-header-host"])
 
@@ -60,34 +62,50 @@ def build_history_page(data: HistoryPageData) -> HistoryComponents:
         with gr.Row(elem_classes=["record-review-layout"], equal_height=False):
             with gr.Column(scale=4, min_width=320, elem_classes=["record-library-pane"]):
                 gr.HTML(
-                    '<div class="record-pane-heading"><div><span>EXAM TIMELINE</span>'
-                    '<h3>检查时间线</h3></div><p>最近记录优先，选择后在右侧完成审阅。</p></div>'
+                    '<div class="history-queue-toolbar">'
+                    '<div class="record-pane-heading"><div><span>EXAM REVIEW</span>'
+                    '<h3>检查审阅队列</h3></div><p>最近记录优先，选择后在右侧完成审阅。</p></div>'
+                    '<div class="history-actions">'
+                        '<button type="button" class="history-actions-trigger" '
+                        'aria-label="打开历史操作" aria-expanded="false">'
+                        '<svg viewBox="0 0 24 24" aria-hidden="true">'
+                        '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/>'
+                        '<circle cx="12" cy="19" r="1"/></svg></button>'
+                        '<div class="history-actions-menu" role="menu" aria-hidden="true">'
+                        '<span>历史操作</span>'
+                        '<button type="button" data-history-action="delete" role="menuitem">'
+                        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2"/>'
+                        '<path d="m19 6-1 14H6L5 6M10 11v5M14 11v5"/></svg>'
+                        '<span><strong>删除当前记录</strong><small>保留病例与报告</small></span></button>'
+                        '<button type="button" data-history-action="clear" role="menuitem">'
+                        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/>'
+                        '<path d="M3 3v5h5"/></svg>'
+                        '<span><strong>清空患者历史</strong><small>需要再次确认</small></span></button>'
+                    '</div></div></div>',
+                    elem_classes=["history-actions-host"],
                 )
                 history_table = gr.HTML(
-                    value=history_table_html(data.initial_history_rows),
-                    elem_classes=["record-overview"],
+                    value=history_table_html(data.initial_history_rows, initial_selected),
+                    elem_classes=["record-overview", "history-overview"],
                 )
                 history_select = gr.Radio(
                     label="检测历史",
                     show_label=False,
-                    choices=history_choices_from_rows(data.initial_history_rows),
-                    elem_classes=["record-navigator", "history-navigator"],
+                    choices=initial_choices,
+                    value=initial_selected,
+                    elem_classes=["history-state-proxy"],
                 )
-                with gr.Group(elem_classes=["record-danger-zone"]):
-                    gr.HTML(
-                        '<div><strong>历史管理</strong><span>删除只影响历史索引，不会删除病例记录。</span></div>'
+                with gr.Row(elem_classes=["history-action-proxies"]):
+                    delete_button = gr.Button(
+                        "删除所选",
+                        interactive=bool(initial_selected),
+                        elem_classes=["history-delete-proxy"],
                     )
-                    with gr.Row(elem_classes=["record-inline-actions"]):
-                        delete_button = gr.Button(
-                            "删除所选",
-                            interactive=False,
-                            elem_classes=["danger-action", "record-toolbar-button"],
-                        )
-                        clear_button = gr.Button(
-                            "清空历史",
-                            interactive=False,
-                            elem_classes=["danger-action", "record-toolbar-button"],
-                        )
+                    clear_button = gr.Button(
+                        "清空历史",
+                        interactive=bool(initial_selected),
+                        elem_classes=["history-clear-proxy"],
+                    )
 
             with gr.Column(scale=7, min_width=500, elem_classes=["record-detail-pane"]):
                 with gr.Row(elem_classes=["record-detail-toolbar"], equal_height=True):

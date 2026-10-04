@@ -84,6 +84,66 @@ def _record_overview_html(rows: list[dict[str, Any]], *, kind: str) -> str:
     return f'<div class="record-stats" data-record-kind="{kind}">{cells}</div>'
 
 
+def _history_tone(level: Any) -> str:
+    text = str(level or "")
+    if any(keyword in text for keyword in ("重点", "高", "紧急")):
+        return "critical"
+    if any(keyword in text for keyword in ("复核", "中")):
+        return "review"
+    if any(keyword in text for keyword in ("低", "轻")):
+        return "low"
+    return "clear"
+
+
+def _history_queue_html(
+    rows: list[dict[str, Any]],
+    selected_id: str | None = None,
+) -> str:
+    if not rows:
+        return (
+            '<div class="history-queue-empty">'
+            '<span aria-hidden="true">+</span><strong>暂无检查记录</strong>'
+            '<p>完成检测后，记录会按时间倒序出现在这里。</p></div>'
+        )
+
+    selected = str(selected_id or "").strip()
+    items: list[str] = []
+    for index, row in enumerate(rows):
+        record_id = str(row.get("记录ID") or "").strip()
+        if not record_id:
+            continue
+        created_at = str(row.get("检测时间") or "-").replace("T", " ", 1)
+        date_text, _, time_text = created_at.partition(" ")
+        image_name = str(row.get("图片名称") or "未命名影像").strip()
+        title = "当前检测" if image_name == "当前单图" else image_name
+        count = _integer(row.get("检测数量"))
+        level = str(row.get("关注等级") or "待复核").strip()
+        classes = str(row.get("涉及类别") or "无明确类别").strip()
+        tone = _history_tone(level)
+        is_selected = record_id == selected or (not selected and index == 0)
+        selected_class = " is-selected" if is_selected else ""
+        items.append(
+            '<button type="button" class="history-queue-item'
+            f'{selected_class}" data-history-id="{escape(record_id, quote=True)}" '
+            f'aria-pressed="{str(is_selected).lower()}">'
+            '<span class="history-queue-rail" aria-hidden="true"><i></i></span>'
+            '<span class="history-queue-copy">'
+            f'<span class="history-queue-date">{escape(date_text)}'
+            f'<small>{escape(time_text or "--:--")}</small></span>'
+            f'<strong title="{escape(title, quote=True)}">{escape(title)}</strong>'
+            f'<span class="history-queue-meta">{count} 个检测框 · {escape(classes)}</span>'
+            '</span>'
+            f'<span class="history-queue-status history-queue-status-{tone}">{escape(level)}</span>'
+            '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>'
+            '</button>'
+        )
+    return (
+        '<div class="history-queue" role="listbox" aria-label="检查记录">'
+        + "".join(items)
+        + "</div>"
+    )
+
+
 def dataframe_table_html(frame: pd.DataFrame, empty_message: str) -> str:
     if frame.empty:
         return f'<div class="record-table-empty">{escape(empty_message)}</div>'
@@ -111,11 +171,17 @@ def case_table_html(rows: list[dict[str, Any]]) -> str:
     )
 
 
-def history_table_html(rows: list[dict[str, Any]]) -> str:
+def history_table_html(
+    rows: list[dict[str, Any]],
+    selected_id: str | None = None,
+) -> str:
     table = dataframe_table_html(history_table_from_rows(rows), "当前患者暂无检测历史。")
     return (
         _record_overview_html(rows, kind="history")
-        + '<details class="record-data-view"><summary>查看历史数据表</summary>'
+        + '<div class="history-queue-heading"><div><span>REVIEW QUEUE</span>'
+        '<h4>待审阅检查</h4></div><small>按时间倒序</small></div>'
+        + _history_queue_html(rows, selected_id)
+        + '<details class="record-data-view history-data-view"><summary>查看完整数据表</summary>'
         + table
         + "</details>"
     )

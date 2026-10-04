@@ -22,6 +22,7 @@ CSS_BUNDLE_FILES = (
     STYLE_ROOT / "33-settings-components.css",
     STYLE_ROOT / "34-record-workspace.css",
     STYLE_ROOT / "35-ai-chat.css",
+    STYLE_ROOT / "36-history-review.css",
     STYLE_ROOT / "40-responsive.css",
     STYLE_ROOT / "45-home-responsive.css",
     STYLE_ROOT / "50-utilities.css",
