@@ -524,13 +524,10 @@ def capture_ai_single_tooltip(page, output_dir: Path, suffix: str) -> None:
     page.mouse.move(8, 8)
 
 
-def show_context_help(page, scope: str, *, focus: bool = False) -> None:
+def show_context_help(page, scope: str) -> None:
     help_root = page.locator(f"{scope} .context-help:visible").first
     trigger = help_root.locator(".context-help-trigger")
-    if focus:
-        trigger.focus(timeout=10000)
-    else:
-        trigger.hover(timeout=10000)
+    trigger.hover(timeout=10000)
     page.wait_for_timeout(400)
     state = help_root.locator(".context-help-bubble-card").evaluate(
         """element => {
@@ -554,6 +551,39 @@ def show_context_help(page, scope: str, *, focus: bool = False) -> None:
     )
     if not state["valid"]:
         raise RuntimeError(f"上下文提示气泡未显示：{scope} {state}")
+
+
+def check_context_help_hover_only(page, scope: str) -> int:
+    roots = page.locator(f"{scope} .context-help:visible")
+    checked = 0
+    for index in range(roots.count()):
+        root = roots.nth(index)
+        trigger = root.locator(".context-help-trigger")
+        bubble = root.locator(".context-help-bubble")
+        trigger.hover(timeout=10000)
+        bubble.wait_for(state="visible", timeout=5000)
+        trigger.click(timeout=5000)
+        page.mouse.move(4, 4)
+        page.wait_for_timeout(260)
+        bubble.wait_for(state="hidden", timeout=5000)
+        trigger.evaluate(
+            """element => {
+                element.setAttribute('tabindex', '-1');
+                element.focus();
+            }"""
+        )
+        page.wait_for_timeout(80)
+        state = bubble.evaluate(
+            """element => {
+                const style = getComputedStyle(element);
+                return {opacity: style.opacity, visibility: style.visibility};
+            }"""
+        )
+        trigger.evaluate("element => { element.blur(); element.removeAttribute('tabindex'); }")
+        if state["visibility"] != "hidden" or state["opacity"] != "0":
+            raise RuntimeError(f"问号提示仍会被点击或焦点永久锁定：{scope} {state}")
+        checked += 1
+    return checked
 
 
 def check_storage_heading_help(page, output_dir: Path, suffix: str) -> None:
@@ -886,6 +916,8 @@ def capture(args: argparse.Namespace) -> None:
             capture_disabled_export_button(page, output_dir, suffix)
             show_context_help(page, ".workbench-model-status")
             save(page, output_dir, name("01-workbench-help-tooltip.png", suffix))
+            if check_context_help_hover_only(page, "body") < 1:
+                raise RuntimeError("检测工作台未找到可审计的问号提示。")
 
             try:
                 click_tab(page, "设置")
@@ -982,6 +1014,9 @@ def capture(args: argparse.Namespace) -> None:
                         full=tab_name == "检测历史",
                         reset_scroll=True,
                     )
+                    checked_help = check_context_help_hover_only(detail_page, "body")
+                    if tab_name in {"病例记录", "检测历史"} and checked_help != 1:
+                        raise RuntimeError(f"{tab_name} 页头问号提示数量异常：{checked_help}")
                     if tab_name == "病例记录":
                         preview_case_export_feedback(detail_page)
                         save(
@@ -1004,6 +1039,8 @@ def capture(args: argparse.Namespace) -> None:
                             name("06-settings-storage.png", suffix),
                             full=True,
                         )
+                        if check_context_help_hover_only(detail_page, "body") < 1:
+                            raise RuntimeError("存储设置未找到可审计的问号提示。")
                 except Exception as exc:
                     print(f"{filename} screenshot failed: {exc}")
                     save(detail_page, output_dir, name(filename, suffix))
@@ -1041,7 +1078,7 @@ def capture(args: argparse.Namespace) -> None:
                 mobile.evaluate("window.scrollTo(0, 0)")
                 click_tab(mobile, "检测工作台")
                 check_horizontal_overflow(mobile, "移动端工作台")
-                show_context_help(mobile, ".workbench-model-status", focus=True)
+                show_context_help(mobile, ".workbench-model-status")
                 save(
                     mobile,
                     output_dir,

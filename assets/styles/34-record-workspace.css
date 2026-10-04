@@ -20,9 +20,16 @@
 .record-workspace-header-host {
   margin: 0 !important;
   padding: 0 !important;
+  overflow: visible !important;
+}
+
+.record-workspace-header-host .prose,
+.record-workspace-header-host .html-container {
+  overflow: visible !important;
 }
 
 .record-workspace-header {
+  position: relative;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -31,6 +38,7 @@
   padding: 32px 36px 28px;
   background: #202628;
   color: #ffffff;
+  overflow: visible;
 }
 
 .record-workspace-header > div:first-child {
@@ -68,28 +76,46 @@
   line-height: 1.65;
 }
 
-.record-privacy-note {
-  display: grid;
-  flex: 0 0 330px;
-  gap: 2px;
-  width: 330px;
-  min-width: 0;
-  max-width: 36%;
-  padding: 12px 14px;
-  border-left: 2px solid var(--brand-gold);
-  background: rgba(255, 255, 255, 0.06);
+.record-header-help {
+  position: relative;
+  z-index: 4;
+  flex: 0 0 auto;
+  align-self: center;
 }
 
-.record-privacy-note strong {
+.record-header-help .context-help > .context-help-trigger {
+  border-color: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
-  font-size: 0.84rem;
 }
 
-.record-privacy-note span {
-  color: #cbd3d0;
-  font-size: 0.76rem;
-  font-weight: 500;
-  white-space: normal;
+.record-header-help .context-help > .context-help-trigger:hover {
+  border-color: var(--brand-gold);
+  background: rgba(204, 158, 108, 0.18);
+  color: #ffffff;
+}
+
+.record-header-help .context-help-trigger > span {
+  display: inline;
+  color: inherit;
+  font-size: inherit;
+  line-height: 1;
+}
+
+.record-header-help .context-help-bubble {
+  top: calc(100% + 2px);
+  right: 0;
+}
+
+.record-workspace-header .context-help-bubble-card > strong {
+  color: #172321;
+}
+
+.record-workspace-header .context-help-bubble-card > p {
+  color: #52615f;
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.6;
 }
 
 .record-patient-bar {
@@ -1484,11 +1510,10 @@ button.record-save-button::before {
     font-size: 1.45rem;
   }
 
-  .record-privacy-note {
-    flex-basis: auto;
-    width: 100%;
-    max-width: none;
-    min-width: 0;
+  .record-header-help {
+    position: absolute;
+    top: 22px;
+    right: 18px;
   }
 
   .record-patient-bar,

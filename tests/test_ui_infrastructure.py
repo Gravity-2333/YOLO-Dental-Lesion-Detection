@@ -1258,7 +1258,7 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('role="tooltip"', html)
         self.assertIn('aria-describedby="context-help-', html)
         self.assertIn('class="context-help-trigger"', html)
-        self.assertIn('tabindex="0"', html)
+        self.assertNotIn("tabindex", html)
         self.assertNotIn("<details", html)
         self.assertNotIn("<summary", html)
         self.assertIn("&lt;说明&gt;", html)
@@ -1290,15 +1290,16 @@ class UiContentTests(unittest.TestCase):
         self.assertNotIn('gr.Accordion("说明"', settings_source)
         self.assertNotIn('gr.Accordion("接口说明"', settings_source)
         self.assertGreaterEqual(settings_source.count("help_text="), 4)
-        self.assertIn(".context-help:hover .context-help-bubble", css)
         self.assertIn(
-            ".context-help > .context-help-trigger:focus-visible + .context-help-bubble",
+            ".context-help > .context-help-trigger:hover + .context-help-bubble",
             css,
         )
         self.assertIn(
-            ".context-help > .context-help-trigger:focus + .context-help-bubble",
+            "transform 190ms cubic-bezier(0.2, 0.8, 0.2, 1)",
             css,
         )
+        self.assertNotIn(".context-help > .context-help-trigger:focus + .context-help-bubble", css)
+        self.assertNotIn(".context-help > .context-help-trigger:focus-visible", css)
         self.assertNotIn(".context-help[open]", css)
         self.assertIn('"model-status-card"', workbench_source)
         self.assertIn(".model-status-card > .styler", css)
@@ -1343,7 +1344,9 @@ class UiContentTests(unittest.TestCase):
                 self.assertIn("本机数据目录", content)
                 self.assertIn("默认不随病例和历史保存", content)
                 self.assertIn("不会自动上传云端", content)
-                self.assertIn("record-boundary-strip", content)
+                self.assertIn("record-header-help", content)
+                self.assertIn("context-help-trigger", content)
+                self.assertNotIn("record-privacy-note", content)
 
         cases_source = inspect.getsource(build_cases_page)
         history_source = inspect.getsource(build_history_page)
