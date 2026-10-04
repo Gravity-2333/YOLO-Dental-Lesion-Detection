@@ -499,10 +499,12 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("grid-template-columns: minmax(230px, 3fr) minmax(340px, 5fr)", css)
         self.assertIn(".record-capture-fields input:focus", css)
         self.assertIn(".record-capture-fields textarea:focus", css)
-        self.assertIn(".record-management > button.label-wrap::before", css)
-        self.assertIn('.record-management > button.label-wrap[aria-expanded="true"]::before', css)
+        self.assertIn(".record-management > button.label-wrap::after", css)
+        self.assertIn('.record-management > button.label-wrap[aria-expanded="true"]::after', css)
         self.assertIn(".record-toolbar-button button::before", css)
         self.assertIn(".record-save-button button::before", css)
+        self.assertIn("button.record-save-button:not(:disabled)", css)
+        self.assertIn("button.record-save-button:disabled", css)
 
     def test_settings_save_row_is_a_compact_page_action(self) -> None:
         css = load_workbench_css()

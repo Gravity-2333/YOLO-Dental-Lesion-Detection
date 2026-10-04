@@ -168,6 +168,33 @@ button.record-save-button {
   border-radius: 6px !important;
 }
 
+button.record-save-button:not(:disabled),
+.record-save-button button:not(:disabled) {
+  border: 1px solid #176f65 !important;
+  background: #176f65 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 5px 14px rgba(23, 111, 101, 0.18) !important;
+  opacity: 1 !important;
+}
+
+button.record-save-button:not(:disabled):hover,
+.record-save-button button:not(:disabled):hover {
+  border-color: #115d55 !important;
+  background: #115d55 !important;
+  box-shadow: 0 8px 18px rgba(23, 111, 101, 0.24) !important;
+}
+
+button.record-save-button:disabled,
+.record-save-button button:disabled {
+  border: 1px solid #c9d3d0 !important;
+  background: #e8edec !important;
+  color: #596864 !important;
+  -webkit-text-fill-color: #596864 !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
 .record-toolbar-button button::before,
 button.record-toolbar-button::before,
 .record-save-button button::before,
@@ -195,7 +222,7 @@ button.record-save-button::before {
   margin: 0 !important;
   padding: 0 24px !important;
   border: 0 !important;
-  border-bottom: 1px solid #e1e6e3 !important;
+  border-bottom: 1px solid #e7ecea !important;
   border-radius: 0 !important;
   background: #ffffff !important;
 }
@@ -206,10 +233,11 @@ button.record-save-button::before {
 
 .record-management > button.label-wrap {
   position: relative;
-  min-height: 48px !important;
-  height: 48px !important;
+  width: max-content !important;
+  min-height: 36px !important;
+  height: 36px !important;
   justify-content: flex-start !important;
-  gap: 8px !important;
+  gap: 6px !important;
   padding: 0 !important;
   border: 0 !important;
   background: transparent !important;
@@ -218,11 +246,18 @@ button.record-save-button::before {
   font-weight: 680 !important;
 }
 
-.record-management > button.label-wrap svg {
+.record-management > .wrap {
+  min-height: 36px !important;
+  height: 36px !important;
+  background: transparent !important;
+}
+
+.record-management > button.label-wrap svg,
+.record-management > button.label-wrap .icon {
   display: none !important;
 }
 
-.record-management > button.label-wrap::before {
+.record-management > button.label-wrap::after {
   width: 7px;
   height: 7px;
   border-right: 1.5px solid #56706a;
@@ -232,7 +267,7 @@ button.record-save-button::before {
   transition: transform 150ms ease;
 }
 
-.record-management > button.label-wrap[aria-expanded="true"]::before {
+.record-management > button.label-wrap[aria-expanded="true"]::after {
   transform: translateY(-2px) rotate(45deg);
 }
 
@@ -348,7 +383,6 @@ button.record-save-button::before {
 
 .record-capture-fields > .form,
 .record-capture-fields > .block,
-.record-capture-fields > .record-save-button,
 .record-capture-fields .wrap {
   width: 100% !important;
   min-width: 0 !important;

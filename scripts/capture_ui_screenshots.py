@@ -379,7 +379,7 @@ def check_case_capture_layout(page) -> None:
             const nestedStyle = getComputedStyle(nestedStrip);
             return {
                 accordionHeight: accordionRect.height,
-                accordionArrow: getComputedStyle(accordion, '::before').content,
+                accordionArrow: getComputedStyle(accordion, '::after').content,
                 fieldHeights: fieldRects.map(rect => rect.height),
                 fieldWidths: fieldRects.map(rect => rect.width),
                 bottomOffsets: fieldRects.map(rect => Math.abs(rect.bottom - saveRect.bottom)),
@@ -388,6 +388,35 @@ def check_case_capture_layout(page) -> None:
                 toolbarHeightOffset: Math.abs(selectRect.height - refreshRect.height),
                 nestedPadding: nestedStyle.padding,
                 nestedBackground: nestedStyle.backgroundColor,
+                saveStyles: (() => {
+                    const wasDisabled = save.disabled;
+                    const previousTransition = save.style.getPropertyValue('transition');
+                    const previousPriority = save.style.getPropertyPriority('transition');
+                    save.style.setProperty('transition', 'none', 'important');
+                    save.disabled = true;
+                    void save.offsetWidth;
+                    const disabledStyle = getComputedStyle(save);
+                    const disabled = {
+                        color: disabledStyle.color,
+                        background: disabledStyle.backgroundColor,
+                        opacity: disabledStyle.opacity,
+                    };
+                    save.disabled = false;
+                    void save.offsetWidth;
+                    const enabledStyle = getComputedStyle(save);
+                    const enabled = {
+                        color: enabledStyle.color,
+                        background: enabledStyle.backgroundColor,
+                        opacity: enabledStyle.opacity,
+                    };
+                    save.disabled = wasDisabled;
+                    if (previousTransition) {
+                        save.style.setProperty('transition', previousTransition, previousPriority);
+                    } else {
+                        save.style.removeProperty('transition');
+                    }
+                    return {disabled, enabled};
+                })(),
             };
         }"""
     )
@@ -407,6 +436,12 @@ def check_case_capture_layout(page) -> None:
         raise RuntimeError(f"患者选择器与刷新按钮未对齐：{layout}")
     if layout["nestedPadding"] != "0px" or layout["nestedBackground"] != "rgba(0, 0, 0, 0)":
         raise RuntimeError(f"病例保存区仍存在重复容器样式：{layout}")
+    for state_name in ("disabled", "enabled"):
+        style = layout["saveStyles"][state_name]
+        if style["opacity"] != "1" or style["color"] == style["background"] or style["background"] == "rgba(0, 0, 0, 0)":
+            raise RuntimeError(f"病例保存按钮 {state_name} 不可读：{layout}")
+    if layout["saveStyles"]["enabled"]["background"] != "rgb(23, 111, 101)":
+        raise RuntimeError(f"病例保存按钮启用态未使用主操作色：{layout}")
 
 
 def capture_empty_comparison_view(page, output_dir: Path, suffix: str) -> None:
