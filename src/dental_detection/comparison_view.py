@@ -26,8 +26,12 @@ def _image_data_uri(image: Any) -> tuple[str, int, int]:
 def empty_comparison_html() -> str:
     return (
         '<div class="image-compare-empty">'
-        '<strong>等待检测结果</strong>'
-        '<span>完成分析后，可拖动中间分隔线比较图像。</span>'
+        '<svg viewBox="0 0 24 24" aria-hidden="true">'
+        '<rect x="3" y="3" width="18" height="18" rx="2"></rect>'
+        '<path d="m3 16 5-5 4 4 3-3 6 6"></path>'
+        '<circle cx="9" cy="8" r="1.5"></circle>'
+        '</svg><div><strong>等待检测结果</strong>'
+        '<span>完成分析后，可拖动中间分隔线比较图像。</span></div>'
         "</div>"
     )
 

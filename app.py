@@ -1123,7 +1123,7 @@ def _comparison_view_updates(results: list[dict[str, Any]]):
         if isinstance(result, dict) and _report_annotated_image(result) is not None
     ]
     if not valid:
-        return gr.update(visible=False), gr.update(value=empty_comparison_html())
+        return gr.update(visible=True), gr.update(value=empty_comparison_html())
     normalized = []
     for result in valid:
         item = dict(result)
@@ -2285,7 +2285,7 @@ def clear_outputs(*, clear_chat: bool = False):
             "original": None,
             "model_input": None,
             "result": None,
-            "comparison_section": gr.update(visible=False),
+            "comparison_section": gr.update(visible=True),
             "comparison_view": empty_comparison_html(),
             "result_image_file": _clear_file_output(),
             "result_image_path": "",

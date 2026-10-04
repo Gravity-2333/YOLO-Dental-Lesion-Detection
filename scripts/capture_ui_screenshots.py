@@ -358,6 +358,98 @@ def check_patient_toolbar_clearance(page, minimum_gap: int = 8) -> None:
         raise RuntimeError(f"患者选择框仍存在双层边框：{layout}")
 
 
+def check_case_capture_layout(page) -> None:
+    layout = page.evaluate(
+        """() => {
+            const accordion = document.querySelector('.record-management > button.label-wrap');
+            const fields = [...document.querySelectorAll('.record-capture-fields input, .record-capture-fields textarea')];
+            const fieldBlocks = [...document.querySelectorAll('.record-capture-fields > .form > .block')];
+            const save = document.querySelector('button.record-save-button, .record-save-button button');
+            const refresh = document.querySelector('button.record-toolbar-button, .record-toolbar-button button');
+            const select = document.querySelector('.record-patient-select .wrap-inner');
+            const nestedStrip = document.querySelector('.record-capture-strip > .record-capture-strip');
+            if (!accordion || fields.length !== 2 || fieldBlocks.length !== 2 || !save || !refresh || !select || !nestedStrip) {
+                return null;
+            }
+            const fieldRects = fields.map(field => field.getBoundingClientRect());
+            const saveRect = save.getBoundingClientRect();
+            const refreshRect = refresh.getBoundingClientRect();
+            const selectRect = select.getBoundingClientRect();
+            const accordionRect = accordion.getBoundingClientRect();
+            const nestedStyle = getComputedStyle(nestedStrip);
+            return {
+                accordionHeight: accordionRect.height,
+                accordionArrow: getComputedStyle(accordion, '::before').content,
+                fieldHeights: fieldRects.map(rect => rect.height),
+                fieldWidths: fieldRects.map(rect => rect.width),
+                bottomOffsets: fieldRects.map(rect => Math.abs(rect.bottom - saveRect.bottom)),
+                gaps: [fieldRects[1].left - fieldRects[0].right, saveRect.left - fieldRects[1].right],
+                toolbarBottomOffset: Math.abs(selectRect.bottom - refreshRect.bottom),
+                toolbarHeightOffset: Math.abs(selectRect.height - refreshRect.height),
+                nestedPadding: nestedStyle.padding,
+                nestedBackground: nestedStyle.backgroundColor,
+            };
+        }"""
+    )
+    if layout is None:
+        raise RuntimeError("病例保存工具栏结构缺失。")
+    if layout["accordionHeight"] > 52 or layout["accordionArrow"] in {"none", "normal"}:
+        raise RuntimeError(f"患者档案管理折叠栏或箭头异常：{layout}")
+    if any(abs(height - 46) > 1 for height in layout["fieldHeights"]):
+        raise RuntimeError(f"病例输入框高度异常：{layout}")
+    if any(width < 220 for width in layout["fieldWidths"]):
+        raise RuntimeError(f"病例输入框宽度异常：{layout}")
+    if any(offset > 1 for offset in layout["bottomOffsets"]):
+        raise RuntimeError(f"病例输入框与保存按钮未对齐：{layout}")
+    if any(gap < 8 or gap > 12 for gap in layout["gaps"]):
+        raise RuntimeError(f"病例保存栏间距异常：{layout}")
+    if layout["toolbarBottomOffset"] > 1 or layout["toolbarHeightOffset"] > 1:
+        raise RuntimeError(f"患者选择器与刷新按钮未对齐：{layout}")
+    if layout["nestedPadding"] != "0px" or layout["nestedBackground"] != "rgba(0, 0, 0, 0)":
+        raise RuntimeError(f"病例保存区仍存在重复容器样式：{layout}")
+
+
+def capture_empty_comparison_view(page, output_dir: Path, suffix: str) -> None:
+    page.get_by_role("tab", name="滑动对比", exact=True).click(timeout=10000)
+    empty = page.locator(".image-compare-empty")
+    empty.wait_for(state="visible", timeout=5000)
+    geometry = empty.evaluate(
+        """element => {
+            const rect = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            return {
+                height: rect.height,
+                width: rect.width,
+                borderWidth: parseFloat(style.borderTopWidth),
+                overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            };
+        }"""
+    )
+    if geometry["height"] < 468 or geometry["width"] < 480 or geometry["borderWidth"] < 1:
+        raise RuntimeError(f"滑动对比空状态尺寸异常：{geometry}")
+    if geometry["overflow"] > 1:
+        raise RuntimeError(f"滑动对比空状态造成横向溢出：{geometry}")
+    page.screenshot(path=str(output_dir / name("01-workbench-comparison-empty.png", suffix)))
+    page.get_by_role("tab", name="检测结果", exact=True).click(timeout=10000)
+
+
+def capture_ai_single_tooltip(page, output_dir: Path, suffix: str) -> None:
+    trigger = page.locator(".ai-search-open")
+    trigger.hover(timeout=10000)
+    tooltip = page.locator("body > .ai-floating-tooltip.is-visible")
+    tooltip.wait_for(state="visible", timeout=5000)
+    state = trigger.evaluate(
+        """element => ({
+            floatingCount: document.querySelectorAll('body > .ai-floating-tooltip.is-visible').length,
+            legacyContent: getComputedStyle(element, '::after').content,
+        })"""
+    )
+    if state["floatingCount"] != 1 or state["legacyContent"] not in {"none", "normal"}:
+        raise RuntimeError(f"AI 工具提示仍存在重复浮层：{state}")
+    page.screenshot(path=str(output_dir / name("04-ai-chat-tooltip.png", suffix)))
+    page.mouse.move(8, 8)
+
+
 def show_context_help(page, scope: str, *, focus: bool = False) -> None:
     help_root = page.locator(f"{scope} .context-help:visible").first
     trigger = help_root.locator(".context-help-trigger")
@@ -710,6 +802,7 @@ def capture(args: argparse.Namespace) -> None:
             click_tab(page, "检测工作台")
             check_workbench_tab_alignment(page)
             check_patient_toolbar_clearance(page)
+            capture_empty_comparison_view(page, output_dir, suffix)
             save(
                 page,
                 output_dir,
@@ -791,6 +884,7 @@ def capture(args: argparse.Namespace) -> None:
                     name("04-ai-chat.png", suffix),
                     reset_scroll=True,
                 )
+                capture_ai_single_tooltip(page, output_dir, suffix)
             except Exception as exc:
                 print(f"04-ai-chat.png screenshot failed: {exc}")
                 save(page, output_dir, name("04-ai-chat.png", suffix))
@@ -805,6 +899,8 @@ def capture(args: argparse.Namespace) -> None:
                 try:
                     wait_ready(detail_page, base_url)
                     click_tab(detail_page, tab_name)
+                    if tab_name == "病例记录":
+                        check_case_capture_layout(detail_page)
                     save(
                         detail_page,
                         output_dir,

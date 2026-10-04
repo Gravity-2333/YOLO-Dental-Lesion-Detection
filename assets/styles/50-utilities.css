@@ -119,7 +119,7 @@ button[aria-disabled="true"] {
   position: relative;
 }
 
-[data-tooltip]:hover::after {
+[data-tooltip]:not(.ai-search-open):not(.ai-new-chat-proxy):not(.ai-search-close):hover::after {
   content: attr(data-tooltip);
   position: absolute;
   bottom: 100%;

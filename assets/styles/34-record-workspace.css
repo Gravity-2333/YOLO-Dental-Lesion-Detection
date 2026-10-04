@@ -94,15 +94,56 @@
 
 .record-patient-bar {
   align-items: end !important;
-  gap: 12px !important;
+  gap: 10px !important;
   margin: 0 !important;
-  padding: 18px 24px !important;
+  padding: 16px 24px 18px !important;
   border-bottom: 1px solid #e1e6e3 !important;
-  background: #f8faf9 !important;
+  background: #ffffff !important;
 }
 
 .record-patient-select {
   min-width: 0 !important;
+}
+
+.record-patient-select,
+.record-patient-select > .form,
+.record-patient-select > .block,
+.record-patient-select .wrap {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.record-patient-bar > .form {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.record-patient-select .wrap-inner {
+  min-height: 46px !important;
+  border: 1px solid #c7d1ce !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(24, 42, 39, 0.04) !important;
+  transition: border-color 150ms ease, box-shadow 150ms ease !important;
+}
+
+.record-patient-select .wrap-inner:focus-within {
+  border-color: #2f8278 !important;
+  box-shadow: 0 0 0 3px rgba(47, 130, 120, 0.14) !important;
+}
+
+.record-patient-select .secondary-wrap {
+  min-height: 44px !important;
+  padding: 8px 42px 8px 13px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .record-patient-bar > .record-toolbar-button,
@@ -110,7 +151,44 @@
   flex: 0 0 132px !important;
   width: 132px !important;
   min-width: 132px !important;
-  margin-bottom: 10px !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  margin-bottom: 0 !important;
+}
+
+.record-toolbar-button button,
+button.record-toolbar-button,
+.record-save-button button,
+button.record-save-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  min-height: 46px !important;
+  border-radius: 6px !important;
+}
+
+.record-toolbar-button button::before,
+button.record-toolbar-button::before,
+.record-save-button button::before,
+button.record-save-button::before {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 16px 16px;
+  content: "";
+}
+
+.record-toolbar-button button::before,
+button.record-toolbar-button::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233d5752' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5'/%3E%3Cpath d='M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5'/%3E%3C/svg%3E");
+}
+
+.record-save-button button::before,
+button.record-save-button::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z'/%3E%3Cpath d='M17 21v-8H7v8M7 3v5h8'/%3E%3C/svg%3E");
 }
 
 .record-management {
@@ -122,12 +200,44 @@
   background: #ffffff !important;
 }
 
+.record-management > .record-management {
+  display: contents !important;
+}
+
 .record-management > button.label-wrap {
-  min-height: 46px !important;
+  position: relative;
+  min-height: 48px !important;
+  height: 48px !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
   padding: 0 !important;
   border: 0 !important;
   background: transparent !important;
   color: #394744 !important;
+  font-size: 0.82rem !important;
+  font-weight: 680 !important;
+}
+
+.record-management > button.label-wrap svg {
+  display: none !important;
+}
+
+.record-management > button.label-wrap::before {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid #56706a;
+  border-bottom: 1.5px solid #56706a;
+  content: "";
+  transform: rotate(-45deg);
+  transition: transform 150ms ease;
+}
+
+.record-management > button.label-wrap[aria-expanded="true"]::before {
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.record-management > button.label-wrap:hover {
+  color: #176d64 !important;
 }
 
 .record-management-grid {
@@ -172,6 +282,31 @@
   background: #f0f6f4 !important;
 }
 
+.record-capture-strip > .record-capture-strip {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.record-capture-strip > .record-capture-strip > .styler {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.record-capture-strip > .record-capture-strip > .styler > .form {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 .record-strip-heading {
   display: flex;
   align-items: center;
@@ -205,25 +340,84 @@
 
 .record-capture-fields {
   align-items: end !important;
-  gap: 12px !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 190px !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+
+.record-capture-fields > .form,
+.record-capture-fields > .block,
+.record-capture-fields > .record-save-button,
+.record-capture-fields .wrap {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.record-capture-fields > .form {
+  display: grid !important;
+  grid-template-columns: minmax(230px, 3fr) minmax(340px, 5fr) !important;
+  gap: 10px !important;
+}
+
+.record-capture-fields > .form > .block {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.record-capture-fields input,
+.record-capture-fields textarea {
+  min-height: 46px !important;
+  height: 46px !important;
+  padding: 11px 13px !important;
+  border: 1px solid #c7d1ce !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(24, 42, 39, 0.04) !important;
+  transition: border-color 150ms ease, box-shadow 150ms ease !important;
+}
+
+.record-capture-fields input:focus,
+.record-capture-fields textarea:focus {
+  border-color: #2f8278 !important;
+  box-shadow: 0 0 0 3px rgba(47, 130, 120, 0.14) !important;
 }
 
 .record-save-button {
   flex: 0 0 190px !important;
   width: 190px !important;
   min-width: 190px !important;
-  margin-bottom: 10px !important;
+  margin-bottom: 0 !important;
 }
 
 .record-feedback {
-  margin-top: 8px !important;
+  margin-top: 6px !important;
   padding: 0 !important;
+}
+
+.record-feedback,
+.record-feedback > .form,
+.record-feedback > .block,
+.record-feedback .wrap {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .record-feedback textarea {
   min-height: 36px !important;
   height: 36px !important;
-  padding: 8px 10px !important;
+  padding: 7px 2px !important;
   border: 0 !important;
   background: transparent !important;
   color: #52615d !important;
@@ -1225,6 +1419,14 @@
     border-right: 0 !important;
     border-bottom: 1px solid #e5eae7 !important;
   }
+
+  .record-capture-fields {
+    grid-template-columns: minmax(0, 1fr) 178px !important;
+  }
+
+  .record-capture-fields > .form {
+    grid-template-columns: minmax(200px, 3fr) minmax(280px, 5fr) !important;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1260,6 +1462,15 @@
   .record-detail-toolbar {
     align-items: stretch !important;
     flex-direction: column !important;
+  }
+
+  .record-capture-fields {
+    display: flex !important;
+  }
+
+  .record-capture-fields > .form {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 
   .record-patient-bar,

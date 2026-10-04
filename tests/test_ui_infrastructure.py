@@ -491,6 +491,19 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn("left: auto !important", rule)
         self.assertIn("width: min(356px, calc(100vw - 32px)) !important", rule)
 
+    def test_case_capture_toolbar_uses_a_compact_custom_form_layout(self) -> None:
+        css = load_workbench_css()
+
+        self.assertIn(".record-capture-strip > .record-capture-strip", css)
+        self.assertIn("grid-template-columns: minmax(0, 1fr) 190px", css)
+        self.assertIn("grid-template-columns: minmax(230px, 3fr) minmax(340px, 5fr)", css)
+        self.assertIn(".record-capture-fields input:focus", css)
+        self.assertIn(".record-capture-fields textarea:focus", css)
+        self.assertIn(".record-management > button.label-wrap::before", css)
+        self.assertIn('.record-management > button.label-wrap[aria-expanded="true"]::before', css)
+        self.assertIn(".record-toolbar-button button::before", css)
+        self.assertIn(".record-save-button button::before", css)
+
     def test_settings_save_row_is_a_compact_page_action(self) -> None:
         css = load_workbench_css()
         rule = css.split(".settings-actions {", 1)[1].split("}", 1)[0]
@@ -879,7 +892,7 @@ class UiContractTests(unittest.TestCase):
 
         self.assertEqual(len(values), len(COMMON_OUTPUT_KEYS))
         self.assertIsNone(values[COMMON_OUTPUT_KEYS.index("result")])
-        self.assertFalse(values[COMMON_OUTPUT_KEYS.index("comparison_section")]["visible"])
+        self.assertTrue(values[COMMON_OUTPUT_KEYS.index("comparison_section")]["visible"])
 
     def test_storage_switch_clears_the_current_browser_session(self) -> None:
         unchanged = app.clear_session_after_storage_change(False)
@@ -1603,6 +1616,10 @@ class UiContentTests(unittest.TestCase):
         self.assertIn('document.body.append(tooltip)', javascript)
         self.assertIn(".ai-search-overlay", css)
         self.assertIn(".ai-floating-tooltip", css)
+        self.assertIn(
+            "[data-tooltip]:not(.ai-search-open):not(.ai-new-chat-proxy):not(.ai-search-close):hover::after",
+            css,
+        )
         self.assertNotIn(".ai-search-open::after", css)
         self.assertIn("place-items: center", css)
 
@@ -2409,11 +2426,12 @@ class UiContentTests(unittest.TestCase):
         self.assertIs(outputs[0], image)
         self.assertIs(outputs[2], image)
 
-    def test_workbench_reserves_a_hidden_comparison_section(self) -> None:
+    def test_workbench_reserves_a_visible_comparison_placeholder(self) -> None:
         source = inspect.getsource(build_workbench_page)
 
         self.assertIn('with gr.Tab("滑动对比")', source)
-        self.assertIn('gr.Group(visible=False, elem_classes=["comparison-results-section"])', source)
+        self.assertIn('gr.Group(visible=True, elem_classes=["comparison-results-section"])', source)
+        self.assertIn("value=empty_comparison_html()", source)
         self.assertIn("comparison_section", COMMON_OUTPUT_KEYS)
         self.assertIn("comparison_view", COMMON_OUTPUT_KEYS)
 

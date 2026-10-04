@@ -5,6 +5,7 @@ from typing import Any
 
 import gradio as gr
 
+from .comparison_view import empty_comparison_html
 from .model_info import legend_html
 from .settings_store import AiSettings
 from .ui_constants import (
@@ -277,9 +278,9 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                                 elem_classes=["result-legend-overlay-host"],
                             )
                     with gr.Tab("滑动对比"):
-                        with gr.Group(visible=False, elem_classes=["comparison-results-section"]) as comparison_section:
+                        with gr.Group(visible=True, elem_classes=["comparison-results-section"]) as comparison_section:
                             comparison_view = gr.HTML(
-                                value="",
+                                value=empty_comparison_html(),
                                 container=False,
                                 elem_classes=["comparison-view-host"],
                             )

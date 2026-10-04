@@ -930,16 +930,42 @@ input[aria-label="对比模型路径"],
 
 .image-compare-empty {
   display: grid;
-  place-items: center;
-  min-height: 360px;
+  grid-template-columns: 42px auto;
+  align-content: center;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  min-height: 470px;
   padding: 28px;
   color: var(--text-muted);
   background: #ffffff;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
   text-align: center;
 }
 
+.image-compare-empty svg {
+  width: 42px;
+  height: 42px;
+  padding: 9px;
+  fill: none;
+  stroke: #8ba29d;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  border: 1px solid #d5e1de;
+  border-radius: 50%;
+  background: #f5f9f8;
+}
+
+.image-compare-empty > div {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+}
+
 .image-compare-empty strong { color: var(--text-main); }
-.image-compare-empty span { font-size: 0.84rem; }
+.image-compare-empty span { font-size: 0.78rem; }
 
 .upload-input .image-container {
   min-height: 100% !important;
