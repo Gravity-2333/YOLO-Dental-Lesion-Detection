@@ -23,4 +23,4 @@ local_samples/
 private_samples/
 *.dcm
 scripts/project_config.bat
-/artifacts/screenshots/
+/artifacts/
