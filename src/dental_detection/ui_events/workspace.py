@@ -123,7 +123,6 @@ def bind_workspace_events(c: SimpleNamespace, h: ModuleType) -> None:
     history_table = c.history_table
     image = c.image
     iou = c.iou
-    keep_followup_prompts = c.keep_followup_prompts
     key_mode = c.key_mode
     load_example_btn = c.load_example_btn
     model_dir = c.model_dir
@@ -675,7 +674,6 @@ def bind_workspace_events(c: SimpleNamespace, h: ModuleType) -> None:
             task_model,
             task_temperature,
             task_max_tokens,
-            keep_followup_prompts,
             followup_click_action,
             magnifier_enabled,
         ],

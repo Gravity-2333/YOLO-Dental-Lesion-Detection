@@ -52,17 +52,6 @@ def chat_messages_for_display(messages: Any) -> list[dict[str, str]]:
                     '\n\n<span class="ai-message-time-marker '
                     f'ai-chat-time-{year}{month}{day}T{hour}{minute}"></span>'
                 )
-        followups = metadata.get("followups") if isinstance(metadata, dict) else None
-        if role == "assistant" and isinstance(followups, list) and followups:
-            buttons = "".join(
-                '<button type="button" class="ai-message-followup" '
-                f'data-followup="{escape(str(question), quote=True)}">'
-                f'{escape(str(question))}</button>'
-                for question in followups[:3]
-                if str(question).strip()
-            )
-            if buttons:
-                content += f'\n\n<div class="ai-message-followups">{buttons}</div>'
         displayed.append({"role": role, "content": content})
     return displayed
 
@@ -249,11 +238,6 @@ def chat_export_button_state(history: Any):
 
 
 def build_ai_chat_page(data: AiChatPageData) -> AiChatComponents:
-    suggestions = (
-        "请按优先级说明需要重点复核的位置",
-        "用医生视角总结当前检测结果",
-        "有哪些影像质量问题会影响判断",
-    )
     with gr.Group(elem_classes=["ai-chat-workspace"]):
         with gr.Row(elem_classes=["ai-chat-layout"]):
             with gr.Column(scale=3, min_width=252, elem_classes=["ai-chat-sidebar"]):
@@ -358,15 +342,6 @@ def build_ai_chat_page(data: AiChatPageData) -> AiChatComponents:
                             elem_classes=["secondary-action", "ai-export-button"],
                         )
                 runtime_status = gr.HTML(build_ai_runtime_status([], data.saved))
-                with gr.Row(elem_classes=["ai-prompt-suggestions"]):
-                    suggestion_buttons = tuple(
-                        gr.Button(
-                            suggestion,
-                            size="sm",
-                            elem_classes=["ai-suggestion-chip"],
-                        )
-                        for suggestion in suggestions
-                    )
                 chatbot = gr.Chatbot(
                     label="问答记录",
                     show_label=False,
@@ -381,6 +356,16 @@ def build_ai_chat_page(data: AiChatPageData) -> AiChatComponents:
                     ),
                     elem_classes=["ai-chat-thread", "chat-window"],
                 )
+                with gr.Row(elem_classes=["ai-followup-suggestions"]):
+                    suggestion_buttons = tuple(
+                        gr.Button(
+                            "",
+                            visible=False,
+                            size="sm",
+                            elem_classes=["ai-followup-suggestion"],
+                        )
+                        for _ in range(3)
+                    )
                 with gr.Row(elem_classes=["ai-composer"]):
                     chat_input = gr.Textbox(
                         label="继续提问",

@@ -550,12 +550,9 @@
   }
 
   function initializeMessageFollowups(root = document) {
-    root.querySelectorAll(".ai-message-followup").forEach((button) => {
-      if (button.dataset.aiFollowupReady === "true") return;
-      button.dataset.aiFollowupReady = "true";
-      button.addEventListener("click", () => applyFollowupPrompt(button.dataset.followup));
-    });
-    root.querySelectorAll(".ai-suggestion-chip button").forEach((button) => {
+    root.querySelectorAll(
+      ".ai-followup-suggestion button, button.ai-followup-suggestion"
+    ).forEach((button) => {
       if (button.dataset.aiFollowupReady === "true") return;
       button.dataset.aiFollowupReady = "true";
       button.addEventListener("click", () => applyFollowupPrompt(button.textContent));

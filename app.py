@@ -8,6 +8,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import sqlite3
 import sys
 from threading import Lock
@@ -27,7 +28,6 @@ from src.dental_detection.ai_client import (
     test_chat_completion,
 )
 from src.dental_detection.chat_automation import (
-    DEFAULT_FOLLOWUP_QUESTIONS,
     generate_conversation_title,
     generate_followup_questions,
 )
@@ -3033,7 +3033,6 @@ def save_ui_settings(
     task_model: str = "",
     task_temperature: int | float = 0.2,
     task_max_tokens: int | float = 180,
-    keep_followup_prompts: bool = False,
     followup_click_action: str = "填入输入框",
     magnifier_enabled: bool = True,
 ):
@@ -3087,7 +3086,6 @@ def save_ui_settings(
         str(followup_generation_prompt or "").strip()
         or previous_settings.followup_generation_prompt
     )
-    settings.keep_followup_prompts = bool(keep_followup_prompts)
     settings.followup_click_action = (
         followup_click_action
         if followup_click_action in {"填入输入框", "直接发送"}
@@ -3486,21 +3484,18 @@ def _stored_followup_questions(history: Any) -> list[str]:
             questions = [str(value).strip() for value in values[:3] if str(value).strip()]
             if questions:
                 return questions
-    return list(DEFAULT_FOLLOWUP_QUESTIONS)
+    return []
 
 
 def _attach_followup_questions(
     history: Any,
     questions: list[str],
-    *,
-    keep_existing: bool,
 ) -> list[dict[str, Any]]:
     normalized = _normalize_chat_history(history)
-    if not keep_existing:
-        for message in normalized:
-            metadata = message.get("metadata")
-            if isinstance(metadata, dict):
-                metadata.pop("followups", None)
+    for message in normalized:
+        metadata = message.get("metadata")
+        if isinstance(metadata, dict):
+            metadata.pop("followups", None)
     for message in reversed(normalized):
         if message.get("role") != "assistant":
             continue
@@ -3513,6 +3508,12 @@ def _attach_followup_questions(
         message["metadata"] = metadata
         break
     return normalized
+
+
+def _followup_button_updates(questions: Any) -> tuple[Any, Any, Any]:
+    values = [str(question).strip() for question in (questions or []) if str(question).strip()][:3]
+    values.extend([""] * (3 - len(values)))
+    return tuple(gr.update(value=value, visible=bool(value)) for value in values)
 
 
 def clear_current_chat():
@@ -3532,7 +3533,7 @@ def clear_ai_workspace_with_status(batch_state, selected_name, *ai_inputs):
         *clear_current_chat_with_status(batch_state, selected_name, *ai_inputs),
         "",
         "",
-        *(gr.update(value=question) for question in DEFAULT_FOLLOWUP_QUESTIONS),
+        *_followup_button_updates([]),
         "已新建空白对话。",
     )
 
@@ -3596,7 +3597,7 @@ def load_ai_workspace_conversation(
         *values,
         file_name,
         load_conversation_title(file_name, storage_dir, patient_id),
-        *(gr.update(value=question) for question in questions),
+        *_followup_button_updates(questions),
     )
 
 
@@ -3698,7 +3699,7 @@ def run_chat_automation(
     settings = load_settings()
     normalized = _normalize_chat_history(history)
     title = str(current_title or conversation_title(normalized)).strip()
-    questions = DEFAULT_FOLLOWUP_QUESTIONS
+    questions: tuple[str, ...] = ()
     notes: list[str] = []
     user_count = sum(item.get("role") == "user" for item in normalized)
 
@@ -3711,13 +3712,12 @@ def run_chat_automation(
     if settings.enabled and settings.followup_generation_enabled and normalized:
         try:
             questions = generate_followup_questions(settings, normalized)
-            normalized = _attach_followup_questions(
-                normalized,
-                questions,
-                keep_existing=settings.keep_followup_prompts,
-            )
+            normalized = _attach_followup_questions(normalized, list(questions))
         except Exception:
-            notes.append("后续问题生成失败，已保留默认建议。")
+            normalized = _attach_followup_questions(normalized, [])
+            notes.append("后续问题生成失败，本轮未显示动态追问。")
+    else:
+        normalized = _attach_followup_questions(normalized, [])
 
     if auto_save and str(current_file or "").strip():
         try:
@@ -3743,7 +3743,7 @@ def run_chat_automation(
         selector,
         feedback,
         title,
-        *(gr.update(value=question) for question in questions),
+        *_followup_button_updates(questions),
         chat_messages_for_display(normalized),
         normalized,
     )
@@ -4206,7 +4206,6 @@ def build_app() -> gr.Blocks:
         title_generation_prompt = settings.title_generation_prompt
         followup_generation_enabled = settings.followup_generation_enabled
         followup_generation_prompt = settings.followup_generation_prompt
-        keep_followup_prompts = settings.keep_followup_prompts
         followup_click_action = settings.followup_click_action
         task_model = settings.task_model
         task_temperature = settings.task_temperature

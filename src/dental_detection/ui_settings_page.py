@@ -100,7 +100,6 @@ class SettingsComponents:
     title_generation_prompt: Any
     followup_generation_enabled: Any
     followup_generation_prompt: Any
-    keep_followup_prompts: Any
     followup_click_action: Any
     task_model: Any
     task_temperature: Any
@@ -515,12 +514,12 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
             elem_classes=["settings-pane-host", "settings-pane-automation"],
         ) as automation_settings_pane:
             with gr.Column(elem_classes=["settings-pane"]):
-                settings_page_heading("对话自动化", "控制标题、后续问题及其交互方式。")
+                settings_page_heading("对话自动化", "控制标题与动态后续问题。")
                 with gr.Group(elem_classes=["settings-card", "settings-option-group"]):
                     gr.HTML(
                         section_heading(
                             "对话自动化",
-                            "控制新对话标题与下一步追问建议。任务只读取当前对话文字，不读取牙片。",
+                            "后续问题由当前 AI 接口根据最新回复动态生成，只显示在最新回复下方。任务只读取当前对话文字，不读取牙片。",
                         )
                     )
                     title_generation_mode = gr.Radio(
@@ -531,12 +530,7 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
                     )
                     followup_generation_enabled = gr.Checkbox(
                         value=saved.followup_generation_enabled,
-                        label="每次回复后生成后续问题建议",
-                        elem_classes=["settings-control-surface", "settings-toggle-row"],
-                    )
-                    keep_followup_prompts = gr.Checkbox(
-                        value=saved.keep_followup_prompts,
-                        label="保留历史回复下的后续问题",
+                        label="启用动态后续问题",
                         elem_classes=["settings-control-surface", "settings-toggle-row"],
                     )
                     followup_click_action = gr.Radio(
@@ -731,7 +725,6 @@ def build_settings_page(data: SettingsPageData) -> SettingsComponents:
         title_generation_prompt=title_generation_prompt,
         followup_generation_enabled=followup_generation_enabled,
         followup_generation_prompt=followup_generation_prompt,
-        keep_followup_prompts=keep_followup_prompts,
         followup_click_action=followup_click_action,
         task_model=task_model,
         task_temperature=task_temperature,

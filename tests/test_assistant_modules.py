@@ -227,7 +227,7 @@ class ChatAutomationTests(unittest.TestCase):
         self.assertNotIn("问题 0", prompt)
         self.assertIn("问题 2", prompt)
 
-    def test_ai_title_uses_task_model_and_cleans_prefix(self) -> None:
+    def test_ai_title_uses_task_model_and_parses_json_object(self) -> None:
         settings = AiSettings(
             model="chat-model",
             task_model="task-model",
@@ -236,30 +236,36 @@ class ChatAutomationTests(unittest.TestCase):
         with patch.object(
             chat_automation,
             "chat_completion",
-            return_value="标题：\"根尖区复核建议\"",
+            return_value='{"title":"根尖区复核"}',
         ) as completion:
             title = chat_automation.generate_conversation_title(
                 settings,
                 [{"role": "user", "content": "请看根尖区"}],
             )
-        self.assertEqual(title, "根尖区复核建议")
+        self.assertEqual(title, "根尖区复核")
         self.assertEqual(completion.call_args.args[0].model, "task-model")
 
-    def test_followup_generation_parses_json_and_fills_missing_items(self) -> None:
+    def test_followup_generation_parses_openwebui_style_json_object(self) -> None:
         settings = AiSettings(followup_generation_enabled=True)
         with patch.object(
             chat_automation,
             "chat_completion",
-            return_value='["应优先复核哪个区域？", "是否需要补充拍片？"]',
+            return_value=(
+                '{"follow_ups":["应优先复核哪个区域？",'
+                '"是否需要补充拍片？","还需提供哪些症状？"]}'
+            ),
         ):
             questions = chat_automation.generate_followup_questions(settings, [])
         self.assertEqual(len(questions), 3)
         self.assertEqual(questions[0], "应优先复核哪个区域？")
         self.assertEqual(questions[1], "是否需要补充拍片？")
+        self.assertEqual(questions[2], "还需提供哪些症状？")
 
-    def test_disabled_followup_generation_keeps_default_questions(self) -> None:
-        questions = chat_automation.generate_followup_questions(AiSettings(), [])
-        self.assertEqual(questions, chat_automation.DEFAULT_FOLLOWUP_QUESTIONS)
+    def test_disabled_followup_generation_returns_no_questions(self) -> None:
+        questions = chat_automation.generate_followup_questions(
+            AiSettings(followup_generation_enabled=False), []
+        )
+        self.assertEqual(questions, ())
 
 
 class AdviceAndConversationTests(unittest.TestCase):

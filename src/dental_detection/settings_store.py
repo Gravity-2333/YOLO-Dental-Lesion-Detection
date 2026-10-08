@@ -15,7 +15,9 @@ from .ai_defaults import (
     DEFAULT_AI_PROMPT,
     DEFAULT_FOLLOWUP_GENERATION_PROMPT,
     DEFAULT_TITLE_GENERATION_PROMPT,
+    LEGACY_FOLLOWUP_GENERATION_PROMPTS,
     LEGACY_DEFAULT_AI_PROMPTS,
+    LEGACY_TITLE_GENERATION_PROMPTS,
 )
 from .config import DEFAULT_MODEL_PATH, PROJECT_ROOT
 
@@ -66,9 +68,8 @@ class AiSettings:
     advice_style: str = "简洁版"
     title_generation_mode: str = "本地规则"
     title_generation_prompt: str = DEFAULT_TITLE_GENERATION_PROMPT
-    followup_generation_enabled: bool = False
+    followup_generation_enabled: bool = True
     followup_generation_prompt: str = DEFAULT_FOLLOWUP_GENERATION_PROMPT
-    keep_followup_prompts: bool = False
     followup_click_action: str = "填入输入框"
     task_model: str = ""
     task_temperature: float = 0.2
@@ -175,7 +176,7 @@ def _load_settings_unlocked() -> AiSettings:
     }
     _BOOL_FIELDS = {
         "enabled", "save_api_key", "auto_save", "enable_compare", "show_summary",
-        "magnifier_enabled", "save_history", "followup_generation_enabled", "keep_followup_prompts",
+        "magnifier_enabled", "save_history", "followup_generation_enabled",
     }
     _INT_FIELDS = {"history_limit", "task_max_tokens"}
     _FLOAT_FIELDS = {"task_temperature"}
@@ -226,6 +227,10 @@ def _load_settings_unlocked() -> AiSettings:
         filtered.pop("followup_click_action", None)
     if filtered.get("custom_prompt") in LEGACY_DEFAULT_AI_PROMPTS:
         filtered["custom_prompt"] = DEFAULT_AI_PROMPT
+    if filtered.get("title_generation_prompt") in LEGACY_TITLE_GENERATION_PROMPTS:
+        filtered["title_generation_prompt"] = DEFAULT_TITLE_GENERATION_PROMPT
+    if filtered.get("followup_generation_prompt") in LEGACY_FOLLOWUP_GENERATION_PROMPTS:
+        filtered["followup_generation_prompt"] = DEFAULT_FOLLOWUP_GENERATION_PROMPT
     return AiSettings(**{**defaults, **filtered})
 
 

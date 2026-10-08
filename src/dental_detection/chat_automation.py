@@ -10,11 +10,6 @@ from .conversation_store import conversation_title
 from .settings_store import AiSettings
 
 
-DEFAULT_FOLLOWUP_QUESTIONS = (
-    "请按优先级说明需要重点复核的位置",
-    "用医生视角总结当前检测结果",
-    "有哪些影像质量问题会影响判断",
-)
 MAX_TASK_MESSAGES = 6
 MAX_TASK_MESSAGE_CHARS = 800
 
@@ -56,7 +51,21 @@ def generate_conversation_title(settings: AiSettings, messages: Any) -> str:
         temperature=settings.task_temperature,
         max_tokens=min(settings.task_max_tokens, 120),
     )
-    title = re.sub(r"^(?:标题|对话标题)\s*[:：]\s*", "", content.strip())
+    raw_title = content.strip()
+    try:
+        parsed = json.loads(raw_title)
+        if isinstance(parsed, dict):
+            raw_title = str(parsed.get("title") or "")
+    except json.JSONDecodeError:
+        match = re.search(r"\{[\s\S]*\}", raw_title)
+        if match:
+            try:
+                parsed = json.loads(match.group(0))
+                if isinstance(parsed, dict):
+                    raw_title = str(parsed.get("title") or raw_title)
+            except json.JSONDecodeError:
+                pass
+    title = re.sub(r"^(?:标题|对话标题)\s*[:：]\s*", "", raw_title)
     title = re.sub(r"^[\"'“”‘’]+|[\"'“”‘’]+$", "", title).strip()
     title = re.sub(r"\s+", " ", title).strip(" -—：:")
     return title[:36] or conversation_title(messages)
@@ -67,7 +76,9 @@ def _followup_candidates(content: str) -> list[str]:
     candidates: list[Any] = []
     try:
         parsed = json.loads(text)
-        if isinstance(parsed, list):
+        if isinstance(parsed, dict) and isinstance(parsed.get("follow_ups"), list):
+            candidates = parsed["follow_ups"]
+        elif isinstance(parsed, list):
             candidates = parsed
     except json.JSONDecodeError:
         match = re.search(r"\[[\s\S]*\]", text)
@@ -91,9 +102,9 @@ def _followup_candidates(content: str) -> list[str]:
     return result
 
 
-def generate_followup_questions(settings: AiSettings, messages: Any) -> tuple[str, str, str]:
+def generate_followup_questions(settings: AiSettings, messages: Any) -> tuple[str, ...]:
     if not settings.followup_generation_enabled:
-        return DEFAULT_FOLLOWUP_QUESTIONS
+        return ()
     content = chat_completion(
         _task_settings(settings),
         [{"role": "user", "content": render_task_prompt(settings.followup_generation_prompt, messages)}],
@@ -101,4 +112,4 @@ def generate_followup_questions(settings: AiSettings, messages: Any) -> tuple[st
         max_tokens=settings.task_max_tokens,
     )
     questions = _followup_candidates(content)
-    return tuple((questions + list(DEFAULT_FOLLOWUP_QUESTIONS))[:3])  # type: ignore[return-value]
+    return tuple(questions[:3])  # type: ignore[return-value]
