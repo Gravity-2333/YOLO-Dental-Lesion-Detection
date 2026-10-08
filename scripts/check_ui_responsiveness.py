@@ -760,7 +760,7 @@ def main() -> int:
         top_tab(mobile, "检测工作台").click(timeout=10000)
         wait_for_ui(mobile)
         assert_no_page_overflow(mobile, "移动端工作台")
-        assert_context_help_bubble(mobile, ".workbench-model-status", activate="focus")
+        assert_context_help_bubble(mobile, ".workbench-model-status")
         top_tab(mobile, "病例记录").click(timeout=10000)
         mobile.locator(".case-workspace .record-review-layout").wait_for(state="visible")
         assert_no_page_overflow(mobile, "移动端病例工作区")

@@ -15,8 +15,9 @@ from .ai_defaults import (
     DEFAULT_AI_PROMPT,
     DEFAULT_FOLLOWUP_GENERATION_PROMPT,
     DEFAULT_TITLE_GENERATION_PROMPT,
+    LEGACY_DEFAULT_AI_PROMPTS,
 )
-from .config import PROJECT_ROOT
+from .config import DEFAULT_MODEL_PATH, PROJECT_ROOT
 
 APP_DIR_NAME = "YOLO-Dental-Lesion-Detection"
 
@@ -79,14 +80,7 @@ class AiSettings:
     save_history: bool = True
     history_limit: int = 100
     model_dir: str = str(PROJECT_ROOT / "models")
-    primary_model_path: str = str(
-        PROJECT_ROOT
-        / "models"
-        / "final_candidates"
-        / "yolov8m_c2f_faster_lite_1280_full"
-        / "weights"
-        / "best.pt"
-    )
+    primary_model_path: str = str(DEFAULT_MODEL_PATH)
     compare_model_path: str = str(
         PROJECT_ROOT
         / "models"
@@ -230,6 +224,8 @@ def _load_settings_unlocked() -> AiSettings:
         filtered.pop("title_generation_mode", None)
     if filtered.get("followup_click_action") not in {"填入输入框", "直接发送"}:
         filtered.pop("followup_click_action", None)
+    if filtered.get("custom_prompt") in LEGACY_DEFAULT_AI_PROMPTS:
+        filtered["custom_prompt"] = DEFAULT_AI_PROMPT
     return AiSettings(**{**defaults, **filtered})
 
 

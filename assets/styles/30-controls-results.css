@@ -858,7 +858,7 @@ input[aria-label="对比模型路径"],
 }
 
 .image-compare-after-wrap {
-  clip-path: inset(0 calc(100% - var(--compare-position)) 0 0);
+  clip-path: inset(0 0 0 var(--compare-position));
 }
 
 .image-compare-divider {
@@ -901,15 +901,22 @@ input[aria-label="对比模型路径"],
   opacity: 0;
 }
 
+.image-compare-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+}
+
 .image-compare-label {
-  position: absolute;
-  z-index: 2;
-  top: 12px;
-  max-width: 42%;
+  display: block;
+  position: static;
+  max-width: 48%;
   padding: 6px 9px;
   overflow: hidden;
   color: var(--text-main);
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface-soft);
   border: 1px solid var(--input-border);
   border-radius: 4px;
   font-size: 0.78rem;
@@ -918,8 +925,11 @@ input[aria-label="对比模型路径"],
   white-space: nowrap;
 }
 
-.image-compare-label-before { left: 12px; }
-.image-compare-label-after { right: 12px; }
+.image-compare-label-before { margin-right: auto; }
+.image-compare-label-after {
+  margin-left: auto;
+  text-align: right;
+}
 
 .image-compare-caption {
   margin: 9px 0 0;
@@ -1062,14 +1072,23 @@ input[aria-label="对比模型路径"],
   background: #ffffff !important;
 }
 
-.insight-grid {
+.insight-stack {
+  display: flex !important;
+  flex-direction: column !important;
   gap: 18px !important;
-  align-items: stretch !important;
+  width: 100% !important;
   margin-bottom: 18px !important;
 }
 
-textarea[aria-label="图像质量提示"],
-textarea[aria-label="牙齿辅助建议"] {
+.insight-stack > .block,
+.insight-stack > .form {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.insight-stack .panel-card textarea {
   background: var(--input-bg) !important;
   line-height: 1.6 !important;
   border-color: var(--input-border) !important;
@@ -1077,8 +1096,11 @@ textarea[aria-label="牙齿辅助建议"] {
   overflow-y: auto !important;
 }
 
-textarea[aria-label="图像质量提示"]:placeholder-shown,
-textarea[aria-label="牙齿辅助建议"]:placeholder-shown {
+.insight-stack .advice-panel-card textarea {
+  min-height: 240px !important;
+}
+
+.insight-stack .panel-card textarea:placeholder-shown {
   color: var(--text-muted) !important;
 }
 

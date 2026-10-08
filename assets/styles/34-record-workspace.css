@@ -194,6 +194,12 @@ button.record-save-button {
   border-radius: 6px !important;
 }
 
+.record-save-button button,
+button.record-save-button {
+  height: 48px !important;
+  min-height: 48px !important;
+}
+
 button.record-save-button:not(:disabled),
 .record-save-button button:not(:disabled) {
   border: 1px solid #176f65 !important;
@@ -257,19 +263,29 @@ button.record-save-button::before {
   display: contents !important;
 }
 
-.record-management > button.label-wrap {
+.gradio-container .record-management > button.label-wrap {
   position: relative;
-  width: max-content !important;
+  display: inline-flex !important;
+  width: auto !important;
   min-height: 36px !important;
   height: 36px !important;
+  max-width: calc(100% - 2px) !important;
+  align-items: center !important;
   justify-content: flex-start !important;
-  gap: 6px !important;
-  padding: 0 !important;
+  gap: 8px !important;
+  overflow: visible !important;
+  padding: 0 2px 0 0 !important;
   border: 0 !important;
   background: transparent !important;
   color: #394744 !important;
   font-size: 0.82rem !important;
   font-weight: 680 !important;
+}
+
+.gradio-container .record-management > button.label-wrap span:first-child {
+  flex: 0 1 auto !important;
+  height: auto !important;
+  line-height: 1.4 !important;
 }
 
 .record-management > .wrap {
@@ -284,6 +300,9 @@ button.record-save-button::before {
 }
 
 .record-management > button.label-wrap::after {
+  display: block;
+  flex: 0 0 auto;
+  box-sizing: border-box;
   width: 7px;
   height: 7px;
   border-right: 1.5px solid #56706a;
@@ -293,6 +312,7 @@ button.record-save-button::before {
   transition: transform 150ms ease;
 }
 
+.record-management > button.label-wrap.open::after,
 .record-management > button.label-wrap[aria-expanded="true"]::after {
   transform: translateY(-2px) rotate(45deg);
 }

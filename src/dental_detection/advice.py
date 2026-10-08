@@ -41,20 +41,66 @@ def detection_prompt(
         },
         {
             "role": "user",
-            "content": f"请根据以下 YOLO 牙齿病变检测结果生成简洁建议：\n{summary}",
+            "content": (
+                "请根据以下 YOLO 牙齿病变检测结果生成正式的影像复核意见。"
+                "先确定优先级并合并同类信息，不要把检测框逐条换一种说法复述；"
+                "只能使用下列文字数据，不得补写影像征象，也不得从坐标或粗略区域推断牙位及框间关系。\n"
+                f"{summary}"
+            ),
         },
     ]
+
+
+def _confidence_sort_value(row: dict[str, Any]) -> float:
+    confidence = parse_confidence(row.get("confidence"))
+    return confidence if confidence is not None else -1.0
+
+
+def _format_detection_evidence(items: list[dict[str, Any]]) -> str:
+    evidence = []
+    ordered = sorted(items, key=_confidence_sort_value, reverse=True)
+    for item in ordered[:3]:
+        region = str(item.get("图像区域") or "位置未提供")
+        confidence = parse_confidence(item.get("confidence"))
+        confidence_text = f"{confidence:.2f}" if confidence is not None else "未知"
+        level = str(item.get("关注等级") or "待复核")
+        evidence.append(f"{region}（{confidence_text}，{level}）")
+    if len(ordered) > 3:
+        evidence.append(f"另有 {len(ordered) - 3} 处同类标记")
+    return "、".join(evidence)
+
+
+def _combined_review_note(classes: set[str]) -> str:
+    notes = []
+    if {"Caries", "Impacted"}.issubset(classes):
+        notes.append(
+            "龋齿与阻生牙标记同时出现：请核对龋坏框是否涉及阻生牙邻牙，并评估是否存在清洁受限；"
+            "仅凭当前检测框无法确认相邻关系或因果关系。"
+        )
+    if {"Caries", "Periapical Lesion"}.issubset(classes):
+        notes.append(
+            "龋齿与根尖周病变标记同时出现：请核对两类标记是否来自同一牙位，并结合牙髓活力和根尖片判断；"
+            "当前信息无法确认二者关联。"
+        )
+    if {"Impacted", "Periapical Lesion"}.issubset(classes):
+        notes.append(
+            "阻生牙与根尖周病变标记同时出现：请分别确认来源牙位及解剖关系；当前信息无法确认二者关联。"
+        )
+    return " ".join(notes) or "暂无需要联合分析的类别组合。"
 
 
 def default_advice(detections: list[dict[str, Any]]) -> str:
     detection_items = list(iter_detection_items(detections))
     if not detection_items:
         return (
-            "检测摘要：本次未检测到明确的目标病变框。\n\n"
-            "需要关注的位置：未形成可定位的检测框；若原始影像存在可疑区域，应以专业阅片为准。\n\n"
-            "复查建议：如仍有疼痛、肿胀、冷热刺激痛或影像质量较差，建议携带原始牙片咨询专业牙科医生复核。\n\n"
-            "注意事项：未检测到目标不代表不存在病变，本系统不提供治疗方案、处方或药物剂量建议。\n\n"
-            f"安全声明：{SAFETY_NOTICE}"
+            "【模型检出概况】本次未检测到明确的目标病变框，但未检出不等于排除病变，也可能受病变类型、"
+            "影像质量或模型能力限制。\n\n"
+            "【分区复核意见】若仍有疼痛、肿胀、冷热刺激痛、咬合不适或可见缺损，建议由牙科医生检查症状对应区域，"
+            "不要仅凭本次未检出结果排除问题。\n\n"
+            "【关联性评估】暂无需要联合分析的类别组合。\n\n"
+            "【建议处置】建议携带原始影像就诊；由医生结合口内检查判断是否需要咬翼片、根尖片或其他检查。\n\n"
+            "【风险提示与局限】如出现面部肿胀、发热、吞咽或呼吸困难、张口明显受限或持续加重的剧痛，"
+            f"建议尽快就医。本系统不提供处方或治疗方案。{SAFETY_NOTICE}"
         )
 
     grouped: dict[str, list[dict[str, Any]]] = {}
@@ -62,51 +108,56 @@ def default_advice(detections: list[dict[str, Any]]) -> str:
         if not has_detection_payload(det):
             continue
         row = enrich_detection_row(det)
-        label = str(row.get("class") or "未知区域")
+        label = _normalize_class_name(str(row.get("class") or "未知区域"))
         grouped.setdefault(label, []).append(row)
     if not grouped:
         return default_advice([])
 
-    summary_lines = []
+    ordered_groups = sorted(
+        grouped.items(),
+        key=lambda group: max((_confidence_sort_value(item) for item in group[1]), default=-1.0),
+        reverse=True,
+    )
+    counts = []
     focus_lines = []
-    for label, items in sorted(grouped.items()):
-        confidences = []
-        for item in items:
-            confidence = parse_confidence(item.get("confidence"))
-            if confidence is not None:
-                confidences.append(confidence)
-        high_conf = max(confidences) if confidences else None
-        if high_conf is None:
-            level = "置信度未知，仅供参考"
-            confidence_text = "未知"
-        elif high_conf >= 0.70:
-            level = "重点关注"
-            confidence_text = f"{high_conf:.2f}"
-        elif high_conf >= 0.40:
-            level = "建议复查确认"
-            confidence_text = f"{high_conf:.2f}"
-        else:
-            level = "低置信度，仅供参考"
-            confidence_text = f"{high_conf:.2f}"
-
-        normalized = _normalize_class_name(label)
+    for index, (normalized, items) in enumerate(ordered_groups[:3], start=1):
         advice = CLASS_ADVICE.get(
             normalized,
-            CLASS_ADVICE.get(
-                label,
-                "检测到模型标记的可疑区域。建议结合原始影像、症状和医生检查进行复核。",
-            ),
+            "模型标记了待复核区域；请由医生结合原始影像、症状和口内检查确认其性质。",
         )
-        display = CLASS_DISPLAY_NAMES.get(normalized, label)
-        summary_lines.append(f"{display} {len(items)} 处，最高置信度约 {confidence_text}，{level}。")
-        focus_lines.append(f"{display}：{advice}")
+        display = CLASS_DISPLAY_NAMES.get(normalized, normalized)
+        counts.append(f"{display} {len(items)} 处")
+        focus_lines.append(f"{index}. {display}：{_format_detection_evidence(items)}。复核重点：{advice}")
+
+    all_rows = [item for items in grouped.values() for item in items]
+    first = max(all_rows, key=_confidence_sort_value)
+    first_class = _normalize_class_name(str(first.get("class") or "未知区域"))
+    first_display = CLASS_DISPLAY_NAMES.get(first_class, first_class)
+    first_region = str(first.get("图像区域") or "位置未提供")
+    first_confidence = parse_confidence(first.get("confidence"))
+    first_confidence_text = f"{first_confidence:.2f}" if first_confidence is not None else "未知"
+    low_confidence_note = ""
+    if any(0 <= _confidence_sort_value(row) < 0.40 for row in all_rows):
+        low_confidence_note = (
+            " 低置信度标记可能受重叠结构、成像质量或伪影影响，应与高置信度结果分开判断。"
+        )
 
     return "\n\n".join(
         [
-            "检测摘要：" + " ".join(summary_lines),
-            "需要关注的位置：" + " ".join(focus_lines),
-            "复查建议：请保留原始影像和检测结果，必要时携带给专业牙科医生复查确认。",
-            "注意事项：本建议不构成最终诊断，不提供治疗方案、处方或具体药物剂量。置信度不等同于疾病严重程度。",
-            f"安全声明：{SAFETY_NOTICE}",
+            "【模型检出概况】模型共标记 "
+            + str(len(all_rows))
+            + " 处区域，包括"
+            + "、".join(counts)
+            + f"。首要复核为{first_region}的{first_display}标记（{first_confidence_text}）。"
+            + "这只是模型排序，不是诊断；置信度不代表病变严重程度。",
+            "【分区复核意见】\n" + "\n".join(focus_lines),
+            "【关联性评估】" + _combined_review_note(set(grouped)),
+            "【建议处置】建议携带原始影像和检测结果至口腔科，并说明疼痛性质、持续时间、冷热或咬合反应、"
+            "是否反复肿胀等症状；具体检查由医生根据复核区域决定。",
+            "【风险提示与局限】如出现面部肿胀、发热、吞咽或呼吸困难、张口明显受限或持续加重的剧痛，"
+            "建议尽快就医。粗略图像区域不等同于专业牙位编号。"
+            + low_confidence_note
+            + " 本系统不提供处方、药物剂量或具体治疗方案。"
+            + SAFETY_NOTICE,
         ]
     )

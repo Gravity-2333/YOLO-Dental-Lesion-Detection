@@ -366,19 +366,19 @@ def build_workbench_page(data: WorkbenchPageData) -> WorkbenchComponents:
                     elem_classes=["report-export-status"],
                 )
 
-            with gr.Row(elem_classes=["insight-grid"]):
+            with gr.Column(elem_classes=["insight-stack"]):
                 advice_box = gr.Textbox(
                     label="牙齿辅助建议",
-                    lines=7,
+                    lines=10,
                     interactive=False,
-                    elem_classes=["panel-card"],
+                    elem_classes=["panel-card", "advice-panel-card"],
                 )
                 quality_box = gr.Textbox(
                     value="等待上传图像",
                     label="图像质量提示",
                     lines=7,
                     interactive=False,
-                    elem_classes=["panel-card"],
+                    elem_classes=["panel-card", "quality-panel-card"],
                 )
 
             with gr.Group(elem_classes=["section-card", "result-table-card"]):

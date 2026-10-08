@@ -607,14 +607,40 @@ def check_storage_heading_help(page, output_dir: Path, suffix: str) -> None:
 def capture_result_magnifier(page, output_dir: Path, suffix: str) -> None:
     stage = page.locator(".result-image-stage").first
     image = stage.locator(".primary-result-card img").first
-    stage.scroll_into_view_if_needed(timeout=10000)
+    image.scroll_into_view_if_needed(timeout=10000)
     box = image.bounding_box()
     if not box:
         raise RuntimeError("无法获取检测结果图位置。")
 
-    page.mouse.move(box["x"] + box["width"] * 0.68, box["y"] + box["height"] * 0.68)
+    hover_x = box["x"] + box["width"] * 0.5
+    hover_y = box["y"] + box["height"] * 0.5
+    page.mouse.move(hover_x, hover_y)
     lens = page.locator("body > .result-magnifier")
-    lens.wait_for(state="visible", timeout=5000)
+    page.wait_for_timeout(250)
+    if not lens.is_visible():
+        state = page.evaluate(
+            """({x, y}) => {
+                const target = document.elementFromPoint(x, y);
+                const image = document.querySelector('.primary-result-card img');
+                const imageRect = image?.getBoundingClientRect();
+                const toggle = document.querySelector('.result-magnifier-toggle');
+                return {
+                    point: {x, y},
+                    target: target ? `${target.tagName}.${target.className}` : null,
+                    insideResultCard: Boolean(target?.closest('.primary-result-card')),
+                    imageRect: imageRect ? {
+                        left: imageRect.left,
+                        top: imageRect.top,
+                        right: imageRect.right,
+                        bottom: imageRect.bottom,
+                    } : null,
+                    runtimeEnabled: document.documentElement.dataset.resultMagnifierEnabled || '',
+                    togglePressed: toggle?.getAttribute('aria-pressed') || '',
+                };
+            }""",
+            {"x": hover_x, "y": hover_y},
+        )
+        raise RuntimeError(f"检测结果放大镜未显示：{state}")
     canvas_ready = lens.locator("canvas").evaluate(
         """canvas => {
             const context = canvas.getContext('2d');
@@ -697,14 +723,38 @@ def capture_result_magnifier(page, output_dir: Path, suffix: str) -> None:
     toolbar_toggle.click(timeout=10000)
     if toolbar_toggle.get_attribute("aria-pressed") != "false":
         raise RuntimeError("结果图工具栏未能关闭放大镜。")
-    page.mouse.move(box["x"] + box["width"] * 0.6, box["y"] + box["height"] * 0.6)
+    page.mouse.move(hover_x, hover_y)
     if page.locator(".result-magnifier.is-visible").count():
         raise RuntimeError("工具栏关闭放大镜后放大框仍然显示。")
     toolbar_toggle.click(timeout=10000)
     if toolbar_toggle.get_attribute("aria-pressed") != "true":
         raise RuntimeError("结果图工具栏未能重新开启放大镜。")
-    page.mouse.move(box["x"] + box["width"] * 0.68, box["y"] + box["height"] * 0.68)
-    lens.wait_for(state="visible", timeout=5000)
+    current_box = image.bounding_box()
+    if not current_box:
+        raise RuntimeError("重新开启放大镜后无法获取检测结果图位置。")
+    hover_x = current_box["x"] + current_box["width"] * 0.5
+    hover_y = current_box["y"] + current_box["height"] * 0.5
+    page.mouse.move(hover_x - 12, hover_y - 12)
+    page.mouse.move(hover_x, hover_y)
+    page.wait_for_timeout(250)
+    if not lens.is_visible():
+        state = page.evaluate(
+            """({x, y}) => {
+                const target = document.elementFromPoint(x, y);
+                const toggle = document.querySelector('.result-magnifier-toggle');
+                const setting = document.querySelector('#magnifier-enabled-setting input[type="checkbox"]');
+                return {
+                    point: {x, y},
+                    target: target ? `${target.tagName}.${target.className}` : null,
+                    insideResultCard: Boolean(target?.closest('.primary-result-card')),
+                    runtimeEnabled: document.documentElement.dataset.resultMagnifierEnabled || '',
+                    togglePressed: toggle?.getAttribute('aria-pressed') || '',
+                    settingChecked: setting instanceof HTMLInputElement ? setting.checked : null,
+                };
+            }""",
+            {"x": hover_x, "y": hover_y},
+        )
+        raise RuntimeError(f"重新开启后检测结果放大镜未显示：{state}")
 
     page.screenshot(path=str(output_dir / name("03-workbench-result-magnifier.png", suffix)))
     click_tab(page, "设置")

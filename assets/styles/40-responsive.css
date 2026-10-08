@@ -132,7 +132,7 @@
 
   .workbench-grid,
   .image-grid,
-  .insight-grid,
+  .insight-stack,
   .model-card-grid,
   .result-legend,
   .path-row,
@@ -170,7 +170,7 @@
   .result-panel > .block,
   .result-panel > .form,
   .result-panel .image-grid,
-  .result-panel .insight-grid {
+  .result-panel .insight-stack {
     flex: 1 1 auto !important;
     width: 100% !important;
     min-width: 0 !important;
@@ -178,7 +178,7 @@
   }
 
   .image-grid,
-  .insight-grid {
+  .insight-stack {
     display: flex !important;
     flex-direction: column !important;
   }

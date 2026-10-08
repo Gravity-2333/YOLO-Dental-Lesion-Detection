@@ -917,7 +917,7 @@ def _build_advice(settings: AiSettings, detections: list[dict[str, Any]]) -> str
             settings,
             detection_prompt(detections, prompt),
             temperature=0.2,
-            max_tokens=500,
+            max_tokens=700,
         )
         if not str(generated or "").strip():
             raise ValueError("AI 接口返回为空。")

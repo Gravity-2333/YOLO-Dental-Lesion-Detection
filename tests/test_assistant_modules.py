@@ -20,7 +20,12 @@ from src.dental_detection.ai_client import (
     normalize_base_url,
     validate_ai_request,
 )
-from src.dental_detection.ai_defaults import DEFAULT_AI_MODEL, SAFETY_NOTICE
+from src.dental_detection.ai_defaults import (
+    DEFAULT_AI_MODEL,
+    DEFAULT_AI_PROMPT,
+    LEGACY_DEFAULT_AI_PROMPTS,
+    SAFETY_NOTICE,
+)
 from src.dental_detection.conversation_store import (
     MAX_CONVERSATION_FILE_BYTES,
     delete_conversation,
@@ -31,6 +36,7 @@ from src.dental_detection.conversation_store import (
     save_conversation,
     upsert_conversation,
 )
+from src.dental_detection.config import DEFAULT_MODEL_NAME, DEFAULT_MODEL_PATH
 from src.dental_detection.error_messages import concise_error_message, friendly_error_message
 from src.dental_detection.personal_workspace import PERSONAL_PATIENT_ID
 from src.dental_detection.settings_store import AiSettings
@@ -45,6 +51,11 @@ class AssistantCompatibilityTests(unittest.TestCase):
         self.assertIs(assistant.AiSettings, AiSettings)
         self.assertIs(assistant.default_advice, default_advice)
         self.assertEqual(assistant.DEFAULT_AI_MODEL, DEFAULT_AI_MODEL)
+
+    def test_default_primary_model_is_c2f_faster_lite(self) -> None:
+        self.assertEqual(DEFAULT_MODEL_NAME, "YOLOv8m C2f-Faster-lite")
+        self.assertEqual(AiSettings().primary_model_path, str(DEFAULT_MODEL_PATH))
+        self.assertIn("yolov8m_c2f_faster_lite_1280_full", str(DEFAULT_MODEL_PATH))
 
     def test_facade_forwards_legacy_config_path_override(self) -> None:
         original = assistant.CONFIG_PATH
@@ -101,6 +112,29 @@ class AssistantCompatibilityTests(unittest.TestCase):
                 loaded = settings_store.load_settings()
         self.assertEqual(loaded.task_temperature, 2.0)
         self.assertEqual(loaded.task_max_tokens, 32)
+
+    def test_settings_loader_upgrades_only_legacy_default_advice_prompt(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "settings.json"
+            for legacy_prompt in LEGACY_DEFAULT_AI_PROMPTS:
+                config_path.write_text(
+                    json.dumps({"custom_prompt": legacy_prompt}, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                with patch.object(settings_store, "CONFIG_PATH", config_path):
+                    loaded = settings_store.load_settings()
+                self.assertEqual(loaded.custom_prompt, DEFAULT_AI_PROMPT)
+
+        custom_prompt = "请保留我的自定义牙科建议格式。"
+        with TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "settings.json"
+            config_path.write_text(
+                json.dumps({"custom_prompt": custom_prompt}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            with patch.object(settings_store, "CONFIG_PATH", config_path):
+                loaded = settings_store.load_settings()
+        self.assertEqual(loaded.custom_prompt, custom_prompt)
 
 
 class AiClientTests(unittest.TestCase):
@@ -284,6 +318,26 @@ class AdviceAndConversationTests(unittest.TestCase):
         prompt = detection_prompt([])
         self.assertIn(SAFETY_NOTICE, advice)
         self.assertIn("不接收、不分析", prompt[0]["content"])
+        self.assertIn("不得补写输入中没有的影像征象", prompt[0]["content"])
+        self.assertIn("不得自行根据坐标判断重叠", prompt[0]["content"])
+        self.assertIn("【分区复核意见】", prompt[0]["content"])
+        self.assertIn("不要把检测框逐条换一种说法复述", prompt[1]["content"])
+
+    def test_default_advice_prioritizes_actions_and_cross_class_review(self) -> None:
+        advice = default_advice(
+            [
+                {"class": "Caries", "confidence": 0.72, "图像区域": "图像右侧下方区域"},
+                {"class": "Caries", "confidence": 0.34, "图像区域": "图像右侧上方区域"},
+                {"class": "Impacted", "confidence": 0.66, "图像区域": "图像左侧下方区域"},
+            ]
+        )
+
+        self.assertIn("首要复核为图像右侧下方区域的龋齿标记（0.72）", advice)
+        self.assertIn("口内检查、探诊及咬翼片或根尖片", advice)
+        self.assertIn("龋坏框是否涉及阻生牙邻牙", advice)
+        self.assertIn("当前检测框无法确认相邻关系或因果关系", advice)
+        self.assertIn("低置信度标记可能受重叠结构", advice)
+        self.assertIn("吞咽或呼吸困难", advice)
 
     def test_conversation_store_writes_valid_unique_json(self) -> None:
         with TemporaryDirectory() as temp_dir:

@@ -62,6 +62,10 @@ def build_comparison_html(results: list[dict[str, Any]]) -> str:
     aspect_ratio = f"{max(1, width)} / {max(1, height)}"
     return f"""
 <div class="image-compare" data-image-compare style="--compare-position: 50%; --compare-aspect: {aspect_ratio};">
+  <div class="image-compare-heading" aria-hidden="true">
+    <span class="image-compare-label image-compare-label-before">{safe_before}</span>
+    <span class="image-compare-label image-compare-label-after">{safe_after}</span>
+  </div>
   <div class="image-compare-stage">
     <img class="image-compare-before" src="{before_uri}" alt="{safe_before}" />
     <div class="image-compare-after-wrap">
@@ -70,8 +74,6 @@ def build_comparison_html(results: list[dict[str, Any]]) -> str:
     <div class="image-compare-divider" aria-hidden="true"><span>↔</span></div>
     <input class="image-compare-range" type="range" min="0" max="100" value="50"
       aria-label="拖动比较 {safe_before} 与 {safe_after}" />
-    <span class="image-compare-label image-compare-label-before">{safe_before}</span>
-    <span class="image-compare-label image-compare-label-after">{safe_after}</span>
   </div>
   <p class="image-compare-caption">拖动中间分隔线查看两侧差异</p>
 </div>

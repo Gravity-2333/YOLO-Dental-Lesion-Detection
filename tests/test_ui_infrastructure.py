@@ -500,7 +500,19 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn(".record-capture-fields input:focus", css)
         self.assertIn(".record-capture-fields textarea:focus", css)
         self.assertIn(".record-management > button.label-wrap::after", css)
+        self.assertIn(".record-management > button.label-wrap.open::after", css)
         self.assertIn('.record-management > button.label-wrap[aria-expanded="true"]::after', css)
+        management_rule = css.split(
+            ".gradio-container .record-management > button.label-wrap {", 1
+        )[1].split("}", 1)[0]
+        self.assertIn("display: inline-flex !important", management_rule)
+        self.assertIn("align-items: center !important", management_rule)
+        self.assertIn("overflow: visible !important", management_rule)
+        self.assertIn("padding: 0 2px 0 0 !important", management_rule)
+        self.assertIn(
+            ".gradio-container .record-management > button.label-wrap span:first-child",
+            css,
+        )
         self.assertIn(".record-toolbar-button button::before", css)
         self.assertIn(".record-save-button button::before", css)
         self.assertIn("button.record-save-button:not(:disabled)", css)
@@ -678,8 +690,14 @@ class UiAssetTests(unittest.TestCase):
         js = load_workbench_js()
         self.assertIn(".image-compare-stage", css)
         self.assertIn(".image-compare-divider", css)
+        self.assertIn(".image-compare-heading", css)
         self.assertIn(".image-compare-label", css)
         self.assertIn("--compare-position", css)
+        after_wrap_rule = css.rsplit(".image-compare-after-wrap {", 1)[1].split("}", 1)[0]
+        self.assertIn("clip-path: inset(0 0 0 var(--compare-position))", after_wrap_rule)
+        self.assertNotIn("calc(100% - var(--compare-position))", after_wrap_rule)
+        label_rule = css.split(".image-compare-label {", 1)[1].split("}", 1)[0]
+        self.assertIn("position: static", label_rule)
         viewer_rule = css.split(".clinical-viewer {", 1)[1].split("}", 1)[0]
         self.assertIn("margin-top: 0 !important", viewer_rule)
         self.assertIn("background: #ffffff !important", viewer_rule)
@@ -1239,12 +1257,21 @@ class UiContentTests(unittest.TestCase):
 
     def test_workbench_shows_interpretation_before_technical_detection_details(self) -> None:
         source = inspect.getsource(build_workbench_page)
-        insight_position = source.index('with gr.Row(elem_classes=["insight-grid"])')
+        insight_position = source.index('with gr.Column(elem_classes=["insight-stack"])')
         detail_position = source.index(
             'with gr.Group(elem_classes=["section-card", "result-table-card"])'
         )
 
         self.assertLess(insight_position, detail_position)
+        self.assertNotIn('with gr.Row(elem_classes=["insight-grid"])', source)
+        self.assertIn('elem_classes=["panel-card", "advice-panel-card"]', source)
+        self.assertIn('elem_classes=["panel-card", "quality-panel-card"]', source)
+        css = load_workbench_css()
+        stack_rule = css.split(".insight-stack {", 1)[1].split("}", 1)[0]
+        self.assertIn("flex-direction: column", stack_rule)
+        self.assertIn("width: 100%", stack_rule)
+        self.assertIn(".insight-stack .panel-card textarea", css)
+        self.assertIn(".insight-stack .advice-panel-card textarea", css)
         self.assertIn('"查看检测明细",\n                    open=False', source)
         detail_source = source[detail_position : source.index("summary =", detail_position)]
         self.assertIn("visible_class_filter = gr.CheckboxGroup", detail_source)
@@ -1451,7 +1478,7 @@ class UiContentTests(unittest.TestCase):
             advice = app._build_advice(settings, detections)
 
         completion.assert_called_once()
-        self.assertIn("检测摘要", advice)
+        self.assertIn("模型检出概况", advice)
         self.assertIn("AI 建议生成失败", advice)
 
     def test_continue_chat_sends_current_detection_text_without_private_artifacts(self) -> None:
@@ -2402,6 +2429,10 @@ class UiContentTests(unittest.TestCase):
         self.assertTrue(comparison_section["visible"])
         self.assertIn("原始结构", comparison_view["value"])
         self.assertIn("优化结构", comparison_view["value"])
+        self.assertLess(
+            comparison_view["value"].index("image-compare-heading"),
+            comparison_view["value"].index("image-compare-stage"),
+        )
         self.assertTrue(single_section["visible"])
         self.assertIn("原始影像", single_view["value"])
         self.assertIn('type="range"', single_view["value"])

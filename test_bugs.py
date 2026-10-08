@@ -966,9 +966,9 @@ try:
     assert "scheduleMenuLabeling" in js_text and "labelingScheduled" in js_text, (
         "大量组件切换时应按动画帧合并菜单标记任务，避免重复扫描整个页面"
     )
-    assert "new MutationObserver(scheduleMenuLabeling)" in js_text, (
-        "DOM 观察器不应在每批变更中同步扫描全部菜单"
-    )
+    observer_body = js_text.split("new MutationObserver(() => {", 1)[1].split("}).observe(document.body", 1)[0]
+    assert "scheduleMenuLabeling();" in observer_body, "DOM 观察器应调度合并后的菜单标记任务"
+    assert "labelOverflowMenus();" not in observer_body, "DOM 观察器不应在每批变更中同步扫描全部菜单"
     assert "DOMContentLoaded" in js_text and "{ once: true }" in js_text, "脚本应兼容提前注入场景"
     print("✓ 前端更多菜单脚本加载时机正常")
 except Exception as e:
@@ -2011,26 +2011,32 @@ except Exception as e:
 
 print("\n测试64: 检查模型和推理参数变化会清理陈旧检测结果...")
 try:
-    app_text = (Path(__file__).parent / "app.py").read_text(encoding="utf-8")
-    assert "stale_result_controls = [primary_model_path, compare_model_path, conf, iou, device_choice, use_clahe]" in app_text, (
+    project_root = Path(__file__).parent
+    app_text = (project_root / "app.py").read_text(encoding="utf-8")
+    workspace_events_text = (
+        project_root / "src" / "dental_detection" / "ui_events" / "workspace.py"
+    ).read_text(encoding="utf-8")
+    model_events_text = (
+        project_root / "src" / "dental_detection" / "ui_events" / "model_storage.py"
+    ).read_text(encoding="utf-8")
+    assert "stale_result_controls = [primary_model_path, compare_model_path, conf, iou, device_choice, use_clahe]" in workspace_events_text, (
         "模型路径、阈值、设备和 CLAHE 变化都应注册陈旧结果清理"
     )
-    assert "for control in stale_result_controls:" in app_text, "陈旧结果清理应统一绑定，避免漏掉单个控件"
+    assert "for control in stale_result_controls:" in workspace_events_text, "陈旧结果清理应统一绑定，避免漏掉单个控件"
     reset_helper = app_text[
-        app_text.index("def chain_detection_result_reset") : app_text.index("# User-only listeners")
+        app_text.index("def chain_detection_result_reset") : app_text.index("event_context = SimpleNamespace")
     ]
     assert "fn=clear_outputs_with_quality" in reset_helper, "统一重置链应清理旧检测/导出状态"
     assert "concurrency_id=RESULT_RESET_CONCURRENCY_ID" in reset_helper, "统一重置链应共享串行边界"
     assert 'trigger_mode="always_last"' in reset_helper, "统一重置链应丢弃过期的待处理请求"
-    assert "cancels=inference_events" in app_text, "输入、模型或患者变化时应取消过期检测回写"
-    assert app_text.count("concurrency_id=RESULT_RESET_CONCURRENCY_ID") >= 6, (
+    assert "cancels=inference_events" in workspace_events_text, "输入、模型或患者变化时应取消过期检测回写"
+    assert workspace_events_text.count("concurrency_id=RESULT_RESET_CONCURRENCY_ID") >= 4, (
         "图片、批量文件、参数和模型应用变化都应接入统一结果重置队列"
     )
-    assert "apply_model_btn.click(" in app_text and "apply_model_card_btn.click(" in app_text, "模型应用入口应存在"
-    apply_model_section = app_text[app_text.index("apply_model_btn.click(") : app_text.index("test_model_btn.click(")]
-    assert apply_model_section.count("chain_detection_result_reset") >= 2, "应用模型后不应保留旧检测结果"
-    model_mode_section = app_text[
-        app_text.index("model_mode_event = model_mode.input(") : app_text.index("test_btn.click(")
+    assert "c.apply_model_btn.click(" in model_events_text and "c.apply_model_card_btn.click(" in model_events_text, "模型应用入口应存在"
+    assert model_events_text.count("c.chain_detection_result_reset(") >= 2, "应用模型后不应保留旧检测结果"
+    model_mode_section = workspace_events_text[
+        workspace_events_text.index("model_mode_event = model_mode.input(") : workspace_events_text.index("test_btn.click(")
     ]
     assert model_mode_section.count("chain_detection_result_reset") >= 3, "模型模式变化后不应保留旧检测结果"
     print("✓ 模型和推理参数变化清理陈旧结果正常")
@@ -2459,16 +2465,16 @@ try:
             f"主流程应返回 {len(COMMON_OUTPUT_KEYS)} 个输出，实际 {len(outputs)}"
         )
         assert getattr(common_output(outputs, "word_export_button"), "get", lambda *_: None)("value") == (
-            "生成 Word 报告"
+            "导出 Word 报告"
         ), "Word 导出按钮应匹配命名输出契约"
         assert getattr(common_output(outputs, "zip_export_button"), "get", lambda *_: None)("value") == (
-            "生成 ZIP 数据包"
+            "导出 ZIP 数据包"
         ), "ZIP 导出按钮应匹配命名输出契约"
         assert getattr(common_output(outputs, "word_report_file"), "get", lambda *_: None)("value") != (
-            "生成 Word 报告"
+            "导出 Word 报告"
         ), "word_report_file 文件组件不能收到按钮文字"
         assert getattr(common_output(outputs, "zip_report_file"), "get", lambda *_: None)("value") != (
-            "生成 ZIP 数据包"
+            "导出 ZIP 数据包"
         ), "zip_report_file 文件组件不能收到按钮文字"
 
     image = Image.new("RGB", (80, 60), "white")
