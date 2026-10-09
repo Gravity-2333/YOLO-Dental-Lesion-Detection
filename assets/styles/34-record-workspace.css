@@ -605,6 +605,47 @@ button.record-save-button::before {
   gap: 10px !important;
 }
 
+/* Gradio form backgrounds must not show through the case sidebar gutters. */
+.case-workspace .record-library-pane .form {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.case-workspace .record-search,
+.case-workspace .record-filter-row .block {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.case-workspace .record-search input,
+.case-workspace .record-search textarea {
+  min-height: 44px !important;
+  padding: 11px 12px !important;
+  border: 1px solid #c7d1ce !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.case-workspace .record-search input:focus,
+.case-workspace .record-search textarea:focus {
+  border-color: #2f8278 !important;
+  box-shadow: 0 0 0 2px rgba(47, 130, 120, 0.14) !important;
+}
+
+.case-workspace .record-filter-row {
+  margin-top: 12px !important;
+}
+
+.case-workspace .record-filter-row > .form {
+  gap: 12px !important;
+}
+
 .record-filter-accordion,
 .record-table-accordion {
   margin: 4px 0 10px !important;
@@ -768,6 +809,47 @@ button.record-save-button::before {
 
 .record-navigator input[type="radio"] {
   margin-top: 3px !important;
+}
+
+.case-workspace .case-navigator {
+  border-top: 1px solid #dfe5e2 !important;
+  border-bottom: 1px solid #dfe5e2 !important;
+  border-radius: 0 !important;
+}
+
+.case-workspace .case-navigator .wrap,
+.case-workspace .case-navigator .wrap-inner {
+  gap: 0 !important;
+  border-radius: 0 !important;
+}
+
+.case-workspace .case-navigator label {
+  padding: 13px 12px !important;
+  border: 0 !important;
+  border-bottom: 1px solid #e2e8e5 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.case-workspace .case-navigator label:last-child {
+  border-bottom: 0 !important;
+}
+
+.case-workspace .case-navigator label:hover,
+.case-workspace .case-navigator label:focus-within {
+  background: #f2f8f6 !important;
+}
+
+.case-workspace .case-navigator label:focus-within {
+  outline: 2px solid #2f8278;
+  outline-offset: -2px;
+}
+
+.case-workspace .case-navigator label:has(input:checked) {
+  border-color: #e2e8e5 !important;
+  background: #eaf4f1 !important;
+  box-shadow: inset 3px 0 0 #176d64 !important;
 }
 
 .history-navigator {

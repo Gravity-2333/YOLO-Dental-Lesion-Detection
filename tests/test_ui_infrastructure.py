@@ -1029,6 +1029,20 @@ class UiContentTests(unittest.TestCase):
         self.assertIn(".case-workspace .record-detail-toolbar", mobile)
         self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr))", mobile)
 
+    def test_case_sidebar_removes_form_backplates_and_uses_contiguous_rows(self) -> None:
+        css = (app.PROJECT_ROOT / "assets/styles/34-record-workspace.css").read_text(encoding="utf-8")
+        form_rule = css.split(".case-workspace .record-library-pane .form {", 1)[1].split("}", 1)[0]
+        self.assertIn("background: transparent !important", form_rule)
+        self.assertIn("border: 0 !important", form_rule)
+        wrap_rule = css.split(".case-workspace .case-navigator .wrap-inner {", 1)[1].split("}", 1)[0]
+        self.assertIn("gap: 0 !important", wrap_rule)
+        label_rule = css.split(".case-workspace .case-navigator label {", 1)[1].split("}", 1)[0]
+        self.assertIn("border-radius: 0 !important", label_rule)
+        self.assertIn("border-bottom: 1px solid", label_rule)
+        self.assertIn(".case-workspace .case-navigator label:focus-within", css)
+        self.assertIn(".case-workspace .record-search input,", css)
+        self.assertIn(".case-workspace .record-search input:focus,", css)
+
     def test_history_actions_follow_the_available_records(self) -> None:
         empty_delete, empty_clear = app.record_action_button_state("")
         selected_delete, selected_clear = app.record_action_button_state("历史记录")
