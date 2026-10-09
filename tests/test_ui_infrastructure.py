@@ -716,7 +716,7 @@ class UiAssetTests(unittest.TestCase):
 
 
 class ProjectLauncherTests(unittest.TestCase):
-    def test_service_launcher_uses_minimized_background_runner(self) -> None:
+    def test_service_launcher_uses_live_console_with_log_forwarder(self) -> None:
         project_root = Path(__file__).resolve().parents[1]
         batch_source = (project_root / "start_project.bat").read_text(encoding="utf-8")
         launcher_source = (project_root / "scripts" / "start_project.ps1").read_text(
@@ -736,11 +736,15 @@ class ProjectLauncherTests(unittest.TestCase):
         self.assertNotIn('start "YOLO Dental Gradio"', batch_source)
         self.assertNotIn("/k", batch_source.lower())
         self.assertIn("Start-Process", launcher_source)
-        self.assertIn("-WindowStyle Minimized", launcher_source)
+        self.assertIn("-WindowStyle Normal", launcher_source)
+        self.assertNotIn("-WindowStyle Minimized", launcher_source)
         self.assertNotIn("-WindowStyle Hidden", launcher_source)
         self.assertIn("run_gradio_server.bat", launcher_source)
-        self.assertIn("-RedirectStandardOutput", launcher_source)
-        self.assertIn("-RedirectStandardError", launcher_source)
+        self.assertNotIn("-RedirectStandardOutput", launcher_source)
+        self.assertNotIn("-RedirectStandardError", launcher_source)
+        self.assertIn("run_backend_console.py", runner_source)
+        self.assertIn("title YOLO Dental - Backend Console", runner_source)
+        self.assertIn('set "PYTHONIOENCODING=utf-8"', runner_source)
         self.assertIn('set "PYTHONUNBUFFERED=1"', runner_source)
         self.assertIn('set "PYTHONFAULTHANDLER=1"', runner_source)
         self.assertIn("$env:PYTHON_EXE", launcher_source)
@@ -763,7 +767,9 @@ class ProjectLauncherTests(unittest.TestCase):
             shutil.copy2(project_root / "scripts" / "start_project.ps1", launcher)
             failing_runner = script_dir / "fail-immediately.bat"
             failing_runner.write_text(
-                "@echo simulated startup failure 1>&2\r\n@exit /b 7\r\n",
+                "@echo simulated startup failure 1>&2\r\n"
+                '@echo simulated startup failure > "%~dp0..\\logs\\gradio.stderr.log"\r\n'
+                "@exit /b 7\r\n",
                 encoding="utf-8",
             )
 

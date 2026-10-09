@@ -40,12 +40,12 @@ foreach ($item in $items) {
     }
 }
 
-# The hidden command runner is not matched by app.py's command line.
+# The console command runner is not matched by app.py's command line.
 # Stop it explicitly so repeated restarts do not leave stale background processes.
 foreach ($runner in $runners) {
     Stop-Process -Id $runner.ProcessId -Force -ErrorAction SilentlyContinue
     if (-not $Quiet) {
-        Write-Host ("[INFO] Stopped background runner PID " + $runner.ProcessId)
+        Write-Host ("[INFO] Stopped backend console runner PID " + $runner.ProcessId)
     }
 }
 

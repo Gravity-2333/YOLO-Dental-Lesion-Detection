@@ -13,7 +13,6 @@ $RunScript = if ($RunScript) {
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $runScriptPath = (Resolve-Path $RunScript).Path
 $logDirectory = Join-Path $projectRoot "logs"
-$stdoutLog = Join-Path $logDirectory "gradio.stdout.log"
 $stderrLog = Join-Path $logDirectory "gradio.stderr.log"
 
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
@@ -29,15 +28,14 @@ if (-not $env:PYTHON_EXE -and (Test-Path -LiteralPath $configPath)) {
     }
 }
 
-# Keep the long-running command processor minimized while retaining diagnostics.
+# The runner mirrors output to the console and logs. Do not redirect its streams,
+# which would leave the visible backend window empty again.
 $runnerArguments = '/d /s /c ""{0}""' -f $runScriptPath
 $runner = Start-Process `
     -FilePath $env:ComSpec `
     -ArgumentList $runnerArguments `
     -WorkingDirectory $projectRoot `
-    -WindowStyle Minimized `
-    -RedirectStandardOutput $stdoutLog `
-    -RedirectStandardError $stderrLog `
+    -WindowStyle Normal `
     -PassThru
 
 $exitedEarly = $runner.WaitForExit(1500)
@@ -48,12 +46,12 @@ if ($exitedEarly) {
     } else {
         ""
     }
-    $message = "[ERROR] Background service runner exited immediately with code $($runner.ExitCode)."
+    $message = "[ERROR] Backend console runner exited immediately with code $($runner.ExitCode)."
     if ($stderrTail) {
         $message += [Environment]::NewLine + $stderrTail
     }
     throw $message
 }
 
-Write-Host ("[INFO] Background service runner PID: " + $runner.Id)
+Write-Host ("[INFO] Backend console runner PID: " + $runner.Id)
 Write-Host ("[INFO] Service logs: " + $logDirectory)

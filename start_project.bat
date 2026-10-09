@@ -11,10 +11,10 @@ call "%PROJECT_ROOT%stop_project.bat" --from-start
 
 if not exist "%YOLO_CONFIG_DIR%" mkdir "%YOLO_CONFIG_DIR%"
 
-echo [INFO] Starting Gradio frontend service...
+echo [INFO] Starting Gradio service in a live backend console...
 powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%PROJECT_ROOT%scripts\start_project.ps1"
 if errorlevel 1 (
-    echo [ERROR] Failed to start the background service.
+    echo [ERROR] Failed to start the backend service.
     exit /b 1
 )
 
