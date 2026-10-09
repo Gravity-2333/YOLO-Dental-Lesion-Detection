@@ -71,6 +71,7 @@ class ImageAsset:
     height: int | None
     metadata_scrubbed: bool
     created_at: str
+    asset_role: str = "original"
 
 
 @dataclass(frozen=True, slots=True)

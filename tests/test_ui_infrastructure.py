@@ -78,6 +78,19 @@ from src.dental_detection.ui_workbench_page import (
 )
 
 
+def _saved_case_state(storage_dir: str) -> list[dict]:
+    task = app.record_completed_detection(
+        storage_dir, "personal-self", "test-model", parameters={}, result_summary={}
+    )
+    image = Image.new("RGB", (64, 32))
+    return [{
+        "name": "case-image.png", "patient_id": "personal-self", "task_id": task.id,
+        "quality_text": "图像质量正常",
+        "result": {"model": "test-model", "original": image, "model_input": image,
+                   "annotated": image, "detections": []},
+    }]
+
+
 class UiAssetTests(unittest.TestCase):
     def test_examples_use_unmarked_real_dataset_images(self) -> None:
         choices = example_choices()
@@ -994,7 +1007,8 @@ class UiContentTests(unittest.TestCase):
 
         page_source = inspect.getsource(build_cases_page)
         self.assertIn('"移入回收站"', page_source)
-        self.assertIn('"导出病例报告"', page_source)
+        self.assertIn('"导出报告"', page_source)
+        self.assertIn('"打开到工作台"', page_source)
         self.assertGreaterEqual(page_source.count("interactive=False"), 3)
         source = app.ui_event_binding_source()
         event_source = source.split("case_select.change(", 1)[1].split(
@@ -1005,6 +1019,15 @@ class UiContentTests(unittest.TestCase):
         self.assertIn("outputs=[delete_case_btn, export_case_btn]", event_source)
         self.assertIn("queue=False", event_source)
         self.assertIn('show_progress="hidden"', event_source)
+
+    def test_case_mobile_actions_do_not_reuse_desktop_width_as_height(self) -> None:
+        css = (app.PROJECT_ROOT / "assets/styles/34-record-workspace.css").read_text(encoding="utf-8")
+        mobile = css.split("@media (max-width: 640px)", 1)[1]
+        self.assertIn(".case-workspace .record-patient-bar > .record-toolbar-button", mobile)
+        self.assertIn("flex: 0 0 48px !important", mobile)
+        self.assertIn("max-height: 48px !important", mobile)
+        self.assertIn(".case-workspace .record-detail-toolbar", mobile)
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr))", mobile)
 
     def test_history_actions_follow_the_available_records(self) -> None:
         empty_delete, empty_clear = app.record_action_button_state("")
@@ -1202,14 +1225,7 @@ class UiContentTests(unittest.TestCase):
 
     def test_case_trash_feedback_does_not_expose_storage_path(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            state = [
-                {
-                    "name": "case-image.png",
-                    "patient_id": "patient-1",
-                    "quality_text": "图像质量正常",
-                    "result": {"detections": []},
-                }
-            ]
+            state = _saved_case_state(temp_dir)
             saved = app.save_case_record(
                 state,
                 "case-image.png",
@@ -1225,7 +1241,7 @@ class UiContentTests(unittest.TestCase):
                 "",
                 "",
                 temp_dir,
-                "patient-1",
+                "personal-self",
             )
 
             self.assertEqual(deleted[2], "病例已移入回收站。")
@@ -1234,15 +1250,7 @@ class UiContentTests(unittest.TestCase):
 
     def test_repeated_case_save_reuses_the_same_detection_record(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            state = [
-                {
-                    "name": "case-image.png",
-                    "patient_id": "patient-1",
-                    "task_id": "task-1",
-                    "quality_text": "图像质量正常",
-                    "result": {"detections": []},
-                }
-            ]
+            state = _saved_case_state(temp_dir)
 
             first = app.save_case_record(
                 state, "case-image.png", "复查-001", "同一备注", temp_dir

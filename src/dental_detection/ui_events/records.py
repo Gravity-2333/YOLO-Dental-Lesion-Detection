@@ -91,7 +91,7 @@ def bind_export_and_record_events(c: SimpleNamespace, h: ModuleType) -> None:
         inputs=[c.report_path, c.storage_dir],
         show_progress="hidden",
     )
-    c.save_case_btn.click(
+    save_case_event = c.save_case_btn.click(
         fn=h.save_case_record,
         inputs=[
             c.batch_state,
@@ -99,6 +99,7 @@ def bind_export_and_record_events(c: SimpleNamespace, h: ModuleType) -> None:
             c.case_id,
             c.case_note,
             c.storage_dir,
+            c.case_patient_select,
         ],
         outputs=[
             c.case_feedback,
@@ -177,6 +178,35 @@ def bind_export_and_record_events(c: SimpleNamespace, h: ModuleType) -> None:
         fn=h.record_action_button_state,
         inputs=c.case_select,
         outputs=[c.delete_case_btn, c.export_case_btn],
+        queue=False,
+        show_progress="hidden",
+    )
+    c.case_select.change(
+        fn=h.case_reopen_button_state,
+        inputs=[c.case_select, c.storage_dir, c.case_patient_select],
+        outputs=c.reopen_case_btn,
+        trigger_mode="always_last",
+        show_progress="hidden",
+    )
+    reopen_case_event = c.reopen_case_btn.click(
+        fn=h.reopen_case_to_workbench,
+        inputs=[c.case_select, c.storage_dir, c.case_patient_select, c.patient_select, c.show_summary],
+        outputs=[
+            c.image, *c.common_outputs, c.case_id, c.case_note, c.case_feedback,
+            c.current_conversation_file_state, c.conversation_title_input, c.main_tabs,
+            c.primary_model_path, c.compare_model_path, c.model_mode, c.settings_model_mode,
+            c.conf, c.iou, c.device_choice, c.use_clahe, c.enable_compare, c.workbench_model_status,
+        ],
+        concurrency_limit=1,
+        concurrency_id=h.INFERENCE_CONCURRENCY_ID,
+        show_progress="minimal",
+    )
+    h.gr.on(
+        triggers=[c.patient_select.input, c.case_patient_select.input, c.history_patient_select.input,
+                  c.clear_session_btn.click, c.save_settings_btn.click, c.add_patient_btn.click,
+                  c.archive_patient_btn.click, c.restore_patient_btn.click],
+        fn=None,
+        cancels=[save_case_event, reopen_case_event],
         queue=False,
         show_progress="hidden",
     )

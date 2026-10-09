@@ -39,7 +39,7 @@ class HomePageTests(unittest.TestCase):
 
         self.assertIn('with gr.Tab("首页"):', source)
         self.assertIn("build_home_page()", source)
-        self.assertLess(source.index('with gr.Tab("首页"):'), source.index('with gr.Tab("检测工作台"):'))
+        self.assertLess(source.index('with gr.Tab("首页"):'), source.index('with gr.Tab("检测工作台", id="workbench"):'))
 
     def test_home_styles_are_loaded_as_their_own_bundle_module(self) -> None:
         bundle_names = [path.name for path in CSS_BUNDLE_FILES]

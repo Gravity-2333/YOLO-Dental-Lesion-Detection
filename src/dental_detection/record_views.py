@@ -33,10 +33,13 @@ def case_choices_from_rows(rows: list[dict[str, Any]]) -> list[tuple[str, str]]:
         case_id = _short_choice_text(row.get("病例编号") or "")
         image_name = _short_choice_text(row.get("图片名称") or "未命名图片")
         record_name = case_id if case_id != "-" else image_name
-        label_parts = [created_at, record_name]
         if case_id != "-" and image_name not in {"-", "当前单图", case_id}:
-            label_parts.append(image_name)
-        choice_parts.append((" · ".join(label_parts), file_name))
+            record_name += f" · {image_name}"
+        data = row.get("_data") or {}
+        state = "含影像" if data.get("case_format_version", 1) == 2 else "仅摘要"
+        count = _integer(row.get("检测数量"))
+        label = f"{record_name}\n{created_at} · {count} 个标记 · {state}"
+        choice_parts.append((label, file_name))
 
     totals = Counter(label for label, _ in choice_parts)
     positions: Counter[str] = Counter()

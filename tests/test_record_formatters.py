@@ -44,9 +44,9 @@ class RecordFormatterPrivacyTests(unittest.TestCase):
         self.assertEqual(
             choices,
             [
-                ("2026-08-27 01:27:21 · 复查-001", "case_internal_001.json"),
+                ("复查-001\n2026-08-27 01:27:21 · 0 个标记 · 仅摘要", "case_internal_001.json"),
                 (
-                    "2026-08-27 01:27:21 · 复查-002 · 右侧牙片.png",
+                    "复查-002 · 右侧牙片.png\n2026-08-27 01:27:21 · 0 个标记 · 仅摘要",
                     "case_internal_002.json",
                 ),
             ],

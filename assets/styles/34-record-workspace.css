@@ -28,6 +28,48 @@
   overflow: visible !important;
 }
 
+.case-workspace {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.case-workspace .record-workspace-header {
+  align-items: center;
+  min-height: 94px;
+  padding: 20px 28px;
+  border-bottom: 1px solid #dfe5e2;
+  background: #ffffff;
+  color: #25332d;
+}
+
+.case-workspace .record-workspace-header h2 {
+  margin: 5px 0 0;
+  color: #1d2927;
+  font-size: 1.4rem;
+}
+
+.case-workspace .record-workspace-header p {
+  display: none;
+}
+
+.case-workspace .record-workspace-header-host .html-container,
+.case-workspace .record-workspace-header-host .prose {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.case-workspace .record-header-help .context-help-trigger {
+  border-color: #b8c8c1;
+  background: #f5f8f6;
+  color: #476559;
+}
+
+.case-workspace .record-header-help .context-help > .context-help-trigger:hover {
+  border-color: #7da493;
+  background: #eaf3ee;
+  color: #335f4d;
+}
+
 .record-workspace-header {
   position: relative;
   display: flex;
@@ -942,6 +984,7 @@ button.record-save-button::before {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   border-top: 1px solid #dfe5e2;
   border-left: 1px solid #dfe5e2;
+  margin: 0;
 }
 
 .record-meta-item {
@@ -957,10 +1000,15 @@ button.record-save-button::before {
   display: block;
 }
 
-.record-meta-item span {
+.record-meta-item span,
+.record-meta-item dt {
   margin-bottom: 5px;
   color: #75827e;
   font-size: 0.7rem;
+}
+
+.record-meta-item dd {
+  margin: 0;
 }
 
 .record-meta-item strong {
@@ -969,6 +1017,116 @@ button.record-save-button::before {
   font-size: 0.82rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Compact label/value grids follow Tabler's auto-fit datagrid pattern. */
+.case-workspace .record-meta-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 144px), 1fr));
+}
+
+.case-workspace .record-meta-item strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.case-workspace .record-detail-toolbar {
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+}
+
+.case-reopen-button {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 156px !important;
+  max-width: 200px !important;
+  min-height: 44px !important;
+  height: 44px !important;
+  border-radius: 5px !important;
+}
+
+.case-navigator label span {
+  white-space: pre-line !important;
+  line-height: 1.7;
+}
+
+.case-image-review {
+  padding: 20px 0 6px;
+  border-bottom: 1px solid #e2e7e4;
+}
+
+.case-image-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.case-image-heading h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: #1d2927;
+}
+
+.case-integrity-status {
+  color: #176d64;
+  font-size: 0.75rem;
+}
+
+.case-image-figure {
+  margin: 0 0 16px;
+  min-width: 0;
+}
+
+.case-image-figure figcaption {
+  margin: 0 0 8px;
+  color: #65736e;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.case-image-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 520px;
+  object-fit: contain;
+  background: #f0f3f2;
+  border: 1px solid #dce4e0;
+  border-radius: 4px;
+}
+
+.case-source-images,
+.case-quality-details {
+  margin: 10px 0;
+}
+
+.case-source-images > summary,
+.case-quality-details > summary {
+  padding: 10px 0;
+  color: #3e5951;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.case-snapshot-notice {
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border-left: 3px solid #b48b52;
+  background: #f8f6f1;
+  color: #695332;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.case-snapshot-notice.is-error {
+  border-color: #bb635f;
+  background: #faf0ef;
+  color: #963e38;
 }
 
 .record-detail-section {
@@ -1568,6 +1726,25 @@ button.record-save-button::before {
     max-width: none !important;
     min-width: 0 !important;
     margin-bottom: 0 !important;
+  }
+
+  .case-workspace .record-patient-bar > .record-toolbar-button,
+  .case-workspace .record-save-button {
+    flex: 0 0 48px !important;
+    height: 48px !important;
+    max-height: 48px !important;
+  }
+
+  .case-workspace .record-detail-toolbar {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px !important;
+  }
+
+  .case-workspace .case-reopen-button {
+    grid-column: 1 / -1;
+    width: 100% !important;
+    max-width: none !important;
   }
 
   .record-strip-heading {

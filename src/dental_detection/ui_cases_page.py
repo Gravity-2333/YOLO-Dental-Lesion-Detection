@@ -46,6 +46,7 @@ class CasesComponents:
     search_button: Any
     delete_button: Any
     export_button: Any
+    reopen_button: Any
     case_select: Any
     case_table: Any
     report_file: Any
@@ -232,12 +233,16 @@ def build_cases_page(data: CasesPageData) -> CasesComponents:
 
             with gr.Column(scale=7, min_width=480, elem_classes=["record-detail-pane"]):
                 with gr.Row(elem_classes=["record-detail-toolbar"], equal_height=True):
-                    gr.HTML(
-                        '<div><span>CASE REVIEW</span><h3>病例详情</h3></div>',
-                        elem_classes=["record-detail-title"],
+                    reopen_button = gr.Button(
+                        "打开到工作台",
+                        interactive=False,
+                        variant="primary",
+                        elem_classes=["primary-action", "case-reopen-button"],
+                        scale=1,
+                        min_width=148,
                     )
                     export_button = gr.Button(
-                        "导出病例报告",
+                        "导出报告",
                         interactive=False,
                         elem_classes=["secondary-action", "record-toolbar-button"],
                     )
@@ -287,6 +292,7 @@ def build_cases_page(data: CasesPageData) -> CasesComponents:
         search_button=search_button,
         delete_button=delete_button,
         export_button=export_button,
+        reopen_button=reopen_button,
         case_select=case_select,
         case_table=case_table,
         report_file=report_file,

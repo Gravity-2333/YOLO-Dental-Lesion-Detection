@@ -284,6 +284,11 @@ def export_case_report(
     patient_id: str | None = None,
 ) -> Path:
     data = load_case_record(storage_dir, file_name, patient_id)
+    snapshot = None
+    if data.get("case_format_version", 1) != 1:
+        from .case_snapshot import load_case_snapshot
+
+        snapshot = load_case_snapshot(storage_dir, data, patient_id or _case_patient_id(data))
     output_dir = report_dir(storage_dir) / "case_reports"
     output_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -299,7 +304,10 @@ def export_case_report(
     document = Document()
     document.add_heading("牙齿病变区域辅助识别病例记录", level=0)
     document.add_paragraph(SAFETY_NOTICE)
-    document.add_paragraph("该病例记录仅保存检测摘要、检测框和辅助建议，不包含原始牙片图片。")
+    document.add_paragraph(
+        "本病例留存原始影像、模型输入和检测标注，影像完整性校验通过。模型结果未经人工复核。"
+        if snapshot else "该旧病例仅保存检测摘要、检测框和辅助建议，未保存影像，无法完整恢复。"
+    )
     document.add_paragraph(f"保存时间：{data.get('created_at', '-')}")
     document.add_paragraph(f"病例编号：{data.get('case_id', '未填写')}")
     image_name = text_value(data.get("image_name"), "-")
@@ -312,6 +320,26 @@ def export_case_report(
     report_path = data.get("report_path") or data.get("word_report_path") or data.get("zip_report_path")
     if report_path:
         document.add_paragraph(f"关联报告路径：{report_path}")
+
+    if snapshot:
+        from io import BytesIO
+        from docx.shared import Inches
+
+        images = [("原始影像", snapshot["result"]["original"]), ("模型输入", snapshot["result"]["model_input"])]
+        images.extend((f"检测标注：{result['model']}", result["annotated"]) for result in snapshot["all_results"])
+        document.add_heading("留存影像", level=1)
+        for title, image in images:
+            document.add_paragraph(title)
+            buffer = BytesIO()
+            image.save(buffer, format="PNG")
+            buffer.seek(0)
+            document.add_picture(buffer, width=Inches(6))
+        document.add_heading("保存时检测参数", level=1)
+        parameters = snapshot["parameters"]
+        document.add_paragraph(
+            f"置信度阈值：{parameters.get('conf', '-')}；IoU 阈值：{parameters.get('iou', '-')}；"
+            f"CLAHE：{'启用' if parameters.get('use_clahe') else '未启用'}"
+        )
 
     document.add_heading("检测框明细", level=1)
     document.add_paragraph(REGION_NOTICE)

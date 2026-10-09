@@ -21,7 +21,8 @@ from .workspace_models import (
     UserRole,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+IMAGE_ASSET_ROLES = frozenset({"original", "model_input", "annotated"})
 WORKSPACE_DIR_NAME = "workspace"
 WORKSPACE_DATABASE_NAME = "workspace.sqlite3"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -122,6 +123,18 @@ class WorkspaceStore:
                     "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
                     (1, _now()),
                 )
+            if 2 not in applied:
+                if not connection.in_transaction:
+                    connection.execute("BEGIN IMMEDIATE")
+                if connection.execute("SELECT 1 FROM schema_migrations WHERE version = 2").fetchone() is None:
+                    connection.execute(
+                        "ALTER TABLE image_assets ADD COLUMN asset_role TEXT NOT NULL DEFAULT 'original' "
+                        "CHECK(asset_role IN ('original', 'model_input', 'annotated'))"
+                    )
+                    connection.execute(
+                        "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+                        (2, _now()),
+                    )
         return self.database_path
 
     @contextmanager
@@ -498,10 +511,60 @@ class WorkspaceStore:
         height: int | None = None,
         metadata_scrubbed: bool = False,
         image_id: str | None = None,
+        asset_role: str = "original",
     ) -> ImageAsset:
+        with self.image_asset_transaction(owner_user_id, patient_id, task_id, [
+            dict(original_name=original_name, storage_key=storage_key, mime_type=mime_type,
+                 sha256=sha256, byte_size=byte_size, width=width, height=height,
+                 metadata_scrubbed=metadata_scrubbed, image_id=image_id, asset_role=asset_role)
+        ]) as records:
+            return records[0]
+
+    @contextmanager
+    def image_asset_transaction(
+        self,
+        owner_user_id: str,
+        patient_id: str,
+        task_id: str,
+        images: list[dict[str, Any]],
+    ) -> Iterator[list[ImageAsset]]:
+        """Commit all asset rows only after the caller publishes its snapshot files."""
         task = self.get_detection_task(owner_user_id, task_id)
         if task.patient_id != _identifier(patient_id):
             raise RecordNotFoundError("检测任务不属于该患者档案。")
+        records = [self._new_image_record(task, **image) for image in images]
+        with self._connection() as connection:
+            connection.executemany(
+                """INSERT INTO image_assets(
+                    id, owner_user_id, patient_id, task_id, original_name, storage_key, mime_type,
+                    sha256, byte_size, width, height, metadata_scrubbed, created_at, asset_role
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                [(
+                    record.id, record.owner_user_id, record.patient_id, record.task_id,
+                    record.original_name, record.storage_key, record.mime_type, record.sha256,
+                    record.byte_size, record.width, record.height, int(record.metadata_scrubbed),
+                    record.created_at, record.asset_role,
+                ) for record in records],
+            )
+            yield records
+
+    @staticmethod
+    def _new_image_record(
+        task: DetectionTask,
+        *,
+        original_name: str,
+        storage_key: str,
+        mime_type: str,
+        sha256: str,
+        byte_size: int,
+        width: int | None = None,
+        height: int | None = None,
+        metadata_scrubbed: bool = False,
+        image_id: str | None = None,
+        asset_role: str = "original",
+    ) -> ImageAsset:
+        if asset_role not in IMAGE_ASSET_ROLES:
+            raise ValueError("影像资产角色无效。")
         digest = str(sha256 or "").strip().lower()
         if not _SHA256_RE.fullmatch(digest):
             raise ValueError("影像 SHA-256 摘要无效。")
@@ -514,10 +577,10 @@ class WorkspaceStore:
             raise ValueError("影像宽度必须大于零。")
         if image_height is not None and image_height <= 0:
             raise ValueError("影像高度必须大于零。")
-        record = ImageAsset(
+        return ImageAsset(
             id=_identifier(image_id, generate=True),
-            owner_user_id=_identifier(owner_user_id),
-            patient_id=_identifier(patient_id),
+            owner_user_id=task.owner_user_id,
+            patient_id=task.patient_id,
             task_id=task.id,
             original_name=Path(_required_text(original_name, "原始文件名", max_length=255)).name,
             storage_key=normalize_storage_key(storage_key),
@@ -528,30 +591,8 @@ class WorkspaceStore:
             height=image_height,
             metadata_scrubbed=bool(metadata_scrubbed),
             created_at=_now(),
+            asset_role=asset_role,
         )
-        with self._connection() as connection:
-            connection.execute(
-                """INSERT INTO image_assets(
-                    id, owner_user_id, patient_id, task_id, original_name, storage_key, mime_type,
-                    sha256, byte_size, width, height, metadata_scrubbed, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    record.id,
-                    record.owner_user_id,
-                    record.patient_id,
-                    record.task_id,
-                    record.original_name,
-                    record.storage_key,
-                    record.mime_type,
-                    record.sha256,
-                    record.byte_size,
-                    record.width,
-                    record.height,
-                    int(record.metadata_scrubbed),
-                    record.created_at,
-                ),
-            )
-        return record
 
     def get_image_asset(self, owner_user_id: str, image_id: str) -> ImageAsset:
         self.initialize()
@@ -713,6 +754,7 @@ class WorkspaceStore:
             height=row["height"],
             metadata_scrubbed=bool(row["metadata_scrubbed"]),
             created_at=row["created_at"],
+            asset_role=row["asset_role"],
         )
 
     @staticmethod

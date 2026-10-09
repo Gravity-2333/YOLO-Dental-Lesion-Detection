@@ -64,6 +64,9 @@ from src.dental_detection.case_store import (
     move_case_to_trash,
     search_case_records,
 )
+from src.dental_detection.case_snapshot import (
+    case_snapshot_detail_data, load_case_snapshot, reusable_case_snapshot, save_case_snapshot,
+)
 from src.dental_detection.config import DEFAULT_MODEL_PATH, MODEL_REGISTRY, PROJECT_ROOT
 from src.dental_detection.batch_summary import build_batch_summary
 from src.dental_detection.batch_overview_view import batch_overview_csv_text, batch_overview_html
@@ -1879,8 +1882,13 @@ def save_case_record(
     case_id: str,
     case_note: str,
     storage_dir: str,
+    patient_id: str | None = None,
 ):
     item = _current_item(batch_state, selected_name)
+    if patient_id and item.get("patient_id") != patient_id:
+        raise gr.Error("当前检测不属于所选患者，请先切换到对应患者再保存。")
+    if not item.get("task_id"):
+        raise gr.Error("检测任务尚未保存成功，请检查数据目录并重新检测后再保存病例。")
     result = item.get("result") or item
     _ensure_storage_root(storage_dir)
     now = datetime.now()
@@ -1916,17 +1924,17 @@ def save_case_record(
         note=payload["note"],
         image_name=payload["image_name"],
     )
-    if existing:
+    if existing and reusable_case_snapshot(storage_dir, existing["_data"], payload, item):
         payload = existing["_data"]
         selected_file_name = existing["文件名"]
         message = "相同病例已保存，未重复创建。"
     else:
         safe_case = _safe_stem(case_id_text or image_name or "case")
         path = _unique_case_path(storage_dir, stamp, safe_case)
-        _write_text(
-            path,
-            json.dumps(json_safe_value(payload), ensure_ascii=False, indent=2, allow_nan=False),
-        )
+        try:
+            payload = save_case_snapshot(storage_dir, path.name, payload, item, _item_results(item))
+        except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
+            raise _friendly_gr_error(exc, "病例保存失败") from exc
         selected_file_name = path.name
         message = "病例记录已保存。"
     rows = list_case_records(storage_dir, item.get("patient_id"), limit=CASE_UI_LIMIT)
@@ -1939,7 +1947,7 @@ def save_case_record(
         message,
         gr.update(choices=choices, value=selected),
         _case_table_html(rows),
-        case_record_detail_html(payload),
+        case_record_detail_html(case_snapshot_detail_data(storage_dir, payload)),
         _clear_file_output(),
         "",
     )
@@ -2096,7 +2104,8 @@ def load_case_record(
     except gr.Error:
         return case_record_detail_html({"错误": "病例选择无效，请刷新病例列表后重试。"})
     try:
-        return case_record_detail_html(load_case_record_data(storage_dir, file_name, patient_id))
+        data = load_case_record_data(storage_dir, file_name, patient_id)
+        return case_record_detail_html(case_snapshot_detail_data(storage_dir, data))
     except (OSError, UnicodeDecodeError, ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
         return case_record_detail_html({"错误": f"病例文件损坏或无法读取：{exc}"})
 
@@ -2107,6 +2116,80 @@ def load_case_record_and_clear_export(
     patient_id: str | None = None,
 ):
     return load_case_record(choice, storage_dir, patient_id), _clear_file_output(), ""
+
+
+def case_reopen_button_state(choice: str, storage_dir: str, patient_id: str | None = None):
+    enabled = False
+    if choice:
+        try:
+            data = load_case_record_data(storage_dir, _case_file_name_from_choice(choice), patient_id)
+            detail = case_snapshot_detail_data(storage_dir, data)
+            enabled = bool(detail.get("_previews")) and not detail.get("_snapshot_error")
+        except (OSError, ValueError, gr.Error):
+            pass
+    return gr.update(interactive=enabled)
+
+
+def reopen_case_to_workbench(
+    choice: str,
+    storage_dir: str,
+    patient_id: str,
+    current_patient_id: str,
+    show_summary: bool,
+):
+    if str(patient_id) != str(current_patient_id):
+        raise gr.Error("患者档案尚未同步，请重新选择患者后再打开病例。")
+    try:
+        data = load_case_record_data(storage_dir, _case_file_name_from_choice(choice), patient_id)
+        item = load_case_snapshot(storage_dir, data, patient_id)
+    except (OSError, sqlite3.Error, WorkspaceError, TypeError, ValueError) as exc:
+        raise _friendly_gr_error(exc, "病例恢复失败") from exc
+    item.pop("_previews", None)
+    item.pop("_source_previews", None)
+    for result in item["all_results"]:
+        result["table"] = _table_from_records(result["detections"])
+    view = _batch_item_view(item)
+    result = item["result"]
+    chat_history = _conversation_from_advice(item["advice"])
+    values = dict(zip(COMMON_OUTPUT_KEYS, clear_outputs_with_quality(None)))
+    values.update({
+        "original": result["original"], "model_input": result["model_input"],
+        "result": result["annotated"], "comparison_section": view["comparison_section"],
+        "comparison_view": view["comparison_view"], "visible_class_filter": view["visible_class_filter"],
+        "detection_table": result["table"], "advice": item["advice"], "quality": item["quality_text"],
+        "summary": gr.update(value=item["summary"], visible=show_summary),
+        "batch_state": [item], "batch_select": gr.update(choices=[_item_display_name(item)], value=_item_display_name(item)),
+        "chatbot": chat_history, "chat_state": chat_history,
+        "download_result_button": gr.update(value="下载结果图片", interactive=True),
+        "word_export_button": gr.update(value="导出 Word 报告", interactive=True),
+        "zip_export_button": gr.update(value="导出 ZIP 数据包", interactive=True),
+        "save_case_button": gr.update(value="保存病例", interactive=True),
+        "report_export_menu_button": gr.update(value="导出", interactive=True),
+        "report_export_status": "已恢复保存时的病例结果，未重新运行模型。",
+    })
+    for key, field in (("word", "word_report_path"), ("zip", "zip_report_path")):
+        path = item.get(field, "")
+        values[f"{key}_report_file"] = _file_component_output(path)
+        values[f"{key}_report_path"] = path
+        values[f"{key}_open_button"] = gr.update(visible=bool(path))
+    models = item["all_results"]
+    parameters = item["parameters"]
+    compare = len(models) > 1
+    mode = MODEL_MODE_COMPARE if compare else MODEL_MODE_SINGLE
+    primary_path = models[0].get("model_path") or ""
+    compare_path = models[1].get("model_path") if compare else ""
+    device = parameters.get("device", "cpu")
+    device_choices = _device_choices()
+    if device not in {value for _, value in device_choices}:
+        device_choices.append((f"{device}（保存时设备，当前不可用）", device))
+    return (
+        result["original"], *common_output_values(values), data.get("case_id", ""), data.get("note", ""),
+        "病例已恢复到检测工作台，未重新推理。", "", "", gr.update(selected="workbench"),
+        gr.update(value=primary_path), gr.update(value=compare_path) if compare else gr.update(),
+        mode, mode, parameters.get("conf", 0.25), parameters.get("iou", 0.7),
+        gr.update(choices=device_choices, value=device), bool(parameters.get("use_clahe", False)), compare,
+        _workbench_model_status_html(primary_path, device),
+    )
 
 
 def record_action_button_state(choice: Any):
@@ -3989,10 +4072,10 @@ def build_app() -> gr.Blocks:
         )
         gr.HTML(APP_HEADER_HTML, container=False)
 
-        with gr.Tabs(elem_classes=["main-tabs"]):
+        with gr.Tabs(elem_classes=["main-tabs"]) as main_tabs:
             with gr.Tab("首页"):
                 build_home_page()
-            with gr.Tab("检测工作台"):
+            with gr.Tab("检测工作台", id="workbench"):
                 workbench = build_workbench_page(
                     WorkbenchPageData(
                         saved=saved,
@@ -4102,6 +4185,7 @@ def build_app() -> gr.Blocks:
         search_case_btn = cases.search_button
         delete_case_btn = cases.delete_button
         export_case_btn = cases.export_button
+        reopen_case_btn = cases.reopen_button
         case_select = cases.case_select
         case_table = cases.case_table
         case_report_file = cases.report_file

@@ -264,11 +264,45 @@ def _detail_empty(title: str, message: str) -> str:
 def _record_meta_html(items: list[tuple[str, Any]]) -> str:
     cells = "".join(
         '<div class="record-meta-item">'
-        f'<span>{escape(label)}</span><strong>{_html_text(value)}</strong>'
+        f'<dt>{escape(label)}</dt><dd><strong>{_html_text(value)}</strong></dd>'
         "</div>"
         for label, value in items
     )
-    return f'<div class="record-meta-grid">{cells}</div>'
+    return f'<dl class="record-meta-grid">{cells}</dl>'
+
+
+def _case_image_review_html(data: dict[str, Any]) -> str:
+    error = data.get("_snapshot_error")
+    if error:
+        return '<div class="case-snapshot-notice is-error" role="status">' + _html_text(error) + "</div>"
+    if data.get("case_format_version", 1) == 1:
+        return '<div class="case-snapshot-notice" role="status">该旧病例未保存影像，无法完整恢复</div>'
+    previews = data.get("_previews") or []
+    figures = []
+
+    def figure(title: str, uri: Any) -> str:
+        if not isinstance(uri, str) or not uri.startswith("data:image/png;base64,"):
+            return ""
+        return (
+            '<figure class="case-image-figure">'
+            f'<figcaption>{escape(title)}</figcaption>'
+            f'<img src="{escape(uri, quote=True)}" alt="{escape(title, quote=True)}" loading="lazy" />'
+            "</figure>"
+        )
+
+    for preview in previews:
+        model = _model_display_name(preview.get("model"), "模型")
+        figures.append(figure(f"检测标注 · {model}", preview.get("annotated")))
+    sources = data.get("_source_previews") or {}
+    source_html = figure("原始影像", sources.get("original")) + figure("模型输入", sources.get("model_input"))
+    return (
+        '<section class="case-image-review" aria-label="病例影像">'
+        '<div class="case-image-heading"><h4>留存影像</h4>'
+        '<span class="case-integrity-status">完整性校验通过</span></div>'
+        + "".join(figures)
+        + ('<details class="case-source-images"><summary>原始影像 / 模型输入</summary>' + source_html + "</details>" if source_html else "")
+        + "</section>"
+    ) if figures else ""
 
 
 def _model_summary_html(model_results: Any) -> str:
@@ -282,7 +316,7 @@ def _model_summary_html(model_results: Any) -> str:
         rows.append(
             '<div class="record-model-row">'
             f'<span class="record-model-index">{index:02d}</span>'
-            f'<strong>{escape(model)}</strong><span>{len(detections)} 个检测框</span>'
+            f'<strong title="{escape(model, quote=True)}">{escape(model)}</strong><span>{len(detections)} 个检测框</span>'
             "</div>"
         )
     return (
@@ -381,11 +415,26 @@ def case_record_detail_html(data: dict[str, Any] | None) -> str:
         f'<span class="record-status record-status-{tone}">{escape(level_label)}</span></header>'
         + _record_meta_html(
             [
-                ("保存时间", data.get("created_at")),
+                ("保存时间", text_value(data.get("created_at")).replace("T", " ", 1)),
                 ("检测框", len(detections)),
                 ("建议来源", _suggestion_source_label(data.get("suggestion_type"))),
                 ("报告", _path_artifact_name(data.get("report_path") or data.get("word_report_path")) or "未生成"),
             ]
+        )
+        + _case_image_review_html(data)
+        + (
+            '<section class="record-detail-section case-parameters"><div class="record-section-heading">'
+            '<div><span>ACQUISITION</span><h4>检测参数与影像质量</h4></div>'
+            '<span class="record-status record-status-low">未经人工复核</span></div>'
+            + _record_meta_html([
+                ("置信度阈值", data["parameters"].get("conf")),
+                ("IoU 阈值", data["parameters"].get("iou")),
+                ("CLAHE", "已启用" if data["parameters"].get("use_clahe") else "未启用"),
+                ("影像质量", data.get("quality_level") or "未记录"),
+            ])
+            + '<details class="case-quality-details"><summary>影像质量明细</summary>'
+            + f'<div class="record-advice">{_html_paragraphs(data.get("quality_text"))}</div></details></section>'
+            if isinstance(data.get("parameters"), dict) else ""
         )
         + (
             '<section class="record-detail-section"><div class="record-section-heading">'

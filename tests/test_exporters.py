@@ -71,6 +71,10 @@ class ExporterTests(unittest.TestCase):
         ]
 
         with TemporaryDirectory() as temp_dir:
+            task = app.record_completed_detection(
+                temp_dir, "personal-self", "主模型", parameters={}, result_summary={}
+            )
+            state[0].update(patient_id="personal-self", task_id=task.id)
             _, zip_path_text, state = app.export_single_report(state, "当前单图", temp_dir)
             _, word_path_text, state = app.export_word_report(state, "当前单图", temp_dir)
             _, image_path_text = app.download_result_image(state, "当前单图", temp_dir)
